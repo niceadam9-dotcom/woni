@@ -31,7 +31,7 @@ export function SubmissionWidget({ myId, defaultMine }: { myId: string; defaultM
         {open ? <ChevronDown className="size-3.5 text-ink-faint shrink-0" /> : <ChevronRight className="size-3.5 text-ink-faint shrink-0" />}
         <TableProperties className="size-4 text-brand" />
         <h2 className="text-sm font-semibold text-ink">제출 현황</h2>
-        <span className="text-form-2xs text-ink-faint">최근 90일 · 9호·배치확인서·10·11호</span>
+        <span className="text-form-2xs text-ink-faint">최근 90일 · 9호·배치신고·10·11호</span>
         {/* 요약 스트립 — 펼치지 않아도 위험 신호가 보이게 */}
         <span className="ml-auto flex items-center gap-1.5 text-form-xs shrink-0">
           {!board && !err && <Loader2 className="size-3.5 animate-spin text-ink-faint" />}
@@ -45,7 +45,7 @@ export function SubmissionWidget({ myId, defaultMine }: { myId: string; defaultM
                 9호 미제출 {s.r9NotSubmitted}
               </span>
               <span className={`px-2 py-0.5 rounded-full ${s.certMissing > 0 ? 'bg-amber-50 text-amber-700' : 'bg-brand-line-soft text-ink-sub'}`}>
-                배치확인서 누락 {s.certMissing}
+                배치신고 미완료 {s.certMissing}
               </span>
               <span className="px-2 py-0.5 rounded-full bg-green-50 text-green-700">완료 {s.completed}</span>
             </>

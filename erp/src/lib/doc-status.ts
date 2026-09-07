@@ -74,6 +74,21 @@ export const ARCHIVE_CLEANUP_ACTION = 'fire_plan_archive_cleanup'
  *  metadata: {date, location, memo} */
 export const CERT_PAPER_ACTION = 'cert_paper_archived'
 
+/** ② 협회 배치신고를 **직접 하고 확인서도 직접 보관**함 — 사람이 남기는 완료 표시 (2026-09-07 사용자 확정).
+ *
+ *  종전 ②는 '협회 발급본을 ERP에 보관한다'가 전제라 완료하려면 파일을 올리거나(certFile) 종이
+ *  보관 위치를 적어야 했다(CERT_PAPER_ACTION). 실제로는 대표가 협회에서 직접 신고하고 확인서도
+ *  직접 갖고 있어 ERP에 사본을 둘 이유가 없다 — 그래서 업로드·보기·삭제·신고정보복사 표면을
+ *  전부 걷어내고 **신고일 한 칸**으로 완료를 남긴다.
+ *
+ *  CERT_PAPER_ACTION과 나누는 이유: 저쪽은 '스캔본이 없고 종이를 어디에 뒀다'는 **보관 위치** 기록이고,
+ *  이쪽은 '신고를 마쳤다'는 **행위** 기록이다. 합치면 위치가 필수가 되어 다시 칸이 늘어난다.
+ *  metadata: {date}. 해제는 CERT_REPORTED_UNDO_ACTION이 뒤에 붙는 것으로 판정한다(append-only). */
+export const CERT_REPORTED_ACTION = 'cert_reported'
+/** 위 완료 표시의 철회 — activity_logs는 append-only라 지우지 못하므로 **뒤에 오는 마커**로 덮는다.
+ *  판정은 '가장 최근 마커가 무엇인가' 한 줄이다(created_at 내림차순 1건). */
+export const CERT_REPORTED_UNDO_ACTION = 'cert_reported_undo'
+
 /** 단계 완료 **판정의 근거**가 되는 마커들 — 보존 만료로 지우면 완료된 단계가 되살아난다.
  *  로그 보존 크론(purge-activity-logs)이 회차 마커를 지우지 않도록 이 목록을 한 곳에서 관리한다.
  *  (종전에는 ARCHIVE_CLEANUP_ACTION만 제외돼, 24개월이 지나면 오프라인 보고·사유 완료 마커가
@@ -81,6 +96,9 @@ export const CERT_PAPER_ACTION = 'cert_paper_archived'
 export const EVIDENCE_MARKER_ACTIONS = [
   ARCHIVE_CLEANUP_ACTION,
   CERT_PAPER_ACTION,
+  CERT_REPORTED_ACTION,
+  // 철회 마커도 보존해야 한다 — 이것만 지워지면 **완료가 되살아난다**(덮개가 사라지므로).
+  CERT_REPORTED_UNDO_ACTION,
   OWNER_REPORT_OFFLINE_ACTION,
   STEP_FORCE_COMPLETE_ACTION,
   STEP_FORCE_UNDO_ACTION,
@@ -98,15 +116,30 @@ export async function findArchivedCertInspections(
   // ⚠ 종전엔 `.limit(Math.max(1000, n*20))`으로 "상한을 명시"했는데 **그 상한은 지켜지지 않는다** —
   // PostgREST는 요청당 1000행이 하드 상한이라 1000을 넘겨 적어도 1000에서 잘린다(2026-08-19 실측).
   // 지켜지지도 않는 숫자가 안전하다는 인상만 줬다. 페이지를 나눠 끝까지 받는다.
-  const { rows } = await fetchAllRows<{ entity_id: string }>((from, to) => admin.from('activity_logs')
-    .select('entity_id')
-    // 보존 정리(사본 삭제)와 처음부터 종이 보관 — 둘 다 '종이로 갖고 있다'라 누락이 아니다
-    .in('action', [ARCHIVE_CLEANUP_ACTION, CERT_PAPER_ACTION])
+  const { rows } = await fetchAllRows<{ entity_id: string; action: string }>((from, to) => admin.from('activity_logs')
+    .select('entity_id, action')
+    // 보존 정리(사본 삭제)와 처음부터 종이 보관 — 둘 다 '종이로 갖고 있다'라 누락이 아니다.
+    // 2026-09-07: 협회 직접 신고 완료(+철회)도 같은 축이다 — 신고를 마쳤으면 ERP에 사본이 없어도
+    // 누락이 아니다. 이 두 줄을 빼면 화면 ②는 초록인데 보고서 센터·주간 브리핑이 계속 독촉한다.
+    .in('action', [ARCHIVE_CLEANUP_ACTION, CERT_PAPER_ACTION, CERT_REPORTED_ACTION, CERT_REPORTED_UNDO_ACTION])
     .eq('entity_type', 'inspection')
     .in('entity_id', inspectionIds)
-    .order('id')      // 페이지가 겹치거나 건너뛰지 않게 동점 없는 키로 고정
+    // 🔴 시간축은 **created_at**이다 — `id`는 UUID라 정렬해도 시간 순서가 아니다(2026-09-07 실측:
+    //    철회 마커가 완료 마커보다 앞서 접혀 해제가 안 먹혔다). id는 동점 깨기용으로만 뒤에 붙인다
+    //    (페이지가 겹치거나 건너뛰지 않으려면 전순서가 필요하다).
+    .order('created_at').order('id')
     .range(from, to))
-  return new Set(rows.map(r => r.entity_id))
+  // 신고 완료/철회는 **나중 것이 이긴다**(append-only라 지울 수 없다) — 시간 오름차순으로 접는다.
+  // 종이 보관·보존 정리는 철회 개념이 없어 한 번 있으면 계속 유효하다(두 축을 섞지 않는다).
+  const out = new Set<string>()
+  const reported = new Set<string>()
+  for (const r of rows) {
+    if (r.action === CERT_REPORTED_ACTION) reported.add(r.entity_id)
+    else if (r.action === CERT_REPORTED_UNDO_ACTION) reported.delete(r.entity_id)
+    else out.add(r.entity_id)
+  }
+  for (const id of reported) out.add(id)
+  return out
 }
 
 /** R8: 배치확인서 누락 — 완료된 자체점검 & cert 슬롯 없음 & 종이 정리 이력 없음

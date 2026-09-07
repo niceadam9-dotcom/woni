@@ -102,10 +102,12 @@ export function InspectionDocRows({ i, customerName, isPending, open, generate, 
             </>)}
             {feedback(k('r9'))}
           </div>
-          {/* 배치확인서 */}
-          <div className={`${rowCls} ${dragOver === 'cert' ? 'bg-brand-tint outline outline-1 outline-dashed outline-brand rounded' : ''}`} {...dropProps('cert')}>
+          {/* 배치신고 — 2026-09-07 업로드 폐지(대표가 협회에 직접 신고).
+              **과거 업로드본 [받기]는 남긴다** — 창구를 없앤다고 이미 있는 파일까지 손에서
+              놓치면 안 된다(문서함은 열람이 본업이다). 완료 표시만 작업대 ②로 보낸다. */}
+          <div className={rowCls}>
             <StatusIcon state={i.cert || i.certArchived ? 'have' : 'warn'} />
-            <span className="font-medium text-ink w-44" title={`${DOC_TERMS.certFull} — 협회 발급본 (자체점검 대행 시 필수)`}>배치확인서</span>
+            <span className="font-medium text-ink w-44" title={`${DOC_TERMS.certFull} — 협회에 직접 신고 후 작업대 ②에서 완료 표시`}>배치신고</span>
             {i.cert ? (<>
               <span className="text-ink-sub">✓ {fmtD(i.cert.at)}</span>
               <span className="ml-auto flex items-center gap-1">
@@ -114,14 +116,12 @@ export function InspectionDocRows({ i, customerName, isPending, open, generate, 
                 </button>
               </span>
             </>) : i.certArchived ? (
-              // 종이 보관 후 정리된 회차 — 누락이 아니다 (소방계획서_18 D-7 ⚠)
-              <span className="text-ink-soft">종이 보관됨 — 과거본 정리로 ERP 사본 삭제</span>
+              // 종이 보관·신고 완료 표시 — 누락이 아니다 (D-7 ⚠ + 2026-09-07 신고 축)
+              <span className="text-ink-soft">신고 완료 — ERP 사본 없음(협회 발급본은 직접 보관)</span>
             ) : (<>
-              <span className="text-amber-600">미업로드 — 협회 발급본 (파일을 끌어다 놓아도 됩니다)</span>
+              <span className="text-amber-600">미완료 — 협회 신고 후 작업대 ②에서 표시</span>
               <span className="ml-auto flex items-center gap-1">
-                <input ref={certRef} type="file" accept=".pdf,.jpg,.jpeg,.png,.hwp" className="hidden"
-                  onChange={e => { const f = e.target.files?.[0]; if (f) upload(i.inspectionId, 'cert', f, k('cert')); e.target.value = '' }} />
-                <button onClick={() => certRef.current?.click()} disabled={isPending} className={subBtn}><Upload className="size-3" /> 업로드</button>
+                <a href={`/inspections/${i.inspectionId}?step=2`} className={subBtn} data-testid="cert-docs-link">신고 표시 →</a>
               </span>
             </>)}
             {feedback(k('cert'))}

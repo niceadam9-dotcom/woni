@@ -319,12 +319,14 @@ export async function searchDocCommandsAction(q: string): Promise<{
       })
     }
     const hasCert = (objects ?? []).some(o => isCertFileName(o.name))
-    // 종이 보관 후 정리된 회차는 '미업로드'가 아니다 — 업로드 재촉 명령을 띄우지 않는다(D-7 ⚠)
+    // 종이 보관·신고 완료 표시가 있으면 재촉 대상이 아니다(D-7 ⚠ + 2026-09-07 신고 축)
     const archived = (await findArchivedCertInspections(admin, [insp.id])).has(insp.id)
     if (!hasCert && !archived) {
       commands.push({
+        // ⚠ kind는 호출부 분기 축이라 이름을 유지한다 — 동작은 2026-09-07에 업로드에서
+        // **작업대 ② 이동**으로 바뀌었다(대표가 협회에 직접 신고하므로 받을 파일이 없다).
         kind: 'upload-cert', customerId: top.id, customerName: top.customer_name,
-        label: `${top.customer_name} · 점검인력 배치확인서 ⚠ 미업로드 (${insp.year}년 ${insp.sequence_num}차)`,
+        label: `${top.customer_name} · 점검인력 배치신고 ⚠ 미완료 (${insp.year}년 ${insp.sequence_num}차)`,
         inspectionId: insp.id,
       })
     }

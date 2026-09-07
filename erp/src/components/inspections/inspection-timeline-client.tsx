@@ -22,7 +22,6 @@ import { DateInput } from '@/components/ui/date-input'
 import { TIMELINE_STEP_LABELS, TIMELINE_STEP_TOOLTIPS, type TimelineStepKey } from '@/lib/doc-requirements'
 import { kstDate } from '@/lib/kst-date'
 import { GeneratedDocList } from '@/components/inspections/generated-doc-list'
-import { PlacementReportHelper } from '@/components/inspections/placement-report-helper'
 import { AnnexComposePanel, type ComposeAnnexNo } from '@/components/inspections/annex-compose-panel'
 import { MessageTemplateModal } from '@/components/settings/message-template-modal'
 import { getReportDownloadUrl } from '@/app/(dashboard)/inspections/report-actions'
@@ -67,8 +66,11 @@ export type TimelineData = {
   certFile: { name: string; path: string } | null
   /** 파일은 없지만 종이 보관 후 정리된 회차 — '업로드 필요'가 아니다 (소방계획서_18 D-7 ⚠) */
   certArchived?: boolean
-  /** 사람이 남긴 **종이 보관** 기록(수령일·보관 위치). 보존 정리로 사본이 지워진 것과 구분해 표시한다 */
+  /** 사람이 남긴 **종이 보관** 기록(수령일·보관 위치). 보존 정리로 사본이 지워진 것과 구분해 표시한다.
+   *  ⚠ 입력 폼은 2026-09-07에 폐지됐다 — 과거 회차 표시 전용(신규 기록은 certReported로 남는다) */
   certPaper?: { date: string; location: string; memo: string } | null
+  /** ② 협회 배치신고 완료 표시(2026-09-07 — 업로드 폐지 후의 기본 완료 경로). 값은 신고일 */
+  certReported?: { date: string } | null
   contractFile: { name: string; path: string } | null
   delivery: { sentTo: string; sentAt: string } | null   // ③ 발송 이력 (최근)
   submit9: { due: string | null; dday: number | null; submittedAt: string | null }
@@ -570,9 +572,10 @@ export function InspectionTimelineClient({ inspectionId, canManage, canComplete,
                     : '협회 발급본 업로드 필요 (자체점검 대행 시 필수)'}
                 </span>
                 <span className="ml-auto flex items-center gap-1.5 shrink-0">
-                  {/* R7 배치신고 도우미 — 신고값 협회 순서 텍스트로 복사 */}
-                  {canManage && <PlacementReportHelper inspectionId={inspectionId} />}
-                  <a href="https://www.kfma.kr" target="_blank" rel="noreferrer" className="text-[10px] text-ink-meta hover:text-brand inline-flex items-center gap-0.5">
+                  {/* R7 배치신고 도우미는 2026-09-07에 폐지됐다(대표가 협회에서 직접 신고).
+                      이 컴포넌트 자체가 작업대(InspectionWorkbench)로 대체된 죽은 코드라
+                      완료 표시 UI를 여기까지 옮기지는 않는다 — 참조가 0인 화면이다. */}
+                  <a href="https://www.kfma.kr" target="_blank" rel="noreferrer" className="text-form-2xs text-ink-meta hover:text-brand inline-flex items-center gap-0.5">
                     협회 <ExternalLink className="size-2.5" />
                   </a>
                   {data.certFile && (

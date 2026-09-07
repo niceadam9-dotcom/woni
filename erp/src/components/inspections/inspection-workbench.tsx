@@ -124,6 +124,12 @@ export function InspectionWorkbench({
   // ② 협회 배치신고 신고일 (2026-09-07) — 기본 오늘, 지난 날짜로 신고했으면 이 칸만 고친다.
   // 이미 완료된 회차는 기록된 신고일을 보여준다(값이 화면에서 사라지면 언제 신고했는지 알 길이 없다)
   const [reportedDate, setReportedDate] = useState(data.certReported?.date || today)
+  /** 체크 상태는 **낙관적으로** 즉시 반영한다 — 서버 왕복(액션 + revalidate)이 끝날 때까지 prop이
+   *  안 바뀌어서, prop에 직접 묶으면 눌러도 체크가 도로 풀린 것처럼 보인다(실측: Playwright가
+   *  "Clicking the checkbox did not change its state"로 잡았다 — 사람 눈에도 같은 증상이다).
+   *  실패하면 되돌린다. prop이 갱신되면 그 값으로 수렴한다. */
+  const [reportedOn, setReportedOn] = useState(!!data.certReported)
+  useEffect(() => { setReportedOn(!!data.certReported) }, [data.certReported])
   // 재방문 안내 (소방계획서_24 Q-17) — 계획에 없는 방문을 담는 그릇이 시스템에 없어서(P-20)
   // 지금까지는 "가야 하는데 문자를 못 보내는" 상태였다
   const [adhocSms, setAdhocSms] = useState(false)
@@ -646,10 +652,10 @@ export function InspectionWorkbench({
             <div className="space-y-2 px-3 py-2">
               {canManage ? (
                 <label className="flex items-center gap-2 cursor-pointer select-none" data-testid="cert-reported-toggle">
-                  <input type="checkbox" checked={!!data.certReported} disabled={isPending}
+                  <input type="checkbox" checked={reportedOn} disabled={isPending}
                     onChange={e => toggleReported(!e.target.checked)}
                     className="size-4 accent-[#5b46d9]" />
-                  <span className={`text-sm font-medium ${data.certReported ? 'text-ink' : 'text-amber-600'}`}>
+                  <span className={`text-sm font-medium ${reportedOn ? 'text-ink' : 'text-amber-600'}`}>
                     협회 배치신고 완료
                   </span>
                 </label>

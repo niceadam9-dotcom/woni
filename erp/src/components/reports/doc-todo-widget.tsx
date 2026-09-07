@@ -1,15 +1,16 @@
 'use client'
 
-import { useRef, useState, useTransition } from 'react'
+import { useState } from 'react'
 import Link from 'next/link'
-import { ClipboardList, Clock3, FileUp, Upload, ArrowRight, CheckSquare, User, PencilLine } from 'lucide-react'
-import { uploadTimelineFileAction } from '@/app/(dashboard)/inspections/timeline-actions'
+import { ClipboardList, Clock3, FileUp, ArrowRight, CheckSquare, User, PencilLine } from 'lucide-react'
 import type { DueReport9Row, MissingCertRow } from '@/lib/doc-status'
 import type { InputTodoRow } from '@/lib/customer-list'
 
 /** 대시보드 '문서 할 일' 위젯 (소방계획서_5 R0-9·4-0-10) —
- *  "오늘 내가 처리할 게 있나?"에 답하는 모니터링 1층. 기한 임박 별지 9호 + 배치확인서 누락.
- *  행 안에 [업로드]/타임라인 링크 내장(4-0-13-(2)) — 여기서 바로 처리, 판정은 lib/doc-status 1곳 공유. */
+ *  "오늘 내가 처리할 게 있나?"에 답하는 모니터링 1층. 기한 임박 별지 9호 + 배치신고 미완료.
+ *  각 행은 처리 화면으로 보내고, 판정은 lib/doc-status 1곳을 공유한다.
+ *  ⚠ 2026-09-07 — 행 안 [업로드]를 걷어냈다. 대표가 협회에 직접 신고하므로 받을 파일이 없고,
+ *  완료 표시는 작업대 ②에 있다. 여기서 파일을 받으면 두 개의 완료 경로가 생겨 다시 갈라진다. */
 
 const cardShadow = 'shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px,rgba(18,43,165,0.08)_0px_6px_6px_-3px,rgba(18,43,165,0.08)_0px_12px_12px_-6px]'
 
@@ -20,36 +21,12 @@ export function DocTodoWidget({ dueSoon, missingCerts: initialMissing, inputTodo
   myId: string
   defaultMine: boolean
 }) {
-  const [missingCerts, setMissingCerts] = useState(initialMissing)
+  const [missingCerts] = useState(initialMissing)
   const [mine, setMine] = useState(defaultMine)   // P-4: '내 담당만' — 직원 기본 ON
-  const [isPending, startTransition] = useTransition()
-  const [msg, setMsg] = useState('')
-  const fileRef = useRef<HTMLInputElement>(null)
-  const targetRef = useRef<MissingCertRow | null>(null)
 
   const visibleDue = mine ? dueSoon.filter(r => r.assigneeId === myId) : dueSoon
   const visibleCerts = mine ? missingCerts.filter(r => r.assigneeId === myId) : missingCerts
   const total = visibleDue.length + visibleCerts.length + inputTodo.length
-
-  function pick(row: MissingCertRow) {
-    targetRef.current = row
-    fileRef.current?.click()
-  }
-
-  function onPicked(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    const target = targetRef.current
-    e.target.value = ''
-    if (!file || !target) return
-    const fd = new FormData()
-    fd.append('file', file)
-    startTransition(async () => {
-      const res = await uploadTimelineFileAction(target.inspectionId, 'cert', fd)
-      if (res.error) { setMsg(`❌ ${res.error}`); return }
-      setMsg(`✅ ${target.customerName} 배치확인서 업로드됨`)
-      setMissingCerts(prev => prev.filter(r => r.inspectionId !== target.inspectionId))
-    })
-  }
 
   return (
     <div className={`bg-surface rounded-xl border border-line ${cardShadow}`}>
@@ -75,19 +52,16 @@ export function DocTodoWidget({ dueSoon, missingCerts: initialMissing, inputTodo
         </div>
       </div>
 
-      <input ref={fileRef} type="file" accept=".pdf,.jpg,.jpeg,.png,.hwp" className="hidden" onChange={onPicked} />
-
       {total === 0 ? (
         <div className="px-5 py-8 flex flex-col items-center gap-2">
           <div className="size-12 rounded-full bg-green-50 flex items-center justify-center">
             <CheckSquare className="size-6 text-green-500" />
           </div>
           <p className="text-sm font-medium text-green-700">처리할 문서가 없습니다</p>
-          <p className="text-xs text-ink-sub">제출 기한·배치확인서·입력 모두 정상입니다</p>
+          <p className="text-xs text-ink-sub">제출 기한·배치신고·입력 모두 정상입니다</p>
         </div>
       ) : (
         <div className="divide-y divide-paper">
-          {msg && <p className={`px-5 py-1.5 text-form-xs ${msg.startsWith('✅') ? 'text-green-600' : 'text-red-600'}`}>{msg}</p>}
           {/* 제출 기한 임박 별지 9호 (D-7 이내·초과) */}
           {visibleDue.map(r => (
             <div key={`due-${r.inspectionId}`} className="flex items-center gap-2 px-5 py-3 text-xs flex-wrap">
@@ -102,17 +76,20 @@ export function DocTodoWidget({ dueSoon, missingCerts: initialMissing, inputTodo
               </Link>
             </div>
           ))}
-          {/* 배치확인서 누락 — 행 안에서 바로 업로드 */}
+          {/* 배치신고 미완료 — 완료 표시는 작업대 ②에서 한다(2026-09-07 업로드 폐지).
+              종전에는 이 자리에서 파일을 올리게 했는데, 대표가 협회에 직접 신고하는 지금은
+              여기서 받을 파일이 없다. 할 일 목록의 역할은 '어디로 가야 하는지'까지다. */}
           {visibleCerts.map(r => (
             <div key={`cert-${r.inspectionId}`} className="flex items-center gap-2 px-5 py-3 text-xs flex-wrap">
               <FileUp className="size-3.5 text-amber-600 shrink-0" />
               <span className="font-medium text-ink">{r.customerName}</span>
-              <span className="text-ink-sub">{r.year}년 {r.sequenceNum}차 · 배치확인서 미업로드</span>
+              <span className="text-ink-sub">{r.year}년 {r.sequenceNum}차 · 배치신고 미완료</span>
               {r.daysSince !== null && <span className="text-amber-700">완료 후 {r.daysSince}일 경과</span>}
-              <button onClick={() => pick(r)} disabled={isPending}
-                className="ml-auto inline-flex items-center gap-1 h-6 px-2 rounded border border-amber-300 text-form-xs text-amber-800 hover:bg-amber-100 disabled:opacity-50 shrink-0">
-                <Upload className="size-3" /> 업로드
-              </button>
+              {/* 딥링크는 **숫자** 축이다(`?step=N`, workbench:83) — 'cert' 같은 키를 넣으면 조용히 무시된다 */}
+              <Link href={`/inspections/${r.inspectionId}?step=2`} data-testid="cert-todo-link"
+                className="ml-auto text-form-xs text-brand hover:underline shrink-0">
+                신고 표시하러 →
+              </Link>
             </div>
           ))}
           {/* 입력 미완료 (§4-D H-26) — 빈칸 있는 고객 → 소방계획서 탭 딥링크로 바로 보완 */}

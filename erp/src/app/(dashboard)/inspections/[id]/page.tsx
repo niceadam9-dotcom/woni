@@ -20,7 +20,10 @@ import { InspectionReport9Client, type Report9CheckRow } from '@/components/insp
 import { type TimelineData } from '@/components/inspections/inspection-timeline-client'
 import { InspectionWorkbench } from '@/components/inspections/inspection-workbench'
 import { stepDocs } from '@/lib/doc-requirements'
-import { CONTRACT_FILE_RE, CERT_PAPER_ACTION, findArchivedCertInspections, isCertFileName } from '@/lib/doc-status'
+import {
+  CONTRACT_FILE_RE, CERT_PAPER_ACTION, CERT_REPORTED_ACTION, CERT_REPORTED_UNDO_ACTION,
+  findArchivedCertInspections, isCertFileName,
+} from '@/lib/doc-status'
 import { INSPECTION_DOC_FILE_RE, EXTERIOR_DOC_FILE_RE } from '@/lib/generated-docs'
 
 /** ② 종이 보관 기록의 최신 1건 — 화면에 '언제·어디' 를 보여주기 위한 조회(판정은 마커 존재 여부로 이미 끝난다) */
@@ -39,6 +42,23 @@ async function loadCertPaperRecord(
     memo: String(m.memo ?? ''),
   }
 }
+/** ② 협회 배치신고 완료 표시의 현재 상태 — **가장 마지막 마커가 이긴다**(append-only라 철회가 덧붙는다).
+ *  완료면 신고일, 철회됐거나 표시가 없으면 null. 판정 규칙은 findArchivedCertInspections와 같은 축이다. */
+async function loadCertReported(
+  admin: ReturnType<typeof createAdminClient>, inspectionId: string,
+): Promise<{ date: string } | null> {
+  const { data } = await admin.from('activity_logs')
+    .select('action, metadata')
+    .in('action', [CERT_REPORTED_ACTION, CERT_REPORTED_UNDO_ACTION])
+    .eq('entity_type', 'inspection').eq('entity_id', inspectionId)
+    // 🔴 `id`는 UUID라 시간 순서가 아니다 — created_at이 시간축이고 id는 동점 깨기용
+    //    (findArchivedCertInspections와 **같은 정렬**이어야 화면과 판정이 갈리지 않는다)
+    .order('created_at', { ascending: false }).order('id', { ascending: false }).limit(1)
+  const row = data?.[0] as { action: string; metadata: Record<string, unknown> } | undefined
+  if (!row || row.action !== CERT_REPORTED_ACTION) return null
+  return { date: String(row.metadata?.date ?? '') }
+}
+
 import { sheetScope } from '@/lib/sheet-scope'
 import { buildSheetOverviews, type SheetProgress } from '@/lib/sheet-overview'
 import type { Report9Job, Report9File } from '@/app/(dashboard)/inspections/report9-actions'
@@ -385,8 +405,11 @@ export default async function InspectionDetailPage({
       certFile: certObj ? { name: certObj.name, path: `${storagePrefix}/${certObj.name}` } : null,
       // 종이 보관 후 정리된 회차는 '업로드 필요'가 아니다 (소방계획서_18 D-7 ⚠)
       certArchived: !certObj && (await findArchivedCertInspections(admin, [id])).has(id),
-      // 사람이 남긴 '종이 보관' 기록 — 언제·어디에 두었는지를 그 자리에서 보여준다
+      // 사람이 남긴 '종이 보관' 기록 — 언제·어디에 두었는지를 그 자리에서 보여준다.
+      // ⚠ 폼은 2026-09-07에 걷어냈지만 **읽기는 남긴다** — 과거 회차의 완료 근거이자 표시값이다.
       certPaper: await loadCertPaperRecord(admin, id),
+      // 협회 직접 신고 완료 표시(2026-09-07) — ②의 기본 완료 경로
+      certReported: await loadCertReported(admin, id),
       contractFile: contractObj ? { name: contractObj.name, path: `${storagePrefix}/${contractObj.name}` } : null,
       delivery: deliveryRow ? { sentTo: deliveryRow.recipient_email, sentAt: deliveryRow.sent_at } : null,
       submit9: {

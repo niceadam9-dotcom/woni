@@ -78,7 +78,9 @@ try {
   await page.waitForURL(u => u.pathname === '/dashboard', { timeout: 20000, waitUntil: 'commit' })   // dev 서버 부하 시 load가 20s를 넘긴다 — URL 도달로 판정
   check('예산2 구 딥링크 /reports → 대시보드', true)
 
-  // ── 예산 3) 배치확인서 업로드 진입 = 0~2클릭 (팔레트 자동완성 미업로드 후보 노출) ──
+  // ── 예산 3) 배치신고 처리 진입 = 0~2클릭 (팔레트 자동완성 미완료 후보 노출) ──
+  // 2026-09-07: 업로드 표면이 폐지돼 후보의 라벨·동작이 '미업로드+[업로드]'에서
+  // '미완료+[신고 표시 →]'(작업대 ② 이동)로 바뀌었다. 예산(0~2클릭)은 그대로다.
   // 리다이렉트 직후 하이드레이션 전이면 Ctrl+K 리스너가 아직 없다 — 트리거 버튼 렌더를 먼저 기다린다
   await page.waitForSelector('button[aria-label="문서 검색 (Ctrl+K)"]')
   await page.waitForLoadState('networkidle')
@@ -88,8 +90,10 @@ try {
   }
   await page.waitForSelector(searchSel)
   await page.fill(searchSel, NAME_A)
-  await page.waitForSelector('text=미업로드')
-  check('예산3 업로드 진입 — 자동완성 "배치확인서 ⚠ 미업로드" 후보 노출(0~2클릭 내)', await page.isVisible('text=미업로드'))
+  await page.waitForSelector('text=배치신고 ⚠ 미완료')
+  check('예산3 배치신고 진입 — 자동완성 "배치신고 ⚠ 미완료" 후보 노출(0~2클릭 내)',
+    await page.isVisible('text=배치신고 ⚠ 미완료'))
+  check('예산3 후보에서 작업대 ②로 직행 링크', await page.getByTestId('cert-palette-link').count() > 0)
 } catch (e) {
   console.error('❌ 테스트 예외:', (e as Error).message)
   process.exitCode = 1

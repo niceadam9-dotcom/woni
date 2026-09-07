@@ -1,16 +1,16 @@
 'use client'
 
 import { useEffect, useRef, useState, useTransition } from 'react'
-import { Search, FileText, FileType2, Upload, Loader2, FolderOpen } from 'lucide-react'
+import { Search, FileText, FileType2, Loader2, FolderOpen } from 'lucide-react'
 import {
   searchDocCommandsAction, getDocUrlAction, type DocCommand,
 } from '@/app/(dashboard)/reports/docs-actions'
-import { uploadTimelineFileAction } from '@/app/(dashboard)/inspections/timeline-actions'
 import { openAnnexHwp, openAnnexPdf } from '@/lib/annex-filename'
 
 /** 행동 자동완성 검색 (소방계획서_5 R0-3·4-0-13-(1)) — 검색 결과가 곧 실행 버튼.
- *  고객 2자/초성(R0-5) 입력 → 문서·행동 후보 드롭다운에서 즉시 실행(PDF 보기·HWP 받기·업로드·생성).
- *  보고서 센터 검색창(⓪)과 Ctrl+K 팔레트(R0-4)가 같은 컴포넌트를 재사용. */
+ *  고객 2자/초성(R0-5) 입력 → 문서·행동 후보 드롭다운에서 즉시 실행(PDF 보기·HWP 받기·이동).
+ *  보고서 센터 검색창(⓪)과 Ctrl+K 팔레트(R0-4)가 같은 컴포넌트를 재사용.
+ *  ⚠ 2026-09-07 — 배치확인서 업로드 후보는 **작업대 ② 이동**으로 바뀌었다(대표 직접 신고). */
 
 export function DocActionSearch({ onOpenDocs, autoFocus, placeholder }: {
   onOpenDocs: (customerId: string, customerName: string) => void
@@ -24,8 +24,6 @@ export function DocActionSearch({ onOpenDocs, autoFocus, placeholder }: {
   const [loading, setLoading] = useState(false)
   const [msg, setMsg] = useState('')
   const [isPending, startTransition] = useTransition()
-  const fileRef = useRef<HTMLInputElement>(null)
-  const uploadTargetRef = useRef<DocCommand | null>(null)
   const boxRef = useRef<HTMLDivElement>(null)
 
   // 250ms 디바운스 검색
@@ -60,24 +58,6 @@ export function DocActionSearch({ onOpenDocs, autoFocus, placeholder }: {
     })
   }
 
-  function pickUpload(c: DocCommand) {
-    uploadTargetRef.current = c
-    fileRef.current?.click()
-  }
-
-  function onFilePicked(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    const target = uploadTargetRef.current
-    e.target.value = ''
-    if (!file || !target || target.kind !== 'upload-cert') return
-    const fd = new FormData()
-    fd.append('file', file)
-    startTransition(async () => {
-      const res = await uploadTimelineFileAction(target.inspectionId, 'cert', fd)
-      setMsg(res.error ? `❌ ${res.error}` : `✅ ${target.customerName} 배치확인서 업로드됨`)
-    })
-  }
-
   // '소방계획서 생성 요청' 명령 폐지(2026-09-02 보관함 폐지) — 계획서는 파일로 만들지 않고
   // 고객 소방계획서 탭 [조회·개정이력]에서 즉석 조회·인쇄한다
 
@@ -95,7 +75,6 @@ export function DocActionSearch({ onOpenDocs, autoFocus, placeholder }: {
         />
         {(loading || isPending) && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 size-4 animate-spin text-ink-faint" />}
       </div>
-      <input ref={fileRef} type="file" accept=".pdf,.jpg,.jpeg,.png,.hwp" className="hidden" onChange={onFilePicked} />
       {msg && <p className={`text-form-xs mt-1 ${msg.startsWith('✅') ? 'text-green-600' : 'text-red-600'}`}>{msg}</p>}
 
       {open && (customers.length > 0 || commands.length > 0) && (
@@ -124,12 +103,14 @@ export function DocActionSearch({ onOpenDocs, autoFocus, placeholder }: {
                   </button>
                 )}
               </>)}
+              {/* 2026-09-07 — 업로드에서 **작업대 ② 이동**으로 바뀌었다(대표 직접 신고, 받을 파일 없음).
+                  완료 표시 창구를 하나로 유지한다 — 팔레트에서도 찍을 수 있으면 경로가 둘이 된다 */}
               {c.kind === 'upload-cert' && (<>
                 <span className="text-amber-600 flex-1 truncate">{c.label}</span>
-                <button onClick={() => pickUpload(c)} disabled={isPending}
-                  className="inline-flex items-center gap-1 h-6 px-2 rounded border border-brand-line text-form-xs text-brand hover:bg-brand-tint">
-                  <Upload className="size-3" /> 업로드
-                </button>
+                <a href={`/inspections/${c.inspectionId}?step=2`} data-testid="cert-palette-link"
+                  className="inline-flex items-center gap-1 h-6 px-2 rounded border border-brand-line text-form-xs text-brand hover:bg-brand-tint shrink-0">
+                  신고 표시 →
+                </a>
               </>)}
             </div>
           ))}

@@ -3,9 +3,11 @@
 import JSZip from 'jszip'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requirePermission } from '@/lib/auth'
-import { getCompanyProfile } from '@/lib/company-profile'
 import { isGoogleConfigured, gmailSendWithAttachment } from '@/lib/google'
-import { CERT_FILE_RE, CONTRACT_FILE_RE, CERT_PAPER_ACTION, findArchivedCertInspections } from '@/lib/doc-status'
+import {
+  CERT_FILE_RE, CONTRACT_FILE_RE, CERT_PAPER_ACTION,
+  CERT_REPORTED_ACTION, CERT_REPORTED_UNDO_ACTION, findArchivedCertInspections,
+} from '@/lib/doc-status'
 import { syncStepsAndRevalidate, revalidateInspection } from './step-revalidate'
 import { extractStoragePath } from '@/lib/defect-photos'
 import { renderMessage } from '@/lib/message-template'
@@ -32,69 +34,10 @@ async function inspectionPrefix(inspectionId: string): Promise<{ prefix?: string
   return { prefix: `${customerId}/inspections/${inspectionId}`, customerId }
 }
 
-/** ⑥ 배치신고 도우미 (소방계획서_5 R7) — 협회 점검인력 배치신고에 필요한 값을 신고 순서 텍스트로 구성.
- *  대상물·소재지·점검기간·점검인력(성명/자격/자격번호)·점검업체. 빈 값은 앰버 + 입력처 딥링크로 안내. */
-export type PlacementField = { label: string; value: string; missing: boolean; href?: string; hrefLabel?: string }
-
-export async function getPlacementInfoAction(inspectionId: string): Promise<{
-  fields?: PlacementField[]; text?: string; error?: string
-}> {
-  await requirePermission('inspection_register')
-  const admin = createAdminClient()
-  const { data: insp } = await admin.from('inspections')
-    .select('id, customer_id, inspection_start_date, inspection_end_date')
-    .eq('id', inspectionId).single()
-  if (!insp) return { error: '점검을 찾을 수 없습니다.' }
-  const i = insp as { customer_id: string; inspection_start_date: string | null; inspection_end_date: string | null }
-
-  const [custRes, partRes, company] = await Promise.all([
-    admin.from('customers').select('customer_name, address').eq('id', i.customer_id).single(),
-    admin.from('inspection_participants')
-      .select('role, sort_order, employee:profiles(name, license_grade, license_no)')
-      .eq('inspection_id', inspectionId).order('role', { ascending: true }).order('sort_order', { ascending: true }),
-    getCompanyProfile(),
-  ])
-  const cust = custRes.data as { customer_name: string; address: string | null } | null
-  type PartRow = { role: string; employee: { name: string | null; license_grade: string | null; license_no: string | null } | null }
-  const parts = ((partRes.data ?? []) as unknown as PartRow[])
-    // 주된 먼저 (한글 '주된' < '보조' 정렬이 역이므로 명시 정렬)
-    .sort((a, b) => (a.role === '주된' ? -1 : 1) - (b.role === '주된' ? -1 : 1))
-
-  const custHref = `/customers/${i.customer_id}`
-  const period = i.inspection_start_date
-    ? `${i.inspection_start_date}${i.inspection_end_date && i.inspection_end_date !== i.inspection_start_date ? ` ~ ${i.inspection_end_date}` : ''}`
-    : ''
-  const personnelText = parts.length > 0
-    ? parts.map(p => {
-        const e = p.employee
-        const bits = [e?.name ?? '(성명 미입력)', e?.license_grade ?? '(자격 미입력)', e?.license_no ?? '(자격번호 미입력)']
-        return ` - (${p.role}) ${bits.join(' / ')}`
-      }).join('\n')
-    : ''
-  const companyText = company
-    ? `${company.company_name}${company.representative ? ` (대표 ${company.representative}` : ''}${company.business_number ? `, 사업자 ${company.business_number}` : ''}${company.phone ? `, 연락처 ${company.phone}` : ''}${company.representative || company.business_number || company.phone ? ')' : ''}`
-    : ''
-
-  const fields: PlacementField[] = [
-    { label: '대상물명', value: cust?.customer_name ?? '', missing: !cust?.customer_name, href: custHref, hrefLabel: '고객 정보' },
-    { label: '소재지', value: cust?.address ?? '', missing: !cust?.address, href: custHref, hrefLabel: '고객 정보' },
-    { label: '점검기간', value: period, missing: !period, href: `/inspections/${inspectionId}`, hrefLabel: '점검 상세' },
-    { label: '점검인력', value: personnelText.trim(), missing: parts.length === 0 || parts.some(p => !p.employee?.license_no), href: `/inspections/${inspectionId}`, hrefLabel: '점검 인력' },
-    { label: '점검업체', value: companyText, missing: !company?.company_name, href: '/admin', hrefLabel: '회사 정보' },
-  ]
-
-  const text = [
-    '[점검인력 배치신고 정보]',
-    `대상물명: ${cust?.customer_name ?? ''}`,
-    `소재지: ${cust?.address ?? ''}`,
-    `점검기간: ${period}`,
-    '점검인력:',
-    personnelText || ' - (미입력)',
-    `점검업체: ${companyText}`,
-  ].join('\n')
-
-  return { fields, text }
-}
+// ⑥ 배치신고 도우미(소방계획서_5 R7 — getPlacementInfoAction/PlacementField)는 2026-09-07에 삭제했다.
+// 협회 신고 화면에 옮겨 적으려고 대상물·소재지·점검인력·점검업체를 한 덩어리로 뽑아 주던 액션인데,
+// 대표가 협회에서 직접 신고하게 되면서 쓰는 곳이 0이 됐다. 'use server' export는 그대로 두면
+// **아무도 안 쓰는 공개 엔드포인트**로 남아 고객 주소·직원 자격번호를 계속 내줄 수 있어 함께 지운다.
 
 /** ②배치확인서 / ⑤공사 계약서 업로드 — 타임라인 행 슬롯 (별도 화면 없음).
  *  업로드 이력은 activity_logs(timeline_upload)로 남겨 보고서 센터 '최근 문서'(R5)가 통합 조회 */
@@ -186,6 +129,44 @@ export async function recordCertPaperAction(
     metadata: { date: input.date, location, memo: (input.memo ?? '').trim().slice(0, 300) },
   } as Record<string, unknown>)
   // 36 S2-3 — 바뀌는 서버 prop: evidence.certArchived(종이 보관 마커). 단계와 별개로 화면에 뜬다.
+  await syncStepsAndRevalidate(admin, inspectionId, profile.id, { alsoChanged: true })
+  return {}
+}
+
+/** ② 협회 배치신고 **완료 표시** (2026-09-07 사용자 확정 — 업로드 표면 폐지의 대체 경로).
+ *
+ *  대표가 협회에서 직접 신고하고 확인서도 직접 보관하므로 ERP에 사본을 둘 이유가 없다.
+ *  종전 완료 경로(업로드·종이 보관 위치 기록)를 신고일 **한 칸**으로 줄인다.
+ *
+ *  `undo=true`면 철회 마커를 덧붙인다 — activity_logs는 append-only(001)라 지울 수 없고,
+ *  판정은 '가장 마지막 마커가 무엇인가'로 한다(findArchivedCertInspections·loadCertReported 공통).
+ *  ⚠ 미래 날짜를 막는다: 하지 않은 일이 완료로 굳는 걸 막는 D1 규칙과 같은 방향이다. */
+export async function markCertReportedAction(
+  inspectionId: string, input: { date?: string; undo?: boolean } = {},
+): Promise<{ error?: string }> {
+  const profile = await requirePermission('inspection_register')
+  const admin = createAdminClient()
+
+  if (input.undo) {
+    await admin.from('activity_logs').insert({
+      actor_id: profile.id, action: CERT_REPORTED_UNDO_ACTION,
+      entity_type: 'inspection', entity_id: inspectionId, metadata: {},
+    } as Record<string, unknown>)
+    await syncStepsAndRevalidate(admin, inspectionId, profile.id, { alsoChanged: true })
+    return {}
+  }
+
+  const date = (input.date ?? '').trim()
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return { error: '신고일 형식을 확인해주세요 (YYYY-MM-DD).' }
+  // KST 오늘 — 서버가 UTC라 그냥 비교하면 한국 시간 오전에 '오늘'이 미래로 잡힌다
+  const todayKst = new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10)
+  if (date > todayKst) return { error: '아직 오지 않은 날짜로는 신고 완료를 기록할 수 없습니다.' }
+
+  await admin.from('activity_logs').insert({
+    actor_id: profile.id, action: CERT_REPORTED_ACTION,
+    entity_type: 'inspection', entity_id: inspectionId, metadata: { date },
+  } as Record<string, unknown>)
+  // 36 S2-3 — 바뀌는 서버 prop: evidence.certArchived(완료 근거)와 단계 배지가 함께 갱신돼야 한다
   await syncStepsAndRevalidate(admin, inspectionId, profile.id, { alsoChanged: true })
   return {}
 }

@@ -79,11 +79,13 @@ try {
     await page.click(`[data-testid="workbench-stepbar"] button[data-step="${step}"]`)
     await page.waitForSelector(`text=${expectText}`, { timeout: 30000 })
   }
-  await go('cert', '배치확인서 업로드')
-  check('② 전환 — 배치확인서 칸', true)
-  // R0-6 드롭존 — 업로드 슬롯은 파일을 끌어다 놓을 수 있어야 한다
-  check('② 업로드 슬롯 = 드롭존(R0-6)',
-    await page.isVisible('div[title="클릭 또는 파일을 이 칸에 끌어다 놓으세요"]'))
+  // 2026-09-07 — ②의 업로드 표면(드롭존 포함)이 폐지되고 완료 표시 체크로 바뀌었다.
+  // 드롭존 단언은 ⑤ 계약서로 옮기지 않는다(그 칸은 test-timeline이 이미 덮는다).
+  await go('cert', '점검인력 배치신고')
+  check('② 전환 — 배치신고 칸', true)
+  check('② 완료 체크 노출', await page.getByTestId('cert-reported-toggle').count() > 0)
+  check('② 업로드 드롭존 없음(폐지)',
+    await page.locator('div[title="클릭 또는 파일을 이 칸에 끌어다 놓으세요"]').count() === 0)
   await go('ownerReport', '수신 정보')
   check('③ 전환 — 수신 정보 칸', true)
   await go('submit9', '제출 전제')

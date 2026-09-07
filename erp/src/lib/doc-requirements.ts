@@ -53,8 +53,11 @@ export const DOC_TERMS = {
   report11Full: '이행완료 보고서 (별지 11호)',
   checklistStd: '소방시설등점검표',        // 자체점검 점검표
   checklistExterior: '외관점검표',         // 일반관리 점검표 (2년 보관)
-  certFull: '점검인력 배치확인서',         // 첫 표기 풀네임, 이후 축약 허용
-  certShort: '배치확인서',
+  // 2026-09-07 — 축이 '문서 보관'에서 '신고 행위'로 바뀌었다. 대표가 협회에서 직접 신고하고
+  // 확인서도 직접 보관하므로 ERP는 파일이 아니라 **신고했다는 사실과 날짜**만 받는다.
+  // 옛 이름(배치확인서)은 화면이 문서를 요구한다고 말해 업로드 창구를 찾게 만들었다.
+  certFull: '점검인력 배치신고',           // 첫 표기 풀네임, 이후 축약 허용
+  certShort: '배치신고',
   ownerReport: '관계인 보고서 발급',
   firePlan: '소방계획서',
 } as const
@@ -78,7 +81,7 @@ export const TIMELINE_STEP_LABELS: Record<TimelineStepKey, string> = {
 /** 축약 라벨 풀네임·완료 조건 툴팁 (R12-d·R10-a) — hover 시 설명 */
 export const TIMELINE_STEP_TOOLTIPS: Record<TimelineStepKey, string> = {
   checklist: `${DOC_TERMS.checklistStd}(자체점검) / ${DOC_TERMS.checklistExterior}(일반관리) — 별지 9호 첨부`,
-  cert: `${DOC_TERMS.certFull} — 협회 발급본 업로드 (자체점검 대행 시 필수)`,
+  cert: `${DOC_TERMS.certFull} — 협회에 배치신고 후 완료 표시 (자체점검 대행 시 필수)`,
   ownerReport: `${DOC_TERMS.ownerReport} — 점검 후 10일 내`,
   submit9: `${DOC_TERMS.report9Full} — 점검 후 15일 내 제출`,
   repair: '⑤ 완료 = 불량 전건 조치 완료 (수리 계약서·전/후 사진은 선택 증빙)',

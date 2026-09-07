@@ -91,7 +91,7 @@ try {
   await page.waitForSelector('[data-testid="workbench-stepbar"]')
   check('작업대 스텝바 렌더', true)
   check('① 점검표 행', await page.isVisible('text=① 점검표'))
-  check('② 점검인력 배치확인서 행', await page.isVisible('text=② 점검인력 배치확인서'))
+  check('② 점검인력 배치신고 행', await page.isVisible('text=② 점검인력 배치신고'))
   check('③ 관계인 보고·협의 행(§4-E-1 문구)', await page.isVisible('text=③ 관계인 보고·협의'))
   check('④ 소방서 제출 행', await page.isVisible('text=④ 소방서 제출'))
 
@@ -99,8 +99,9 @@ try {
   check('구 6단계 체크리스트 카드 제거', !(await page.isVisible('text=업무 체크리스트')))
   check('구 단계별 보고서 2열 카드 제거', !(await page.isVisible('h2:has-text("단계별 보고서")')))
 
-  // 진입 화면 = 첫 미완료 단계(② 배치확인서). 종전 '다음 할 일 배너'를 자리로 대체(R6-1)
-  check('② 자동 선택(첫 미완료)', await page.isVisible('text=협회 발급본 업로드 필요'))
+  // 진입 화면 = 첫 미완료 단계(② 배치신고). 종전 '다음 할 일 배너'를 자리로 대체(R6-1).
+  // 2026-09-07 — 업로드 폐지로 '업로드 필요' 문구가 사라지고 완료 체크가 그 자리를 대신한다
+  check('② 자동 선택(첫 미완료)', await page.getByTestId('cert-reported-toggle').count() > 0)
   // ① 완료 표기는 스텝바에 남는다 — 접힘/펼침이 아니라 상태 칩이다
   check('① 완료 표기(스텝바)',
     (await stepbar.locator('button[data-step="checklist"]').innerText()).includes('완료'),
@@ -120,7 +121,7 @@ try {
 
   // ── 2) 단계 완료 처리(회귀) — ② 예외 완료 → DB status ──
   await stepbar.locator('button[data-step="cert"]').click()
-  await page.waitForSelector('text=배치확인서 업로드')
+  await page.waitForSelector('text=점검인력 배치신고')
   page.once('dialog', d => d.accept('E2E 예외 완료 사유'))
   await page.locator('button:has-text("사유 완료")').first().click()
   await page.waitForSelector('text=사유와 함께 완료 처리했습니다', { timeout: 30000 })

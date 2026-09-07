@@ -74,16 +74,16 @@ try {
   check('R6-a 조치완료 뱃지', await page.isVisible('text=조치완료'))
   check('R6-c 빈 슬롯 앰버(후 사진 추가)', await page.isVisible('text=후(조치) 추가'))
 
-  // ── R7: ⑥ 배치신고 도우미 ──
+  // ── R7: ② 배치신고 — 2026-09-07 개편 후 ──
+  // 종전 R7은 [신고 정보 복사] 팝오버(협회 사이트에 옮겨 적기용)를 고정했다. 대표가 협회에서
+  // 직접 신고하게 되면서 그 도우미가 폐지됐다 — 이제 남는 것은 **완료 표시와 협회 링크**뿐이다.
   await page.goto(`${BASE}/inspections/${inspA}`)
-  await page.waitForSelector('button:has-text("신고 정보 복사")')
-  await page.click('button:has-text("신고 정보 복사")')
-  await page.waitForSelector('text=협회 배치신고 정보')
-  check('R7-a/b 신고 정보 미리보기 팝오버', true)
-  // 팝오버 필드는 async 로드 — 복사 버튼(팝오버 내부) 대기 후 검증
-  await page.waitForSelector('div:has-text("협회 배치신고 정보") button:has-text("복사")', { timeout: 8000 }).catch(() => {})
-  check('R7-b 복사 버튼', await page.isVisible('div:has-text("협회 배치신고 정보") button:has-text("복사")'))
-  check('R7 협회 신고 링크 병치', await page.locator('div:has-text("협회 배치신고 정보")').locator('a[href*="kfma"]').first().isVisible())
+  await page.waitForSelector('[data-testid="workbench-stepbar"]')
+  await page.locator('[data-testid="workbench-stepbar"] button[data-step="cert"]').click()
+  await page.waitForSelector('text=점검인력 배치신고')
+  check('R7-a 완료 체크 노출', await page.getByTestId('cert-reported-toggle').count() > 0)
+  check('R7-b [신고 정보 복사] 폐지', await page.locator('button:has-text("신고 정보 복사")').count() === 0)
+  check('R7-c 협회 신고 사이트 링크는 유지', await page.locator('a[href*="kfma"]').first().isVisible())
 } catch (e) {
   check('예외 없음', false, String(e))
 } finally {

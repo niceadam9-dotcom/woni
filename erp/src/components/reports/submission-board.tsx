@@ -1,11 +1,9 @@
 'use client'
 
-import { useState, useRef, useTransition, type ChangeEvent } from 'react'
+import { useState, useTransition } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
-import { CheckCircle2, AlertTriangle, Circle, Clock3, UploadCloud, Loader2, Download, User } from 'lucide-react'
+import { CheckCircle2, AlertTriangle, Circle, Clock3, Loader2, Download, User } from 'lucide-react'
 import type { SubmissionRow, SubmissionSummary } from '@/app/(dashboard)/reports/docs-actions'
-import { uploadTimelineFileAction } from '@/app/(dashboard)/inspections/timeline-actions'
 
 /** §7-A 제출 현황판 (소방계획서_5 R14-a·R14-b) — 타임라인 필드 단일 소스, 수기 입력 없음.
  *  숫자 요약 스트립(숫자=필터 버튼) + 위험순 표. 앰버·빨강만 훑으면 감시 끝(모니터링 2층). */
@@ -20,38 +18,21 @@ function Mark({ ok, na, warn, label }: { ok?: boolean; na?: boolean; warn?: bool
   return <span className={`inline-flex items-center gap-1 ${warn ? 'text-amber-600' : 'text-ink-faint'}`}><AlertTriangle className="size-3" /> {label}</span>
 }
 
-/** R10-c: 배치확인서 누락 셀 — ✅보유 / ⚠누락+[업로드] 그 자리 실행 (판정=hasCertFile 공유, 업로드=타임라인 액션 재사용) */
+/** R10-c: 배치신고 셀 — ✅완료 / ⚠미완료 + 작업대 ② 직행.
+ *  ⚠ 2026-09-07 — 그 자리 [업로드]를 걷어냈다. 대표가 협회에 직접 신고하므로 ERP가 받을 파일이 없고,
+ *  완료 표시는 작업대 ②가 단일 창구다. 여기서도 완료로 만들 수 있으면 경로가 둘이 되어 다시 갈라진다.
+ *  `archived`는 이제 '종이 보관 + 신고 완료 표시'를 함께 덮는다(findArchivedCertInspections). */
 function CertCell({ inspectionId, uploaded, archived, warn }: { inspectionId: string; uploaded: boolean; archived?: boolean; warn: boolean }) {
-  const router = useRouter()
-  const inputRef = useRef<HTMLInputElement>(null)
-  const [pending, start] = useTransition()
-  const [err, setErr] = useState<string | null>(null)
-  function onPick(e: ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    e.target.value = ''
-    if (!file) return
-    setErr(null)
-    start(async () => {
-      const fd = new FormData(); fd.set('file', file)
-      const res = await uploadTimelineFileAction(inspectionId, 'cert', fd)
-      if (res.error) { setErr(res.error); return }
-      router.refresh()
-    })
-  }
+  const ok = uploaded || !!archived
   return (
     <div className="flex items-center gap-1.5">
       {/* 종이 보관 정리분은 ERP에 파일이 없다 — '보유'로 뭉뚱그리면 제출 때 첨부가 비어 버린다 */}
-      <Mark ok={uploaded} warn={warn} label={archived ? '종이 보관' : uploaded ? '보유' : '누락'} />
-      {!uploaded && (
-        <>
-          <button onClick={() => inputRef.current?.click()} disabled={pending} title="배치확인서 업로드"
-            className="inline-flex items-center gap-0.5 h-5 px-1.5 rounded border border-amber-300 text-form-2xs text-amber-700 hover:bg-amber-50 disabled:opacity-50">
-            {pending ? <Loader2 className="size-2.5 animate-spin" /> : <UploadCloud className="size-2.5" />} 업로드
-          </button>
-          <input ref={inputRef} type="file" accept="application/pdf,image/*" hidden onChange={onPick} />
-        </>
+      <Mark ok={ok} warn={warn} label={archived ? '완료' : uploaded ? '보유' : '미완료'} />
+      {!ok && (
+        <Link href={`/inspections/${inspectionId}?step=2`} data-testid="cert-cell-link"
+          title="작업대 ②에서 배치신고 완료를 표시합니다"
+          className="text-form-2xs text-brand hover:underline shrink-0">표시 →</Link>
       )}
-      {err && <span className="text-form-2xs text-red-600">{err}</span>}
     </div>
   )
 }
@@ -72,7 +53,7 @@ async function exportRows(rows: SubmissionRow[]) {
     '9호 생성': r.report9Gen ? '생성' : '미생성',
     '발송': r.report9Sent ? '발송' : '미발송',
     '제출(D-day)': ddayText(r),
-    '배치확인서': r.certArchived ? '종이 보관' : r.certUploaded ? '보유' : '누락',
+    '배치신고': r.certArchived ? '완료' : r.certUploaded ? '보유' : '미완료',
     '10호': r.defectsTotal === 0 ? '해당없음' : (r.report10Gen ? '생성' : '미생성'),
     '11호': r.defectsTotal === 0 ? '해당없음' : naText(r.report11Gen, !!r.report11SubmittedAt),
   }))
@@ -117,7 +98,7 @@ export function SubmissionBoard({ rows, summary, myId, defaultMine }: {
     { key: 'completed', label: '완료', value: effSummary.completed, tone: 'text-green-700' },
     { key: 'r9NotSubmitted', label: '9호 미제출', value: effSummary.r9NotSubmitted, tone: 'text-amber-600' },
     { key: 'overdue', label: '기한 초과', value: effSummary.overdue, tone: 'text-red-600' },
-    { key: 'certMissing', label: '배치확인서 누락', value: effSummary.certMissing, tone: 'text-amber-600' },
+    { key: 'certMissing', label: '배치신고 미완료', value: effSummary.certMissing, tone: 'text-amber-600' },
   ]
 
   return (
@@ -173,7 +154,7 @@ export function SubmissionBoard({ rows, summary, myId, defaultMine }: {
                 <th className={`${cell} text-left`}>9호 생성</th>
                 <th className={`${cell} text-left`}>발송</th>
                 <th className={`${cell} text-left`}>제출 (D-day)</th>
-                <th className={`${cell} text-left`}>배치확인서</th>
+                <th className={`${cell} text-left`}>배치신고</th>
                 <th className={`${cell} text-left`}>10호</th>
                 <th className={`${cell} text-left`}>11호</th>
               </tr>

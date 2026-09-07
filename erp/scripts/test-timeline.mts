@@ -61,7 +61,8 @@ try {
   await page.waitForSelector('[data-testid="workbench-stepbar"]')
   check('작업대 렌더(자체점검)', true)
   check('① 점검표 행', await page.isVisible('text=① 점검표'))
-  check('② 점검인력 배치확인서 행(용어 통일)', await page.isVisible('text=② 점검인력 배치확인서'))
+  // 2026-09-07 — 축이 '문서 보관'에서 '신고 행위'로 바뀌며 라벨도 배치신고가 됐다(DOC_TERMS)
+  check('② 점검인력 배치신고 행(용어 통일)', await page.isVisible('text=② 점검인력 배치신고'))
   check('③ 관계인 보고·협의 행(§4-E-1 용어)', await page.isVisible('text=③ 관계인 보고·협의'))
   check('④ 소방서 제출 행 + D-3 뱃지', await page.isVisible('text=D-3'))
   check('⑤⑥ 상시 표시 — 해당없음 흐림(불량 0건)', await page.isVisible('text=해당없음 — 불량 0건'))
@@ -75,21 +76,33 @@ try {
   await page.waitForSelector('text=수신 정보')
   check('③ 발송 버튼 비활성(송달 동의 없음)', await page.locator('button:has-text("생성물 이메일 발송")').isDisabled())
 
-  // ② 배치확인서 업로드 (② 칸의 파일 input)
+  // ② 배치신고 완료 표시 (2026-09-07 — 업로드 폐지, 대표가 협회에 직접 신고)
   await goStep('cert')
-  await page.waitForSelector('text=배치확인서 업로드')
-  await page.locator('input[type="file"]').first().setInputFiles(tmpPdf)
-  await page.waitForSelector('text=배치확인서 업로드됨')
-  check('② 업로드 완료 메시지', true)
-  const { data: objs } = await raw.storage.from('fire-plans').list(`${custA}/inspections/${inspA}`)
-  check('② storage cert_ 파일', (objs ?? []).some((o: { name: string }) => /^cert_\d+\.pdf$/.test(o.name)))
+  // ⚠ 'text=점검인력 배치신고'로 기다리면 **스텝바 버튼**이 먼저 걸려 패널 렌더 전에 통과한다
+  //    (그러면 '업로드 없음' 단언도 공허하게 초록이 된다). 패널 고유 표식으로 기다린다.
+  await page.waitForSelector('[data-testid="cert-reported-toggle"]', { timeout: 30000 })
+  check('② 업로드 창구 없음', await page.locator('button:has-text("업로드")').count() === 0)
+  await page.getByTestId('cert-reported-toggle').locator('input').check()
+  // 고정 sleep 대신 DB를 폴링한다 — 서버 액션 + revalidate가 얼마나 걸릴지는 부하마다 다르다
+  let markCount = 0
+  for (let i = 0; i < 20 && markCount === 0; i++) {
+    const { data } = await raw.from('activity_logs')
+      .select('id').eq('entity_id', inspA).eq('action', 'cert_reported')
+    markCount = (data ?? []).length
+    if (markCount === 0) await page.waitForTimeout(500)
+  }
+  // 실패하면 화면 메시지를 함께 보여준다 — '0건'만으론 액션이 안 돌았는지 거절됐는지 못 가른다
+  const onScreen = markCount === 0
+    ? (await page.locator('p:has-text("❌")').first().textContent().catch(() => '')) ?? '(메시지 없음)'
+    : ''
+  check('② 신고 완료 마커 기록', markCount === 1, `${markCount}건 ${onScreen}`)
 
-  // ④ 제출 패키지 (cert만 존재 — 포함/누락 안내)
+  // ④ 제출 패키지 — 배치확인서 파일은 더 이상 생기지 않는다(협회 발급본은 대표가 직접 보관)
   await goStep('submit9')
   await page.waitForSelector('button:has-text("제출 패키지")')
   await page.click('button:has-text("제출 패키지")')
   await page.waitForSelector('text=패키지 다운로드')
-  check('④ 패키지 생성(포함: 배치확인서)', await page.isVisible('text=배치확인서'))
+  check('④ 패키지 생성', await page.isVisible('text=패키지 다운로드'))
 
   // ④ 제출일 기록 → 뱃지 소멸 + DB
   const submitPane = page.locator('section:has-text("별지 9·10호 생성·제출")').first()
