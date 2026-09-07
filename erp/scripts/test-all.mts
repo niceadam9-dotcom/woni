@@ -162,6 +162,12 @@ const steps: Step[] = [
   // 본 적이 없었다. 이 검사가 그 역방향(자산에 줄이 없는 항목 수)을 핀으로 붙든다.
   // 결과열을 C로 고정하면 넓은 서식 4시트의 점검항목 문구를 덮어쓰므로 J열 시트를 이름으로 단언한다.
   { name: '갑지 점검표 항목 좌표',      cmd: 'npx tsx scripts/test-xlsx-itemmap.mts' },
+  // 「불량사진」 시트(소방계획서_46) — 이 저장소에서 엑셀에 이미지를 넣는 유일한 코드다.
+  // 조용히 깨지는 축이 셋 있어 상시 고정한다: ① localSheetId 재번호(틀리면 남의 인쇄영역이
+  // 적용되는데 파일은 정상 개봉된다) ② 워크시트 요소 순서(LO는 통과·Excel만 복구) ③ 종횡비.
+  // ⚠ server-only 패키지를 물어 --conditions=react-server 필수. A4 쪽수 축(--lo)은 LibreOffice가
+  //    필요해 기본 실행에서 뺐다 — 행 높이·열 폭을 건드리면 그때는 반드시 --lo로 재확인할 것.
+  { name: '갑지 불량사진 시트',        cmd: 'npx tsx --conditions=react-server scripts/test-photo-sheet.mts' },
   // 서버 불필요 — 순수 렌더 함수 대조. 중복 입력 제거(대장 파생·미러)가 문서에 반영되는지 고정
   { name: '세부제원 파생·미러 렌더',    cmd: 'npx tsx scripts/test-spec-derive.mts' },
   // 인쇄 번들 셀 오버라이드(lib/doc-overrides) — 파서 없이 문자열을 훑어 법정 서식의 특정 칸을

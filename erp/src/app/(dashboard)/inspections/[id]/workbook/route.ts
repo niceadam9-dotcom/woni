@@ -6,11 +6,12 @@ import { getProfile, can } from '@/lib/auth'
 import type { UserRole } from '@/types'
 import { assembleOfficial, assembleDelegation } from '@/lib/annex-cover-official'
 import { assembleReport9 } from '@/lib/report9-assemble'
-import { validateAnchors, SCRUB_NEEDLES } from '@/lib/xlsx-anchors'
+import { validateAnchors, SCRUB_NEEDLES, DEFECT_SHEET } from '@/lib/xlsx-anchors'
 import { injectWorkbook, type InjectTarget } from '@/lib/xlsx-inject'
 import { buildWorkbookValues, toInjectTargets, defectOverflow, s31RowOverflow } from '@/lib/xlsx-workbook'
 import { donorGroupsToKeep, donorGapsForFacilities, allDonorSheets, DONOR_TOC_SHEET, BASE_TOC_SHEET, DONOR_TOC_BODY_CELLS } from '@/lib/xlsx-donors'
-import { removeSheets } from '@/lib/xlsx-sheet-surgery'
+import { removeSheets, insertSheetAfter } from '@/lib/xlsx-sheet-surgery'
+import { buildDefectPhotoSheet, type DefectPhotoRow } from '@/lib/defect-photo-embed'
 import { planDonorInjection, donorInjectSummary } from '@/lib/xlsx-donor-inject'
 import { sheetMatchesFacilities } from '@/lib/sheet-facility-map'
 import { evacTypesFromSpecs } from '@/lib/facility-codes'
@@ -219,9 +220,39 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
     console.warn(`[workbook] 표본 흔적 캐시 ${result.scrubbed.length}칸 소거(D-10) — 템플릿 재점검 필요: ${result.scrubbed.join(', ')}`)
   }
 
+  // 불량 전/후 사진 대지(소방계획서_46) — 「현5」(4. 소방시설등 불량 세부 사항) 바로 뒤에 끼운다.
+  //
+  // ⚠ **주입이 끝난 뒤**에 붙인다. injectWorkbook은 SCRUB_NEEDLES를 문 캐시를 비우고 참조 0인
+  //   공유문자열을 지우므로, 캡션에 실리는 불량명(DB 자유 텍스트)이 니들과 우연히 겹치면 그
+  //   칸만 데이터에 따라 조용히 사라진다. 파이프라인 밖에 두면 그 부류가 구성적으로 0이 된다.
+  // ⚠ 사진 축만 라우트가 자체 조회한다 — report9-assemble의 select에 photo_url이 없고(D-7 위반
+  //   아님), 조립 select를 넓히면 PDF 경로 전체가 영향권에 든다. 키·정렬은 조립과 같은 축.
+  // 실패해도 워크북은 그대로 내보낸다(사진은 부수 자산) — 대신 사유를 헤더 고지에 싣는다.
+  let outBytes = result.bytes
+  const photoNotes: string[] = []
+  try {
+    const { data: defectPhotos, error: dpErr } = await admin.from('inspection_defects')
+      .select('defect_code, defect_name, defect_detail, action_taken, photo_url, after_photo_url')
+      .eq('inspection_id', id).order('created_at', { ascending: true })
+    if (dpErr) throw new Error(`불량 사진 조회 실패: ${dpErr.message}`)
+    const built = await buildDefectPhotoSheet(admin, (defectPhotos ?? []) as DefectPhotoRow[], outBytes)
+    if (built) {
+      const ins = await insertSheetAfter(outBytes, DEFECT_SHEET, built.part)
+      outBytes = ins.bytes
+      if (ins.renumbered === 0) {
+        // 자산에 시트별 인쇄영역이 실재하므로(실측 8건) 0은 정규식이 헛돈 신호다 — 산출은 계속하되 알린다
+        console.warn('[workbook] 불량사진 삽입: localSheetId 재번호 0건 — 템플릿 갱신 의심')
+      }
+      photoNotes.push(...built.notes)
+    }
+  } catch (e) {
+    console.error('[workbook] 불량사진 시트 실패', e)
+    photoNotes.push(`불량사진 시트 미첨부: ${e instanceof Error ? e.message : String(e)}`)
+  }
+
   // 파일명 규약: 고객명_점검종류_연도(S4-4). 종류 라벨은 위임장 조립이 이미 판정한 것을 재사용
   const name = `${(cust as { customer_name: string } | null)?.customer_name ?? '점검'}_${delegation.data.typeLabel}결과보고서_${row.year}.xlsx`
-  return new NextResponse(Buffer.from(result.bytes), {
+  return new NextResponse(Buffer.from(outBytes), {
     headers: {
       'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       'Content-Disposition': `attachment; filename*=UTF-8''${encodeURIComponent(name)}`,
@@ -243,6 +274,8 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
             const un = r9.data.facilityChecks.filter(i => !r9.data.resultMarks[i])
             return un.length ? [`점검표 미입력 ${un.length}종 → 기본 ○ 인쇄: ${un.join('·')}`] : []
           })(),
+          // 불량사진(46) — 3위. 사진이 절반만 실려도 인쇄물은 멀쩡해 보이므로 반드시 고지된다
+          ...photoNotes,
           ...official.missing, ...delegation.missing, ...r9.missing,
           ...(r9.data.assistants.length > 7
             ? [`보조 점검인력 ${r9.data.assistants.length}명 중 8번째부터 미표기(허브 7행)`] : []),

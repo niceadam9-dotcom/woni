@@ -45,7 +45,9 @@ const XML_ILLEGAL_RE = new RegExp(
   + '|(?<![\\uD800-\\uDBFF])[\\uDC00-\\uDFFF]', // 짝 없는 하위 서로게이트
   'g')
 const stripIllegal = (s: string) => s.replace(XML_ILLEGAL_RE, '')
-const escXml = (s: string) =>
+/** ⚠ 새로 짜지 말 것 — 서로게이트 반쪽·제어문자 규약이 위 주석 3건의 실사고에서 온다.
+ *  XML을 직접 쓰는 다른 모듈(불량사진 시트 등)도 **이 함수**를 쓴다(두 벌이면 한쪽만 낡는다) */
+export const escXml = (s: string) =>
   stripIllegal(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 
 /** ISO 날짜 → 엑셀 시리얼(1900 체계). 셀의 날짜 서식이 그대로 살도록 숫자로 주입할 때 쓴다 */

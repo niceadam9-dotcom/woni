@@ -1,0 +1,132 @@
+{
+  "doc": "소방계획서_46",
+  "title": "갑지 엑셀 「불량사진」 탭 — 조치 전·후 A4 인쇄 대지(1건 3행·2건/장)",
+  "created": "2026-09-07",
+  "source_md": "erp_goal/소방계획서_46.md",
+  "principle": "불량 사진은 이미 DB에 있었고 소비처가 화면뿐이었다. 새 저장소도 새 입력도 만들지 않는다 — 있는 데이터를 산출물에 싣는 일이다. 엑셀 쓰기는 JSZip 바이트 패치 단일 경로(SheetJS 쓰기 금지).",
+  "numbering_note": "사용자는 '소방계획서_45'를 지시했으나 2026-09-07 18:18에 타 세션이 45(점검표 모두 합격이면 ⑤⑥ 생략)를 선점했고 42·43·44도 다른 주제로 차 있어 46으로 채번했다. 남의 문서를 덮지 않는다.",
+
+  "related": [
+    { "doc": "소방계획서_41", "why": "현5(별지 9호 8쪽) 불량 세부 자동 문구 — 이 시트가 붙는 바로 앞 탭" },
+    { "doc": "소방계획서_27", "why": "갑지 엑셀 주입 규약(JSZip 패치·앵커·니들 스크럽)과 removeSheets 시트 수술" },
+    { "doc": "소방계획서_32", "why": "덮개 불변식·구조로 판정한다는 규약(내용이 아니라 파트 존재로)" }
+  ],
+
+  "status_legend": {
+    "pending_order": "미구현·지시 대기",
+    "code_present": "코드 존재(구현자 자기 신고) — 독립 검증 전",
+    "partial": "부분 구현 — criteria 참조",
+    "implemented": "독립 검증 통과 + verified 증거 동반",
+    "confirmed": "결정 확정 — 코드 변경이 필요 없다는 판단"
+  },
+
+  "measured_facts": [
+    { "id": "M-1", "fact": "「현5」는 sheetId=11 · <sheets> 0-based index 10 · r:id=rId13. 시트 67개(삽입 후 68)", "method": "templates/report-workbook-full.xlsx의 xl/workbook.xml 직접 판독" },
+    { "id": "M-2", "fact": "localSheetId 보유 definedName 510건, 그중 index ≥ 11이라 재번호 대상이 481건", "method": "localNameMap() + 프로브 [4] 실측(재번호 481 일치)" },
+    { "id": "M-3", "fact": "그 510건 중 _xlnm.Print_Area는 8건뿐이고 나머지 502건은 죽은 외부 통합문서 매크로 잔재(#REF!·[7]토목주소! 등)라 ref 앞이 시트명이 아니다", "method": "프로브 첫 실행이 원본에서 실패해 드러남 — D-1" },
+    { "id": "M-4", "fact": "[Content_Types]에 jpeg·png Default가 이미 있고 jpg는 없다 — 미디어 확장자를 .jpg로 쓰면 파일은 열리는데 그림만 안 보인다", "method": "[Content_Types].xml Default 열거" },
+    { "id": "M-5", "fact": "styles.xml fonts 142 · borders 147 · cellXfs 870이고 count 속성 = 실개수", "method": "styles.xml 블록별 원소 수 계수" },
+    { "id": "M-6", "fact": "report9-assemble의 defects select에 photo_url이 없다 — 사진 축은 라우트가 자체 조회해도 D-7(단일 원천) 위반이 아니다", "method": "report9-assemble.ts select 목록 대조" },
+    { "id": "M-7", "fact": "image-prep.ts는 작은 PNG/WebP를 원본 그대로 통과시킨다 — 버킷이 JPEG 전용이 아니다", "method": "image-prep.ts:20 분기 판독" },
+    { "id": "M-8", "fact": "LibreOffice 절대 쪽수 사슬: 4·5·6·7·8건 = 74·75·75·76·76쪽(전체 워크북). 즉 2건/장이고 6건 = 3쪽", "method": "scripts/test-photo-sheet.mts --lo, 프로필 격리 변환 5회" }
+  ],
+
+  "defects_found": [
+    { "id": "D-1", "sev": "MED", "kind": "검사", "desc": "자기검증 축(sheets[lsi] == ref 시트명)을 localSheetId 510건 전체에 걸어 삽입 전 원본에서도 실패했다", "fix": "축을 _xlnm.Print_Area 8건으로 좁히고 전수 ord 대조를 신설", "evidence": "M-3 · 프로브 [4]" },
+    { "id": "D-2", "sev": "HIGH", "kind": "제품", "desc": "사진 경로는 있는데 다운로드·디코드가 전부 실패한 불량 건이 「사진 없음」 빈 상자만 있는 페이지로 인쇄됐다(3건이면 빈 3페이지)", "fix": "두 슬롯 모두 비면 블록에서 제외(S2-7). 한쪽만 빈 경우는 결손 표시로 남긴다", "evidence": "프로브 [13] 사유 시나리오가 잡음" },
+    { "id": "D-3", "sev": "LOW", "kind": "검사", "desc": "zip 디렉터리 항목 xl/media/ 를 zip.file()이 null로 돌려줘 새 media 파트를 13개로 오판", "fix": "dir 항목 제외", "evidence": "프로브 [0] 첫 실행" }
+  ],
+
+  "open_questions": [
+    { "id": "Q-1", "q": "레이아웃 확정 — (채택) 1건 = 세로 3행(캡션·전·후), A4 1장 = 2건 / (대안) 1건 = 1행(전|후 좌우), A4 1장 = 3건(이 경우 6건이 2페이지)", "status": "pending", "resolution": "요구 두 문장을 동시에 만족하는 유일 해석으로 채택안을 구현했다 — 사용자 확인 대기" },
+    { "id": "Q-2", "q": "캡션·우측 칸 어휘 — 지금은 캡션 '점검번호 불량명', 우측 칸에 defect_detail(전)·action_taken(후)", "status": "pending", "resolution": "미결정" },
+    { "id": "Q-3", "q": "PDF 별지에도 사진을 실을지 — 법정 서식엔 사진 칸이 없어 이번 범위 밖", "status": "pending", "resolution": "미결정" },
+    { "id": "Q-4", "q": "실 DB 왕복·커밋·배포 승인", "status": "pending", "resolution": "진행 승인 규칙 — 사용자 지시 대기" }
+  ],
+
+  "sections": [
+    {
+      "id": "S1",
+      "title": "insertSheetAfter() — 시트 삽입 수술 (xlsx-sheet-surgery.ts)",
+      "status": "code_present",
+      "criteria": [
+        { "id": "S1-1", "desc": "removeSheets의 대칭 — <sheets> 삽입 + workbook.xml.rels Relationship + [Content_Types] Override. sheetId·rId는 스캔 채번(하드코딩 금지)", "status": "code_present", "evidence": "src/lib/xlsx-sheet-surgery.ts insertSheetAfter · 프로브 [1][2]" },
+        { "id": "S1-2", "desc": "localSheetId 재번호 — 삽입 지점 이후 +1을 <definedNames> 블록 단일 패스로. 순차 치환 금지(같은 값 이중 증가)", "status": "code_present", "evidence": "프로브 [4] 재번호 481 == 기대치 · 돌연변이 M1이 잡힘" },
+        { "id": "S1-3", "desc": "jpeg Default는 존재 검사 후에만 추가 — 중복하면 Excel 복구 대화상자", "status": "code_present", "evidence": "프로브 [1] jpeg Default 중복 0" },
+        { "id": "S1-4", "desc": "localNameMap() export — Print_Area 자기검증 + 전수 ord 대조의 단일 축", "status": "code_present", "evidence": "프로브 [4] · 돌연변이 판정기" }
+      ]
+    },
+    {
+      "id": "S2",
+      "title": "사진 대지 생성 (defect-photo-embed.ts 신규)",
+      "status": "code_present",
+      "criteria": [
+        { "id": "S2-1", "desc": "Storage download + extractStoragePath 재사용(구형식 공개 URL 행 대응). 동시성 4 청크", "status": "code_present", "evidence": "src/lib/defect-photo-embed.ts prepPhoto·mapChunked" },
+        { "id": "S2-2", "desc": "sharp .rotate()→resize(1200,inside)→jpeg(q80). 치수는 toBuffer({resolveWithObject:true})의 info(회전 후) — metadata()는 회전 전이라 세로 사진이 눌린다", "status": "code_present", "evidence": "프로브 [7] 종횡비 오차 0.00214 < 0.01" },
+        { "id": "S2-3", "desc": "PNG/WebP도 무조건 JPEG 재인코딩 — 버킷에 비-JPEG가 실재(M-7)하고 webp Default가 없다", "status": "code_present", "evidence": "prepPhoto가 항상 .jpeg() 경유" },
+        { "id": "S2-4", "desc": "텍스트는 inlineStr, 이스케이프는 xlsx-inject의 escXml 재사용(두 벌이면 서로게이트 규약이 갈라진다)", "status": "code_present", "evidence": "프로브 [3] sharedStrings sha256 동일" },
+        { "id": "S2-5", "desc": "스타일은 fonts 2·borders 1·cellXfs 3을 끝에 append하고 count를 실개수로 재계산 — 기존 인덱스 무손상", "status": "code_present", "evidence": "프로브 [11] 142+2·147+1·870+3 == count == 실개수, 앞부분 문자열 동일" },
+        { "id": "S2-6", "desc": "누락 사유를 조용히 버리지 않는다(경로없음·다운로드실패·0바이트·디코드실패·용량초과), 상한 60건·12MB", "status": "code_present", "evidence": "프로브 [13] 3사유 왕복" },
+        { "id": "S2-7", "desc": "두 슬롯이 다 빈 건은 싣지 않는다(빈 상자 페이지 금지). 한쪽만 빈 건은 「사진 없음」으로 남겨 결손을 드러낸다", "status": "code_present", "evidence": "D-2 · 프로브 [13] 4건 12행·brk [6]·X-5 존치" },
+        { "id": "S2-8", "desc": "사진 0장이면 null — 시트를 만들지 않는다", "status": "code_present", "evidence": "프로브 [13] 마지막 축" }
+      ]
+    },
+    {
+      "id": "S3",
+      "title": "라우트 배선 (inspections/[id]/workbook/route.ts)",
+      "status": "code_present",
+      "criteria": [
+        { "id": "S3-1", "desc": "injectWorkbook 성공 직후·스트리밍 직전에 조회·삽입. 니들 스크럽이 캡션을 데이터 의존적으로 지우는 부류를 구성적으로 0으로 만든다", "status": "code_present", "evidence": "route.ts try/catch 블록 · 소방계획서_46.md §3-1" },
+        { "id": "S3-2", "desc": "사진 축만 라우트 자체 조회(M-6). 키·정렬은 조립과 같은 축", "status": "code_present", "evidence": "route.ts inspection_defects select" },
+        { "id": "S3-3", "desc": "실패해도 워크북은 나가고 사유는 X-Workbook-Missing 생존 순위 3위에 실린다", "status": "code_present", "evidence": "route.ts photoNotes 위치" },
+        { "id": "S3-4", "desc": "시트 이름은 DEFECT_SHEET(xlsx-anchors.ts) 단일 원천 — 앵커와 삽입 기준점이 같은 값", "status": "code_present", "evidence": "xlsx-anchors.ts DEFECT_SHEET · 현5 앵커 2곳이 이 상수를 쓴다" }
+      ]
+    },
+    {
+      "id": "S4",
+      "title": "검증 (test-photo-sheet.mts · _judge-photo-sheet-mutant.mts)",
+      "status": "code_present",
+      "criteria": [
+        { "id": "S4-1", "desc": "하한 선단언(임베드 12·media 12·앵커 12·행 18) 후에만 이하 축을 판정 — 0이면 '고아 0'류가 공허 통과한다", "status": "code_present", "evidence": "프로브 [0], 실패 시 즉시 exit 1" },
+        { "id": "S4-2", "desc": "LibreOffice 절대 쪽수 사슬 4·5·6·7·8건 = 2·3·3·4·4쪽. 4→5 차분이 2건/장과 3건/장을 가르는 유일한 축", "status": "code_present", "evidence": "M-8 — 74/75/75/76/76" },
+        { "id": "S4-3", "desc": "종횡비 |cx/cy − w/h| < 0.01 전수 — zip의 media를 다시 재서 판정", "status": "code_present", "evidence": "프로브 [7] 0.00214" },
+        { "id": "S4-4", "desc": "워크시트 자식 태그 순서 == CT_Worksheet 시퀀스 — LO는 통과시키고 Excel만 복구하는 축", "status": "code_present", "evidence": "프로브 [9] · 돌연변이 M2가 잡힘" },
+        { "id": "S4-5", "desc": "무손상 — 삽입 전/후 zip 전 항목의 압축 해제 바이트 동일, 예외는 Content_Types·workbook.xml·rels·styles.xml 4개뿐", "status": "code_present", "evidence": "프로브 [10]" },
+        { "id": "S4-6", "desc": "돌연변이 3종(재번호 off·drawing 앞당기기·count 미갱신)이 전부 빨강이고, 같은 축이 정상본에서는 초록", "status": "code_present", "evidence": "_judge-photo-sheet-mutant.mts 6/0" },
+        { "id": "S4-7", "desc": "실 DB 1건 왕복 — 사진 있는 점검 건으로 200 · 「현5」 바로 뒤 · 육안 3페이지", "status": "pending_order", "evidence": "미실행 — Q-4" }
+      ]
+    }
+  ],
+
+  "invariants_to_keep": [
+    "SheetJS 쓰기 금지 — 읽기·검증 전용(xlsx-inject.ts 머리주석)",
+    "삽입은 injectWorkbook 뒤에서만 — 앞에 두면 니들 스크럽이 캡션을 데이터 의존적으로 지운다",
+    "미디어 확장자는 .jpeg (jpg Default 부재)",
+    "styles.xml은 끝에 append만 — 중간 삽입은 전 시트의 s= 인덱스를 밀어 서식을 뒤섞는다",
+    "캡션은 절대 sharedStrings로 가지 않는다 — t=\"s\" 인덱스 시프트는 전 문서 텍스트를 뒤섞는다",
+    "PDF 별지 9~11호 경로 무변경(git status로 빈 출력 확인)"
+  ],
+
+  "verification_plan": [
+    "npx tsc --noEmit → 0 (파일 리다이렉트 + 종료코드로 판정)",
+    "npx tsx --conditions=react-server scripts/test-photo-sheet.mts → 하한 선단언 후 전건",
+    "같은 프로브 --lo → LibreOffice 절대 쪽수 사슬(프로필 격리)",
+    "npx tsx --conditions=react-server scripts/_judge-photo-sheet-mutant.mts → 돌연변이 3종 전부 잡힘",
+    "회귀 test-xlsx-donors · test-xlsx-inject · test-xlsx-anchors",
+    "실 DB 1건 왕복 + 육안 1회 (S4-7)"
+  ],
+
+  "results": {
+    "test-photo-sheet.mts --lo": "66 passed, 0 failed",
+    "_judge-photo-sheet-mutant.mts": "6 passed, 0 failed",
+    "tsc --noEmit": "0"
+  },
+
+  "risks": [
+    "공유 작업트리 — 착수 시점 변경 1,138개·HEAD 779e50e, 같은 날 타 세션이 42~45를 15분 간격으로 선점. 커밋은 pathspec 명시로만",
+    "산출물 크기 — 사진 12장이면 2~3MB 증가. JSZip 기본 STORE라 현행 산출물도 이미 무압축(~4.3MB). 압축 도입은 별건",
+    "LibreOffice 프로필 경합 — --lo는 격리 프로필 필수, 남의 soffice를 죽이지 말 것",
+    "PowerShell 5.1 — 한글은 Edit 도구로만, 종료코드는 파일 리다이렉트로",
+    "행 높이·열 폭은 이 자산의 기본 글꼴(돋움 11pt) 위에서 맞춘 값이다. 자산이 갱신되면 S4-2 쪽수 사슬이 먼저 붉어진다"
+  ]
+}

@@ -36,6 +36,11 @@ export type Anchor = {
 
 const HUB = '개요'
 
+/** 별지 9호 8쪽 '4. 소방시설등 불량 세부 사항' 시트 이름 — 아래 앵커들과 「불량사진」 시트
+ *  삽입 기준점(소방계획서_45)이 **같은 상수**를 본다. 두 벌로 두면 한쪽만 갱신돼, 사진 대지가
+ *  엉뚱한 탭 뒤에 붙거나 삽입이 통째로 실패한다. */
+export const DEFECT_SHEET = '현5'
+
 /** 현5(별지 9호 8쪽) 불량 세부 7행 — 행 좌표 ↔ 설비 구분.
  *  ⚠ 목록을 **두 벌로 두지 않는다** — `DEFECT_GROUPS`(doc-templates/report9.ts:47)에서 파생시킨다.
  *  손으로 베끼면 한쪽만 갱신돼 갈라지고, 그때 값이 조용히 옆 줄에 찍힌다(MULTI_USE_COLS를 export로
@@ -214,9 +219,9 @@ export const ANCHORS: Anchor[] = [
   // ⚠ C4~C10은 서식에 `=""`가 들어 있다 — 빈 값일 때 **셀을 비우면 계획서!H12가 `0`을 인쇄**하므로
   //   keepFormulaWhenEmpty로 그 수식을 살린다(이미 한 번 밟은 함정).
   ...DEFECT_GROUP_ROWS.flatMap<Anchor>(({ group, row }) => [
-    { field: `defectCode${row}`, sheet: '현5', cell: `B${row}`, labelCell: `A${row}`, label: group },
+    { field: `defectCode${row}`, sheet: DEFECT_SHEET, cell: `B${row}`, labelCell: `A${row}`, label: group },
     {
-      field: `defectContent${row}`, sheet: '현5', cell: `C${row}`, labelCell: `A${row}`, label: group,
+      field: `defectContent${row}`, sheet: DEFECT_SHEET, cell: `C${row}`, labelCell: `A${row}`, label: group,
       dropFormula: true, keepFormulaWhenEmpty: true,
     },
   ]),
