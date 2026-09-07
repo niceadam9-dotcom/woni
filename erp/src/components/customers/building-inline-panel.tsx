@@ -101,6 +101,21 @@ const PARKING_CHIPS: Array<{ flag: keyof ReturnType<typeof parseParkingSummary>;
   { flag: 'pkOut', word: '옥외', label: '옥외' },
 ]
 
+/** 주차장 대수 4분류 — 건축물대장 조회(fetchBuildingLedgerAction)가 합성하는 어휘와 동일.
+ *  숫자칸은 요약 텍스트를 읽고 쓰는 지름길일 뿐(텍스트가 원천) — 별도 저장 컬럼 없음 */
+const PARKING_COUNT_FIELDS = ['옥내 자주식', '옥내 기계식', '옥외 자주식', '옥외 기계식'] as const
+const parkingCountRe = (label: string) => new RegExp(label.replace(' ', '\\s*') + '\\s*(\\d+)\\s*대')
+
+/** 세그먼트 제거 뒤 구분자(`, ` · ` · `) 잔해 정리 — 칩 토글·대수칸이 공용 */
+function tidyParkingText(s: string): string {
+  return s
+    .replace(/\s{2,}/g, ' ')
+    .replace(/\s*,\s*/g, ', ').replace(/(?:, )+/g, ', ')
+    .replace(/\s*·\s*/g, ' · ').replace(/(?: · )+/g, ' · ')
+    .replace(/,\s*·\s*/g, ', ').replace(/·\s*,\s*/g, ', ')
+    .replace(/^[\s,·]+|[\s,·]+$/g, '')
+}
+
 /** 누락 칩(소방계획서 빠른 입력) → 이 폼 입력칸 id — erp:focus-missing 이벤트로 열고 포커스 */
 export const BUILDING_FIELD_IDS: Record<string, string> = {
   '건축허가일': 'bf-permit-date', '건축면적': 'bf-building-area', '건물동수': 'bf-building-count',
@@ -343,14 +358,28 @@ export function BuildingListPanel({ customerId, customerName, customerAddress, b
   function toggleParkingWord(word: string) {
     const cur = form.parking_summary
     if (cur.includes(word)) {
-      const next = cur.split(word).join('')
-        .replace(/\s{2,}/g, ' ').replace(/\s*,\s*/g, ', ').replace(/(?:, )+/g, ', ')
-        .replace(/^[,\s]+|[,\s]+$/g, '')
-      setField('parking_summary', next)
+      setField('parking_summary', tidyParkingText(cur.split(word).join('')))
     } else {
       // '지상'은 옥내 문맥에서만 옥내·지상으로 인정(parseParkingSummary) — 옥내가 없으면 함께 넣는다
       const add = word === '지상' && !cur.includes('옥내') ? '옥내 지상' : word
       setField('parking_summary', cur ? `${cur}, ${add}` : add)
+    }
+  }
+
+  // 주차장 대수칸 — 텍스트에서 「옥내 자주식 12대」 세그먼트를 읽고(표시) 고쳐 쓴다(입력).
+  // 숫자를 지우면 세그먼트째 제거. 분류가 텍스트에 없으면 뒤에 덧붙인다(대장 합성과 같은 형식).
+  function parkingCountOf(label: string): string {
+    const m = form.parking_summary.match(parkingCountRe(label))
+    return m ? m[1] : ''
+  }
+  function setParkingCount(label: string, raw: string) {
+    const cur = form.parking_summary
+    const re = parkingCountRe(label)
+    const n = raw.replace(/\D/g, '')
+    if (re.test(cur)) {
+      setField('parking_summary', n ? cur.replace(re, `${label} ${n}대`) : tidyParkingText(cur.replace(re, '')))
+    } else if (n) {
+      setField('parking_summary', cur ? `${cur}, ${label} ${n}대` : `${label} ${n}대`)
     }
   }
 
@@ -608,6 +637,18 @@ export function BuildingListPanel({ customerId, customerName, customerAddress, b
               <label className={labelCls}>주차장</label>
               <input id="bf-parking" value={form.parking_summary} onChange={e => setField('parking_summary', e.target.value)} disabled={!canManage}
                 placeholder="예: 옥내 자주식 12대, 옥외 자주식 6대" className={inputCls} />
+              {/* 대수 숫자칸 — 한글 타이핑 없이 숫자만 치면 위 텍스트가 자동 합성된다 */}
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1.5">
+                {PARKING_COUNT_FIELDS.map(label => (
+                  <span key={label} className="inline-flex items-center gap-1 text-form-xs text-ink-sub">
+                    {label}
+                    <input type="number" min={0} inputMode="numeric" disabled={!canManage} aria-label={`${label} 대수`}
+                      value={parkingCountOf(label)} onChange={e => setParkingCount(label, e.target.value)}
+                      className="h-6 w-14 rounded border border-brand-line bg-surface px-1.5 text-form-xs text-right outline-none focus:border-brand" />
+                    대
+                  </span>
+                ))}
+              </div>
               <div className="flex flex-wrap items-center gap-1 mt-1.5">
                 {(() => { const pk = parseParkingSummary(form.parking_summary); return PARKING_CHIPS.map(c => (
                   <button key={c.word} type="button" disabled={!canManage} onClick={() => toggleParkingWord(c.word)}
