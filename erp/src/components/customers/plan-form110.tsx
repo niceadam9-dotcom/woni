@@ -1,9 +1,10 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useEffect, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { Loader2, Save, Plus, Trash2 } from 'lucide-react'
-import { saveFirePlanSectionsAction } from '@/app/(dashboard)/customers/fire-plan-form-actions'
+import { Loader2, Save, Plus, Trash2, ExternalLink } from 'lucide-react'
+import { saveFirePlanSectionsAction, getPrevYearDutyAction } from '@/app/(dashboard)/customers/fire-plan-form-actions'
+import type { AnnexStatusSection, DutyMark, PlanStoredMark, PlanWrittenMark, PrevYearDutyAuto } from '@/lib/prev-year-duty'
 import { MULTI_USE_CATEGORIES } from '@/lib/doc-requirements'
 import { CardAnchorBar, MonthField, NumStepper, formatPhoneKR, useUnsavedWarning } from '@/components/ui/fields'
 import { DateInput } from '@/components/ui/date-input'
@@ -75,13 +76,50 @@ export function PlanForm110({ customerId, canManage, isComprehensive, autoOpMont
   const [mu, setMu] = useState<MultiUseSection>(initialMultiUse ?? EMPTY_MULTI_USE)
   const [hist, setHist] = useState<FireHistoryRow[]>(initialHistory)
   const [duty, setDuty] = useState<DutyLogRow[]>(initialDutyLog)
+  // 소방계획서_44 — 별지 9호 2쪽 3행의 확정값. 로드 전(null)에는 저장 패치에 싣지 않는다:
+  // 빈 값을 실으면 아직 못 읽은 기존 확정을 덮어쓴다.
+  const [annex, setAnnex] = useState<AnnexStatusSection | null>(null)
+  const [dutyAuto, setDutyAuto] = useState<PrevYearDutyAuto | null>(null)
+  const [dutyOtherYears, setDutyOtherYears] = useState<string[]>([])
   const [dirty, setDirty] = useState(false)
   useUnsavedWarning(dirty, save) // §11-4 이탈 경고 + 이동 확인창 [저장하고 이동]
   const [msg, setMsg] = useState('')
   const [isPending, startTransition] = useTransition()
 
+  useEffect(() => {
+    let alive = true
+    getPrevYearDutyAction(customerId).then(r => {
+      if (!alive || r.error) return
+      setAnnex(r.status ?? {})
+      setDutyAuto(r.auto)
+      setDutyOtherYears(r.otherYears)
+    })
+    return () => { alive = false }
+  }, [customerId])
+
   function pi(p: Partial<InspectionPlanSection>) { setInsp(v => ({ ...v, ...p })); setDirty(true) }
   function pm(p: Partial<MultiUseSection>) { setMu(v => ({ ...v, ...p })); setDirty(true) }
+  /** 전년도 실적 확정 — 같은 칩을 다시 누르면 ''(자동 판정에 맡김)으로 돌아간다 */
+  function pd(key: 'edu' | 'drill' | 'op' | 'comp', v: DutyMark) {
+    if (!dutyAuto) return
+    const y = String(dutyAuto.year)
+    setAnnex(prev => {
+      const base = prev ?? {}
+      const row = { ...(base.prevYear?.[y] ?? {}), [key]: v }
+      return { ...base, prevYear: { ...(base.prevYear ?? {}), [y]: row } }
+    })
+    setDirty(true)
+  }
+  function pp(p: { written?: PlanWrittenMark; stored?: PlanStoredMark }) {
+    setAnnex(prev => {
+      const base = prev ?? {}
+      const plan = { ...(base.plan ?? {}), ...p }
+      // 미작성이면 보관 칸 자체가 성립하지 않는다 — 화면에서도 값을 끊는다(조립기와 같은 규칙)
+      if (plan.written === '미작성') plan.stored = ''
+      return { ...base, plan }
+    })
+    setDirty(true)
+  }
   /** 반환 Promise는 이동 확인창이 저장 완료를 기다리는 용도 (true=성공) */
   function save(): Promise<boolean> {
     return new Promise(resolve => {
@@ -90,6 +128,8 @@ export function PlanForm110({ customerId, canManage, isComprehensive, autoOpMont
           inspection: insp, multiUse: mu,
           fireHistory: hist.filter(h => h.at.trim() || h.place.trim() || h.cause.trim()),
           dutyLog: duty.filter(d => d.date.trim() || d.content.trim()),
+          // 아직 못 읽었으면 아예 보내지 않는다 — 부분 업데이트라 키를 빼면 기존 값이 그대로 산다
+          ...(annex ? { annexStatus: annex } : {}),
         })
         if (res.error) { setMsg(`❌ ${res.error}`); resolve(false); return }
         setDirty(false)
@@ -111,11 +151,33 @@ export function PlanForm110({ customerId, canManage, isComprehensive, autoOpMont
     </span>
   )
 
+  /** 전년도 실적 체크쌍 — 별지 9호 패널의 mark2 규약 그대로: 둘 다 해제 = 자동 판정에 맡김 */
+  const markPair = (
+    label: string, value: string, yes: string, no: string,
+    onPick: (v: string) => void, autoText: string, disabled = false,
+  ) => (
+    // role=group + aria-pressed는 별지 9호 mark2 칸이 쓰던 규약 그대로다 — 확정 자리가 옮겨져도
+    // '무엇이 눌려 있는가'를 읽는 방법은 같아야 한다(스크린리더·E2E 양쪽).
+    <div className="flex items-center gap-2 flex-wrap" role="group" aria-label={label}>
+      <span className="text-form-xs font-medium text-ink-sub w-24">{label}</span>
+      <button disabled={!canManage || disabled} className={chip(value === yes)}
+        aria-pressed={value === yes} onClick={() => onPick(value === yes ? '' : yes)}>{yes}</button>
+      <button disabled={!canManage || disabled} className={chip(value === no)}
+        aria-pressed={value === no} onClick={() => onPick(value === no ? '' : no)}>{no}</button>
+      <span className="text-form-2xs text-ink-meta">{disabled ? '미작성 — 보관 칸은 성립하지 않습니다' : autoText}</span>
+    </div>
+  )
+  /** 자동 판정은 부정을 단정하지 않는다 — 실적이 없으면 「미실시」가 아니라 양쪽 공란이다 */
+  const autoText = (on: boolean, yes: string, src: string) =>
+    on ? `자동 판정: ${yes} (${src})` : `자동 판정 없음 — 고르지 않으면 양쪽 공란으로 인쇄`
+  const dy = annex?.prevYear?.[String(dutyAuto?.year ?? '')] ?? {}
+
   return (
     <div className="space-y-4">
       {/* §1-2 카드 앵커 점프 */}
       <CardAnchorBar items={[
-        { id: 'c-1.10.1', label: '1.10.1 연간 계획' }, { id: 'c-1.10.2', label: '1.10.2 업무수행 기록' },
+        { id: 'c-1.10.1', label: '1.10.1 연간 계획' }, { id: 'c-1.10-prev', label: '전년도 실시사항' },
+        { id: 'c-1.10.2', label: '1.10.2 업무수행 기록' },
         { id: 'c-1.10.3', label: '1.10.3 다중이용업소' }, { id: 'c-1.10.4', label: '1.10.4 화재 이력' },
       ]} />
       {/* 1.10.1 연간 점검 계획 */}
@@ -148,6 +210,65 @@ export function PlanForm110({ customerId, canManage, isComprehensive, autoOpMont
           </>
         )}
         <p className="text-form-xs text-ink-meta">사용승인일 {useApprovalDate || '—'} · 제출처 {fireStation ? `${fireStation}장` : '관할 소방서장'} (자동)</p>
+      </div>
+
+      {/* 전년도 업무 실시사항 — 별지 9호 2쪽 3행의 확정 자리 (소방계획서_44 S2)
+          서식 9쪽 작성방법 8호가 「소방계획서·자체점검(전년도)·교육훈련(전년도)」을 한 묶음
+          ('소방안전관리업무 실시사항')으로 규정하므로 한 블록에 둔다. 종전 자리는 점검 건의
+          별지 9호 작성 패널이었다 — 값에 연도가 없어 전 회차 이어받기가 작년 실적을 올해 칸에
+          실을 수 있었다. 확정값은 **실적 연도를 키로** 저장한다. */}
+      <div id="c-1.10-prev" className="scroll-mt-4 rounded-xl border border-brand-line-soft bg-brand-tint p-4 space-y-2">
+        <p className="text-form-sm font-semibold text-ink-sub">
+          전년도{dutyAuto ? `(${dutyAuto.year}년)` : ''} 업무 실시사항
+          <span className="font-normal text-ink-meta ml-2">
+            별지 9호 2쪽·갑지 「정보」 시트에 그대로 인쇄됩니다 — 자동 판정과 다를 때만 고르세요
+          </span>
+        </p>
+        {!dutyAuto ? (
+          <p className="text-form-xs text-ink-meta inline-flex items-center gap-1.5">
+            <Loader2 className="size-3 animate-spin" /> 자동 판정 불러오는 중…
+          </p>
+        ) : (
+          <div className="space-y-1.5">
+            {markPair('소방계획서 작성', annex?.plan?.written ?? '', '작성', '미작성',
+              v => pp({ written: v as PlanWrittenMark }),
+              autoText(dutyAuto.hasPlan, '작성', '소방계획서 서식 입력 있음'))}
+            {markPair('소방계획서 보관', annex?.plan?.stored ?? '', '보관', '미보관',
+              v => pp({ stored: v as PlanStoredMark }),
+              // 「보관」에는 자동 원천이 없다(현장 비치 여부를 ERP가 알 수 없다) — Q-4
+              '자동 판정 없음(원천 없음) — 고르지 않으면 양쪽 공란으로 인쇄',
+              (annex?.plan?.written ?? '') === '미작성')}
+            <div className="border-t border-dashed border-brand-line-soft pt-1.5 space-y-1.5">
+              {markPair('자체점검 작동', dy.op ?? '', '실시', '미실시', v => pd('op', v as DutyMark),
+                autoText(dutyAuto.opDone, '실시', `${dutyAuto.year}년 완료 점검 이력`))}
+              {markPair('자체점검 종합', dy.comp ?? '', '실시', '미실시', v => pd('comp', v as DutyMark),
+                autoText(dutyAuto.compDone, '실시', `${dutyAuto.year}년 완료 점검 이력`))}
+              <p className="text-form-2xs text-ink-meta">ERP 도입 전 이력(종이·타사)은 자동 판정에 잡히지 않습니다 — 그때만 고르세요.</p>
+            </div>
+            <div className="border-t border-dashed border-brand-line-soft pt-1.5 space-y-1.5">
+              {markPair('소방안전교육', dy.edu ?? '', '실시', '미실시', v => pd('edu', v as DutyMark),
+                autoText(dutyAuto.eduDone, '실시', '1.11.4 기록부'))}
+              {markPair('소방훈련', dy.drill ?? '', '실시', '미실시', v => pd('drill', v as DutyMark),
+                autoText(dutyAuto.drillDone, '실시', '1.11.4 기록부'))}
+              {/* Q-2 — 실적의 원천은 1.11.4 기록부다. 여기서 '실시'만 찍고 기록을 안 남기면
+                  1.11.4 배지와 어긋나므로 원천으로 가는 길을 함께 둔다.
+                  ⚠ next/link가 아니라 <a>(전체 이동) — 같은 경로 soft nav는 서버를 재렌더하지 않아
+                    ?form= 딥링크가 무시된다(소방계획서_34 S6-1). */}
+              <p className="text-form-2xs text-ink-meta">
+                실적의 원천은 1.11.4 결과 기록부입니다 —
+                <a href={`/customers/${customerId}?tab=plan&form=1.11`}
+                  className="text-brand hover:underline ml-1 inline-flex items-center gap-0.5">
+                  1.11.4 기록부로 이동 <ExternalLink className="size-2.5" />
+                </a>
+              </p>
+            </div>
+            {dutyOtherYears.length > 0 && (
+              <p className="text-form-2xs text-ink-meta">
+                다른 연도 확정값 있음: {dutyOtherYears.join(' · ')}년 — 이 화면은 {dutyAuto.year}년만 편집합니다.
+              </p>
+            )}
+          </div>
+        )}
       </div>
 
       {/* 1.10.2 업무수행 기록 (§12-1 결정: ERP 입력 관리) */}

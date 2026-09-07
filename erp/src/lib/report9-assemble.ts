@@ -25,7 +25,9 @@ import { isMultiUseApplicable, isMultiUseNone } from '@/lib/multi-use'
 import { resolveFireSafetyManager, type ContactLite } from '@/lib/fire-safety-manager'
 import { formatTel } from '@/lib/format-contact'
 import { inspectionCheckboxes } from '@/lib/inspection-round'
-import { trainingDoneIn, type TrainingRecordLike } from '@/lib/training-records'
+import {
+  judgePrevYearDutyAuto, resolvePrevYearDuty, type AnnexStatusSection,
+} from '@/lib/prev-year-duty'
 import { deriveMuFromStd32, fillNonApplicableMu } from '@/lib/mu-std32-map'
 import type { ManagerRow } from '@/components/customers/plan-form17'
 
@@ -291,37 +293,22 @@ export async function assembleReport9(
     if (r.item_code.startsWith('MU-') && ['O', 'X', 'N'].includes(r.result)) muResults[r.item_code] = r.result
   }
 
-  // 2쪽 자동 판정(§9-6③) — 데이터가 있을 때만 체크 (없으면 공란 유지, 단정 금지 — 워커 동일)
-  // 작성 여부 = 서식 입력 존재(빈 껍데기 {} 제외) — fire_plans 파일 축은 보관함 폐지로 은퇴
-  const hasPlan = Object.keys(
-    ((formsRes.data?.[0] ?? null) as { sections?: Record<string, unknown> } | null)?.sections ?? {},
-  ).length > 0
-  const { data: prevRows } = await admin.from('inspections')
-    .select('inspection_type').eq('customer_id', customerId).eq('year', insp.year - 1).eq('status', 'completed')
-  const prevList = (prevRows ?? []) as Array<{ inspection_type: string }>
-  // D(전년도 자체점검 자동 체크) — 전년도 이력이 보관돼 있으면 그 축 그대로 √.
-  //  · **종합은 종합, 작동은 작동**(2026-08-20 확정) — 축을 섞지 않는다. 종전엔 '최초'를 종합에
-  //    얹었으나(prevTypes.has('최초')) 그 값이 종합 1차라는 근거가 확정되지 않았고, 035가 레거시
-  //    '최초'·'기타'를 전부 '작동'으로 바꿔 데이터에 남아 있지도 않다(035:6-17). 근거 없는 단정을
-  //    지운 것이라 실데이터 판정은 달라지지 않는다. is_initial로도 축을 넓히지 않는다.
-  //  · 일반관리 고객의 점검 행은 inspection_type='일반관리'라 작동/종합 어디에도 걸리지 않았다
-  //    (inspections에는 inspection_sub_type 컬럼이 없다 — 035는 customers·plan_items에만 추가).
-  //    전년도 점검을 완료해도 두 칸이 영구 공란이던 원인 — 고객의 sub_type으로 **같은 축**을 복원한다.
-  const prevGeneral = prevList.some(r => r.inspection_type === '일반관리')
-  const generalSub = cust.inspection_sub_type ?? ''
-  const prevOpDone = prevList.some(r => r.inspection_type === '작동') || (prevGeneral && generalSub === '작동')
-  const prevCompDone = prevList.some(r => r.inspection_type === '종합') || (prevGeneral && generalSub === '종합')
   const sections = ((formsRes.data?.[0] as { sections: Record<string, unknown> | null } | undefined)?.sections) ?? {}
-  // B-2(소방계획서_19 K-2, Q-1 확정 2026-08-11): 교육훈련 = **전년도 실시** 기입(서식 9쪽 작성방법 8호
-  // "교육훈련(전년도)" — 자체점검(전년도)과 동일 축). 종전 `!!sections['training']`은 1.11 '계획' 존재만으로
-  // 교육·훈련을 둘 다 '실시'로 찍던 판정 비약(A9-2). 실적 원천 = 1.11.4 결과 기록부(records)의
-  // 전년도(insp.year-1) 행 — 구분(교육/훈련)별로 분리 판정. 부정 단정 없음 — 실적 없으면 미체크(☐)일 뿐.
-  // C·D: 연도 판정은 lib/training-records 한 곳 — 입력 화면(1.11.4)의 전년도 배지와 같은 함수를 쓴다.
-  // 종전 `at.slice(0,4)` 비교는 at이 자유 텍스트라 '25.6.10'·앞 공백이 조용히 탈락했다.
-  const trainingRecords = ((sections['training'] as { records?: TrainingRecordLike[] } | null)?.records) ?? []
-  const prevTraining = trainingDoneIn(trainingRecords, insp.year - 1)
-  const eduDone = prevTraining.edu
-  const drillDone = prevTraining.drill
+  // 2쪽 자동 판정(§9-6③) — 데이터가 있을 때만 체크 (없으면 공란 유지, 단정 금지 — 워커 동일).
+  //
+  // ⚠ 규칙은 여기 있지 않다 — **lib/prev-year-duty.ts 한 곳**이다(소방계획서_44).
+  //   같은 판정을 소방계획서 1.10 「전년도 업무 실시사항」 입력 화면도 보여 줘야 해서,
+  //   여기 두면 화면과 서식이 갈라진다(1.11.4 배지가 trainingDoneIn을 공유하는 것과 같은 이유).
+  //   이관 전 규칙(작성=서식 입력 존재 / 종합은 종합·작동은 작동 + 일반관리 sub_type 복원 /
+  //   교육훈련=1.11.4 전년도 기록부)은 무손상으로 옮겼다.
+  const dutyAuto = await judgePrevYearDutyAuto(admin, {
+    customerId, year: insp.year - 1, sections, inspectionSubType: cust.inspection_sub_type,
+  })
+  const hasPlan = dutyAuto.hasPlan
+  const prevOpDone = dutyAuto.opDone
+  const prevCompDone = dutyAuto.compDone
+  const eduDone = dutyAuto.eduDone
+  const drillDone = dutyAuto.drillDone
   // 소방안전관리자 — 145 지목(manager_contact_id) → 서식 1.7 → 대표 폴백. 규칙은 lib/fire-safety-manager 한 곳.
   const mgr = resolveFireSafetyManager({
     contacts, managerContactId: cust.manager_contact_id,
@@ -604,27 +591,26 @@ export async function assembleReport9(
   if (/^\d{4}-\d{2}-\d{2}$/.test(fReportDate)) data.reportDate = kdate(fReportDate)
   const fNote = fstr(annexFields, 'note')
   if (fNote) data.note = fNote
-  // A(3상태화): ③ 수동 보정 — '실시/미실시', '작성/미작성', '보관/미보관'을 사람이 확정한다.
-  //  자동 판정은 종전대로 **부정을 단정하지 않는다**(A9-6). 부정 칸(미실시·미작성·미보관)은 종전에
-  //  ck(false) 하드코딩이라 실제로 미실시인 대상물조차 √를 찍을 수 없었다 — 그 경로를 여기서만 연다.
-  const mark2 = (key: string, yes: string, no: string): 'yes' | 'no' | '' => {
-    const v = fstr(annexFields, key)
-    return v === yes ? 'yes' : v === no ? 'no' : ''
-  }
-  const mEdu = mark2('eduDone', '실시', '미실시')
-  if (mEdu) { data.eduDone = mEdu === 'yes'; data.eduNone = mEdu === 'no' }
-  const mDrill = mark2('drillDone', '실시', '미실시')
-  if (mDrill) { data.drillDone = mDrill === 'yes'; data.drillNone = mDrill === 'no' }
-  const mPrevOp = mark2('prevOpDone', '실시', '미실시')
-  if (mPrevOp) { data.prevOpDone = mPrevOp === 'yes'; data.prevOpNone = mPrevOp === 'no' }
-  const mPrevComp = mark2('prevCompDone', '실시', '미실시')
-  if (mPrevComp) { data.prevCompDone = mPrevComp === 'yes'; data.prevCompNone = mPrevComp === 'no' }
-  const mPlan = mark2('firePlanWritten', '작성', '미작성')
-  if (mPlan) { data.hasFirePlan = mPlan === 'yes'; data.firePlanNone = mPlan === 'no' }
-  // 미작성이면 보관 칸은 성립하지 않는다 — 자동 폴백(hasFirePlan)이 살아나지 않게 명시로 끊는다
-  if (data.firePlanNone) data.firePlanStored = false
-  const mStore = mark2('firePlanStored', '보관', '미보관')
-  if (mStore) { data.firePlanStored = mStore === 'yes'; data.firePlanUnstored = mStore === 'no' }
+  // 2쪽 3행(소방계획서·자체점검·교육훈련)의 확정 — **소방계획서 서식 1.10이 정본**이다(소방계획서_44).
+  //  사슬: ① sections.annexStatus[전년도] → ② annex_inputs 레거시(입력구는 걷고 읽기만 유지, Q-3)
+  //        → ③ 자동 판정(부정 단정 없음, A9-6)
+  //  종전엔 ②가 유일한 확정 창구였다. 값에 연도가 없어 전 회차 이어받기가 작년 실적을 올해 칸에
+  //  실을 수 있었고(44 §3 D-3), 같은 사실을 점검 건마다 다시 확정해야 했다.
+  const duty = resolvePrevYearDuty(
+    dutyAuto,
+    (sections['annexStatus'] ?? null) as AnnexStatusSection | null,
+    {
+      eduDone: fstr(annexFields, 'eduDone'), drillDone: fstr(annexFields, 'drillDone'),
+      prevOpDone: fstr(annexFields, 'prevOpDone'), prevCompDone: fstr(annexFields, 'prevCompDone'),
+      firePlanWritten: fstr(annexFields, 'firePlanWritten'), firePlanStored: fstr(annexFields, 'firePlanStored'),
+    },
+  )
+  data.eduDone = duty.eduDone; data.eduNone = duty.eduNone
+  data.drillDone = duty.drillDone; data.drillNone = duty.drillNone
+  data.prevOpDone = duty.opDone; data.prevOpNone = duty.opNone
+  data.prevCompDone = duty.compDone; data.prevCompNone = duty.compNone
+  data.hasFirePlan = duty.hasPlan; data.firePlanNone = duty.planNone
+  data.firePlanStored = duty.stored; data.firePlanUnstored = duty.unstored
 
   // 누락 항목 — 워커 process_report9 missing과 동일 문구
   const missing: string[] = []

@@ -1,0 +1,123 @@
+{
+  "doc": "소방계획서_44",
+  "title": "별지 9호 2쪽 3행(소방계획서·자체점검·교육훈련) 입력 자리를 소방계획서로 이관",
+  "created": "2026-09-07",
+  "source_md": "erp_goal/소방계획서_44.md",
+  "principle": "별지 9호 2쪽의 「소방계획서·자체점검(전년도)·교육훈련(전년도)」 3행은 법정 작성방법 8호가 한 묶음으로 규정한 '소방안전관리업무 실시사항'이다. 그 업무를 적는 문서는 소방계획서이므로 사람이 확정하는 자리를 점검 건 패널(annex_inputs)에서 소방계획서 서식 1.10(fire_plan_forms.sections.annexStatus)으로 옮긴다. 자동 판정 규칙·조립기·산출물 배선은 손대지 않는다 — 옮기는 것은 확정 창구 하나뿐 (md §3·§4·§5)",
+  "images": ["erp_goal/image-79.png (갑지 엑셀 「정보」 시트 = 8쪽 중 제2쪽)", "erp_goal/image-80.png (별지 9호 고유값 패널 = 종전 확정 자리)"],
+  "probes": [
+    "erp/scripts/_probe-44-annex-scope.mts (착수 전 축·이관 규모 실측, 읽기 전용)",
+    "erp/scripts/_probe-44-prev-year-duty.mts (해석 사슬·자동 판정·실DB 조립 — 22/0)",
+    "erp/scripts/_probe-44-e2e.mts (1.10 확정 → DB → 재로드 → 작업대 반영 왕복 — 11/0)"
+  ],
+  "measured_facts": [
+    { "id": "F-1", "fact": "PDF 별지 9호 2쪽과 갑지 엑셀 「정보」 시트가 같은 assembleReport9() 출력을 쓴다 — 이관 대상은 조립기 하나뿐이고 엑셀 추가 배선은 0", "method": "report9.ts:332·336-337·340-341 vs xlsx-anchors.ts:164-166(정보!B10·B11·B12) + xlsx-workbook.ts:256-260 직접 대조" },
+    { "id": "F-2", "fact": "별지 9호 패널 8칸 중 6칸(eduDone·drillDone·prevOpDone·prevCompDone·firePlanWritten·firePlanStored)이 이 3행 전용이다. 별지 9호 고유값은 보고일·비고 2칸뿐", "method": "annex-fields.tsx:37-87 FIELD_DEFS.report9 전수(이관 전)" },
+    { "id": "F-3", "fact": "자동 판정은 부정을 단정하지 않아, 실적이 없으면 실시/미실시 양쪽 공란으로 인쇄된다. 「미실시·미작성·미보관」 √는 오직 그 6칸으로만 나갔다", "method": "report9-assemble.ts:294-324(자동) · :601-627(③ 오버레이) 코드 대조(이관 전)" },
+    { "id": "F-4", "fact": "저장 축이 어긋난다 — 세 행은 (고객, 연도) 사실인데 annex_inputs는 unique(inspection_id, annex_no)로 점검 건 단위다. 값에 연도가 새겨지지 않아 '어느 해의 미실시'인지 데이터가 모른다", "method": "112_facility_specs_annex_inputs.sql:37-48 스키마 + report9-assemble.ts의 insp.year-1이 읽는 시점에 뜻을 정함" },
+    { "id": "F-5", "fact": "전 회차 이어받기가 6칸을 전부 복사한다(제외는 date·daterange뿐). 직전 회차 판정은 연도를 보지 않고 시작일 기준 바로 이전이라, 2026 회차의 「2025년 미실시」가 2027 회차로 넘어가 2026년 실적으로 인쇄될 수 있었다", "method": "annex-compose-panel.tsx:98-111 필터 조건 + facility-spec-actions.ts:304-314 질의(연도 조건 부재) 직접 확인" },
+    { "id": "F-6", "fact": "이관 비용 0 — 스테이징 실DB에서 6키에 값이 든 annex_inputs 행이 0건이다(report9 행 자체가 1건). 데이터 이관·충돌 해소 절차가 통째로 불필요", "method": "_probe-44-annex-scope.mts 실행 2026-09-07: rows=1, 6키 각 0, with-any=0" },
+    { "id": "F-7", "fact": "다만 '같은 사실 두 번 입력'은 현재 데이터에서 174분의 1이다((고객,연도) 174군 중 점검 2건인 군 1개, 충돌 0). 이관 근거는 중복 입력이 아니라 연도축 부재(F-4·F-5)와 원천 근접성이다 — 과장 금지", "method": "같은 프로브 [2][3] 블록, inspections 175행 전수" },
+    { "id": "F-8", "fact": "코드가 이미 창구 분리를 자백하고 있었다 — 소방계획서 1.11.4 배지가 '별지 9호 작성 패널에서 실시·미실시를 확정하세요'라고 사용자를 밖으로 내보냈다", "method": "plan-form111.tsx:125-137 배지 렌더, :134 문구(이관 전)" },
+    { "id": "F-9", "fact": "법정 작성방법 8호가 셋을 한 묶음('소방안전관리업무 실시사항', 화재예방법 제24조)으로 규정한다. 소방계획서 서식 1.10의 제목이 「소방안전관리자 자체점검 및 업무 수행」이라 그릇이 이미 있다", "method": "report9.ts:685 서식 9쪽 작성방법 원문 + plan-form110.tsx:11-15 섹션 주석" },
+    { "id": "F-10", "fact": "「보관」에는 원천이 없었다 — 자동값이 근거 없이 작성 여부를 그대로 따랐다(firePlanStored ?? hasFirePlan). 보관함 기능은 2026-09-02 폐지돼 코드에 '보관' 개념 자체가 없다", "method": "report9.ts:333 폴백 표현식(이관 전) + fire-plan-view.tsx:7-12 폐지 주석" },
+    { "id": "F-11", "fact": "③계층 표면이 **둘**이다 — 슬라이드 작성 패널(annex-compose-panel)과 작업대 인라인(inspection-workbench.tsx:1154 AnnexFields). 정의(FIELD_DEFS)는 공유라 6칸 제거는 양쪽에 한 번에 먹지만, '어디로 갔는지' 안내는 두 곳에 각각 필요했다", "method": "E2E 1차 실패로 발견 — /inspections/{id}에서 열리는 것은 패널이 아니라 작업대 인라인(data-annex-fields)이었다(_probe-44-e2e 1차 ④ 타임아웃)" },
+    { "id": "F-12", "fact": "annexStatus를 sections에 두면 그 블록 저장만으로 「소방계획서 작성 √」가 켜진다(작성 판정이 sections 키 개수이므로). 자기 자신을 근거로 삼는 함정이라 판정에서 제외했다", "method": "judgePrevYearDutyAuto의 키 필터 + _probe-44-prev-year-duty B1/B2 양방향 단언" }
+  ],
+  "related": [
+    { "doc": "project_fireplan_archive_retire", "why": "소방계획서 보관함 폐지(2026-09-02) — D-4 「보관」 재정의의 근거" },
+    { "doc": "소방계획서_19", "why": "B-2·B-2c(K-2) — 교육훈련 판정을 1.11.4 전년도 실적으로 좁히고 ③수기 보정을 별지 9호 패널에 만든 결정. 44는 그 보정 창구만 옮긴다(A9-6 부정 단정 금지는 유지)" },
+    { "doc": "소방계획서_8", "why": "H-5b·D-5 전 회차 이어받기 — F-5(연도 밀림)의 유래. 6칸이 FIELD_DEFS에서 빠지면서 이어받기 대상에서도 소멸" },
+    { "doc": "소방계획서_21", "why": "R6-6 작업대 인라인 고유값 — F-11의 두 번째 표면" },
+    { "doc": "소방계획서_27", "why": "갑지 엑셀 앵커·주입 파이프라인 — 정보!B10~B12가 같은 조립기를 타는 구조(F-1)" },
+    { "doc": "소방계획서_34", "why": "S6-1 같은 경로 soft nav는 서버를 재렌더하지 않는다 — 1.10·1.11 딥링크를 <a>로 쓴 이유" },
+    { "doc": "project_prod_data_purge_2026_08_24", "why": "운영 업무데이터 0건 — F-6의 이관 비용 0을 운영 쪽에서도 뒷받침" },
+    { "doc": "feedback_legal_form_source", "why": "서식 근거는 원문 — F-9는 파생 MD가 아니라 렌더러가 싣고 있는 작성방법 원문에서 읽었다" }
+  ],
+  "status_legend": {
+    "pending_order": "미구현·지시 대기",
+    "code_present": "코드 존재(구현자 자기 신고) — 검증 전",
+    "partial": "부분 구현 — criteria 참조",
+    "implemented": "독립 검증 통과 + verified 증거 동반"
+  },
+  "user_decisions": [
+    { "id": "D-1", "decision": "Q-1 = B안 — 소방계획서 1.10에 「전년도 업무 실시사항」 한 블록을 신설하고 별지 9호 패널의 6칸은 걷는다", "date": "2026-09-07" },
+    { "id": "D-2", "decision": "Q-2 = 권장안 — 교육·훈련 줄은 1.10 블록에 두되 1.11.4 기록부 링크를 병기한다", "date": "2026-09-07" },
+    { "id": "D-3", "decision": "Q-3 = 권장안 — 레거시 annex_inputs 6키는 입력구를 없애고 **읽기 폴백으로만** 남긴다", "date": "2026-09-07" },
+    { "id": "D-4", "decision": "Q-4 = 권장안 — 「보관」은 사람이 고를 때만 √. 미선택 시 보관·미보관 둘 다 공란(작성 여부를 따르던 폴백 폐지)", "date": "2026-09-07" }
+  ],
+  "open_questions": [],
+  "sections": [
+    {
+      "id": "S1", "title": "저장 축 — sections.annexStatus (연도 키)", "status": "code_present",
+      "criteria": [
+        { "id": "S1-1", "desc": "fire_plan_forms.sections에 annexStatus 키 신설. prevYear는 실적 연도(점검연도-1)를 키로 하는 맵, plan(written·stored)은 연도축 없음. DB 마이그레이션 0(JSONB)", "status": "code_present", "evidence": ["src/lib/prev-year-duty.ts:30-35 AnnexStatusSection", "_probe-44-e2e ② 실적 연도를 키로 남는다"] },
+        { "id": "S1-2", "desc": "fire-plan-form-actions.ts FORM_SECTION_KEYS에 'annexStatus' 추가 — 빠지면 저장이 거절된다", "status": "code_present", "evidence": ["src/app/(dashboard)/customers/fire-plan-form-actions.ts:58-62"] },
+        { "id": "S1-3", "desc": "3상태 규약 유지 — ''(자동) / 긍정 / 부정. 빈 값이 자동 판정을 덮지 않는다", "status": "code_present", "evidence": ["prev-year-duty.ts:130-146 pick()", "_probe-44-prev-year-duty A1·A2·A3"] },
+        { "id": "S1-4", "desc": "연도 키가 F-5를 구조로 없앤다 — 다른 해 확정은 적용되지 않는다(테스트로 고정)", "status": "code_present", "evidence": ["_probe-44-prev-year-duty A4 other-year confirmation does NOT apply"] },
+        { "id": "S1-5", "desc": "편집하지 않는 다른 연도의 확정값을 화면이 숨기지 않는다(annexStatusOtherYears)", "status": "code_present", "evidence": ["prev-year-duty.ts:70-76", "plan-form110.tsx 「다른 연도 확정값 있음」 줄"] }
+      ]
+    },
+    {
+      "id": "S2", "title": "소방계획서 1.10 「전년도 업무 실시사항」 블록", "status": "code_present",
+      "criteria": [
+        { "id": "S2-1", "desc": "plan-form110.tsx 1.10.1 아래 앵커 c-1.10-prev 블록 + 상단 앵커 칩 추가", "status": "code_present", "evidence": ["src/components/customers/plan-form110.tsx 「전년도 업무 실시사항」 블록", "CardAnchorBar items에 '전년도 실시사항'"] },
+        { "id": "S2-2", "desc": "3행 6축 확정 UI. 별지 9호 mark2 규약(role=group·aria-pressed·다시 누르면 해제)을 그대로 옮긴다", "status": "code_present", "evidence": ["plan-form110.tsx markPair()", "_probe-44-e2e ① 초기 상태는 자동 판정 / ③ 재로드 후 [√]미실시 유지"] },
+        { "id": "S2-3", "desc": "각 줄에 현재 자동 판정 결과를 함께 표시. 자동값이 없으면 '양쪽 공란으로 인쇄'를 명시", "status": "code_present", "evidence": ["plan-form110.tsx autoText()"] },
+        { "id": "S2-4", "desc": "블록 제목에 실적 연도를 박는다 — 연도 없는 라벨은 F-4가 재발하는 자리", "status": "code_present", "evidence": ["_probe-44-e2e ① 블록 제목에 실적 연도가 박혀 있다"] },
+        { "id": "S2-5", "desc": "D-2 — 교육·훈련 줄에 1.11.4 기록부 이동 링크(<a> 전체 이동)", "status": "code_present", "evidence": ["plan-form110.tsx '1.11.4 기록부로 이동'"] },
+        { "id": "S2-6", "desc": "실적 연도는 '올해-1'이 아니라 **가장 최근 점검 회차의 연도-1** — 해를 넘겨 인쇄할 때 화면과 서식이 다른 해를 가리키지 않게", "status": "code_present", "evidence": ["fire-plan-form-actions.ts getPrevYearDutyAction latestYear-1"] },
+        { "id": "S2-7", "desc": "자동 판정을 아직 못 읽었으면 annexStatus를 저장 패치에 싣지 않는다(빈 값이 기존 확정을 덮지 않게)", "status": "code_present", "evidence": ["plan-form110.tsx save(): ...(annex ? { annexStatus: annex } : {})"] }
+      ]
+    },
+    {
+      "id": "S3", "title": "조립기 — 판정 단일 원천 + 우선순위 사슬", "status": "code_present",
+      "criteria": [
+        { "id": "S3-1", "desc": "① sections.annexStatus[전년도] → ② annex_inputs 레거시(D-3) → ③ 자동 판정 순", "status": "code_present", "evidence": ["src/lib/report9-assemble.ts 「2쪽 3행의 확정」 블록", "_probe-44-prev-year-duty A5·A6"] },
+        { "id": "S3-2", "desc": "자동 판정 규칙을 lib/prev-year-duty.ts 한 곳으로 뽑는다 — 입력 화면과 서식이 같은 함수를 쓰므로 갈라질 수 없다(1.11.4 배지가 trainingDoneIn을 공유하는 것과 같은 축)", "status": "code_present", "evidence": ["src/lib/prev-year-duty.ts:85-120 judgePrevYearDutyAuto", "report9-assemble.ts가 그 함수를 호출"] },
+        { "id": "S3-3", "desc": "부정 단정 금지(A9-6) 무손상 — 자동은 긍정만 찍는다", "status": "code_present", "evidence": ["_probe-44-prev-year-duty A1 negatives never asserted by auto"] },
+        { "id": "S3-4", "desc": "미작성이면 보관 칸 양쪽을 끊는다(조립기·화면 같은 규칙)", "status": "code_present", "evidence": ["prev-year-duty.ts resolvePrevYearDuty planNone 분기", "_probe-44-prev-year-duty A9", "plan-form110.tsx pp()"] },
+        { "id": "S3-5", "desc": "F-12 — annexStatus 자신은 「작성」 근거가 아니다", "status": "code_present", "evidence": ["_probe-44-prev-year-duty B1·B2"] },
+        { "id": "S3-6", "desc": "D-4 — 「보관」 자동 폴백 폐지. PDF·엑셀 두 산출물에서 같이 끊는다", "status": "code_present", "evidence": ["doc-templates/report9.ts:333 ck(!!d.firePlanStored)", "xlsx-workbook.ts:256-258", "_probe-44-prev-year-duty A7·A8·C(실DB 5건)"] }
+      ]
+    },
+    {
+      "id": "S4", "title": "별지 9호 ③계층 정리 (두 표면)", "status": "code_present",
+      "criteria": [
+        { "id": "S4-1", "desc": "FIELD_DEFS.report9에서 6칸 제거 — 보고일·비고만 남는다. 되살리지 말라는 이유를 파일에 남긴다", "status": "code_present", "evidence": ["src/components/inspections/annex-fields.tsx:41-47 주석", "test-preview-pane '④ 9호 고유값 2칸' 19/0"] },
+        { "id": "S4-2", "desc": "작성 패널 1단 — 읽기 전용 3줄 요약(어느 해·무엇이 인쇄되는가) + 1.10 딥링크", "status": "code_present", "evidence": ["annex-compose-panel.tsx autoRows duty 행 + dutySummary 블록", "facility-spec-actions.ts getAnnexDutySummaryAction"] },
+        { "id": "S4-3", "desc": "F-11 — 작업대 인라인에도 같은 안내 한 줄(옆이 미리보기라 세로가 귀해 3줄은 패널에만)", "status": "code_present", "evidence": ["inspection-workbench.tsx AnnexFields 「2쪽 전년도(…) 실시사항」 줄", "_probe-44-e2e ④ 작업대가 확정 사실을 말한다 / ④ 1.10 딥링크"] },
+        { "id": "S4-4", "desc": "이어받기가 6칸을 더 복사하지 않는다 — FIELD_DEFS 순회라 S4-1로 자동 소멸. 말이 아니라 검사로 단언", "status": "code_present", "evidence": ["_probe-44-e2e ⑤ ③계층에 전년도 확정 칸이 되살아나지 않았다", "annex-compose-panel.tsx:116-129 순회 대상이 FIELD_DEFS"] },
+        { "id": "S4-5", "desc": "plan-form111.tsx 배지 문구를 1.10 블록 링크로 교체 — F-8의 죽은 안내 제거", "status": "code_present", "evidence": ["plan-form111.tsx 배지 「1.10 「전년도 업무 실시사항」」 링크"] }
+      ]
+    },
+    {
+      "id": "S5", "title": "검증", "status": "code_present",
+      "criteria": [
+        { "id": "S5-1", "desc": "해석 사슬 4상태 + 자동 판정 규칙 프로브", "status": "code_present", "evidence": ["_probe-44-prev-year-duty.mts 22/0 (A 12 · B 4 · C 6)"] },
+        { "id": "S5-2", "desc": "E2E — 1.10 확정 → DB(annexStatus, 연도 키) → 재로드 복원 → 작업대 반영 왕복", "status": "code_present", "evidence": ["_probe-44-e2e.mts 11/0"] },
+        { "id": "S5-3", "desc": "엑셀·PDF 갈라짐 없음 — 앵커·주입 게이트 스위트 재실행", "status": "code_present", "evidence": ["test-xlsx-anchors 61/0", "test-xlsx-inject 189/0", "test-annex-overrides 57/57"] },
+        { "id": "S5-4", "desc": "레거시 폴백 양방향(소방계획서 확정이 있으면 그것이, 없으면 레거시가 이긴다)", "status": "code_present", "evidence": ["_probe-44-prev-year-duty A5·A6"] },
+        { "id": "S5-5", "desc": "낡은 검사 정리 — 옛 자리를 재던 프로브는 폐기 표기(실패가 정상임을 파일 첫 줄에), 게이트 스위트의 분모 8→2는 이유와 함께 정정", "status": "code_present", "evidence": ["scripts/_probe-mark2-annex.mts:1-6 폐기 머리말", "scripts/test-preview-pane.mts 분모 2 + 사유 주석"] },
+        { "id": "S5-6", "desc": "tsc 0", "status": "code_present", "evidence": ["npx tsc --noEmit rc=0 (2026-09-07)"] }
+      ]
+    },
+    {
+      "id": "S6", "title": "관측 — 범위 밖", "status": "pending_order",
+      "criteria": [
+        { "id": "S6-1", "desc": "O-1: 「정보」 시트에서 자체점검·교육훈련·화재보험 세 줄만 빨간 글씨, 소방계획서 줄은 검정(image-79). 값 주입은 문자열만 바꾸므로 템플릿 글자색 축으로 보인다. 실 생성물로 확인하기 전에는 결함으로 말하지 않는다", "status": "pending_order" }
+      ]
+    }
+  ],
+  "remaining": [
+    "커밋 승인 대기 (사용자 명시 지시 전까지 커밋·푸시 없음)",
+    "독립 판정(구현자 ≠ 판정자) — 통과 항목만 implemented 승격 (Json_Rule 규칙 3)",
+    "운영 배포 시 갑지 「정보」 시트 육안 1회 — 「보관」 칸이 공란으로 나가는 것이 D-4대로인지",
+    "S6-1 글자색 별건"
+  ],
+  "out_of_scope": [
+    "자동 판정 규칙 자체(전년도 이력 해석·trainingDoneIn) — 옮긴 것은 확정 창구와 규칙의 '자리'뿐, 판정 내용은 무손상",
+    "별지 10·11호·공문·위임장의 ③계층 — 그 값들은 실제로 해당 서식 고유값이다",
+    "O-1 글자색(S6-1은 관측 기록일 뿐 수리 항목이 아니다)"
+  ]
+}

@@ -131,7 +131,15 @@ export function PlanForm111({ customerId, canManage, initial, presetType }: {
       <span className="ml-1 opacity-80">
         {prev.edu && prev.drill
           ? '별지 9호 2쪽 «교육훈련»에 실시 √로 자동 기재됩니다.'
-          : `별지 9호 2쪽 «교육훈련»의 미확정 칸은 공란으로 인쇄됩니다 — ${prevYear}년 행을 남기거나, 별지 9호 작성 패널에서 실시·미실시를 확정하세요.`}
+          : <>
+              별지 9호 2쪽 «교육훈련»의 미확정 칸은 공란으로 인쇄됩니다 — {prevYear}년 행을 남기거나,
+              {/* 소방계획서_44 — 확정 자리가 별지 9호 작성 패널에서 1.10으로 옮겨졌다.
+                  ⚠ <a>(전체 이동)여야 한다: 같은 경로 soft nav는 서버를 재렌더하지 않아 ?form=이 무시된다 */}
+              <a href={`/customers/${customerId}?tab=plan&form=1.10#c-1.10-prev`}
+                className="underline underline-offset-2 font-medium ml-1">
+                1.10 「전년도 업무 실시사항」
+              </a>에서 실시·미실시를 확정하세요.
+            </>}
       </span>
     </p>
   )

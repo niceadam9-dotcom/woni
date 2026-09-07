@@ -117,7 +117,7 @@ export type Report9Data = {
   mgrName: string
   mgrPhone: string
   mgrEduDate: string
-  hasFirePlan: boolean        // true → 작성+보관 체크 (자동 판정은 미보관·미작성을 단정하지 않는다)
+  hasFirePlan: boolean        // 작성 √ (자동 판정은 미보관·미작성을 단정하지 않는다)
   prevOpDone: boolean         // 전년도 작동점검 실시
   prevCompDone: boolean       // 전년도 종합점검 실시
   eduDone: boolean
@@ -127,7 +127,10 @@ export type Report9Data = {
    *  실제로 미실시인 대상물도 서식에 √를 찍을 수 없어 양쪽이 공란으로 나갔다.
    *  미공급(구 호출·프로브)이면 종전과 동일하게 ☐ — 하위 호환. */
   firePlanNone?: boolean      // 미작성
-  firePlanStored?: boolean    // 보관 √ (미공급 시 hasFirePlan을 따른다 — 종전 동작)
+  /** 보관 √ — **사람이 고를 때만**. 소방계획서_44 Q-4로 hasFirePlan 폴백을 끊었다:
+   *  「보관」에는 원천이 없어(현장 비치 여부를 ERP가 알 수 없다) 작성 여부로 대신 찍던 것이
+   *  근거 없는 단정이었다. 확정 자리는 소방계획서 1.10 「전년도 업무 실시사항」. */
+  firePlanStored?: boolean
   firePlanUnstored?: boolean  // 미보관
   prevOpNone?: boolean        // 전년도 작동점검 미실시
   prevCompNone?: boolean      // 전년도 종합점검 미실시
@@ -330,7 +333,7 @@ ${pageHeader(null, '(8쪽 중 제2쪽)')}
   </tr>
   <tr>
     <th class="lbl">소방계획서</th>
-    <td class="pre"> ${ck(d.hasFirePlan)}작성 (${ck(d.firePlanStored ?? d.hasFirePlan)}보관 ${ck(!!d.firePlanUnstored)}미보관), ${ck(!!d.firePlanNone)}미작성</td>
+    <td class="pre"> ${ck(d.hasFirePlan)}작성 (${ck(!!d.firePlanStored)}보관 ${ck(!!d.firePlanUnstored)}미보관), ${ck(!!d.firePlanNone)}미작성</td>
   </tr>
   <tr>
     <th class="lbl">자체점검<br>(전년도)</th>

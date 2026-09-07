@@ -15,6 +15,11 @@ import { sheetItemGroupRef } from '@/lib/sheet-scope'
 import { getLatestSpecialInspection } from '@/lib/latest-inspection'
 import { combinedRangeError } from '@/lib/date-range'
 import { assembleOfficial } from '@/lib/annex-cover-official'
+import { loadAnnexInputs, fstr } from '@/lib/report9-assemble'
+import {
+  judgePrevYearDutyAuto, resolvePrevYearDuty, prevYearDutyLines, annexStatusForYear,
+  type AnnexStatusSection,
+} from '@/lib/prev-year-duty'
 
 const SECTION_KEYS = new Set(FACILITY_SPEC_SECTIONS.map(s => s.key))
 // exterior 추가(소방계획서_19 EX-2) — 외관점검표도 ③ 서식 고유 값(점검일·비고)을 저장한다.
@@ -284,6 +289,48 @@ export async function getAnnexAutoDefaultsAction(
     // 자동값은 보조 정보다 — 못 구해도 입력 자체는 되어야 한다
     return { defaults: {}, error: e instanceof Error ? e.message : '자동값 조회 실패' }
   }
+}
+
+/** 별지 9호 2쪽 3행 요약 (소방계획서_44 S4-2) — 작성 패널 1단에 **읽기 전용**으로 비춘다.
+ *
+ *  확정 자리는 소방계획서 1.10이므로 여기서는 고치지 못한다. 대신 "지금 무엇이 인쇄되는가"와
+ *  **어느 해 실적인가**를 보여 준다 — 연도를 안 보여 주면 사용자가 어느 해를 확정했는지 알 수 없다. */
+export async function getAnnexDutySummaryAction(inspectionId: string): Promise<{
+  year: number
+  /** 확정 화면(소방계획서 1.10) 링크용 — 이 액션을 쓰는 두 표면(작업대·작성 패널) 모두 고객 id가 없다 */
+  customerId: string
+  lines: Array<{ label: string; text: string }>
+  confirmed: boolean
+  error?: string
+}> {
+  await requirePermission('inspection_register')
+  const admin = createAdminClient()
+  const { data: insp } = await admin.from('inspections')
+    .select('customer_id, year').eq('id', inspectionId).maybeSingle()
+  if (!insp) return { year: 0, customerId: '', lines: [], confirmed: false, error: '점검을 찾을 수 없습니다.' }
+  const i = insp as { customer_id: string; year: number }
+  const year = i.year - 1
+
+  const [formRes, custRes, legacy] = await Promise.all([
+    admin.from('fire_plan_forms').select('sections').eq('customer_id', i.customer_id).maybeSingle(),
+    admin.from('customers').select('inspection_sub_type').eq('id', i.customer_id).maybeSingle(),
+    loadAnnexInputs(admin, inspectionId, 'report9'),
+  ])
+  const sections = ((formRes.data as { sections?: Record<string, unknown> } | null)?.sections) ?? {}
+  const status = (sections['annexStatus'] ?? null) as AnnexStatusSection | null
+  const auto = await judgePrevYearDutyAuto(admin, {
+    customerId: i.customer_id, year, sections,
+    inspectionSubType: (custRes.data as { inspection_sub_type?: string | null } | null)?.inspection_sub_type ?? null,
+  })
+  const resolved = resolvePrevYearDuty(auto, status, {
+    eduDone: fstr(legacy, 'eduDone'), drillDone: fstr(legacy, 'drillDone'),
+    prevOpDone: fstr(legacy, 'prevOpDone'), prevCompDone: fstr(legacy, 'prevCompDone'),
+    firePlanWritten: fstr(legacy, 'firePlanWritten'), firePlanStored: fstr(legacy, 'firePlanStored'),
+  })
+  const y = annexStatusForYear(status, year)
+  const confirmed = [y.edu, y.drill, y.op, y.comp, status?.plan?.written, status?.plan?.stored]
+    .some(v => String(v ?? '').trim())
+  return { year, customerId: i.customer_id, lines: prevYearDutyLines(resolved), confirmed }
 }
 
 /** 전 회차 이어받기 (소방계획서_8 H-5b·D-5) — 같은 고객의 직전 자체점검 회차에서 같은 별지의

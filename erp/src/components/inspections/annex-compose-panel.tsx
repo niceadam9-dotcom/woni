@@ -3,9 +3,10 @@
 import { useEffect, useState, useTransition } from 'react'
 import { X, Eye, FileText, Loader2, Save, ExternalLink } from 'lucide-react'
 import { AnnexMissingList } from '@/components/inspections/annex-missing-list'
-import { getAnnexInputsAction, saveAnnexInputsAction, getPrevAnnexInputsAction, getAnnexAutoDefaultsAction } from '@/app/(dashboard)/customers/facility-spec-actions'
+import { getAnnexInputsAction, saveAnnexInputsAction, getPrevAnnexInputsAction, getAnnexAutoDefaultsAction, getAnnexDutySummaryAction } from '@/app/(dashboard)/customers/facility-spec-actions'
 import { getAnnexPreviewHtmlAction, requestReport9Action } from '@/app/(dashboard)/inspections/report9-actions'
 import { ANNEX_TITLES as TITLES, FIELD_DEFS, AnnexFieldInput, type ComposeAnnexNo } from '@/components/inspections/annex-fields'
+import { todayKst } from '@/lib/kst-date'
 
 /** 별지 9·10·11호 작성 패널 — 공통 3단 패턴 (소방계획서_7 H-23, §4-A-2b)
  *  [1단 자동 채움 검토(①②)] → [2단 서식 고유 값 입력(③ annex_inputs)] → [3단 미리보기·PDF 생성]
@@ -23,12 +24,18 @@ function autoRows(annexNo: ComposeAnnexNo, customerId?: string, inspectionId?: s
   const ledger = customerId
     ? `/customers/${customerId}?tab=plan&form=1.4&from=report9${inspectionId ? `&insp=${inspectionId}` : ''}`
     : undefined
+  // 소방계획서_44 — 2쪽 3행의 확정 자리(1.10 「전년도 업무 실시사항」)
+  const duty = customerId
+    ? `/customers/${customerId}?tab=plan&form=1.10&from=report9${inspectionId ? `&insp=${inspectionId}` : ''}`
+    : undefined
   if (annexNo === 'report9') {
     return [
       { label: '1~2쪽 대상물·관계인·건축물·보험', source: '고객정보', href: cust },
       { label: '1·3쪽 점검기간·점검인력·점검결과', source: '점검 상세(이 화면 점검표·참여자)' },
       { label: '4~7쪽 설비 세부현황', source: '설비 대장 (소방계획서 탭 1.4)', href: ledger },
       { label: '8쪽 불량 세부', source: '불량내역 카드(이 화면 아래)' },
+      // 소방계획서_44 — 종전엔 아래 ③계층 6칸이 이 3행의 확정 자리였다. 원천 옆(1.10)으로 옮겼다.
+      { label: '2쪽 소방계획서·자체점검·교육훈련(전년도)', source: '소방계획서 탭 1.10 전년도 업무 실시사항', href: duty },
     ]
   }
   if (annexNo === 'report10') {
@@ -69,6 +76,18 @@ export function AnnexComposePanel({ inspectionId, annexNo, customerId, from, onC
   const [isPending, startTransition] = useTransition()
   // H-5b 전 회차 이어받기 — 첫 작성(기존 입력 없음)일 때만 제안 (덮어쓰기 방지, D-5)
   const [prevOffer, setPrevOffer] = useState<{ fields: Record<string, string>; fromLabel: string } | null>(null)
+  // 소방계획서_44 — 2쪽 3행 읽기 전용 요약(확정 자리는 소방계획서 1.10)
+  const [dutySummary, setDutySummary] = useState<{ year: number; lines: Array<{ label: string; text: string }>; confirmed: boolean } | null>(null)
+
+  useEffect(() => {
+    if (annexNo !== 'report9') { setDutySummary(null); return }
+    let alive = true
+    // 보조 정보다 — 실패해도 패널은 열려야 한다
+    getAnnexDutySummaryAction(inspectionId)
+      .then(r => { if (alive && !r.error) setDutySummary({ year: r.year, lines: r.lines, confirmed: r.confirmed }) })
+      .catch(() => {})
+    return () => { alive = false }
+  }, [inspectionId, annexNo])
 
   // 로드 — ③ 이전 입력 복원(getAnnexInputs) + ①② 누락 목록(preview missing)
   useEffect(() => {
@@ -228,6 +247,22 @@ export function AnnexComposePanel({ inspectionId, annexNo, customerId, from, onC
                       </span>
                     </div>
                   ))}
+                  {/* 소방계획서_44 S4-2 — 2쪽 3행이 지금 무엇으로 인쇄되는지. 여기서는 못 고친다(원천은 1.10) */}
+                  {annexNo === 'report9' && dutySummary && (
+                    <div className="rounded-lg border border-brand-line-soft bg-paper px-2.5 py-2 space-y-1">
+                      <p className="text-form-2xs text-ink-meta">
+                        2쪽 전년도({dutySummary.year}년) 실시사항 —{' '}
+                        {dutySummary.confirmed
+                          ? '소방계획서 1.10에서 확정됨'
+                          : '확정 없음 · 자동 판정대로 인쇄(빈 칸은 √ 없이 나갑니다)'}
+                      </p>
+                      {dutySummary.lines.map(l => (
+                        <p key={l.label} className="text-form-2xs text-ink-sub">
+                          <span className="text-ink-meta mr-1.5">{l.label}</span>{l.text}
+                        </p>
+                      ))}
+                    </div>
+                  )}
                   <AnnexMissingList missing={missing} customerId={customerId} inspectionId={inspectionId} from={from} />
                 </div>
               </section>

@@ -252,8 +252,9 @@ export function buildWorkbookValues(src: WorkbookSource): Map<string, CellValue>
     // 표본 답(√ 위치)을 그대로 넣으면 원문과 **자구 동일**해야 한다: test-xlsx-anchors [7]이
     // 12칸 전수를 왕복 대조한다(자구가 틀리면 붉어진다 — '열리는가'와 '자구가 사는가'는 다른 검사).
     ['mgrAppointLine', `${ck(p.mgrAppointType === '소방기술자격')}소방기술자격, ${ck(p.mgrAppointType === '소방안전관리자수첩')}소방안전관리자수첩, ${ck(p.mgrAppointType === '업무대행감독')}업무대행감독, ${ck(p.mgrAppointType === '겸직')}겸직, ${ck(p.mgrAppointType === '기타')}기타`],
-    // 보관 칸은 미공급 시 hasFirePlan을 따른다 — PDF(report9.ts:284)와 같은 폴백
-    ['firePlanLine', `${ck(p.hasFirePlan)}작성 (${ck(p.firePlanStored ?? p.hasFirePlan)}보관 ${ck(!!p.firePlanUnstored)}미보관),          ${ck(!!p.firePlanNone)}미작성`],
+    // 보관 칸은 **사람이 고를 때만** √ — 종전엔 미공급 시 hasFirePlan을 따라 근거 없이 보관 √가 찍혔다
+    // (소방계획서_44 Q-4). 원천이 없는 사실이라 긍정도 부정도 단정하지 않는다. PDF(report9.ts:333)와 동일.
+    ['firePlanLine', `${ck(p.hasFirePlan)}작성 (${ck(!!p.firePlanStored)}보관 ${ck(!!p.firePlanUnstored)}미보관),          ${ck(!!p.firePlanNone)}미작성`],
     // 갑지는 구 용어(작동기능점검·종합정밀점검)를 쓴다 — PDF는 현행 용어지만 서식 자구는 그대로 둔다
     ['prevInspectLine', `작동기능점검 (${ck(p.prevOpDone)}실시 ${ck(!!p.prevOpNone)}미실시),     종합정밀점검 (${ck(p.prevCompDone)}실시 ${ck(!!p.prevCompNone)}미실시)`],
     ['trainingLine', `소방안전교육 (${ck(p.eduDone)}실시 ${ck(!!p.eduNone)}미실시),      소방훈련 (${ck(p.drillDone)}실시 ${ck(!!p.drillNone)}미실시)`],

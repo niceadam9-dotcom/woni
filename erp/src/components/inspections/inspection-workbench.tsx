@@ -12,7 +12,7 @@ import {
   requestReport9Action, getReport9StatusAction, getAnnexPreviewHtmlAction,
   type Report9Job, type Report9File,
 } from '@/app/(dashboard)/inspections/report9-actions'
-import { getAnnexInputsAction, saveAnnexInputsAction, getAnnexAutoDefaultsAction } from '@/app/(dashboard)/customers/facility-spec-actions'
+import { getAnnexInputsAction, saveAnnexInputsAction, getAnnexAutoDefaultsAction, getAnnexDutySummaryAction } from '@/app/(dashboard)/customers/facility-spec-actions'
 import {
   uploadTimelineFileAction, sendOwnerReportAction, recordSubmissionAction, downloadPackageAction,
   forceCompleteStepAction, undoForceCompleteStepAction, recordOwnerReportOfflineAction,
@@ -1149,6 +1149,16 @@ function AnnexFields({ inspectionId, annexNo, canEdit, onSaved, compact, only, t
   /** 이 칸이 **안 그리는** 키까지 포함한 저장본 — only로 쪼갠 뒤 저장이 남의 칸을 지우지 않게 한다.
    *  (saveAnnexInputsAction의 upsert는 fields를 통째로 교체한다) */
   const allRef = useRef<Record<string, unknown>>({})
+  // 소방계획서_44 — 2쪽 3행 안내(확정 자리는 소방계획서 1.10). 보조 정보라 실패해도 입력은 되어야 한다
+  const [duty, setDuty] = useState<{ year: number; customerId: string; confirmed: boolean } | null>(null)
+  useEffect(() => {
+    if (annexNo !== 'report9') { setDuty(null); return }
+    let alive = true
+    getAnnexDutySummaryAction(inspectionId)
+      .then(r => { if (alive && !r.error) setDuty({ year: r.year, customerId: r.customerId, confirmed: r.confirmed }) })
+      .catch(() => {})
+    return () => { alive = false }
+  }, [inspectionId, annexNo])
 
   useEffect(() => {
     let alive = true
@@ -1197,6 +1207,19 @@ function AnnexFields({ inspectionId, annexNo, canEdit, onSaved, compact, only, t
         {state === 'saved' && <span className="text-green-600">저장됨</span>}
         {state === 'error' && <span className="text-red-600">저장 실패</span>}
       </p>
+      {/* 소방계획서_44 — 2쪽 3행의 확정 자리는 여기가 아니라 소방계획서 1.10이다.
+          6칸을 걷어내기만 하면 "있던 칸이 사라졌다"로만 보인다 — 어디로 갔는지 한 줄로 말한다.
+          상세 3줄은 작성 패널이 보여 준다(여기는 옆이 미리보기라 세로가 귀하다). */}
+      {annexNo === 'report9' && duty && (
+        <p className="shrink-0 text-form-2xs text-ink-soft">
+          2쪽 전년도({duty.year}년) 실시사항 — {duty.confirmed ? '소방계획서 1.10에서 확정됨' : '확정 없음 · 자동 판정대로 인쇄'}
+          {duty.customerId && (
+            // ⚠ <a>(전체 이동) — 같은 경로 soft nav는 서버를 재렌더하지 않아 ?form=이 무시된다(34 S6-1)
+            <a href={`/customers/${duty.customerId}?tab=plan&form=1.10&from=report9&insp=${inspectionId}`}
+              className="ml-1 text-brand hover:underline">1.10에서 확정</a>
+          )}
+        </p>
+      )}
       {/* compact: 2열 + min-h-0 overflow-y-auto — flex 자식이라 상한(12rem) 안으로 **줄어든다**.
           종전엔 이 블록이 내용만큼 커져 ④ 미리보기를 min-h(237px)까지 밀어냈다(9호에 select 4칸이
           늘면서 실측 281→237px). 칸을 없애지 않고 접는다 — 스크롤로 8칸 전부에 닿는다. */}
