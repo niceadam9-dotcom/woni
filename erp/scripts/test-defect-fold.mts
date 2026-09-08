@@ -76,12 +76,24 @@ const r9base = {
   check('① 사용자 입력 불량은 그 행 그대로(rowspan=1·점검번호)',
     /rowspan="1">소화설비<\/td><td class="center">1-A-001<\/td><td>소화기 지시압력 미달<\/td>/.test(html))
   check('① 자동 폴백 행은 개별 인쇄하지 않는다', !html.includes('항목명 폴백 자동행'))
+  // 2026-09-08 F-4 — 자동 문구 칸은 .defect-auto(빨강+자간)를 함께 단다. 단언도 같이 옮긴다
+  // (클래스를 바꾸고 단언을 안 고치면 그날부터 스위트가 빨강이 된다 — `6011144` 전례)
   check('② 결과참조 — 점검번호 공란 1행',
-    /<td class="center">경보설비<\/td><td>&nbsp;<\/td><td class="center">결과참조<\/td>/.test(html))
-  check('③ 이상없음', /<td class="center">피난구조설비<\/td><td>&nbsp;<\/td><td class="center">이상없음<\/td>/.test(html))
+    /<td class="center">경보설비<\/td><td>&nbsp;<\/td><td class="center defect-auto">결과참조<\/td>/.test(html))
+  check('③ 이상없음', /<td class="center">피난구조설비<\/td><td>&nbsp;<\/td><td class="center defect-auto">이상없음<\/td>/.test(html))
   check('④ 해당없음(기타 포함 — Q-1 확정)',
     (['소화용수설비', '소화활동설비', '기타', '안전시설등'] as const).every(g =>
-      new RegExp(`<td class="center">${g}</td><td>&nbsp;</td><td class="center">해당없음</td>`).test(html)))
+      new RegExp(`<td class="center">${g}</td><td>&nbsp;</td><td class="center defect-auto">해당없음</td>`).test(html)))
+
+  // ── F-4 스타일 축(목업 image-61 빨강+자간) — 양방향으로 단언한다 ──
+  check('F-4 .defect-auto 규칙이 문서 CSS에 실린다(빨강+자간)',
+    /\.defect-auto\s*\{[^}]*color:\s*#FF0000[^}]*letter-spacing:/i.test(html))
+  check('F-4 사람이 쓴 불량내용 칸에는 안 붙는다',
+    html.includes('<td>소화기 지시압력 미달</td>')
+    && !/defect-auto"[^>]*>소화기 지시압력 미달/.test(html))
+  check('F-4 붙은 칸 수 = 자동 문구 행 수(6) — 공란 칸에는 안 붙는다',
+    (html.match(/class="center defect-auto"/g) ?? []).length === 6,
+    `실제 ${(html.match(/class="center defect-auto"/g) ?? []).length}`)
 }
 
 // ── [3] 갑지 엑셀 값맵 ────────────────────────────────────────────────

@@ -239,6 +239,16 @@ export type Report9Data = {
 export type Report9RenderOpts = { highlight?: boolean } // 미리보기: 미입력 하이라이트 (§4-A-2c ③)
 
 const CSS = `
+  /* 8쪽 불량내용 자동 문구(결과참조/이상없음/해당없음) — 목업 image-61의 빨강+자간 벌림.
+     Q-2는 2026-09-06에 '검정으로 시작, 빨강은 후속'으로 정했다가 2026-09-08 F-1 육안 뒤
+     사용자가 '목업 맞춰'로 확정했다(F-4).
+     ⚠ 적용 범위는 **이 자동 문구뿐**이다 — 사람이 쓴 불량내용 행은 종전 검정 그대로다.
+     ⚠ 별지 10호(report1011.ts)에는 일부러 넣지 않았다. 그 서식의 엑셀 쌍(계획서!H)이 검정이라
+        여기에만 맞추면 한 문서의 두 출력이 갈린다. 지금 배치가 문서별로 짝이 맞는다:
+        별지9호 = PDF 8쪽 빨강 + 엑셀 현5 빨강(템플릿 fontId=57 FFFF0000) /
+        별지10호 = PDF 검정 + 엑셀 계획서 검정.
+     ⚠ 인쇄에서 색이 살려면 print-color-adjust가 필요한데 BASE_CSS가 이미 exact로 걸어 둔다. */
+  .defect-auto { color: #FF0000; letter-spacing: 0.15em; }
   .sec-title { font-size: 10.5pt; font-weight: bold; margin: 7px 0 2px; }
   .pre { white-space: pre-wrap; }
   table.form.tight th, table.form.tight td { padding: 1.5px 3px; font-size: 8.5pt; line-height: 1.4; }
@@ -662,7 +672,10 @@ function page8(d: Report9Data): string {
     if (rows.length === 0) {
       const text = f && f.kind !== 'rows' ? DEFECT_FOLD_TEXT[f.kind] : ''
       // 빈 구분도 행 유지 — 서식 원문 동일. 문구 없으면(구 호출) 종전 공란
-      return `<tr><td class="center">${g}</td><td>&nbsp;</td><td class="center">${text}</td></tr>`
+      // 자동 문구일 때만 .defect-auto(빨강+자간, F-4) — 공란엔 붙이지 않는다(빈 칸에 스타일을
+      // 걸면 나중에 사람 입력이 그 자리에 들어올 때 조용히 빨강이 된다)
+      const cls = text ? 'center defect-auto' : 'center'
+      return `<tr><td class="center">${g}</td><td>&nbsp;</td><td class="${cls}">${text}</td></tr>`
     }
     return rows.map((r, i) => `<tr>${
       i === 0 ? `<td class="center" rowspan="${rows.length}">${g}</td>` : ''
