@@ -21,8 +21,8 @@ import {
 import { updateInspectionMultidayAction } from '@/app/(dashboard)/inspections/actions'
 import { getReportDownloadUrl } from '@/app/(dashboard)/inspections/report-actions'
 import { DateInput } from '@/components/ui/date-input'
-import { TIMELINE_STEP_LABELS, TIMELINE_STEP_TOOLTIPS, type TimelineStepKey } from '@/lib/doc-requirements'
-import { evidenceDone, activeStepNums, stepProgress, type StepNum } from '@/lib/inspection-step-status'
+import { DOC_TERMS, NA_ALL_PASS_REASON, TIMELINE_STEP_LABELS, TIMELINE_STEP_TOOLTIPS, type TimelineStepKey } from '@/lib/doc-requirements'
+import { evidenceDone, activeStepNums, hasSheetDefect, stepProgress, type StepNum } from '@/lib/inspection-step-status'
 import { isRegenBlocked } from '@/lib/annex-regen-policy'
 import { kstDate } from '@/lib/kst-date'
 import { confirmSheetProtocolAction } from '@/app/(dashboard)/inspections/sheet-actions'
@@ -197,7 +197,18 @@ export function InspectionWorkbench({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [serverRowsKey])
 
+  /** **등록된** 불량내역 유무 — ⑤ *완료* 판정의 축(전건 조치했는가)이지 ⑤ *활성* 판정의 축이 아니다 */
   const hasDefects = defectStat.total > 0
+  /** 점검표 ✕ 응답 수 — 아직 불량내역으로 등록되지 않은 불량 신호 (소방계획서_45) */
+  const sheetX = data.evidence?.sheetX ?? 0
+  /** ⑤⑥이 필요한가 = **점검표 모두 합격이 아닌가**. 두 축을 OR로 본다(hasSheetDefect가 원본) */
+  const needsRepairSteps = hasSheetDefect({ defectsTotal: defectStat.total, sheetX })
+  /** ✕인데 아직 불량내역으로 등록되지 않은 항목 수 — ⑤가 **증거로는 절대 완료될 수 없는** 구간이라
+   *  출구를 보여야 한다. ⚠ R-5(2026-09-08 2차 판정): 종전에는 `sheetX > 0 && !hasDefects`로 근사해
+   *  불량이 한 건이라도 등록돼 있으면 미등록 ✕가 통째로 안 보였다 — 이제 서버가 **집합 차**를 준다.
+   *  판정(isForced5Void)과 **같은 값**을 읽어야 "배너는 있는데 판정은 아니다"로 갈라지지 않는다. */
+  const unregisteredX = data.evidence?.unregisteredX ?? 0
+  const xUnregistered = unregisteredX > 0
   const isSpecial = data.steps.length > 1
   // 방금 기록한 제출일을 화면에 즉시 반영한다 (2026-08-18 실측: router.refresh()가 이 무거운
   // 상세 페이지를 통째로 다시 그리느라 **약 5초** 걸려 "눌러도 반응이 없다"로 보였다).
@@ -225,10 +236,10 @@ export function InspectionWorkbench({
     (Object.keys(STEP_NUM) as StepKey[]).map(k => [k, doneByNum[STEP_NUM[k] as StepNum]]),
   ) as Record<StepKey, boolean>
 
-  /** 불량 0건이면 ⑤⑥은 해당없음 — 분모에서 뺀다(R10-b·R4-8, activeStepNums가 원본) */
+  /** 점검표 모두 합격이면 ⑤⑥은 해당없음 — 분모에서 뺀다(R10-b·R4-8, activeStepNums가 원본) */
   /** 사유로 완료된 단계 — 철회 버튼 노출 판정 (D1) */
   const forcedNums = new Set<number>(data.evidence?.forced ?? [])
-  const activeNums = activeStepNums(isSpecial, hasDefects)
+  const activeNums = activeStepNums(isSpecial, needsRepairSteps)
   const activeSteps: StepKey[] = data.steps.filter(k => activeNums.includes(STEP_NUM[k] as StepNum))
   const prog = stepProgress(doneByNum, activeNums)
   const doneCount = prog.done
@@ -246,6 +257,11 @@ export function InspectionWorkbench({
 
   const stepByNum = new Map(data.inspectionSteps.map(s => [s.step_num, s]))
   const stepOf = (k: StepKey) => stepByNum.get(STEP_NUM[k]) ?? null
+
+  /** ⑤ [사유 완료]를 감추는 구간 (소방계획서_45 R-3) — 미등록 ✕가 있으면 판정이 그 완료를
+   *  무효로 돌린다(isForced5Void). 버튼을 남겨두면 **눌러도 아무 일도 일어나지 않는** 것처럼
+   *  보이므로 아예 내리고, 위 ⑤ 배너의 [① 점검표에서 불량 등록하기]가 유일한 출구가 되게 한다. */
+  const force5Blocked = (k: StepKey) => xUnregistered && STEP_NUM[k] === 5
 
   const ddayText = (k: StepKey) => {
     const st = stepOf(k)
@@ -512,7 +528,7 @@ export function InspectionWorkbench({
         <h2 className="text-sm font-semibold text-ink">점검 작업대</h2>
         {/* S7-1 4차 — 이 점검에 **보고 의무가 있는지**를 말하는 문장이다(장식이 아니다) */}
         <span className="text-form-xs text-ink-meta">
-          {isSpecial ? '자체점검 보고 절차 6단계 — ⑤⑥은 불량 발생 시' : '정기·일반 — 점검표 작성·2년 보관만 (보고 의무 없음)'}
+          {isSpecial ? '자체점검 보고 절차 6단계 — ⑤⑥은 점검표에 불량(✕)이 있을 때만' : '정기·일반 — 점검표 작성·2년 보관만 (보고 의무 없음)'}
         </span>
         {isSpecial && (
           <>
@@ -536,7 +552,9 @@ export function InspectionWorkbench({
       {/* 6단계 가로 스텝바 (R6-1) — 항상 보인다. 월간 건은 ① 하나(R6-11) */}
       <div className="flex items-stretch gap-1 overflow-x-auto rounded-xl border border-line bg-surface p-1.5 shrink-0" data-testid="workbench-stepbar">
         {data.steps.map(k => {
-          const na = !hasDefects && (k === 'repair' || k === 'submit11')
+          // 소방계획서_45 — 축은 needsRepairSteps(✕ ∪ 불량내역)다. hasDefects(등록분)만 보면
+          // ✕를 찍고 아직 등록하지 않은 구간에 ⑤⑥이 잠겨 "조치할 것이 없다"고 말한다.
+          const na = !needsRepairSteps && (k === 'repair' || k === 'submit11')
           const d = ddayText(k)
           const active = sel === k
           return (
@@ -559,7 +577,7 @@ export function InspectionWorkbench({
                     반면 마지막 가지는 활성 버튼의 '완료'·'진행 전'·D-day라 정보 노드다. */}
                 {/* ink-faint:장식 — na 가지만 해당(마지막 가지는 활성 버튼의 값이라 ink-meta다) */}
                 <span className={`block truncate text-form-2xs ${active ? 'text-white/80' : na ? 'text-ink-faint' : d?.cls ?? 'text-ink-meta'}`}>
-                  {na ? '해당없음 — 불량 0건' : d?.text ?? (done[k] ? '완료' : '진행 전')}
+                  {na ? DOC_TERMS.naAllPass : d?.text ?? (done[k] ? '완료' : '진행 전')}
                 </span>
               </span>
             </button>
@@ -767,6 +785,20 @@ export function InspectionWorkbench({
                   {p.ok ? '✓' : '⚠'} {p.label}
                 </p>
               ))}
+              {/* 소방계획서_45 — ⑤⑥을 생략해도 ④는 남는다(법정 15일 보고는 불량 유무와 무관).
+                  ④를 존치하기로 한 이상 **뒤 단계가 왜 비었는지**가 이 화면에서 읽혀야 한다 —
+                  아니면 "합격인데 왜 아직 할 일이 있나"로 읽힌다. 문장은 DOC_TERMS가 단일 원천.
+                  ⚠ '점검표를 채웠는가'는 doneByNum[1](=① 완료)로 본다. 응답 수를 여기서 다시 비교하면
+                  리터럴 판정이 폴백 밖으로 번지고, _judge2-r4-static이 그 표현의 **개수**를 세어 막는다
+                  (주석에 그 표현을 적기만 해도 계수에 걸린다 — 실제로 한 번 걸렸다).
+                  ⚠ 사유는 NA_ALL_PASS_REASON을 그대로 쓴다 — 종전에는 naAllPass 라벨을 replace로
+                  잘라 써서 문장이 사유를 두 번 말했다(독립 판정 지적). */}
+              {isSpecial && !needsRepairSteps && doneByNum[1] && (
+                <p className="border-t border-brand-line-soft pt-2 text-form-2xs text-ink-meta">
+                  {NA_ALL_PASS_REASON} — 별지 10·11호(⑤⑥)는 해당없음입니다.
+                  별지 9호 제출은 불량 유무와 무관하게 <b className="text-ink-sub">점검 후 15일 내</b> 의무입니다.
+                </p>
+              )}
               {/* R5-8 기산 근거 — '기한이 왜 이 날짜인지'를 여기서 보고 여기서 고친다.
                   종료일이 없으면 시작일이 기산일이다(page.tsx due9 규칙과 동일) */}
               {data.period && (data.period.end || data.period.start) && (
@@ -911,6 +943,24 @@ export function InspectionWorkbench({
         {sel === 'repair' && (<>
           {/* R6-7: 불량마다 폼을 펼치지 않고 표에서 바로 고친다 */}
           <Pane title={`이행계획 ${defectStat.planned}/${defectStat.total}`} cls={paneCls} head={paneHead}>
+            {/* 소방계획서_45 R-2 — ✕는 있는데 불량내역이 비어 있으면 ⑤는 **증거로는 절대 완료될 수 없다**
+                (evidenceDone ⑤ = defectsTotal>0 && 전건 조치). 여기서 출구를 보이지 않으면 사용자는
+                [사유 완료]로 도망가고, 그건 D34-2가 막으려던 '하지 않은 일이 완료로 남는다'가 된다.
+                등록 자체는 ①에서 한다 — 등록될 표준 문구를 보고 판단하는 자리라 호출자를 늘리지 않는다. */}
+            {xUnregistered && (
+              <div className="m-2 rounded-lg border border-amber-300 bg-amber-50 px-2.5 py-2 text-form-xs text-amber-800"
+                data-testid="repair-unregistered-x">
+                {/* ⚠ 세는 것은 sheetX(✕ 전체)가 아니라 **미등록분**이다 — 일부만 등록된 상태에서
+                    전체 수를 쓰면 "3건이 등록되지 않았습니다"가 1건 등록 후에도 3건이라 말한다 */}
+                점검표에 아직 등록되지 않은 불량(✕)이 {unregisteredX}건 있습니다 — 등록해야 ⑤⑥을 진행할 수 있습니다.
+                {/* ⚠ CTA는 canManage일 때만. ①의 등록 버튼도 canManage 게이트라(inspection-sheet-client),
+                    권한 없는 사용자를 보내면 시킨 것이 그 화면에 없는 **막다른 길**이 된다(독립 판정 지적) */}
+                {canManage && (
+                  <button onClick={() => setSel('checklist')} data-testid="goto-defect-register"
+                    className="ml-1.5 underline font-semibold hover:text-amber-900">① 점검표에서 불량 등록하기</button>
+                )}
+              </div>
+            )}
             {defectRows
               ? <DefectGrid defects={defectRows} inspectionId={inspectionId} canEdit={canManage} mode="plan"
                   /* S3-7 — 셀마다 상세 전체를 다시 그리지 않는다. 표가 올린 집계를 그대로 쓴다(S3-5).
@@ -1047,8 +1097,9 @@ export function InspectionWorkbench({
         </div>
       )}
 
-      {/* 예외 완료 — 증거가 생기면 자동 완료되므로 여기는 예외 경로다 */}
-      {isSpecial && canComplete && !done[sel] && stepOf(sel) && stepOf(sel)!.status !== 'completed' && (
+      {/* 예외 완료 — 증거가 생기면 자동 완료되므로 여기는 예외 경로다.
+          ⚠ ⑤는 미등록 ✕ 구간에서 내린다(force5Blocked) — 판정이 무효로 돌리는 완료라 */}
+      {isSpecial && canComplete && !done[sel] && !force5Blocked(sel) && stepOf(sel) && stepOf(sel)!.status !== 'completed' && (
         <div className="flex items-center gap-2 shrink-0 rounded-lg border border-brand-line-soft bg-brand-tint px-3 py-1.5">
           <span className="text-form-2xs text-ink-soft">증거가 생기면 이 단계는 자동 완료됩니다 — 예외 상황에서만 사유를 남기고 완료하세요.</span>
           <button onClick={() => forceComplete(sel)} disabled={completing === stepOf(sel)!.id}

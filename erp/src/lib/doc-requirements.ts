@@ -41,6 +41,12 @@ export function requiredDocs(c: CustomerDocProfile): DocRequirement[] {
   ]
 }
 
+/** ⑤⑥이 '해당없음'인 **사유**만 떼어 둔다 (소방계획서_45 R-5).
+ *  칩 라벨(naAllPass)은 이것으로 조립한다 — ④ 안내 같은 **문장** 안에서는 사유만 필요한데,
+ *  라벨을 `.replace('해당없음 — ','')`로 잘라 쓰면 ① 문장이 "점검표 모두 합격 — …점검표 모두
+ *  합격이라"로 자기를 반복하고 ② 라벨 문구를 바꾸는 순간 그 수술이 조용히 깨진다(독립 판정 지적). */
+export const NA_ALL_PASS_REASON = '점검표 모두 합격'
+
 /** ── 용어 사전 (소방계획서_5 §3-5, D-3) — 화면 라벨은 반드시 여기서만 가져다 쓴다 ──
  *  실무·법정 용어 통일: 특별점검→자체점검, 별지 표기는 풀네임(넓은 곳)/축약(좁은 곳)+툴팁 병행 */
 export const DOC_TERMS = {
@@ -60,11 +66,15 @@ export const DOC_TERMS = {
   certShort: '배치신고',
   ownerReport: '관계인 보고서 발급',
   firePlan: '소방계획서',
+  // 소방계획서_45 — ⑤⑥·별지 10·11호가 '해당없음'인 이유. 종전에는 이 문장이 작업대와 고객 문서
+  // 현황에 각각 하드코딩돼('해당없음 — 불량 0건') 판정축을 넓힐 때 한쪽만 고쳐질 위험이 있었다.
+  // 판정은 hasSheetDefect(inspection-step-status.ts)가, 문장은 여기가 단일 원천이다.
+  naAllPass: `해당없음 — ${NA_ALL_PASS_REASON}`,
 } as const
 
 /** ── §9-9a: 문서 타임라인 단계 구성 — (점검 종류 × 불량 유무)로 결정, 088 분기 흡수 ──
  *  자체점검 여부 = plan_type 축 단독 판정(special_*·null=자체점검) — 관리유형 무관 (소방계획서_6 W-4)
- *  자체점검 = ①~⑥ 상시 표시(D-4 — 불량 0건이면 ⑤⑥ 해당없음 흐림)
+ *  자체점검 = ①~⑥ 상시 표시(D-4 — 점검표 모두 합격이면 ⑤⑥ 해당없음 흐림, 소방계획서_45)
  *  정기(monthly)·레거시 일반 event = ① 하나만 + 안내 1줄 (D-6 (a)안) */
 export type TimelineStepKey = 'checklist' | 'cert' | 'ownerReport' | 'submit9' | 'repair' | 'submit11'
 

@@ -43,6 +43,8 @@ import { listBuildingPurposes } from '@/lib/building-purposes'
 import { todayKst } from '@/lib/kst-date'
 import { fetchCustomerNavIds, parseListFilter } from '@/lib/customer-list'
 import { inspectionNatureBadge } from '@/lib/inspection-nature'
+import { fetchAllRows } from '@/lib/supabase/paginate'
+import { activeStepNums, isSelfInspection } from '@/lib/inspection-step-status'
 import { PlanAnnexSection } from '@/components/customers/plan-annex-section'
 import { getCustomerRoundsAction } from '@/app/(dashboard)/reports/docs-actions'
 import type { Customer, CustomerContact, Inspection, InspectionStatus, InspectionType, UserRole } from '@/types'
@@ -199,14 +201,29 @@ export default async function CustomerDetailPage({
   const regionMyeon = (customer as unknown as Record<string, unknown>).region_myeon as string | null
 
   // ── 물결 B: 물결 A 결과(건물·점검·지역)에 의존하는 조회 — 한 번에 병렬 ──
-  const [facilityFormData, stepsRes, regionRowsRes, stationCandidates] = await Promise.all([
+  const [facilityFormData, stepsRes, defectsRes, sheetXRes, regionRowsRes, stationCandidates] = await Promise.all([
     // 소방시설 현황(건물별)+층별 수량+세부제원 — 조립은 loadFacilityFormData 단일 원천(소방계획서_40 S1,
     // /inspections/[id]/facilities와 공유). buildings는 물결 A에서 이미 조회했으므로 재사용
     loadFacilityFormData(admin, id, buildings as unknown as FacilityBuildingRow[]),
-    // 점검별 단계 진행 카운트
+    // 점검별 단계 진행 카운트 — **유효 단계만** 센다(소방계획서_45). step_num이 없으면 필터가 불가능해
+    // 종전에는 6행을 그대로 세어, 모두 합격 자체점검이 고객 화면에서 영원히 4/6으로 남았다(목록은 4/4).
+    // ⚠ 2026-09-08 2차 독립 판정: 세 조회 중 이것만 fetchAllRows가 빠져 있었다 — 하필 분모·분자의
+    // 원천이라, 한 고객의 누적 점검이 167건을 넘으면 뒤쪽 회차의 진행바가 통째로 결측된다. 목록
+    // 페이지에서 **똑같은 결함을 고쳐 놓고** 같은 물결의 형제에 적용하지 않은 자리다.
     inspections.length > 0
-      ? admin.from('inspection_steps').select('inspection_id, status').in('inspection_id', inspections.map(i => i.id))
-      : Promise.resolve({ data: [] as Array<{ inspection_id: string; status: string }> }),
+      ? fetchAllRows<{ inspection_id: string; step_num: number; status: string }>((from, to) =>
+          admin.from('inspection_steps').select('inspection_id, step_num, status')
+            .in('inspection_id', inspections.map(i => i.id)).order('id').range(from, to))
+      : Promise.resolve({ rows: [] as Array<{ inspection_id: string; step_num: number; status: string }>, error: null, truncated: false }),
+    // ⑤⑥ 활성 축 = 등록 불량 ∪ 점검표 ✕ (목록·작업대·현황판과 같은 원천)
+    inspections.length > 0
+      ? fetchAllRows<{ inspection_id: string }>((from, to) => admin.from('inspection_defects')
+          .select('inspection_id').in('inspection_id', inspections.map(i => i.id)).order('id').range(from, to))
+      : Promise.resolve({ rows: [] as Array<{ inspection_id: string }>, error: null, truncated: false }),
+    inspections.length > 0
+      ? fetchAllRows<{ inspection_id: string }>((from, to) => admin.from('inspection_sheet_responses')
+          .select('inspection_id').in('inspection_id', inspections.map(i => i.id)).eq('result', 'X').order('id').range(from, to))
+      : Promise.resolve({ rows: [] as Array<{ inspection_id: string }>, error: null, truncated: false }),
     // §6-E: 지역 기반 담당 추천 — 같은 시군구+읍면 고객들의 최빈 담당 (미배정일 때만)
     (() => {
       if (customer.assigned_employee_id || !regionSi) return Promise.resolve({ data: null })
@@ -246,10 +263,27 @@ export default async function CustomerDetailPage({
     }))
     .filter(x => x.actionLabel || x.changes.length > 0)
 
-  // 점검별 단계 진행 카운트 (물결 B에서 조회)
+  // 점검별 단계 진행 카운트 (물결 B에서 조회) — 소방계획서_45: **유효 단계만** 분모에 넣는다.
+  // 점검표 모두 합격이면 ⑤⑥은 '해당없음'이라 세지 않는다(행은 DB에 그대로 두고 조회 시 필터).
+  // R4-8이 목록에만 적용돼 있어 같은 점검이 목록 4/4 · 여기 4/6으로 갈라져 있었다.
+  // ⚠ 조용한 폴백 금지 — ✕·불량 조회가 실패하면 needsRepair가 **말없이 종전 축으로 되돌아가** 미조치
+  // 불량이 남은 회차까지 '모두 합격 4/4'로 보인다. 크론(inspection-deadline-notify)과 같이 실패는
+  // **보수적으로 전 단계 활성**으로 기운다 — 조치가 필요한 회차를 '완료'로 보이게 하는 쪽이 더 위험하다.
+  const repairAxisIncomplete = !!(defectsRes.error || defectsRes.truncated || sheetXRes.error || sheetXRes.truncated)
+  if (repairAxisIncomplete) {
+    console.error('[customers/[id]] 불량·✕ 조회 불완전 — ⑤⑥을 전 단계 활성으로 보수 판정합니다:',
+      { defects: defectsRes.error, defectsTruncated: defectsRes.truncated, sheetX: sheetXRes.error, sheetXTruncated: sheetXRes.truncated })
+  }
+  if (stepsRes.error) console.error('[customers/[id]] 단계 조회 실패 — 진행바가 부정확할 수 있습니다:', stepsRes.error)
+  else if (stepsRes.truncated) console.error('[customers/[id]] 단계 조회가 상한에서 잘렸습니다 — 진행바가 부정확합니다')
+  const needsRepairByInsp = new Set([...defectsRes.rows, ...sheetXRes.rows].map(r => r.inspection_id))
+  const activeNumsByInsp = new Map(inspections.map(i => [
+    i.id,
+    new Set<number>(activeStepNums(isSelfInspection(i.plan_type), repairAxisIncomplete || needsRepairByInsp.has(i.id))),
+  ]))
   const stepCounts: Record<string, { total: number; completed: number }> = {}
-  for (const s of stepsRes.data ?? []) {
-    const r = s as { inspection_id: string; status: string }
+  for (const r of stepsRes.rows) {
+    if (!activeNumsByInsp.get(r.inspection_id)?.has(r.step_num)) continue
     if (!stepCounts[r.inspection_id]) stepCounts[r.inspection_id] = { total: 0, completed: 0 }
     stepCounts[r.inspection_id].total++
     if (r.status === 'completed') stepCounts[r.inspection_id].completed++

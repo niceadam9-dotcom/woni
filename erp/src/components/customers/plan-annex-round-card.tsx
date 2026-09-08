@@ -7,6 +7,7 @@ import type { ComposeAnnexNo } from '@/components/inspections/annex-compose-pane
 import { InspectionDocRows } from '@/components/reports/customer-docs'
 import { PlanAnnexSheetTree, PlanAnnexSheetHeader } from '@/components/customers/plan-annex-sheet-tree'
 import { inspectionNatureBadge } from '@/lib/inspection-nature'
+import { hasSheetDefect } from '@/lib/inspection-step-status'
 import { openAnnexPdf } from '@/lib/annex-filename'
 import type { InspectionType, PlanType } from '@/types'
 import type { PreviewDoc } from '@/components/customers/plan-annex-full-preview'
@@ -190,7 +191,10 @@ export function PlanAnnexRoundCard({
         {r.docs && (
           <span className="text-form-2xs text-ink-meta shrink-0">
             ④{r.docs.report4 ? '✓' : '·'} ⑨{r.docs.report9 ? '✓' : '·'}
-            {r.docs.defects.total > 0 && <> ⑩{r.docs.report10 ? '✓' : '·'} ⑪{r.docs.report11 ? '✓' : '·'}</>}
+            {/* 소방계획서_45 Q-4 — ⑩⑪ 칩은 작업대 ⑤⑥과 **같은 축**으로 뜬다(등록 불량 ∪ 점검표 ✕).
+                종전에는 등록분만 봐서, ✕만 찍힌 회차에서 작업대는 ⑤⑥ 활성인데 여기는 칩이 사라져
+                두 화면이 갈라졌다. sheetX는 이미 docs에 실려 온다 — 배선 0줄. */}
+            {hasSheetDefect({ defectsTotal: r.docs.defects.total, sheetX: r.docs.sheetX }) && <> ⑩{r.docs.report10 ? '✓' : '·'} ⑪{r.docs.report11 ? '✓' : '·'}</>}
             {' '}불량 {r.docs.defects.total}
           </span>
         )}

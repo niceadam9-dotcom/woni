@@ -46,6 +46,9 @@ export type InspectionDocs = {
    *  믿으면 전건이 '미상'으로 판정돼 재생성 차단이 잘못 걸린다. */
   sheetProtocol: 'legacy_na' | 'blank_unanswered' | null
   defects: { total: number; done: number; photoPairs: number }
+  /** 점검표 ✕ 응답 수 — 불량내역 등록 **전**의 불량 신호 (소방계획서_45).
+   *  별지 10·11호 '해당없음'은 defects.total과 이 값이 **둘 다** 0일 때만 성립한다. */
+  sheetX: number
   report4: DocGroupRef | null
   report9: DocGroupRef | null
   report10: DocGroupRef | null
@@ -92,12 +95,16 @@ async function buildInspectionDocs(
   archivedCerts?: Set<string>,
 ): Promise<InspectionDocs> {
   const prefix = `${customerId}/inspections/${i.id}`
-  const [objRes, defRes, respRes] = await Promise.all([
+  const [objRes, defRes, respRes, xRes] = await Promise.all([
     admin.storage.from(BUCKET).list(prefix, { limit: 100, sortBy: { column: 'name', order: 'desc' } }),
     admin.from('inspection_defects')
       .select('id, photo_url, after_photo_url, action_completed_at').eq('inspection_id', i.id),
     admin.from('inspection_sheet_responses')
       .select('id', { count: 'exact', head: true }).eq('inspection_id', i.id),
+    // 소방계획서_45 — 별지 10·11호 '해당없음' 판정은 등록 불량뿐 아니라 **점검표 ✕**도 봐야 한다
+    // (✕만 있고 미등록인 회차를 '해당없음'이라 적으면 작업대 ⑤⑥과 갈라진다). head:true라 행 전송 0.
+    admin.from('inspection_sheet_responses')
+      .select('id', { count: 'exact', head: true }).eq('inspection_id', i.id).eq('result', 'X'),
   ])
   const objects = objRes.data ?? []
   const defects = (defRes.data ?? []) as Array<{ photo_url: string | null; after_photo_url: string | null; action_completed_at: string | null }>
@@ -114,6 +121,7 @@ async function buildInspectionDocs(
       done: defects.filter(d => d.action_completed_at).length,
       photoPairs: defects.filter(d => d.photo_url && d.after_photo_url).length,
     },
+    sheetX: xRes.count ?? 0,
     report4: latestGroup(objects, 'report4', prefix),
     report9: latestGroup(objects, 'report9', prefix),
     report10: latestGroup(objects, 'report10', prefix),
@@ -411,6 +419,12 @@ export type SubmissionRow = {
   certUploaded: boolean        // 배치확인서 업로드 (종이 보관 정리분 포함 — 누락 아님 판정)
   certArchived: boolean        // 그중 파일 없이 '종이 보관됨'인 경우 (소방계획서_18 D-7)
   defectsTotal: number
+  /** 점검표 ✕ 응답 수 — 10·11호 '해당없음'은 defectsTotal과 이것이 **둘 다** 0일 때만 (소방계획서_45) */
+  sheetX: number
+  /** 불량·✕ 조회가 불완전해 위 두 수를 믿을 수 없는가 — 참이면 '해당없음' 판정을 **보류**한다.
+   *  0으로 떨어진 값이 곧 '모두 합격'으로 읽혀 법정 서식에 거짓 「해당없음」이 인쇄되는 것을 막는다
+   *  (2026-09-08 2차 독립 판정 — 로그만으로는 기울기가 위험한 쪽이었다) */
+  allPassUnknown: boolean
   report10Gen: boolean
   report11Gen: boolean
   report11SubmittedAt: string | null
@@ -470,12 +484,28 @@ export async function getSubmissionBoardAction(opts: { sinceDays?: number } = {}
   const gen: Record<string, { r9: boolean; r10: boolean; r11: boolean }> = {}
   const sent: Record<string, boolean> = {}
   const def: Record<string, number> = {}
+  const sheetX: Record<string, number> = {}
+  let allPassUnknown = false
   if (ids.length > 0) {
-    const [jobsRes, delRes, defRes] = await Promise.all([
+    // 소방계획서_45 — ✕ 축을 함께 센다. 회차 80건 × 항목 수백이면 1000행을 넘길 수 있어
+    // fetchAllRows로 끝까지 받는다(`.eq('result','X')`가 서버에서 걸려 반환은 ✕만).
+    // ⚠ 2026-09-08 독립 판정: 불량내역도 함께 감쌌다. 여기서 잘리면 defectsTotal이 0으로 떨어져
+    // allPassRow가 **거짓 '해당없음'**으로 뒤집힌다 — 잘림이 안전한 방향이 아니다.
+    const [jobsRes, delRes, defRes, xRes] = await Promise.all([
       admin.from('fire_plan_gen_jobs').select('inspection_id, report_type').eq('status', 'done').in('inspection_id', ids),
       admin.from('report_deliveries').select('inspection_id').in('inspection_id', ids),
-      admin.from('inspection_defects').select('inspection_id').in('inspection_id', ids),
+      fetchAllRows<{ inspection_id: string }>((from, to) => admin.from('inspection_defects')
+        .select('inspection_id').in('inspection_id', ids).order('id').range(from, to)),
+      fetchAllRows<{ inspection_id: string }>((from, to) => admin.from('inspection_sheet_responses')
+        .select('inspection_id').in('inspection_id', ids).eq('result', 'X').order('id').range(from, to)),
     ])
+    // 조용한 폴백 금지 — 두 축 중 하나라도 불완전하면 '해당없음' 판정이 거짓이 된다
+    allPassUnknown = !!(defRes.error || defRes.truncated || xRes.error || xRes.truncated)
+    for (const [name, res] of [['defects', defRes], ['sheetX', xRes]] as const) {
+      if (res.error) console.error(`[submission-board] ${name} 조회 실패 — 10·11호 '해당없음' 판정이 부정확할 수 있습니다:`, res.error)
+      else if (res.truncated) console.error(`[submission-board] ${name} 조회가 상한에서 잘렸습니다 — '해당없음' 판정이 부정확합니다`)
+    }
+    for (const r of xRes.rows) sheetX[r.inspection_id] = (sheetX[r.inspection_id] ?? 0) + 1
     for (const j of (jobsRes.data ?? []) as Array<{ inspection_id: string; report_type: string | null }>) {
       const g = gen[j.inspection_id] ??= { r9: false, r10: false, r11: false }
       if (j.report_type === 'report9') g.r9 = true
@@ -483,7 +513,7 @@ export async function getSubmissionBoardAction(opts: { sinceDays?: number } = {}
       else if (j.report_type === 'report11') g.r11 = true
     }
     for (const d of (delRes.data ?? []) as Array<{ inspection_id: string }>) sent[d.inspection_id] = true
-    for (const d of (defRes.data ?? []) as Array<{ inspection_id: string }>) def[d.inspection_id] = (def[d.inspection_id] ?? 0) + 1
+    for (const d of defRes.rows) def[d.inspection_id] = (def[d.inspection_id] ?? 0) + 1
   }
   // 배치확인서(storage) 병렬 확인 — 종이 보관 후 정리된 회차는 보유로 본다(소방계획서_18 D-7).
   // 마커가 있어도 파일 존재는 따로 확인한다: 정리 이후 다시 업로드했다면 '종이 보관'이 아니라 '보유'다.
@@ -509,7 +539,8 @@ export async function getSubmissionBoardAction(opts: { sinceDays?: number } = {}
       endDate: i.inspection_end_date,
       report9Gen: g.r9, report9Sent: !!sent[i.id], report9SubmittedAt: submitted, due9Dday,
       certUploaded, certArchived,
-      defectsTotal, report10Gen: g.r10, report11Gen: g.r11, report11SubmittedAt: i.report11_submitted_at,
+      defectsTotal, sheetX: sheetX[i.id] ?? 0, allPassUnknown,
+      report10Gen: g.r10, report11Gen: g.r11, report11SubmittedAt: i.report11_submitted_at,
       risk,
       assigneeId: i.assigned_employee_id,
       assigneeName: i.assigned_employee_id ? assigneeNames[i.assigned_employee_id] ?? null : null,

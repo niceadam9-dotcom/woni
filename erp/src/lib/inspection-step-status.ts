@@ -44,6 +44,19 @@ export type StepEvidence = {
   /** ⑤ 불량 전건 조치 완료 (R10-a — 계약서·사진은 선택 증빙이라 조건에서 제외) */
   defectsTotal: number
   defectsDone: number
+  /** ① 점검표 ✕ 응답 건수 — **불량내역으로 등록되기 전**의 불량 신호 (소방계획서_45).
+   *  defectsTotal과 다른 축이다: ✕를 찍어도 [불량내역 등록]을 누르기 전에는 defectsTotal이 0이다.
+   *  그 구간에서 ⑤⑥을 '해당없음'으로 잠그면 화면이 "조치할 것이 없다"고 거짓말한다. */
+  sheetX: number
+  /** ① ✕인데 **아직 불량내역으로 등록되지 않은** 항목 수 = ✕ item_code 집합 − 불량 defect_code 집합.
+   *
+   *  ⚠ 소방계획서_45 R-5(2차 독립 판정): 종전에는 이 축을 `defectsTotal === 0`으로 **근사**했다.
+   *  등록이 전무할 때만 참이라, 불량 행이 **하나라도** 있으면 미등록 ✕가 통째로 안 보였다.
+   *  도달 경로가 실재한다 — deleteDefectAction은 불량 행만 지우고 ✕ 응답은 남기므로 3건 등록 후
+   *  2건을 지우면 `defectsTotal=1 · sheetX=3`이 되어 근사가 풀리고, 남은 1건만 조치하면 ⑤가
+   *  완료로 굳는다(수기 추가·조치 후 재점검 기재도 같은 형태). 개수 비교가 아니라 **집합 차**여야
+   *  신규 등록·삭제·재기재가 한 규칙으로 덮인다. sheetX(✕ 존재 여부 = ⑤⑥ 활성 축)와는 다른 축이다. */
+  unregisteredX: number
   /** ⑥ 별지 11호 제출일 */
   submit11At: string | null
   /** 강제 완료된 단계 번호 — 사유가 남고 **철회되지 않은** 것만 들어온다(R4-3 / resolveForcedSteps) */
@@ -91,7 +104,10 @@ export function evidenceDone(e: StepEvidence): Record<StepNum, boolean> {
     2: e.certFile || e.certArchived,
     3: e.delivery || e.offlineReport,
     4: !!e.submit9At,
-    5: e.defectsTotal > 0 && e.defectsDone >= e.defectsTotal,
+    // ⑤는 **넓히지 않고 좁힌다**(R-5): 미등록 ✕가 남아 있으면 등록분을 다 조치해도 완료가 아니다.
+    // `unregisteredX === 0` 추가는 완료를 더 어렵게만 하므로 '하지 않은 일이 완료로 남는' 방향으로는
+    // 기울 수 없다 — defectsTotal>0 요구는 그대로 둔다(0에서 `0>=0`이 참이 되는 것을 막는 가드).
+    5: e.defectsTotal > 0 && e.defectsDone >= e.defectsTotal && (e.unregisteredX ?? 0) === 0,
     6: !!e.submit11At,
   }
   for (const n of e.forced ?? []) {
@@ -102,8 +118,23 @@ export function evidenceDone(e: StepEvidence): Record<StepNum, boolean> {
 }
 
 /** ⑤ 사유 완료가 무효인 상태 — 미조치 불량이 하나라도 남아 있으면 완료로 굳히지 않는다.
- *  (신규 등록·조치 해제·불량 삭제를 한 규칙으로 덮는다 — 시각 비교로는 조치 해제를 못 잡았다) */
+ *  (신규 등록·조치 해제·불량 삭제를 한 규칙으로 덮는다 — 시각 비교로는 조치 해제를 못 잡았다)
+ *
+ *  ⚠ 소방계획서_45 R-3(독립 판정 2인 합치): **미등록 ✕도 미조치다.**
+ *  축을 넓혀 ⑤가 새로 활성이 된 구간(✕>0 · 등록 불량 0)에서는 defectsTotal이 0이라
+ *  `0 < 0`이 거짓 — 무효화가 걸리지 않았다. 그 구간은 증거로는 ⑤를 완료할 수 없고
+ *  (evidenceDone ⑤가 defectsTotal>0을 요구) 종전에는 칩이 disabled라 도달조차 못 했는데,
+ *  활성으로 열어주면서 [사유 완료]가 **유일한 출구**가 됐다 — 굳으면 D34-2 '하지 않은 일이
+ *  완료로 남는다'가 된다.
+ *
+ *  ⚠ 조건을 `sheetX > 0`만으로 쓰면 안 된다: 불량내역을 등록해도 ✕ 응답은 그대로 남아
+ *  (createDefectsFromXAction은 응답을 지우지 않는다) ⑤ 사유 완료가 **영구 무효**가 된다.
+ *  '아직 등록되지 않은 ✕'는 **집합 차**(unregisteredX)로 센다 — 작업대 xUnregistered와 같은 축.
+ *
+ *  ⚠ R-5(2026-09-08 2차 판정): 종전에는 그 집합 차를 `defectsTotal === 0`으로 근사했는데,
+ *  불량 행이 하나라도 있으면 미등록 ✕가 안 보여 옆문이 열려 있었다(unregisteredX 주석 참조). */
 export function isForced5Void(e: StepEvidence): boolean {
+  if ((e.unregisteredX ?? 0) > 0) return true
   return e.defectsDone < e.defectsTotal
 }
 
@@ -115,11 +146,27 @@ export function isForced5Void(e: StepEvidence): boolean {
  *  불량이 생기면 ⑤⑥이 다시 필요해지기 때문이다.
  *
  *  ⚠ isSpecial은 **plan_type 축**으로 판정한다(sheet-scope.ts와 동일). 관리유형(inspection_type)이
- *  '일반관리'여도 자체점검이면 ①~⑥이 전부 유효하다 — 두 축을 혼동하면 분모가 1로 줄어든다. */
-export function activeStepNums(isSpecial: boolean, hasDefects: boolean): StepNum[] {
+ *  '일반관리'여도 자체점검이면 ①~⑥이 전부 유효하다 — 두 축을 혼동하면 분모가 1로 줄어든다.
+ *
+ *  ⚠ 2인자는 boolean 그대로 둔다(옵션 객체로 바꾸지 말 것) — 이 시그니처를 고정하는 단언이
+ *  test-inspection-steps-sync 12곳·_judge2-r4-mutant 9곳에 있고, 바꿔서 얻는 것이 없다.
+ *  (2026-09-08 독립 판정 정정: 종전 주석은 _judge2-r4-undo도 열거했으나 그 파일은 이 함수를
+ *   한 번도 부르지 않는다 — 실측하지 않고 적은 목록이 소스에 박혀 있었다)
+ *  ✕와 불량내역의 OR 합성은 **호출부**가 needsRepairSteps로 만들어 넘긴다(hasSheetDefect 참조). */
+export function activeStepNums(isSpecial: boolean, needsRepairSteps: boolean): StepNum[] {
   if (!isSpecial) return [1]
-  // D-4: 불량 0건이면 ⑤⑥은 '해당없음'이라 분모에서 뺀다(행은 남기고 화면은 흐림 처리)
-  return hasDefects ? [1, 2, 3, 4, 5, 6] : [1, 2, 3, 4]
+  // 소방계획서_45: **점검표 모두 합격**(✕ 0건 AND 불량내역 0건)이면 ⑤⑥은 '해당없음'이라 분모에서 뺀다
+  // (행은 남기고 화면은 흐림 처리). 종전 D-4는 '등록된 불량 0건'만 봐서, ✕를 찍고 아직 등록하지
+  // 않은 구간에도 ⑤⑥이 잠겼다 — 조치가 필요한데 화면은 해당없음이라 말하던 자리.
+  return needsRepairSteps ? [1, 2, 3, 4, 5, 6] : [1, 2, 3, 4]
+}
+
+/** ⑤⑥이 필요한가 = **점검표 모두 합격이 아닌가** (소방계획서_45 — 판정축 단일 원천).
+ *
+ *  두 축을 OR로 본다. `defectsTotal`은 등록된 불량내역, `sheetX`는 아직 등록되지 않은 ✕ 응답이다.
+ *  어느 한쪽만 보면 화면이 갈라진다 — 목록·작업대·제출 현황판이 전부 이 함수를 거친다. */
+export function hasSheetDefect(e: { defectsTotal: number; sheetX?: number }): boolean {
+  return e.defectsTotal > 0 || (e.sheetX ?? 0) > 0
 }
 
 /** 유효 단계 기준 진행률 — 상세 카드·목록 열이 같은 수치를 쓰게 하는 공용 계산 */

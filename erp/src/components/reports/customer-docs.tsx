@@ -151,11 +151,13 @@ export function InspectionDocRows({ i, customerName, isPending, open, generate, 
               사진 자체는 그대로다: 등록·조회는 불량내역([전/후 사진 모아보기])과 타임라인 ⑤에 있고,
               별지 11호 제출 패키지에도 종전대로 자동 첨부된다. 여기서 한 줄 덜어낼 뿐이다. */}
           {/* 10·11호 */}
-          {i.defects.total === 0 ? (
+          {/* 소방계획서_45 — '해당없음'은 **점검표 모두 합격**일 때만이다. 등록 불량만 보면 ✕를 찍고
+              아직 등록하지 않은 회차가 여기서 '해당없음'이라 적히고 작업대 ⑤⑥은 활성인, 갈라진 화면이 된다. */}
+          {i.defects.total === 0 && i.sheetX === 0 ? (
             <div className={rowCls}>
               <StatusIcon state="na" />
               <span className="font-medium text-ink-faint w-44" title={`${DOC_TERMS.report10Full} · ${DOC_TERMS.report11Full}`}>이행계획·완료 (10·11호)</span>
-              <span className="text-ink-faint">해당없음 — 불량 0건</span>
+              <span className="text-ink-faint">{DOC_TERMS.naAllPass}</span>
             </div>
           ) : (<>
             <div className={rowCls}>

@@ -15,7 +15,7 @@ import statusMod from '../src/lib/inspection-step-status.ts'
 import syncMod from '../src/lib/inspection-step-sync.ts'
 import type { StepEvidence } from '../src/lib/inspection-step-status.ts'
 
-const { evidenceDone, activeStepNums, stepProgress, isSelfInspection, resolveForcedSteps, isForced5Void } =
+const { evidenceDone, activeStepNums, hasSheetDefect, stepProgress, isSelfInspection, resolveForcedSteps, isForced5Void } =
   statusMod as unknown as typeof import('../src/lib/inspection-step-status.ts')
 // 독립 검증 R4-10 지적 해소: 순수 함수에 손으로 값을 넣는 대신 **server-only 모듈을 실제로 불러**
 // syncInspectionSteps를 돌리고 inspection_steps.status를 읽어 확인한다(--conditions=react-server 필요)
@@ -39,7 +39,7 @@ const ok = (name: string, cond: boolean, detail = '') => {
 
 const EV: StepEvidence = {
   responded: 0, certFile: false, certArchived: false, delivery: false, offlineReport: false,
-  submit9At: null, defectsTotal: 0, defectsDone: 0, submit11At: null, forced: [],
+  submit9At: null, defectsTotal: 0, defectsDone: 0, sheetX: 0, unregisteredX: 0, submit11At: null, forced: [],
 }
 
 console.log('— 1부 판정 순수 함수')
@@ -70,6 +70,31 @@ console.log('— 1부 분모(F-6 교정)')
   ok('월간 건이 ① 완료만으로 100%', p.pct === 100 && p.done === 1 && p.total === 1, JSON.stringify(p))
   const q = stepProgress(evidenceDone({ ...EV, responded: 5 }), activeStepNums(true, false))
   ok('자체점검은 ① 완료 시 25%(분모 4)', q.pct === 25 && q.total === 4, JSON.stringify(q))
+}
+
+// 소방계획서_45 — ⑤⑥ 생략의 축은 '등록된 불량 0건'이 아니라 **점검표 모두 합격**이다.
+// 종전에는 ✕를 찍고 아직 [불량내역 등록]을 누르지 않은 구간에 ⑤⑥이 '해당없음'으로 잠겨,
+// 조치가 필요한 회차에서 화면이 "조치할 것이 없다"고 말했다.
+console.log('— 1부 모두 합격 판정축 (소방계획서_45)')
+{
+  ok('모두 합격 = ✕ 0 이고 불량 0', hasSheetDefect({ defectsTotal: 0, sheetX: 0 }) === false)
+  ok('✕만 있어도 조치 단계가 필요하다', hasSheetDefect({ defectsTotal: 0, sheetX: 1 }) === true)
+  ok('불량내역만 있어도 필요하다', hasSheetDefect({ defectsTotal: 2, sheetX: 0 }) === true)
+  ok('sheetX 미공급이면 종전 축으로 물러난다', hasSheetDefect({ defectsTotal: 0 }) === false)
+
+  const allPass = activeStepNums(true, hasSheetDefect({ ...EV, sheetX: 0 }))
+  ok('모두 합격이면 ⑤⑥ 생략 — 분모 4', JSON.stringify(allPass) === '[1,2,3,4]', JSON.stringify(allPass))
+  const xOnly = activeStepNums(true, hasSheetDefect({ ...EV, sheetX: 3 }))
+  ok('✕ 3건·불량 미등록이면 ⑤⑥ 활성 — 분모 6', JSON.stringify(xOnly) === '[1,2,3,4,5,6]', JSON.stringify(xOnly))
+
+  // ⑤ **완료** 판정은 넓히지 않는다 — 등록된 불량을 전건 조치했는가가 그대로 축이다.
+  // 넓히면 defectsTotal 0에서 `0 >= 0`이 참이 되어 '하지 않은 일이 완료로 남는다'(D34-2).
+  ok('✕만 있고 불량 미등록이면 ⑤는 완료가 아니다', evidenceDone({ ...EV, sheetX: 3 })[5] === false)
+  const xProg = stepProgress(evidenceDone({ ...EV, responded: 5, sheetX: 3 }), xOnly)
+  ok('그 상태의 진행률은 1/6', xProg.done === 1 && xProg.total === 6, JSON.stringify(xProg))
+
+  // 정기·일반은 이 축과 무관하다(유효 단계가 ① 하나) — 두 축을 섞으면 분모가 흔들린다
+  ok('정기는 ✕가 있어도 ① 하나', JSON.stringify(activeStepNums(false, hasSheetDefect({ defectsTotal: 0, sheetX: 9 }))) === '[1]')
 }
 
 console.log('— 1부 두 축 혼동 탐지 (관리유형 vs plan_type)')
@@ -121,6 +146,42 @@ console.log('— 1부 마커 철회·낡은 강제 완료 (독립 검증 D1)')
   ok('불량 0건이면 ⑤ 사유 완료가 유효', evidenceDone({ ...EV, forced: [5] })[5] === true)
   ok('①~④·⑥의 강제 완료는 불량과 무관하게 유지',
     evidenceDone({ ...forced5, forced: [2] })[2] === true)
+
+  // ── 소방계획서_45 R-3: 미등록 ✕ 구간의 ⑤ 사유 완료 (독립 판정 2인이 각각 적발) ──
+  // 축을 넓혀 ⑤가 **새로 활성**이 된 구간(✕>0 · 등록 불량 0)은 증거로는 완료가 불가능하고
+  // (evidenceDone ⑤가 defectsTotal>0을 요구), 종전에는 칩이 disabled라 도달조차 못 했다.
+  // 활성으로 열어주면서 [사유 완료]가 유일한 출구가 됐는데 `0 < 0`이라 무효화가 안 걸렸다.
+  // ⚠ 이 구멍을 45차수의 검사 67개가 **전부 통과시켰다** — 분모만 세는 단언은 여기를 못 본다.
+  ok('미등록 ✕가 있으면 ⑤ 사유 완료는 무효',
+    isForced5Void({ ...EV, forced: [5], sheetX: 2, unregisteredX: 2 }) === true)
+  ok('그 구간의 ⑤는 사유 완료에도 불구하고 미완료',
+    evidenceDone({ ...EV, forced: [5], sheetX: 2, unregisteredX: 2 })[5] === false)
+  // 등록해도 ✕ 응답은 지워지지 않는다(createDefectsFromXAction) — sheetX만 보면 **영구 무효**가 된다
+  ok('등록 후 전건 조치했으면 ✕가 남아 있어도 ⑤ 사유 완료가 유효',
+    isForced5Void({ ...EV, forced: [5], sheetX: 2, unregisteredX: 0, defectsTotal: 2, defectsDone: 2 }) === false)
+  ok('등록 후 미조치가 남으면 ✕ 유무와 무관하게 무효',
+    isForced5Void({ ...EV, forced: [5], sheetX: 2, unregisteredX: 0, defectsTotal: 2, defectsDone: 1 }) === true)
+
+  // ── 소방계획서_45 R-5(2차 독립 판정): '미등록 ✕'를 `defectsTotal === 0`으로 **근사**하던 구멍 ──
+  // 🎯 아래 넷이 **판별식**이다: 종전 근사(`defectsTotal===0 && sheetX>0`)를 대입하면 전부 반대로 나온다.
+  // 도달 경로가 실재한다 — deleteDefectAction은 불량 행만 지우고 ✕ 응답은 남긴다.
+  // R-3 단언들은 defectsTotal이 0이거나 미조치가 남은 표본이라 이 구멍을 **하나도 못 봤다**.
+  const partial: StepEvidence = {
+    ...EV, forced: [5], sheetX: 3, unregisteredX: 2, defectsTotal: 1, defectsDone: 1,
+  }
+  ok('3건 ✕ 중 1건만 등록·조치했으면 ⑤ 사유 완료는 무효 — 구 근사는 유효로 봤다',
+    isForced5Void(partial) === true)
+  ok('그 구간의 ⑤는 미완료 — 구 근사는 완료로 굳혔다',
+    evidenceDone(partial)[5] === false)
+  // 등록분을 전건 조치해도 **미등록이 남아 있으면** ⑤는 증거로도 완료가 아니다(evidenceDone을 좁힌 자리)
+  ok('미등록 ✕가 남아 있으면 사유 완료 없이도 ⑤는 증거 완료가 아니다',
+    evidenceDone({ ...EV, sheetX: 3, unregisteredX: 2, defectsTotal: 1, defectsDone: 1 })[5] === false)
+  ok('전건 등록·전건 조치라야 ⑤가 증거로 완료된다',
+    evidenceDone({ ...EV, sheetX: 3, unregisteredX: 0, defectsTotal: 3, defectsDone: 3 })[5] === true)
+
+  // 좁힌 방향이 **반대쪽으로 새지 않는지** — unregisteredX는 완료를 어렵게만 해야 한다
+  ok('불량이 전무하면 미등록도 없다 — ⑤는 여전히 미완료(0 >= 0이 참이 되지 않는다)',
+    evidenceDone({ ...EV, unregisteredX: 0 })[5] === false)
 }
 
 // ── 2부: 스테이징 실주행 ────────────────────────────────────────────────────

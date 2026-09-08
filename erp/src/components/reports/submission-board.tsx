@@ -37,6 +37,11 @@ function CertCell({ inspectionId, uploaded, archived, warn }: { inspectionId: st
   )
 }
 
+/** 소방계획서_45 — 10·11호가 '해당없음'인가 = **점검표 모두 합격**(✕ 0 AND 등록 불량 0).
+ *  표와 엑셀 내보내기가 **같은 함수**를 쓴다. 종전에는 `defectsTotal === 0`이 네 군데에 흩어져 있어
+ *  축을 넓힐 때 일부만 고쳐지면 화면과 엑셀이 다른 말을 하게 돼 있었다. */
+const allPassRow = (r: SubmissionRow) => !r.allPassUnknown && r.defectsTotal === 0 && r.sheetX === 0
+
 /** P-5·R14-f: 현재 화면(필터 반영) 행을 엑셀로 내보내기 — xlsx 동적 로드로 번들 최소화 */
 async function exportRows(rows: SubmissionRow[]) {
   const XLSX = await import('xlsx')
@@ -54,8 +59,8 @@ async function exportRows(rows: SubmissionRow[]) {
     '발송': r.report9Sent ? '발송' : '미발송',
     '제출(D-day)': ddayText(r),
     '배치신고': r.certArchived ? '완료' : r.certUploaded ? '보유' : '미완료',
-    '10호': r.defectsTotal === 0 ? '해당없음' : (r.report10Gen ? '생성' : '미생성'),
-    '11호': r.defectsTotal === 0 ? '해당없음' : naText(r.report11Gen, !!r.report11SubmittedAt),
+    '10호': allPassRow(r) ? '해당없음' : (r.report10Gen ? '생성' : '미생성'),
+    '11호': allPassRow(r) ? '해당없음' : naText(r.report11Gen, !!r.report11SubmittedAt),
   }))
   const ws = XLSX.utils.json_to_sheet(sheet)
   const wb = XLSX.utils.book_new()
@@ -185,8 +190,8 @@ export function SubmissionBoard({ rows, summary, myId, defaultMine }: {
                           </span>}
                     </td>
                     <td className={cell}><CertCell inspectionId={r.inspectionId} uploaded={r.certUploaded} archived={r.certArchived} warn={r.status === 'completed' && !r.certUploaded} /></td>
-                    <td className={cell}>{r.defectsTotal === 0 ? <Mark na label="해당없음" /> : <Mark ok={r.report10Gen} warn={!r.report10Gen} label={r.report10Gen ? '생성' : '미생성'} />}</td>
-                    <td className={cell}>{r.defectsTotal === 0 ? <Mark na label="해당없음" /> : <Mark ok={!!r.report11SubmittedAt || r.report11Gen} warn={!r.report11Gen} label={r.report11SubmittedAt ? '제출' : r.report11Gen ? '생성' : '미생성'} />}</td>
+                    <td className={cell}>{allPassRow(r) ? <Mark na label="해당없음" /> : <Mark ok={r.report10Gen} warn={!r.report10Gen} label={r.report10Gen ? '생성' : '미생성'} />}</td>
+                    <td className={cell}>{allPassRow(r) ? <Mark na label="해당없음" /> : <Mark ok={!!r.report11SubmittedAt || r.report11Gen} warn={!r.report11Gen} label={r.report11SubmittedAt ? '제출' : r.report11Gen ? '생성' : '미생성'} />}</td>
                   </tr>
                 )
               })}

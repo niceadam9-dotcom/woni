@@ -13,6 +13,7 @@ import { confirmPlanItemStageOneAction } from '@/app/(dashboard)/inspection-plan
 import dynamic from 'next/dynamic'
 import type { ComposeAnnexNo } from '@/components/inspections/annex-compose-panel'
 import { PlanAnnexRoundCard } from '@/components/customers/plan-annex-round-card'
+import { hasSheetDefect } from '@/lib/inspection-step-status'
 import type { PreviewDoc, FullPreviewState } from '@/components/customers/plan-annex-full-preview'
 
 // 조건부로만 뜨는 무거운 모달 2종은 지연 로드 — 탭에 들어오기만 한 사용자는 내려받지 않는다.
@@ -131,12 +132,14 @@ export function PlanAnnexSection({ customerId, canRegister = false, initialData 
 
   const rounds = useMemo(() => data?.rounds ?? [], [data])
 
-  /** 회차의 미리보기 문서 목록(순서 = 인쇄 순서). 불량이 없으면 ⑩⑪은 대상이 아니다. */
+  /** 회차의 미리보기 문서 목록(순서 = 인쇄 순서). **점검표 모두 합격**이면 ⑩⑪은 대상이 아니다.
+   *  소방계획서_45 Q-4 — 작업대 ⑤⑥과 같은 축(등록 불량 ∪ 점검표 ✕)을 쓴다. 종전에는 등록분만
+   *  봐서, ✕만 찍힌 회차의 10·11호가 별지 트리에서 아예 사라졌다(작업대는 활성이라 갈라졌다). */
   function previewTypesOf(r: CustomerRound): PreviewDoc[] {
     return [
       { type: 'report4', label: '별지 4호 점검표', missing: [] },
       { type: 'report9', label: '별지 9호 실시결과 보고서', missing: [] },
-      ...((r.docs?.defects.total ?? 0) > 0
+      ...(hasSheetDefect({ defectsTotal: r.docs?.defects.total ?? 0, sheetX: r.docs?.sheetX ?? 0 })
         ? [{ type: 'report10' as const, label: '별지 10호 이행계획서', missing: [] },
            { type: 'report11' as const, label: '별지 11호 이행완료 보고서', missing: [] }]
         : []),

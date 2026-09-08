@@ -9,6 +9,7 @@ import { RecentCustomersStrip } from '@/components/customers/recent-customers-st
 import type { InspectionStatus, InspectionType, PlanType, UserRole } from '@/types'
 import { inspectionNatureBadge } from '@/lib/inspection-nature'
 import { activeStepNums, isSelfInspection } from '@/lib/inspection-step-status'
+import { fetchAllRows } from '@/lib/supabase/paginate'
 import { todayKst } from '@/lib/kst-date'
 
 const STATUS_LABELS: Record<InspectionStatus, string> = {
@@ -126,18 +127,38 @@ export default async function InspectionsPage({
   const stepSummary: Record<string, { total: number; completed: number; hasDueSoon: boolean; hasOverdue: boolean }> = {}
   if (inspections.length > 0) {
     const ids = inspections.map(i => i.id)
-    const [stepsRes, defectsRes] = await Promise.all([
-      admin.from('inspection_steps').select('inspection_id, step_num, status, due_date').in('inspection_id', ids),
-      admin.from('inspection_defects').select('inspection_id').in('inspection_id', ids),
+    // 소방계획서_45 — ⑤⑥ 활성 축은 **점검표 모두 합격이 아닌가**다: 등록된 불량내역 ∪ 점검표 ✕ 응답.
+    // 세 조회 **모두** 1000행에서 조용히 잘리므로 fetchAllRows로 끝까지 받는다(?per_page=0이면 ids가
+    // 최대 1000 — 그래도 단계 행은 그 6배이고 ✕ 응답은 회차당 수백이라 셋 다 상한을 넘긴다).
+    // 한쪽만 감싸면 같은 화면에서 한 축은 정확하고 다른 축은 잘린, 더 나쁜 상태가 된다.
+    // ⚠ 2026-09-08 독립 판정: 종전에는 불량·✕ 둘만 감싸고 **inspection_steps를 빠뜨렸다** —
+    // 하필 분모·분자의 원천이라, 전체 보기에서 ids가 1000건이면 단계 행 6000건이 1000에서 잘려
+    // 뒤쪽 점검의 진행단계 열이 통째로 결측이었다(자기가 세운 원칙을 셋 중 둘에만 적용한 것).
+    const [stepsRes, defectsRes, xRes] = await Promise.all([
+      fetchAllRows<{ inspection_id: string; step_num: number; status: string; due_date: string | null }>((from, to) =>
+        admin.from('inspection_steps').select('inspection_id, step_num, status, due_date')
+          .in('inspection_id', ids).order('id').range(from, to)),
+      fetchAllRows<{ inspection_id: string }>((from, to) => admin.from('inspection_defects')
+        .select('inspection_id').in('inspection_id', ids).order('id').range(from, to)),
+      fetchAllRows<{ inspection_id: string }>((from, to) => admin.from('inspection_sheet_responses')
+        .select('inspection_id').in('inspection_id', ids).eq('result', 'X').order('id').range(from, to)),
     ])
-    const withDefects = new Set(((defectsRes.data ?? []) as Array<{ inspection_id: string }>).map(d => d.inspection_id))
+    // ⚠ 조용한 폴백 금지 — ✕ 조회가 실패하면 needsRepair가 **말없이 종전 축으로 되돌아간다**
+    // (모두 합격처럼 보이고 ⑤⑥이 잠긴다). 화면에는 신호가 없으므로 최소한 로그로 표면화한다.
+    for (const [name, res] of [['steps', stepsRes], ['defects', defectsRes], ['sheetX', xRes]] as const) {
+      if (res.error) console.error(`[inspections] ${name} 조회 실패 — 진행단계 열이 부정확할 수 있습니다:`, res.error)
+      else if (res.truncated) console.error(`[inspections] ${name} 조회가 상한에서 잘렸습니다 — 진행단계 열이 부정확합니다`)
+    }
+    // ⚠ 2026-09-08 2차 판정: 로그만으로는 부족하다 — 실패의 **기울기**가 위험한 쪽이었다(⑤⑥이 사라져
+    // 초록 4/4 완료로 보인다). 크론과 같이 불완전하면 **보수적으로 전 단계 활성**으로 기운다.
+    const repairAxisIncomplete = !!(defectsRes.error || defectsRes.truncated || xRes.error || xRes.truncated)
+    const needsRepair = new Set([...defectsRes.rows, ...xRes.rows].map(d => d.inspection_id))
     const activeByInsp = new Map(inspections.map(i => [
       i.id,
-      new Set<number>(activeStepNums(isSelfInspection(i.plan_type), withDefects.has(i.id))),
+      new Set<number>(activeStepNums(isSelfInspection(i.plan_type), repairAxisIncomplete || needsRepair.has(i.id))),
     ]))
 
-    for (const s of stepsRes.data ?? []) {
-      const row = s as { inspection_id: string; step_num: number; status: string; due_date: string | null }
+    for (const row of stepsRes.rows) {
       // 유효 단계가 아니면 분모·마감임박 어디에도 세지 않는다(행은 DB에 그대로 둔다)
       if (!activeByInsp.get(row.inspection_id)?.has(row.step_num)) continue
       if (!stepSummary[row.inspection_id]) {

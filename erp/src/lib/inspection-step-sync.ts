@@ -19,8 +19,9 @@ import { dismissInspectionDeadlineNotifications } from '@/lib/inspection-notify-
 import type { createAdminClient } from '@/lib/supabase/admin'
 import { isCertFileName, findArchivedCertInspections } from '@/lib/doc-status'
 import { countInstalledRequiredBlanks } from '@/lib/sheet-overview'
+import { fetchAllRows } from '@/lib/supabase/paginate'
 import {
-  evidenceDone, activeStepNums, isSelfInspection, resolveForcedSteps,
+  evidenceDone, activeStepNums, hasSheetDefect, isSelfInspection, resolveForcedSteps,
   OWNER_REPORT_OFFLINE_ACTION, STEP_FORCE_COMPLETE_ACTION, STEP_FORCE_UNDO_ACTION,
   type StepEvidence, type StepNum,
 } from '@/lib/inspection-step-status'
@@ -41,11 +42,16 @@ export async function gatherStepEvidence(
   admin: Admin, insp: InspRow,
 ): Promise<StepEvidence> {
   const prefix = `${insp.customer_id}/inspections/${insp.id}`
-  const [respRes, filesRes, deliveryRes, defectsRes, logsRes, archivedSet] = await Promise.all([
+  const [respRes, xRes, filesRes, deliveryRes, defectsRes, logsRes, archivedSet] = await Promise.all([
     admin.from('inspection_sheet_responses').select('id', { count: 'exact', head: true }).eq('inspection_id', insp.id),
+    // ✕ 응답의 **항목 코드** (소방계획서_45 R-5) — 개수만으로는 '미등록 ✕'를 셀 수 없어 코드를 받는다.
+    // 종전에는 `count:'exact', head:true`로 수만 셌고 미등록 여부는 `defectsTotal===0`으로 근사했다.
+    // 회차당 ✕는 많아야 수백이지만 상한에 기대지 않는다(fetchAllRows).
+    fetchAllRows<{ item_code: string }>((from, to) => admin.from('inspection_sheet_responses')
+      .select('item_code').eq('inspection_id', insp.id).eq('result', 'X').order('id').range(from, to)),
     admin.storage.from('fire-plans').list(prefix, { limit: 100 }),
     admin.from('report_deliveries').select('id').eq('inspection_id', insp.id).eq('doc_kind', 'report9_owner').limit(1),
-    admin.from('inspection_defects').select('action_completed_at').eq('inspection_id', insp.id),
+    admin.from('inspection_defects').select('action_completed_at, defect_code').eq('inspection_id', insp.id),
     // ③ 오프라인 보고·강제 완료·철회 마커 — 마이그레이션 없이 activity_logs를 근거로 쓴다(D34-2).
     // created_at을 함께 읽는다: append-only라 철회는 '나중 마커'로만 표현된다(D1)
     admin.from('activity_logs').select('action, metadata, created_at')
@@ -56,8 +62,21 @@ export async function gatherStepEvidence(
     findArchivedCertInspections(admin, [insp.id]),
   ])
 
-  const defects = (defectsRes.data ?? []) as Array<{ action_completed_at: string | null }>
+  const defects = (defectsRes.data ?? []) as Array<{ action_completed_at: string | null; defect_code: string | null }>
   const logs = (logsRes.data ?? []) as Array<{ action: string; metadata: Record<string, unknown> | null; created_at: string }>
+  // 미등록 ✕ = ✕ 항목 코드 − 이미 등록된 불량 코드. 등록 경로(createDefectsFromXAction)가
+  // `defect_code = item_code`로 넣으므로 두 집합의 키가 같다(sheet-actions.ts:731).
+  // ⚠ 조회가 불완전하면 **0으로 접지 않는다** — 0은 곧 '미등록 없음'이라 ⑤ 사유 완료를 열어준다.
+  // 못 받았을 땐 ✕ 전건을 미등록으로 보수 판정한다(닫는 쪽이 안전하다).
+  const xCodes = xRes.rows.map(r => r.item_code)
+  const registered = new Set(defects.map(d => d.defect_code).filter(Boolean))
+  const xAxisIncomplete = !!(xRes.error || xRes.truncated)
+  if (xAxisIncomplete) {
+    console.error(`[step-sync] ✕ 응답 조회 불완전 — 미등록 ✕를 보수 판정합니다 (inspection ${insp.id}):`, xRes.error)
+  }
+  const unregisteredX = xAxisIncomplete
+    ? Math.max(xCodes.length, 1)
+    : xCodes.filter(c => !registered.has(c)).length
   const { steps: forced } = resolveForcedSteps(
     logs.map(l => ({ action: l.action, stepNum: Number(l.metadata?.['step_num']), at: l.created_at })),
   )
@@ -71,6 +90,8 @@ export async function gatherStepEvidence(
     submit9At: insp.report9_submitted_at,
     defectsTotal: defects.length,
     defectsDone: defects.filter(d => d.action_completed_at).length,
+    sheetX: xCodes.length,
+    unregisteredX,
     submit11At: insp.report11_submitted_at,
     forced,
   }
@@ -183,7 +204,7 @@ export async function syncInspectionSteps(
   const evidence = await gatherStepEvidence(admin, insp)
   const done = evidenceDone(evidence)
   const isSpecial = isSelfInspection(insp.plan_type)
-  const active = activeStepNums(isSpecial, evidence.defectsTotal > 0)
+  const active = activeStepNums(isSpecial, hasSheetDefect(evidence))
 
   const steps = (stepRaw ?? []) as Array<{ id: string; step_num: number; status: string }>
   if (steps.length === 0) return { changed: 0 }

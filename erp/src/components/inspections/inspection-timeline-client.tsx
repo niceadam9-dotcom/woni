@@ -15,11 +15,11 @@ import {
   uploadTimelineFileAction, sendOwnerReportAction, recordSubmissionAction, downloadPackageAction,
 } from '@/app/(dashboard)/inspections/timeline-actions'
 import { forceCompleteStepAction, undoForceCompleteStepAction, recordOwnerReportOfflineAction } from '@/app/(dashboard)/inspections/timeline-actions'
-import { evidenceDone, activeStepNums, stepProgress, type StepEvidence } from '@/lib/inspection-step-status'
+import { evidenceDone, activeStepNums, hasSheetDefect, stepProgress, type StepEvidence } from '@/lib/inspection-step-status'
 import { updateInspectionMultidayAction } from '@/app/(dashboard)/inspections/actions'
 import { uploadDefectPhotoAction } from '@/app/(dashboard)/inspections/defect-actions'
 import { DateInput } from '@/components/ui/date-input'
-import { TIMELINE_STEP_LABELS, TIMELINE_STEP_TOOLTIPS, type TimelineStepKey } from '@/lib/doc-requirements'
+import { DOC_TERMS, TIMELINE_STEP_LABELS, TIMELINE_STEP_TOOLTIPS, type TimelineStepKey } from '@/lib/doc-requirements'
 import { kstDate } from '@/lib/kst-date'
 import { GeneratedDocList } from '@/components/inspections/generated-doc-list'
 import { AnnexComposePanel, type ComposeAnnexNo } from '@/components/inspections/annex-compose-panel'
@@ -358,7 +358,9 @@ export function InspectionTimelineClient({ inspectionId, canManage, canComplete,
         : <Circle className="size-4 text-[#d0ccf5] shrink-0" />
 
   const has = (k: TimelineStepKey) => data.steps.includes(k)
-  const hasDefects = data.defects.total > 0
+  // 소방계획서_45 — ⑤⑥이 필요한가 = **점검표 모두 합격이 아닌가**(✕ ∪ 등록 불량).
+  // 이 컴포넌트는 미렌더지만 되살릴 때 작업대와 규칙이 갈라지지 않게 같은 원본(hasSheetDefect)을 쓴다.
+  const needsRepairSteps = hasSheetDefect({ defectsTotal: data.defects.total, sheetX: data.evidence?.sheetX ?? 0 })
   // R4-1(독립 검증 D3): ✓는 **서버와 같은 판정 함수**로 계산한다. 종전엔 여기서 리터럴로 다시 계산해
   // 오프라인 보고·사유 완료가 DB에서는 완료인데 화면 ✓는 미완으로 남는 새 괴리가 생겼다.
   // evidence가 오지 않는 옛 호출자를 위해 화면이 가진 값으로 같은 모양을 만들어 넘긴다.
@@ -369,6 +371,11 @@ export function InspectionTimelineClient({ inspectionId, canManage, canComplete,
     submit9At: data.submit9.submittedAt,
     defectsTotal: data.defects.total, defectsDone: data.defects.done,
     submit11At: data.submit11.submittedAt,
+    // 소방계획서_45 — evidence 없는 옛 호출자에는 ✕ 카운트가 없다. 0이면 종전 축(등록 불량만)으로 물러난다.
+    sheetX: 0,
+    // R-5: 미등록 ✕도 알 수 없다. 여기서 0이 아닌 값을 주면 ⑤가 **영구 미완**이 되므로 0으로 둔다 —
+    // 이 폴백은 두 축이 **함께** 종전으로 물러나는 자리다(한쪽만 신축이면 갈라진다).
+    unregisteredX: 0,
   })
   const done1 = stepDone[1]
   const done2 = stepDone[2]
@@ -382,7 +389,7 @@ export function InspectionTimelineClient({ inspectionId, canManage, canComplete,
 
   // R10-b: 진행률 — 해당없음(불량 0건의 ⑤⑥)은 분모에서 제외
   const isSpecialTimeline = data.steps.length > 1
-  const progress = stepProgress(stepDone, activeStepNums(isSpecialTimeline, hasDefects))
+  const progress = stepProgress(stepDone, activeStepNums(isSpecialTimeline, needsRepairSteps))
   const doneCount = progress.done
   const progressPct = progress.pct
 
@@ -390,7 +397,7 @@ export function InspectionTimelineClient({ inspectionId, canManage, canComplete,
   const orderedSteps: Array<{ key: TimelineStepKey; done: boolean }> = [
     { key: 'checklist' as TimelineStepKey, done: done1 }, { key: 'cert' as TimelineStepKey, done: done2 },
     { key: 'ownerReport' as TimelineStepKey, done: done3 }, { key: 'submit9' as TimelineStepKey, done: done4 },
-    ...(hasDefects ? [{ key: 'repair' as TimelineStepKey, done: done5 }, { key: 'submit11' as TimelineStepKey, done: done6 }] : []),
+    ...(needsRepairSteps ? [{ key: 'repair' as TimelineStepKey, done: done5 }, { key: 'submit11' as TimelineStepKey, done: done6 }] : []),
   ].filter(s => has(s.key))
   const nextStep = orderedSteps.find(s => !s.done)
 
@@ -653,13 +660,13 @@ export function InspectionTimelineClient({ inspectionId, canManage, canComplete,
         <div className={row}>
           <div className="flex-1 min-w-0">
             {stepHeader({ k: 'submit9', done: done4, active: done1,
-              extra: hasDefects ? <span className="text-[10px] text-ink-meta">(+별지 10호 — 불량 시)</span> : undefined,
-              collapsedSummary: data.submit9.submittedAt ? <span className="text-[10px] text-green-600">제출 {data.submit9.submittedAt}</span> : undefined })}
+              extra: needsRepairSteps ? <span className="text-form-2xs text-ink-meta">(+별지 10호 — 불량 시)</span> : undefined,
+              collapsedSummary: data.submit9.submittedAt ? <span className="text-form-2xs text-green-600">제출 {data.submit9.submittedAt}</span> : undefined })}
           {isOpen('submit9') && (
           <div className="flex-1 min-w-0 space-y-1.5 mt-1.5 pl-6">
             <div className="flex items-center gap-2 flex-wrap">
               {dday(data.submit9.dday, data.submit9.submittedAt)}
-              {data.submit9.due && !data.submit9.submittedAt && <span className="text-[10px] text-ink-meta">기한 {data.submit9.due}</span>}
+              {data.submit9.due && !data.submit9.submittedAt && <span className="text-form-2xs text-ink-meta">기한 {data.submit9.due}</span>}
               {canManage && (<>
                 <button onClick={() => generate('report9')} disabled={isPending || busy} className={btnPri}>
                   {busy ? <Loader2 className="size-3 animate-spin" /> : <FileText className="size-3" />} 별지 9호 생성
@@ -735,11 +742,11 @@ export function InspectionTimelineClient({ inspectionId, canManage, canComplete,
       )}
 
       {/* ⑤ 보수·증빙 + 전/후 갤러리 (§4-E-2) — 불량 0건이면 해당없음 흐림. 완료 = 불량 전건 조치(R10-a) */}
-      {has('repair') && (hasDefects ? (
+      {has('repair') && (needsRepairSteps ? (
         <div className={`${row} ${dragOver === 'contract' ? 'bg-brand-tint outline outline-1 outline-dashed outline-brand rounded' : ''}`} {...dropProps('contract')}>
           <div className="flex-1 min-w-0">
             {stepHeader({ k: 'repair', done: done5, active: done4,
-              extra: <span className="text-[10px] text-ink-meta">불량 {data.defects.done}/{data.defects.total} 조치 · 전후 {data.defects.photoPairs}/{data.defects.total}쌍</span> })}
+              extra: <span className="text-form-2xs text-ink-meta">불량 {data.defects.done}/{data.defects.total} 조치 · 전후 {data.defects.photoPairs}/{data.defects.total}쌍</span> })}
             {isOpen('repair') && (
               <div className="mt-1.5 pl-6 space-y-2">
                 <div className="flex items-center gap-2 flex-wrap">
@@ -827,7 +834,7 @@ export function InspectionTimelineClient({ inspectionId, canManage, canComplete,
               {isOpen('repair') ? <ChevronDown className="size-3.5 text-ink-faint shrink-0" /> : <ChevronRight className="size-3.5 text-ink-faint shrink-0" />}
               <Circle className="size-4 text-[#d0ccf5] shrink-0" />
               <span className="text-xs font-semibold text-ink shrink-0" title={TIMELINE_STEP_TOOLTIPS.repair}>{TIMELINE_STEP_LABELS.repair}</span>
-              <span className="text-xs text-ink-meta">해당없음 — 불량 0건 (불량 등록 시 활성화)</span>
+              <span className="text-xs text-ink-meta">{DOC_TERMS.naAllPass} (불량이 생기면 활성화)</span>
             </button>
             {isOpen('repair') && slots?.defects && (
               <div className="mt-2 pl-6">{slots.defects}</div>
@@ -837,15 +844,15 @@ export function InspectionTimelineClient({ inspectionId, canManage, canComplete,
       ))}
 
       {/* ⑥ 이행완료 (별지 11호) — 상시 표시(D-4) */}
-      {has('submit11') && (hasDefects ? (
+      {has('submit11') && (needsRepairSteps ? (
         <div className={row}>
           <div className="flex-1 min-w-0">
             {stepHeader({ k: 'submit11', done: done6, active: done5 || data.defects.done > 0,
-              collapsedSummary: data.submit11.submittedAt ? <span className="text-[10px] text-green-600">제출 {data.submit11.submittedAt}</span> : undefined })}
+              collapsedSummary: data.submit11.submittedAt ? <span className="text-form-2xs text-green-600">제출 {data.submit11.submittedAt}</span> : undefined })}
             {isOpen('submit11') && (
               <div className="flex items-center gap-2 flex-wrap mt-1.5 pl-6">
                 {dday(data.submit11.dday, data.submit11.submittedAt)}
-                {data.submit11.due && !data.submit11.submittedAt && <span className="text-[10px] text-ink-meta">기한 {data.submit11.due} (이행기간 종료)</span>}
+                {data.submit11.due && !data.submit11.submittedAt && <span className="text-form-2xs text-ink-meta">기한 {data.submit11.due} (이행기간 종료)</span>}
                 {canManage && (<>
                   <button onClick={() => generate('report11')} disabled={isPending || busy} className={btnPri}>별지 11호 생성</button>
                   <button onClick={() => setCompose('report11')} disabled={isPending || busy} className={btn}
@@ -866,13 +873,13 @@ export function InspectionTimelineClient({ inspectionId, canManage, canComplete,
         <div className={`${row} opacity-50`}>
           <Circle className="size-4 text-[#d0ccf5] shrink-0" />
           <span className={label} title={TIMELINE_STEP_TOOLTIPS.submit11}>{TIMELINE_STEP_LABELS.submit11}</span>
-          <span className="text-xs text-ink-meta">해당없음 — 불량 0건 (불량 등록 시 활성화)</span>
+          <span className="text-xs text-ink-meta">{DOC_TERMS.naAllPass} (불량이 생기면 활성화)</span>
         </div>
       ))}
 
       {msg && <p className="text-xs text-ink-sub mt-2">{msg}</p>}
       {busy && (
-        <p className="text-[11px] text-ink-meta mt-2 inline-flex items-center gap-1">
+        <p className="text-form-xs text-ink-meta mt-2 inline-flex items-center gap-1">
           <RefreshCw className="size-3 animate-spin" /> 생성 중 — 서버에서 PDF 변환 중
         </p>
       )}
