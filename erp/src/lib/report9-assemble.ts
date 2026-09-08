@@ -171,11 +171,14 @@ export function annexDoneRows(
   if (done.length) {
     return {
       kind: 'rows',
-      // ⚠ 폴백을 `||`로 둔다(`?.trim() ||`가 아니라) — 종전 PDF 동작을 바이트 그대로 보존하기
-      //   위해서다(S5-3 대조군). 공백만 든 action_taken이 그대로 인쇄되는 어긋남은 알고 있고
-      //   Q-4로 등재했다 — 고칠 때 대조군 기준을 함께 옮긴다.
+      // 폴백은 **trim 축**이다(Q-4 a안 확정, 2026-09-08). 종전 `d.action_taken || …`는
+      // 공백만 든 값('   ')을 참으로 보아 **빈 칸을 인쇄하면서** 경고는 `!action_taken?.trim()`로
+      // 세어 「불량명이 대신 인쇄됨」이라 말했다 — 경고와 인쇄물이 서로 다른 소리를 냈다.
+      // 이제 둘이 같은 축을 본다: 공백뿐이면 불량명이 실제로 대신 인쇄된다.
+      // ⚠ 이 한 경우에서 S5-3 대조군이 **의도적으로** 갈라진다(기준 cf7319f와 다른 산출) —
+      //   법정 서식의 「이행조치 내용」 칸이 빈 채 나가는 것보다 불량명이 서는 편이 옳다.
       rows: done.map(d => ({
-        content: d.action_taken || d.defect_name || '',
+        content: d.action_taken?.trim() || d.defect_name || '',
         doneISO: (d.action_completed_at ?? '').slice(0, 10),
       })),
     }
@@ -203,6 +206,10 @@ export function annexPlanRows(d: Report9Data): AnnexPlanRow[] {
         : !f ? '' : f.kind === 'rows' ? f.rows.map(r => r.content).join('\n') : DEFECT_FOLD_TEXT[f.kind],
       period: gp ? `${kdate(gp.startISO)} ~ ${kdate(gp.endISO)}` : '',
       days: gp ? String(gp.days) : '',
+      // 자동 문구 줄이면 일자 칸을 자리표 대신 `—`로(Q-5 b안). **생산자가 표시한다** —
+      // 렌더가 글자로 알아보면 사용자가 조치 내용에 「해당없음」이라 적었을 때 진짜 이행조치의
+      // 날짜가 조용히 사라진다. 미공급(folds 없음)은 종전 렌더 그대로라 표시하지 않는다.
+      isNote: !!f && f.kind !== 'rows',
     }
   })
 }

@@ -5,7 +5,7 @@
  *  실행: npx tsx scripts/_probe-r10-plan-rows.mts */
 import { renderReport10, type Annex1011Data, type AnnexPlanRow } from '../src/lib/doc-templates/report1011'
 import { DEFECT_GROUPS, foldDefectGroups, DEFECT_FOLD_TEXT } from '../src/lib/doc-templates/report9'
-import { actionPlanPeriod } from '../src/lib/report9-assemble'
+import { actionPlanPeriod, annexPlanRows } from '../src/lib/report9-assemble'
 
 let pass = 0, fail = 0
 const ok = (c: boolean, m: string) => { if (c) { pass++; console.log(`  ✅ ${m}`) } else { fail++; console.log(`  ❌ ${m}`) } }
@@ -88,6 +88,40 @@ ok(dup.includes('(총 20일)') && !dup.includes('20일일'), '총 일수에 「�
 ok(renderReport10({ ...base, planRows, totalDays: '20' }).includes('총 20일'), '「일」 없는 값은 그대로')
 // 지어내지 않는다 — 끝의 '일'만 벗기고 숫자로 만들지 않는다
 ok(renderReport10({ ...base, planRows, totalDays: '미정' }).includes('총 미정일'), '숫자가 아닌 값은 원문 보존')
+
+console.log('── C-3. Q-5 — 자동 문구 행의 일자 칸(자리표 대신 —) ──')
+// ⚠ 위 A~C는 planRows를 **손으로** 만든다. 그러면 `annexPlanRows`가 붙이는 `isNote`를 안 타서
+//   Q-5 축이 통째로 검사 밖에 남는다(픽스처에 판정값을 박은 검사가 그 규칙을 안 타는 것과 같은 형태).
+//   그래서 여기서는 **실제 조립 함수**를 부른다.
+{
+  const PLACEHOLDER = '(총&nbsp;&nbsp;&nbsp;&nbsp;일)'
+  const realRows = annexPlanRows({
+    defectRows, applicableGroups,
+    actionGroupPeriods: {
+      소화설비: { startISO: '2026-08-18', endISO: '2026-08-20', days: 3 },
+    },
+  } as never)
+  ok(realRows.length === DEFECT_GROUPS.length, `annexPlanRows 7행 (실측 ${realRows.length})`)
+  // 자동 문구 행에는 isNote가 붙는다 — 생산자가 표시하는 축(렌더가 글자로 알아보지 않는다)
+  const notes = realRows.filter(r => r.isNote)
+  ok(notes.length > 0, `isNote 붙은 문구 행 ${notes.length}개(개수 하한 선단언)`,
+    notes.map(r => `${r.group}:${r.content}`).join(' · '))
+  ok(realRows.filter(r => !r.isNote).every(r => !['결과참조', '이상없음', '해당없음'].includes(r.content)),
+    'isNote 없는 행에는 자동 문구가 없다(축이 어긋나지 않았다)')
+
+  const realHtml = renderReport10({ ...base, planRows: realRows, totalPeriod: '2026년 8월 18일 ~ 2026년 8월 20일', totalDays: '3' })
+  // 문구 행 옆의 `~(총  일)` 자리표가 사라졌는가 — 「해당없음」에 기간을 적으라는 말이 되던 자리
+  const bodyOnly = realHtml.slice(realHtml.indexOf('이행조치<br>계획사항'))
+  ok(!bodyOnly.includes(PLACEHOLDER), '문구 행에 빈 기간 자리표가 없다')
+  for (const g of notes) {
+    const seg = bodyOnly.slice(bodyOnly.indexOf(`>${g.group}<`))
+    const cell = seg.slice(0, seg.indexOf('</tr>'))
+    ok(cell.includes('>—</td>'), `${g.group}(${g.content}) 일자 칸은 —`)
+  }
+  // 실이행조치 행은 종전 그대로 — 축이 과하게 넓어지지 않았는가
+  ok(bodyOnly.includes('2026년 8월 18일 ~ 2026년 8월 20일') && bodyOnly.includes('(총 3 일)'),
+    '실기간이 있는 행은 날짜·총일수 그대로')
+}
 
 console.log('── D. 하위 호환(planRows 미공급) ──')
 const legacy = renderReport10({ ...base, rows: [{ content: '유도등 교체', period: '2026년 8월 1일 ~ 2026년 8월 5일' }] })
