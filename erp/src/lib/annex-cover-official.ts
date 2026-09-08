@@ -181,6 +181,10 @@ export async function assembleOfficial(
       address: company?.address ?? '',
       phone: formatTel(company?.phone),
       fax: formatTel(company?.fax),
+      // 갑지 엑셀 `완료보고서!I12`(사업자번호) 배선용 — 공문 PDF 렌더는 쓰지 않는다(43 D-8).
+      // 별지 11호 PDF가 이미 `company_profile.business_number`를 인쇄하므로(companyBizno)
+      // 같은 값을 엑셀에도 흘려야 두 표면이 갈라지지 않는다.
+      bizNo: company?.business_number ?? '',
     },
     docNo,
     sendDate: fstr('sendDate') || ymLabel(insp.inspection_end_date ?? null),

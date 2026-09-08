@@ -12,7 +12,7 @@ import { readFileSync } from 'node:fs'
 import JSZip from 'jszip'
 import XLSX from 'xlsx'
 import { injectWorkbook, isoToSerial, sheetFileMap } from '../src/lib/xlsx-inject.ts'
-import { SCRUB_NEEDLES } from '../src/lib/xlsx-anchors.ts'
+import { SCRUB_NEEDLES, ANCHORS } from '../src/lib/xlsx-anchors.ts'
 import { buildWorkbookValues, toInjectTargets, DEFECT_ROWS_PER_GROUP, defectOverflow } from '../src/lib/xlsx-workbook.ts'
 import { FIRE_SUB_ITEMS } from '../src/lib/facility-codes.ts'
 import type { OfficialData } from '../src/lib/doc-templates/official.ts'
@@ -735,19 +735,28 @@ console.log('[4f] 현4 3-8 제연설비 자구 왕복·값 착지')
 // ── ⑤ 안전망(S2-7/D-10) — 주입이 안 닿은 표본 흔적 캐시를 비운다 ────
 console.log('[5] 안전망 — 니들 캐시 소거·주입값은 보호')
 {
-  // 오염된 템플릿을 연출: 폐포 밖 셀(완료보고서!I12 — 수식 없음·어떤 앵커의 폐포에도 없음)에
-  // 표본 상호를 심는다. 템플릿 갱신이 표본 값을 복합 수식 캐시에 되살리는 상황의 대역이다
+  // 오염된 템플릿을 연출: **주입이 안 닿는 셀**에 표본 상호를 심는다. 템플릿 갱신이 표본 값을
+  // 복합 수식 캐시에 되살리는 상황의 대역이다.
+  // ⚠ 종전 캐너리는 `완료보고서!I12`였는데, 2026-09-08 D-8 부분 배선이 그 칸을 **사업자번호
+  //   앵커로 열면서** 주입이 덮어 버려 소거할 것이 0이 됐다(멀쩡한 안전망이 붉어졌다).
+  //   캐너리는 **앞으로도 앵커가 될 일이 없는 자리**여야 한다 — `K27`은 「(서명 또는 인)」
+  //   고정 문구라 데이터 칸이 될 수 없다. 라벨 칸은 쓰지 않는다(앵커 검증 축이라 오염시키면
+  //   validateAnchors가 먼저 깨진다).
+  const CANARY = 'K27'
+  check('캐너리는 앵커가 아니다(전제)',
+    !ANCHORS.some(a => a.sheet === '완료보고서' && a.cell === CANARY),
+    `완료보고서!${CANARY}`)
   const stain = await injectWorkbook(template, [
-    { sheet: '완료보고서', cell: 'I12', value: '표본 잔존 정내과의원' },
+    { sheet: '완료보고서', cell: CANARY, value: '표본 잔존 정내과의원' },
   ])
   check('오염 연출 성공', stain.missed.length === 0)
 
   const r5 = await injectWorkbook(stain.bytes, targets, { forbidden: SCRUB_NEEDLES })
-  check('니들 캐시 소거 1칸', r5.scrubbed.length === 1 && r5.scrubbed[0] === '완료보고서!I12',
+  check('니들 캐시 소거 1칸', r5.scrubbed.length === 1 && r5.scrubbed[0] === `완료보고서!${CANARY}`,
     r5.scrubbed.join(', '))
   const wb5 = XLSX.read(r5.bytes)
-  const i12 = (wb5.Sheets['완료보고서']?.['I12'] as XLSX.CellObject | undefined)?.v
-  check('완료보고서!I12 비워짐', i12 === undefined || String(i12).trim() === '', JSON.stringify(i12))
+  const i12 = (wb5.Sheets['완료보고서']?.[CANARY] as XLSX.CellObject | undefined)?.v
+  check(`완료보고서!${CANARY} 비워짐`, i12 === undefined || String(i12).trim() === '', JSON.stringify(i12))
   // 소거도 바이트 패치다 — 서식 무손상 축이 그대로 성립해야 한다
   const zb5 = await JSZip.loadAsync(template)
   const za5 = await JSZip.loadAsync(r5.bytes)
@@ -772,7 +781,10 @@ console.log('[5] 안전망 — 니들 캐시 소거·주입값은 보호')
 console.log('[6] 안전망 — 공유문자열 인덱스·분할 런까지 본다')
 {
   // 오염 연출: sharedStrings에 **서식 런으로 쪼개진** 표본 상호를 추가하고('정내'+'과의원' —
-  // 첫 <t>만 보는 검사는 못 잡는다), 완료보고서!I12를 그 항목을 가리키는 t="s" 셀로 바꾼다
+  // 첫 <t>만 보는 검사는 못 잡는다), 캐너리 셀을 그 항목을 가리키는 t="s" 셀로 바꾼다.
+  // ⚠ [5]와 **같은 캐너리**를 쓴다 — 앵커가 된 칸을 쓰면 주입이 덮어 소거할 것이 0이 된다.
+  //   그리고 이 연출은 `<c r="…">`를 **치환**하므로 XML에 실재하는 셀이어야 한다(빈 좌표는 무음 실패).
+  const CANARY2 = 'K27'
   const zip = await JSZip.loadAsync(template)
   const files = await sheetFileMap(zip)
   let sst = await zip.file('xl/sharedStrings.xml')!.async('string')
@@ -781,12 +793,14 @@ console.log('[6] 안전망 — 공유문자열 인덱스·분할 런까지 본�
   zip.file('xl/sharedStrings.xml', sst)
   const path = files.get('완료보고서')!
   let xml = await zip.file(path)!.async('string')
-  xml = xml.replace(/<c r="I12"[^>]*?(?:\/>|>[\s\S]*?<\/c>)/, `<c r="I12" t="s"><v>${siIndex}</v></c>`)
+  const before = xml
+  xml = xml.replace(new RegExp(`<c r="${CANARY2}"[^>]*?(?:\\/>|>[\\s\\S]*?<\\/c>)`), `<c r="${CANARY2}" t="s"><v>${siIndex}</v></c>`)
+  check('오염 연출이 실제로 셀을 바꿨다(무음 실패 방지)', xml !== before, `완료보고서!${CANARY2}`)
   zip.file(path, xml)
   const stained = new Uint8Array(await zip.generateAsync({ type: 'uint8array' }))
 
   const r = await injectWorkbook(stained, targets, { forbidden: SCRUB_NEEDLES })
-  check('t="s" 셀 소거(인덱스 너머의 원문 대조)', r.scrubbed.includes('완료보고서!I12'), r.scrubbed.join(', '))
+  check('t="s" 셀 소거(인덱스 너머의 원문 대조)', r.scrubbed.includes(`완료보고서!${CANARY2}`), r.scrubbed.join(', '))
   check('공유문자열 텍스트 자체 소거(분할 런 연결 판정)', r.scrubbed.includes(`sharedStrings!si${siIndex}`))
   const za = await JSZip.loadAsync(r.bytes)
   const sstAfter = await za.file('xl/sharedStrings.xml')!.async('string')

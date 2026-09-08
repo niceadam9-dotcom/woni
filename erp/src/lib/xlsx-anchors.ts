@@ -246,6 +246,24 @@ export const ANCHORS: Anchor[] = [
     // 구 호출부·픽스처뿐이고, 그쪽 대조군을 무손상으로 지키는 효과가 있다.
     dropFormula: true, keepFormulaWhenEmpty: true,
   },
+  // ── 자사(소방공사업체) 정보 4칸 (소방계획서_43 D-8 **부분 배선**) ──
+  //
+  // 갑지 서식에는 자사 정보가 **6시트 18칸**에 동결 리터럴로 박혀 있다. 정본은 DB
+  // `company_profile`이고 PDF는 그 값을 인쇄하므로, 회사 정보가 바뀌면 두 표면이 갈라진다.
+  //
+  // 🚫 그런데 **전수 배선은 지금 하면 인쇄물이 나빠진다**(2026-09-08 실측 M-19):
+  //   · 상호가 템플릿에 4종(㈜승진소방ENG·㈜승진소방 ENG·주식회사 승진소방 ENG·㈜승진소방이엔지)인데
+  //     DB는 2개뿐이고 어느 것과도 글자가 같지 않다 → 배선하면 **계약서에서 `㈜`가 사라진다**.
+  //   · 주소는 DB가 `경기 …`, 템플릿이 `경기도 … (덕평리 98-1)` → 지번이 소실된다.
+  //   · `management_reg_no`가 더미 `1234567`이다 → 실제 등록번호가 더미로 덮인다.
+  //
+  // 그래서 **DB 값이 템플릿과 글자까지 같은 4칸만** 연다. 출력은 한 글자도 안 바뀌고
+  // (그 동일성이 `test-company-anchors`의 전제이자 단언이다) 회사 정보가 바뀔 때만 따라 움직인다.
+  // 나머지 14칸은 데이터 교정이 선행 조건 — 그때까지 서식 리터럴이 정본이다.
+  { field: 'companyBizNo',   sheet: '완료보고서', cell: 'I12', labelCell: 'I11', label: '사업자번호', dropFormula: true },
+  { field: 'companyRepName', sheet: '완료보고서', cell: 'C14', labelCell: 'B13', label: '대표이사',   dropFormula: true },
+  { field: 'companyPhone',   sheet: '완료보고서', cell: 'F14', labelCell: 'E14', label: '전화번호',   dropFormula: true },
+  { field: 'companyPhone2',  sheet: '계약서',   cell: 'H28', labelCell: 'G28', label: '연락처',     dropFormula: true },
   // ── 현5(별지 9호 8쪽 '4. 소방시설등 불량 세부 사항') — 점검번호·불량내용 7행 ──
   // 계획서!C12~C24{=현5!A4..A10}·H12~H24{=현5!C4..C10}가 이 시트를 읽으므로 **Phase 3의 선행 조건**이다
   // (2026-08-30 실측 `_scope29-hyeon5.mts` — 착수 순서가 설계와 반대였다).

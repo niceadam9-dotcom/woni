@@ -8,7 +8,9 @@
 import { renderDocument, esc } from './base'
 
 export type OfficialData = {
-  company: { name: string; address: string; phone: string; fax: string }
+  /** bizNo는 공문 렌더가 쓰지 않는다 — 갑지 엑셀 `완료보고서!I12` 배선의 원천이다(소방계획서_43 D-8).
+   *  같은 조립본에 실어 나르는 이유는 actionPeriod·done과 같다: PDF와 엑셀이 **같은 값**을 받게 하려고. */
+  company: { name: string; address: string; phone: string; fax: string; bizNo?: string }
   /** 문서번호 — '승 진 2511-977' */
   docNo: string
   /** 발신일자 — '2025년 11월' */

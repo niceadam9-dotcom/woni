@@ -92,10 +92,14 @@ const d = (name: string, taken: string, at: string) =>
   ({ defect_name: name, action_taken: taken, action_completed_at: at })
 
 console.log('── A. 앵커 8칸이 존재하고 서식 라벨을 통과한다 ──')
-const doneAnchors = ANCHORS.filter(a => a.sheet === '완료보고서')
-// 8칸(이행완료 사항 내용 4 + 일자 4) + 1칸(보고일 G25, S4) = 9
-check(`완료보고서 앵커 수 = ${doneAnchors.length}`, doneAnchors.length === 9, '개수 하한 선단언(공허 통과 방지)')
-check('그중 이행완료 사항 8칸', doneAnchors.filter(a => /^done(Content|Date)\d+$/.test(a.field)).length === 8)
+// ⚠ 분모를 '완료보고서 시트의 전 앵커'로 잡으면 **다른 작업이 그 시트에 칸을 하나 더 열 때마다**
+//   이 검사가 붉어진다(실제로 D-8 자사 3칸이 열리며 9→12가 됐다). 이 스위트가 지키는 것은
+//   「이행완료 사항」 축이므로 분모도 그 축으로 좁힌다 — 다만 **0에서 공허 통과**하지 않도록
+//   개수를 먼저 못박는다([[feedback_exhaustive_has_an_axis]]).
+const doneAnchors = ANCHORS.filter(a => a.sheet === '완료보고서' && /^done/.test(a.field))
+const doneCellAnchors = doneAnchors.filter(a => /^done(Content|Date)\d+$/.test(a.field))
+check(`이행완료 사항 앵커 ${doneCellAnchors.length}칸 + 보고일 1칸`,
+  doneCellAnchors.length === 8 && doneAnchors.length === 9, '개수 하한 선단언(공허 통과 방지)')
 check('내용 4칸 = B19~B22', DONE_ROWS.every(r => doneAnchors.some(a => a.cell === `B${r}` && a.field === `doneContent${r}`)))
 check('일자 4칸 = I19~I22', DONE_ROWS.every(r => doneAnchors.some(a => a.cell === `I${r}` && a.field === `doneDate${r}`)))
 check('8칸 전부 dropFormula', doneAnchors.every(a => a.dropFormula === true), 'I20의 =개요!G10을 끊기 위한 필수 조건')

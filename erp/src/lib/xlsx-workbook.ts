@@ -888,6 +888,18 @@ export function buildWorkbookValues(src: WorkbookSource): Map<string, CellValue>
   // 보고일 G25 — PDF 11호 `reportDate`와 같은 `annexReportDateISO()`에서 온다(43 S4).
   // 미공급이면 null → 앵커의 keepFormulaWhenEmpty가 서식 수식을 살린다(종전 동작 보존).
   entries.push(['doneReportSerial', p.reportDateISO ? (isoToSerial(p.reportDateISO) ?? null) : null])
+  // ── 자사 정보 4칸(43 D-8 부분 배선) — DB 값이 서식 리터럴과 **글자까지 같은 것만** 연다 ──
+  // 값의 원천은 조립본 하나(`company_profile` → assembleOfficial)라 PDF 11호가 인쇄하는
+  // `companyBizno`·`companyRep`·`companyPhone`과 갈라질 수 없다(D-7).
+  // ⚠ 상호·주소·등록번호는 **일부러 뺐다** — 지금 배선하면 인쇄물이 나빠진다(xlsx-anchors 주석 참조).
+  // 값이 비면 null → 서식 리터럴이 지워진다. 그건 옳다: 회사 정보를 비운 것은 사용자의 선택이고,
+  // 남의(옛) 값이 남아 인쇄되는 편이 더 나쁘다.
+  entries.push(
+    ['companyBizNo', o.company.bizNo || null],
+    ['companyRepName', o.senderSign.rep || null],
+    ['companyPhone', o.company.phone || null],
+    ['companyPhone2', o.company.phone || null],
+  )
   // ── 현5(별지 9호 8쪽) 불량 세부 7행 — 그룹당 1칸으로 접는다 ──
   // PDF는 그룹당 N행을 rowspan으로 펼치지만 엑셀 서식은 그룹당 1행 고정이라 접기가 불가피하다.
   // 서식이 접기를 전제한다: r4~r10이 ht="77.25"(헤더의 2배)로 한 칸에 5줄 안팎이 들어간다.
