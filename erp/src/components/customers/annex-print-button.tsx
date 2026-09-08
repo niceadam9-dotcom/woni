@@ -47,6 +47,9 @@ export function AnnexPrintButton({ inspectionId, type, label, hasPdf, className 
         return
       }
       w.document.open(); w.document.write(res.html); w.document.close()
+      // 인쇄 대화상자가 닫히면(인쇄·취소 불문) 초안 탭을 닫아 원래 화면으로 복귀 — 47 Q-10.
+      // 이 창은 우리가 열었으므로 close()가 항상 듣는다(print-pdf-client와 같은 규칙).
+      w.addEventListener('afterprint', () => w.close())
       // document.write 직후엔 load가 이미 지나갔을 수 있어 타이머로 인쇄 (print-pdf-client와 같은 방식)
       setTimeout(() => { w.focus(); w.print() }, 400)
     } catch (e) {

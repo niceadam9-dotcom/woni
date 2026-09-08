@@ -4,12 +4,31 @@ import { useEffect, useRef, useState } from 'react'
 import { Printer, Download, Loader2 } from 'lucide-react'
 
 /** PDF 자동 인쇄 뷰어 — 서명 URL의 PDF를 blob으로 받아 같은 출처 iframe에 띄우고
- *  로드 완료 시 인쇄 대화상자를 자동으로 연다. (교차 출처 iframe은 print() 호출이 막히므로 blob 경유가 필수) */
+ *  로드 완료 시 인쇄 대화상자를 자동으로 연다. (교차 출처 iframe은 print() 호출이 막히므로 blob 경유가 필수)
+ *
+ *  인쇄 뒤 **탭을 닫아 버튼을 눌렀던 화면으로 복귀**한다(47 Q-10, 2026-09-08 사용자 요구).
+ *  종전에는 대화상자가 닫혀도 이 뷰어 탭이 남아, 원래 화면(별지서식 탭·점검작업)으로
+ *  돌아가려면 손으로 탭을 닫아야 했다.
+ *  - `afterprint`는 인쇄를 했든 취소했든 대화상자가 닫히면 발화한다 — 둘 다 「볼일 끝」이므로 닫는다.
+ *  - 인쇄가 iframe에서 시작되므로 이벤트도 **iframe의 window**에 단다(바깥 window에는 안 온다).
+ *  - `window.close()`는 스크립트가 연 창에서만 듣는다 — 주소 직접 진입이면 opener가 없어
+ *    조용히 무시되고, 그 경우 탭이 남는 것이 맞다(돌아갈 「원래 탭」 자체가 없다).
+ *  - PDF 저장까지 하고 싶으면 대화상자에서 「PDF로 저장」을 고르거나, 자동 인쇄를 취소하지 말고
+ *    상단 [PDF 저장]을 먼저 누르면 된다(자동 인쇄는 로드 후 1회뿐이라 경합하지 않는다). */
 export function PrintPdfClient({ url, title, fileName }: { url: string; title: string; fileName: string }) {
   const [blobUrl, setBlobUrl] = useState<string | null>(null)
   const [error, setError] = useState('')
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const printedRef = useRef(false)
+
+  // 인쇄 대화상자가 닫히면 탭을 닫아 원래 화면으로 복귀 — 47 Q-10. 두 창에 나눠 건다:
+  // 자동 인쇄·[인쇄] 버튼은 iframe 창에서 발화하고(아래 onLoad), 사용자가 이 탭에서
+  // Ctrl+P를 누르면 **바깥 창**에서 발화한다. 어느 쪽이든 규칙은 같다.
+  useEffect(() => {
+    const done = () => { if (window.opener) window.close() }
+    window.addEventListener('afterprint', done)
+    return () => window.removeEventListener('afterprint', done)
+  }, [])
 
   useEffect(() => {
     let revoke: string | null = null
@@ -73,6 +92,11 @@ export function PrintPdfClient({ url, title, fileName }: { url: string; title: s
           title={title}
           className="flex-1 w-full rounded-xl border border-line bg-surface"
           onLoad={() => {
+            // 인쇄 대화상자가 닫히면(인쇄·취소 불문) 탭을 닫아 원래 화면으로 복귀 — 47 Q-10.
+            // 수동 [인쇄] 버튼의 재인쇄에도 같은 규칙이 걸리도록 로드 시 한 번만 단다.
+            iframeRef.current?.contentWindow?.addEventListener('afterprint', () => {
+              if (window.opener) window.close()
+            })
             // 자동 인쇄는 1회만 — 이후엔 상단 [인쇄] 버튼으로
             if (printedRef.current) return
             printedRef.current = true
