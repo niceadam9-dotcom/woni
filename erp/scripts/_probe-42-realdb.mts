@@ -127,7 +127,10 @@ else {
   check('템플릿 축은 니들 0건(이쪽은 무조건 0)', tHits.length === 0, tHits.slice(0, 3).join(','))
 
   const wb = XLSX.read(sample.bytes, { cellStyles: false })
-  check('시트 28장', wb.SheetNames.length === FIRE_PLAN_MANIFEST.sheets.length, `${wb.SheetNames.length}`)
+  // ⚠ 검사 **이름에 숫자를 박지 않는다** — 종전 '시트 28장'은 50장이 된 뒤에도 남아
+  //   초록 줄이 거짓을 말했다. 분모는 manifest에서 읽고, 이름은 그 관계만 적는다.
+  check('산출 시트 수 = manifest 시트 수', wb.SheetNames.length === FIRE_PLAN_MANIFEST.sheets.length,
+    `${wb.SheetNames.length} / ${FIRE_PLAN_MANIFEST.sheets.length}`)
   const at = (s: string, c: string) => String((wb.Sheets[s]?.[c] as XLSX.CellObject | undefined)?.v ?? '')
   check('실 고객명이 표지에 착지', at('표지', 'A3').includes(sample.name), at('표지', 'A3'))
   check('1.1 명칭 착지', at('1.1 건축물 일반현황', 'C4') === sample.name, at('1.1 건축물 일반현황', 'C4'))

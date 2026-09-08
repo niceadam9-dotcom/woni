@@ -18,8 +18,6 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const out: string[] = []
 
 const colOf = (ref: string) => /^([A-Z]+)/.exec(ref)?.[1] ?? ''
-const rowOf = (ref: string) => Number(/(\d+)$/.exec(ref)?.[1] ?? 0)
-const colNum = (c: string) => [...c].reduce((a, ch) => a * 26 + (ch.charCodeAt(0) - 64), 0)
 
 /* ══════════════ ① 자산 격자 ══════════════ */
 
@@ -35,7 +33,7 @@ for (const m of wb.matchAll(/<sheet[^>]*name="([^"]*)"[^>]*r:id="([^"]+)"/g)) {
   sheetFile.set(m[1].replace(/&amp;/g, '&'), relMap.get(m[2]) ?? '')
 }
 
-const GRID_TARGETS = ['1.1 건축물 일반현황', '1.2.1 구역별 세부현황', '1.15 피해 복구']
+const GRID_TARGETS = (process.env.FP_SHEETS ?? '1.1 건축물 일반현황|1.2.1 구역별 세부현황|1.15 피해 복구').split('|')
 
 for (const name of GRID_TARGETS) {
   const target = sheetFile.get(name)

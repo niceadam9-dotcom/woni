@@ -33,6 +33,9 @@ export interface FirePlanSheetManifest {
   fillInStripped: Record<string, string>
   /** 0열이 1,2,3…으로 이어지는 구간 — 반복 행 예산의 파생 원천(S4-3) */
   numberedRuns: { startRow: number; rows: number }[]
+  /** 격자 표가 시트의 몇 번째 행에서 시작하는가(0-based) — 세로로 쌓인 시트의 좌표 대응.
+   *  대조기가 기하를 추측하지 않게 하려고 싣는다(추측은 실제로 오보 26건을 냈다) */
+  gridTops: { table: number; top: number; rows: number }[]
 }
 
 export interface FirePlanManifest {
@@ -96,6 +99,33 @@ export function tokenRowBudget(sheet: string, prefix: string): number {
     for (const m of tpl.matchAll(new RegExp(`\\{\\{${prefix}_r(\\d+)_c\\d+\\}\\}`, 'g'))) rows.add(Number(m[1]))
   }
   return rows.size
+}
+
+/**
+ * **라벨 블록의 행 수** — `startCell`의 행부터 *같은 열의 다음 라벨 행 직전*까지.
+ *
+ * 서식 2.2 편성표의 「현장대응팀」처럼 토큰도 번호도 없는 반복 구간의 예산을 파생시킨다
+ * (`A9='현장대응팀'` → 다음 A열 라벨은 `A23='초기대응체계'` → **14행**). 손으로 `14`라 적으면
+ * 양식이 15행으로 늘어도 14로 남아 열다섯째 대원이 조용히 사라진다 — S4-3과 같은 규약.
+ *
+ * 🚨 다음 라벨이 없으면 시트 끝까지로 본다. 0이면 throw — 좌표가 밀렸는데 조용히 0행을
+ *   돌려주면 그 표가 통째로 비고 검사는 공허 통과한다.
+ */
+export function labelBlockRows(sheet: string, startCell: string): number {
+  const s = sheetManifest(sheet)
+  const m = /^([A-Z]+)(\d+)$/.exec(startCell)
+  if (!m) throw new Error(`fire-plan manifest: 셀 참조가 아니다 — '${startCell}'`)
+  const [, col, rowStr] = m
+  const start = Number(rowStr)
+  if (!s.labels[startCell]) throw new Error(`fire-plan manifest: ${sheet}!${startCell} 에 라벨이 없다 — 블록 시작점이 아니다`)
+  const below = Object.keys(s.labels)
+    .map(k => /^([A-Z]+)(\d+)$/.exec(k))
+    .filter((x): x is RegExpExecArray => !!x && x[1] === col && Number(x[2]) > start)
+    .map(x => Number(x[2]))
+  const next = below.length ? Math.min(...below) : s.rows + 1
+  const n = next - start
+  if (n < 1) throw new Error(`fire-plan manifest: ${sheet}!${startCell} 블록 행 수가 ${n} — 좌표가 밀렸다`)
+  return n
 }
 
 /** 번호가 매겨진 반복 구간(개정이력 11행·입주사 15행 등)의 행 수 */

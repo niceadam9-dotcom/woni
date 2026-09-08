@@ -14,7 +14,7 @@
  *  아래 §검토 기록대로 **사람이 라벨을 보며 재승인**했다(S4-2).
  */
 import type { Anchor } from '@/lib/xlsx-anchors'
-import { labelAt, sheetManifest, tokenRowBudget } from '@/lib/fire-plan-xlsx-manifest'
+import { labelAt, labelBlockRows, sheetManifest, tokenRowBudget } from '@/lib/fire-plan-xlsx-manifest'
 
 /* ────────────────────────── 시트명 (manifest 키) ────────────────────────── */
 
@@ -26,6 +26,9 @@ export const FP_SHEET = {
   F1_5_1: '1.5.1 피난·방화시설 현황',
   F1_7_1: '1.7.1 소방안전관리자 선임현황',
   F1_8: '1.8 업무대행 현황',
+  // 제2장(2026-09-08 2단계)
+  F2_2: '2.2 자위소방대 편성표',
+  F2_14: '2.14 교육·훈련 결과기록부',
 } as const
 
 /** 라벨은 manifest가, 좌표·필드는 여기가 — 한 곳에서만 정한다 */
@@ -160,7 +163,53 @@ const FIXED_SEEDS: Seed[] = [
 
   // ── 서식 1.8 업무대행 ── 원문이 `{{contract_date}} ~ ` 라 값 함수가 물결표까지 조립한다
   { field: 'agency_contract_period', sheet: FP_SHEET.F1_8, cell: 'C10', labelCell: 'B10' },
+
+  /* ── 서식 2.2 자위소방대 편성표 · 지휘통제팀 (2단계 · Q-1 자동 채움) ─────────────
+   *  양식 씨앗이 이 두 줄에만 토큰을 두었다(`{{brig_l_*}}`·`{{brig_d_*}}`).
+   *  ⚠ 소속 칸을 `customer_name` 필드로 잇지 않는다 — 그러면 대원이 없는 줄에도 건물명이
+   *    찍혀 **이름 없는 소속**이 인쇄된다. 대원이 있을 때만 채우도록 별도 필드로 둔다.
+   */
+  { field: 'brig_lead_org', sheet: FP_SHEET.F2_2, cell: 'C5', labelCell: 'B5' },
+  { field: 'brig_lead_name', sheet: FP_SHEET.F2_2, cell: 'D5', labelCell: 'B5' },
+  { field: 'brig_lead_duty', sheet: FP_SHEET.F2_2, cell: 'F5', labelCell: 'B5' },
+  { field: 'brig_lead_phone', sheet: FP_SHEET.F2_2, cell: 'H5', labelCell: 'B5' },
+  { field: 'brig_dep_org', sheet: FP_SHEET.F2_2, cell: 'C6', labelCell: 'B6' },
+  { field: 'brig_dep_name', sheet: FP_SHEET.F2_2, cell: 'D6', labelCell: 'B6' },
+  { field: 'brig_dep_duty', sheet: FP_SHEET.F2_2, cell: 'F6', labelCell: 'B6' },
+  { field: 'brig_dep_phone', sheet: FP_SHEET.F2_2, cell: 'H6', labelCell: 'B6' },
+
+  // ── 서식 2.14 결과기록부 ── 별지 제13호서식의 「대상명」. 씨앗이 여기에도 고객명을 둔다
+  { field: 'customer_name', sheet: FP_SHEET.F2_14, cell: 'C6', labelCell: 'B6' },
 ]
+
+/* ══════════════════ 2.2 편성표 「현장대응팀」 — 반복 행 ══════════════════
+ *
+ *  대장·부대장을 뺀 나머지 대원이 들어가는 구간이다. 씨앗에 토큰이 없고 0열에 번호도 없어
+ *  `tokenRowBudget`·`numberedRuns` 둘 다 쓸 수 없다 — **라벨 블록**으로 센다:
+ *  `A9='현장대응팀'` 부터 다음 A열 라벨(`A23='초기대응체계'`) 직전까지 = 14행.
+ *  어느 쪽이든 규약은 같다: **행 수를 코드에 적지 않는다**(S4-3).
+ */
+export const BRIG_SHEET = FP_SHEET.F2_2
+/** 블록 머리 = 「현장대응팀」 라벨 행. 이 한 좌표만 적고 행 수는 아래에서 파생시킨다 */
+export const BRIG_FIRST_ROW = 9
+export const BRIG_ROWS = labelBlockRows(BRIG_SHEET, `A${BRIG_FIRST_ROW}`)
+
+/** 현장대응팀 행에서 배선한 열 — [엑셀 열, 필드 접미사] (라벨은 블록 머리 A9 하나를 함께 문다) */
+const BRIG_COLS: ReadonlyArray<readonly [string, string]> = [
+  ['C', 'org'],    // 소속
+  ['D', 'name'],   // 성명
+  ['F', 'duty'],   // 개별임무
+  ['H', 'phone'],  // 비상연락체계(개인)
+]
+
+const BRIG_SEEDS: Seed[] = Array.from({ length: BRIG_ROWS }, (_, i) =>
+  BRIG_COLS.map(([col, key]) => ({
+    field: `brig_f${i}_${key}`,
+    sheet: BRIG_SHEET,
+    cell: `${col}${BRIG_FIRST_ROW + i}`,
+    labelCell: `A${BRIG_FIRST_ROW}`,
+  })),
+).flat()
 
 /* ══════════════════════ 1.2.1 구역별 세부현황 — 반복 행 ══════════════════════
  *
@@ -193,7 +242,7 @@ const ZONE_COLS: ReadonlyArray<readonly [string, string, string]> = [
 
 /* ⚠ 이 표에서 **일부러 안 세운 열**(S4-2 §구멍의 나머지):
  *   · A열 `동` — `ZoneRow`에 동 필드가 없다. `zone` 한 칸이 동/층을 겸하고 그것을 B(층)에 싣는다.
- *     동을 따로 채우려면 입력 축을 쪼개야 하고 그건 화면·저장 구조 변경이라 1단계 범위 밖이다.
+ *     동을 따로 채우려면 입력 축을 쪼개야 하고 그건 화면·저장 구조 변경이라 이 작업 범위 밖이다.
  *   · E~I열 `근무자 및 거주자 (평일 주간/야간 · 휴일 주간/야간)` — 양식은 네 칸인데 ERP는
  *     평일·휴일에 각 **한 값**만 저장한다(`workersWeekday`·`workersHoliday`). 어느 것이 주간인지
  *     모르는 채 넷 중 하나에 넣으면 **모르는 것을 단정하는 것**이라 비워 둔다.
@@ -229,7 +278,7 @@ function assemble(seeds: Seed[]): Anchor[] {
   })
 }
 
-export const FIRE_PLAN_ANCHORS: Anchor[] = assemble([...FIXED_SEEDS, ...ZONE_SEEDS])
+export const FIRE_PLAN_ANCHORS: Anchor[] = assemble([...FIXED_SEEDS, ...ZONE_SEEDS, ...BRIG_SEEDS])
 
 /**
  * **라벨동반 상자칸인가**(§상자칸) — 그 칸의 manifest 라벨이 빈 상자를 품고 있는가.

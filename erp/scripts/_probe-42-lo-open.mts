@@ -116,10 +116,21 @@ console.log('\n[5] LibreOffice 실개봉 (프로필 격리)')
     check('LibreOffice 변환 exit 0', r.status === 0, `exit=${r.status} ${(r.stderr ?? '').slice(0, 120)}`)
     check('PDF 생성(=파일이 실제로 열렸다)', existsSync(pdf), existsSync(pdf) ? `${statSync(pdf).size} bytes` : '없음')
     if (existsSync(pdf)) {
-      // 쪽수 — 시트 28장이 한 벌로 이어져 나오는가(Q-3 a안의 실물 확인)
+      // 쪽수 — 전 시트가 한 벌로 이어져 나오는가(Q-3 a안의 실물 확인)
       const buf = readFileSync(pdf)
       const pages = (buf.toString('latin1').match(/\/Type\s*\/Page[^s]/g) ?? []).length
-      check('PDF 쪽수가 시트 수 이상', pages >= FIRE_PLAN_MANIFEST.sheets.length, `${pages}쪽 / 시트 ${FIRE_PLAN_MANIFEST.sheets.length}`)
+      const sheetCount = FIRE_PLAN_MANIFEST.sheets.length
+      const extra = pages - sheetCount
+      /* ⚠ `쪽수 ≥ 시트 수`만 물으면 **넘침을 숨긴다**. 제1장뿐일 땐 28쪽=28장이라 그 부등식이
+       *   곧 '어느 시트도 쪽을 넘기지 않았다'였는데, 제2장이 붙으면서 뜻이 갈라졌다.
+       *   `fitToWidth=1`이라 **가로는 반드시 맞고** 넘침은 세로뿐이다 — 세로로 긴 서식
+       *   (2.4 개별임무카드 6장 · 2.5 지휘통제팀 49행)이 두 쪽으로 흐르는 건 정상이다.
+       *   그래도 **몇 장이 흘렀는지는 드러낸다** — 조용한 넘침도 조용한 누락과 같은 부류다. */
+      const tall = [...FIRE_PLAN_MANIFEST.sheets].sort((a, b) => b.rows - a.rows).slice(0, 3)
+        .map(s => `${s.name}(${s.rows}행)`).join(' · ')
+      check('전 시트가 한 벌로 나온다(쪽수 ≥ 시트 수)', pages >= sheetCount, `${pages}쪽 / 시트 ${sheetCount}`)
+      check('쪽을 넘긴 시트가 소수다(세로로 긴 서식만)', extra <= 3,
+        `초과 ${extra}장 · 가장 긴 시트: ${tall}`)
       console.log(`       육안 확인용: ${pdf}`)
     }
   }

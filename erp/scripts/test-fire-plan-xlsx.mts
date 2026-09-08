@@ -14,8 +14,8 @@ import * as XLSX from 'xlsx'
 import { validateAnchors } from '../src/lib/xlsx-anchors.ts'
 import { toInjectTargets } from '../src/lib/xlsx-workbook.ts'
 import { injectWorkbook } from '../src/lib/xlsx-inject.ts'
-import { FIRE_PLAN_ANCHORS, FIRE_PLAN_FIELDS, FP_SHEET, ZONE_ROWS, ZONE_SHEET, ZONE_FIRST_ROW, isBoxLabelAnchor, isUnitLabelAnchor } from '../src/lib/fire-plan-anchors.ts'
-import { buildFirePlanValues, missingValueFields, planDate, zoneRowOverflow } from '../src/lib/fire-plan-xlsx-values.ts'
+import { FIRE_PLAN_ANCHORS, FIRE_PLAN_FIELDS, FP_SHEET, ZONE_ROWS, ZONE_SHEET, ZONE_FIRST_ROW, BRIG_ROWS, BRIG_FIRST_ROW, isBoxLabelAnchor, isUnitLabelAnchor } from '../src/lib/fire-plan-anchors.ts'
+import { brigadeRowOverflow, buildFirePlanValues, missingValueFields, planDate, zoneRowOverflow } from '../src/lib/fire-plan-xlsx-values.ts'
 import { FIRE_PLAN_MANIFEST, labelAt, boxGlyphAt } from '../src/lib/fire-plan-xlsx-manifest.ts'
 import { FIRE_PLAN_SCRUB_NEEDLES, FIRE_PLAN_MARK_CHECKED_RE } from '../src/lib/fire-plan-scrub.ts'
 import { COMPARTMENT_KINDS } from '../src/lib/evac-compartment.ts'
@@ -316,6 +316,15 @@ console.log('\n[7] 값 맵 완결성 · 표기 규약')
       evacFire: { compartment: 'area_floor', stairs: { 직통계단: '2', 특별피난계단: '', 피난계단: '', 옥외계단: '' } },
       multiUse: { applicable: true },
     },
+    // 자위소방대 — 대장·부대장·현장대응팀 셋을 **한 픽스처에** 담는다. 현장대응팀은 칸보다
+    // 하나 많게 채워 **넘침**까지 같은 실행에서 본다(잘려도 인쇄물은 멀쩡해 보이는 축).
+    brigade: [
+      { team: '자위소방대장', name: '김대장', duty: '관리구역 상황통제', phone: '010-2222-3333' },
+      { team: '부대장', name: '박부대장', duty: '대장 부재시 수행', phone: '010-4444-5555' },
+      ...Array.from({ length: BRIG_ROWS + 1 }, (_, i) => ({
+        team: i === 0 ? '비상연락' : '초기소화', name: `대원${i + 1}`, duty: `임무${i + 1}`, phone: `010-6666-${String(1000 + i)}`,
+      })),
+    ],
     zones: Array.from({ length: ZONE_ROWS + 2 }, (_, i) => ({
       zone: `${i + 1}층`, name: `구역${i + 1}`, area: `${100 + i}`,
       weekday: '', holiday: '', managerCo: `입주사${i + 1}`, contact: `010-1111-00${i}`,
@@ -413,6 +422,42 @@ console.log('\n[7] 값 맵 완결성 · 표기 규약')
   check('1.1 미배선 칸(주차장·공공기관·권원분리)은 손대지 않는다',
     !at(F11, 'C13').includes('■') && !at(F11, 'C20').includes('■') && !at(F11, 'C22').includes('■'),
     `${at(F11, 'C13')} / ${at(F11, 'C20')} / ${at(F11, 'C22')}`)
+
+  /* ── 제2장 서식 2.2 자위소방대 편성표 (2단계 · Q-1) ────────────────────────────
+   *  🚨 이 검사가 없으면 **배선이 통째로 죽어 있어도 초록**이다 — 값 맵 완결성은 `''`도
+   *    '있다'로 세기 때문이다(실제로 브리게이드를 배선한 첫 실행이 그랬다). */
+  const F22 = FP_SHEET.F2_2
+  const digits = (s: string) => s.replace(/\D/g, '')
+  check('2.2 대장 착지(성명·임무·전화)',
+    at(F22, 'D5') === '김대장' && at(F22, 'F5') === '관리구역 상황통제' && digits(at(F22, 'H5')) === '01022223333',
+    `${at(F22, 'D5')} / ${at(F22, 'F5')} / ${at(F22, 'H5')}`)
+  check('2.2 부대장 착지', at(F22, 'D6') === '박부대장' && digits(at(F22, 'H6')) === '01044445555',
+    `${at(F22, 'D6')} / ${at(F22, 'H6')}`)
+  // 🎯 대장·부대장이 현장대응팀으로도 새어 들어가면 같은 사람이 두 줄에 인쇄된다
+  check('2.2 대장·부대장은 현장대응팀에 중복되지 않는다',
+    at(F22, `D${BRIG_FIRST_ROW}`) === '대원1' && at(F22, `D${BRIG_FIRST_ROW}`) !== '김대장',
+    at(F22, `D${BRIG_FIRST_ROW}`))
+  check('2.2 현장대응팀 마지막 행까지 채운다',
+    at(F22, `D${BRIG_FIRST_ROW + BRIG_ROWS - 1}`) === `대원${BRIG_ROWS}`,
+    at(F22, `D${BRIG_FIRST_ROW + BRIG_ROWS - 1}`))
+  check('2.2 소속이 대원 있는 줄에만 찍힌다', at(F22, `C${BRIG_FIRST_ROW}`) === '가상건물',
+    at(F22, `C${BRIG_FIRST_ROW}`))
+  check('2.2 넘친 대원을 센다(잘렸다는 사실을 드러낸다)', brigadeRowOverflow(fixture) === 1,
+    `${brigadeRowOverflow(fixture)}명`)
+  check('2.2 넘친 대원이 표에 새어 들어가지 않는다', !values.has(`brig_f${BRIG_ROWS}_name`))
+  check('2.2 행 예산이 manifest 라벨 블록에서 파생됐다', BRIG_ROWS === 14, `${BRIG_ROWS}행`)
+  check('2.14 결과기록부 대상명 착지', at(FP_SHEET.F2_14, 'C6') === '가상건물', at(FP_SHEET.F2_14, 'C6'))
+
+  {
+    // 대원이 칸보다 **적을** 때 — 빈 줄에 소속(건물명)만 찍히면 '이름 없는 소속'이 인쇄된다
+    const few = buildFirePlanValues({
+      ...fixture,
+      brigade: [{ team: '자위소방대장', name: '김대장', duty: '', phone: '' }],
+    } as unknown as FirePlanGenData)
+    check('2.2 대원 없는 줄은 소속도 비운다',
+      few.get('brig_f0_org') === '' && few.get('brig_f0_name') === '' && few.get('brig_dep_org') === '',
+      `f0_org='${few.get('brig_f0_org')}' dep_org='${few.get('brig_dep_org')}'`)
+  }
 
   /* ── 1.5.1 방화구획(상자칸) ── 값칸과 달리 **라벨은 남고 상자만 바뀐다**. 라벨까지 덮어쓰면
    *  법정 자구가 사라지는데, 상자 하나만 보는 검사는 그걸 못 본다 — 자구 보존을 따로 요구한다. */

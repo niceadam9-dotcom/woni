@@ -98,17 +98,21 @@ let compared = 0, same = 0
 for (const s of FIRE_PLAN_MANIFEST.sheets) {
   const ws = wb.Sheets[s.name]
   if (!ws) continue
-  // 시트의 격자 표 = tables 배열의 마지막 것(배너는 1행짜리라 rowCnt로 가른다)
-  const gridIdx = s.tables.filter(ti => formTables[ti]?.rowCnt > 1)
-  for (const ti of gridIdx) {
+  /* 🚨 격자의 시트 내 위치를 **추측하지 않는다** — manifest의 `gridTops`가 사실을 들고 있다.
+   *
+   *  종전에는 ①격자 = rowCnt>1인 표 ②시작 행 = 배너 수 로 추론했는데, 2단계에서 둘 다 깨졌다:
+   *   · 서식 2.3의 머리 블록(#50 3x2 · #52 2x1)은 **여러 행짜리 배너**라 격자로 오인된다.
+   *   · 2.4 개별임무카드는 한 시트에 격자 6개가 **세로로 쌓여** 시작 행이 저마다 다르다.
+   *  실제로 추론판은 카드 6장을 전부 첫 장 자리로 읽어 **멀쩡한 서식을 자구 불일치 26건으로
+   *  신고**했다. 대조기가 틀리면 제품이 옳아도 붉어진다. */
+  for (const gt of s.gridTops) {
+    const ti = gt.table
     const ours = formTables[ti]
     const theirs = tables[ti]
-    if (!theirs) continue
-    // 배너 줄 수만큼 시트 행이 밀려 있다
-    const bannerAbove = s.bannerRows.filter(r => r < (s.rows - ours.rowCnt)).length
+    if (!ours || !theirs) continue
     for (let k = 0; k < Math.min(ours.cells.length, theirs.cells.length); k++) {
       const oc = ours.cells[k]
-      const ref = XLSX.utils.encode_cell({ r: bannerAbove + oc.row, c: oc.col })
+      const ref = XLSX.utils.encode_cell({ r: gt.top + oc.row, c: oc.col })
       const ourText = String((ws[ref] as XLSX.CellObject | undefined)?.v ?? '')
       const theirText = scrubbed(theirs.cells[k].text)
       const a = words(ourText), b = words(theirText)

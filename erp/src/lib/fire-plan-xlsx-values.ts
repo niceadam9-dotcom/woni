@@ -18,8 +18,9 @@
  *    `toInjectTargets`의 `unmapped`로 다시 확인한다(`?? '(없음)'`로 감싸면 오타가 공허 통과한다).
  */
 import type { CellValue } from '@/lib/xlsx-inject'
-import type { FirePlanGenData } from '@/lib/fire-plan-template'
-import { FIRE_PLAN_ANCHORS, FP_SHEET, ZONE_ROWS, ZONE_SHEET } from '@/lib/fire-plan-anchors'
+import type { BrigadeRow, FirePlanGenData } from '@/lib/fire-plan-template'
+import { formatTel } from '@/lib/format-contact'
+import { BRIG_ROWS, FIRE_PLAN_ANCHORS, FP_SHEET, ZONE_ROWS, ZONE_SHEET } from '@/lib/fire-plan-anchors'
 import { boxGlyphAt, labelAt, tokenTemplateAt } from '@/lib/fire-plan-xlsx-manifest'
 import { compartmentApplies, compartmentHasArea, compartmentHasFloor } from '@/lib/evac-compartment'
 import { isMultiUseApplicable, isMultiUseNone } from '@/lib/multi-use'
@@ -231,12 +232,53 @@ export function buildFirePlanValues(d: FirePlanGenData): Map<string, CellValue> 
     v.set(`zone_${i}_contact`, txt(z?.contact))
   }
 
+  /* ── 서식 2.2 자위소방대 편성표 (2단계 · Q-1 자동 채움) ────────────────────────
+   *  `d.brigade`는 `fire_brigade_members`를 sort_order 순으로 담은 것이고, 양식은 그 대원을
+   *  **지휘통제팀(대장·부대장)** 과 **현장대응팀**으로 가른다.
+   *
+   *  ⚠ 팀 구분 문자열의 단일 원천이 **없다** — 입력 화면 두 곳이 서로 다른 목록을 들고 있다
+   *    (`fire-plan-info-panel.tsx` 는 `비상연락`, `plan-ch2.tsx` 는 `비상연락반`). 다만 두 목록
+   *    **모두** 앞 둘은 `자위소방대장`·`부대장`으로 같다. 그래서 그 둘만 접두사로 가르고
+   *    나머지는 전부 현장대응팀으로 보낸다 — 목록을 새로 베껴 세 번째 원천을 만들지 않는다.
+   */
+  const brig = d.brigade ?? []
+  const lead = brig.find(b => (b.team ?? '').startsWith('자위소방대장'))
+  const deputy = brig.find(b => (b.team ?? '').startsWith('부대장'))
+  const fieldTeam = brig.filter(b => b !== lead && b !== deputy)
+  // 소속은 **대원이 있을 때만** 채운다 — 빈 줄에 건물명만 찍히면 '이름 없는 소속'이 인쇄된다
+  const org = (b: BrigadeRow | undefined) => (b ? txt(d.buildingName) : '')
+
+  v.set('brig_lead_org', org(lead))
+  v.set('brig_lead_name', txt(lead?.name))
+  v.set('brig_lead_duty', txt(lead?.duty))
+  v.set('brig_lead_phone', formatTel(txt(lead?.phone)))
+  v.set('brig_dep_org', org(deputy))
+  v.set('brig_dep_name', txt(deputy?.name))
+  v.set('brig_dep_duty', txt(deputy?.duty))
+  v.set('brig_dep_phone', formatTel(txt(deputy?.phone)))
+
+  for (let i = 0; i < BRIG_ROWS; i++) {
+    const b = fieldTeam[i]
+    v.set(`brig_f${i}_org`, org(b))
+    v.set(`brig_f${i}_name`, txt(b?.name))
+    v.set(`brig_f${i}_duty`, txt(b?.duty))
+    v.set(`brig_f${i}_phone`, formatTel(txt(b?.phone)))
+  }
+
   return v
 }
 
 /** 넘쳐서 인쇄되지 못한 구역 수 — 0이면 손실 없음. 잘린 채로도 인쇄물은 멀쩡해 보인다 */
 export function zoneRowOverflow(d: FirePlanGenData): number {
   return Math.max(0, (d.zones ?? []).length - ZONE_ROWS)
+}
+
+/** 현장대응팀 칸을 넘어 인쇄되지 못한 대원 수 — 구역과 같은 축(라우트가 고지 헤더에 싣는다) */
+export function brigadeRowOverflow(d: FirePlanGenData): number {
+  const brig = d.brigade ?? []
+  const lead = brig.find(b => (b.team ?? '').startsWith('자위소방대장'))
+  const deputy = brig.find(b => (b.team ?? '').startsWith('부대장'))
+  return Math.max(0, brig.filter(b => b !== lead && b !== deputy).length - BRIG_ROWS)
 }
 
 /**
@@ -264,4 +306,4 @@ export function missingValueFields(v: Map<string, CellValue>): string[] {
   return [...new Set(FIRE_PLAN_ANCHORS.map(a => a.field))].filter(f => !v.has(f))
 }
 
-export { ZONE_ROWS, ZONE_SHEET }
+export { BRIG_ROWS, ZONE_ROWS, ZONE_SHEET }

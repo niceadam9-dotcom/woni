@@ -9,7 +9,7 @@ import { validateAnchors } from '@/lib/xlsx-anchors'
 import { toInjectTargets } from '@/lib/xlsx-workbook'
 import { injectWorkbook } from '@/lib/xlsx-inject'
 import { FIRE_PLAN_ANCHORS } from '@/lib/fire-plan-anchors'
-import { buildFirePlanValues, missingValueFields, zoneRowOverflow } from '@/lib/fire-plan-xlsx-values'
+import { brigadeRowOverflow, buildFirePlanValues, missingValueFields, zoneRowOverflow } from '@/lib/fire-plan-xlsx-values'
 import { FIRE_PLAN_MANIFEST } from '@/lib/fire-plan-xlsx-manifest'
 
 /** 소방계획서 엑셀(xlsx) — 소방계획서_42 S6-1.
@@ -91,9 +91,11 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
         // 절단할 때는 **잘렸다는 사실 자체**를 드러낸다 — 조용한 절단도 조용한 누락이다.
         'X-FirePlan-Missing': encodeURIComponent(noticeHeader([
           ...check.healed.map(h => `서식 좌표 자가치유: ${h}`),
-          ...(zoneRowOverflow(data) ? [`구역별 세부현황 ${zoneRowOverflow(data)}개 구역 미표기(양식 ${FIRE_PLAN_MANIFEST.scope} 고정 행 상한)`] : []),
+          ...(zoneRowOverflow(data) ? [`구역별 세부현황 ${zoneRowOverflow(data)}개 구역 미표기(양식 고정 행 상한)`] : []),
+          // 대원 넘침도 같은 축이다 — 편성표는 잘려 나가도 인쇄물이 멀쩡해 보인다
+          ...(brigadeRowOverflow(data) ? [`자위소방대 현장대응팀 ${brigadeRowOverflow(data)}명 미표기(양식 고정 행 상한)`] : []),
           ...missing,
-          // 1단계 범위 고지 — 받는 사람이 '왜 제2·3장이 없나'를 헤더에서 바로 알게 한다
+          // 범위 고지 — 받는 사람이 어디까지 담겼는지 헤더에서 바로 알게 한다
           `범위: ${FIRE_PLAN_MANIFEST.scope}(시트 ${FIRE_PLAN_MANIFEST.sheets.length}장)`,
         ])),
       },

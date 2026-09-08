@@ -9,8 +9,9 @@
  *  실행: npx tsx scripts/build-fire-plan-template.mts
  *  게이트가 하나라도 붉으면 **파일을 쓰지 않고** exit 1 한다(S7-1).
  *
- *  ⚠ 1단계 범위는 **제1장**이다(D-3·Q-2). 제2·3장은 이 지도에 절을 더하면 늘어난다 —
- *    파서·빌더·검증은 그대로다.
+ *  범위는 **문서 전건**이다 — 제1장(1단계) + 제2·3장(2단계, 2026-09-08). Q-2가 예고한 대로
+ *  파서·빌더·라우트·검증은 그대로이고 아래 지도만 늘었다. 2단계에서 처음 쓰인 갈래는 둘 —
+ *  **중첩표**(서식 2.3)와 **세로 병합**(서식 2.4 개별임무카드 6장). 자세한 경위는 CHAPTER2 주석.
  */
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs'
 import { createHash } from 'node:crypto'
@@ -106,6 +107,68 @@ const CHAPTER1: SectionDef[] = [
 
   { name: '1.15 피해 복구', no: '1.15', parts: [{ kind: 'banner', table: 42 }, { kind: 'grid', table: 43, rc: [17, 9] }] },
 ]
+
+/* ══════════════════════ 제2장 시트 지도 (표 #44..#79 · 36표) ══════════════════════
+ *
+ *  2단계(2026-09-08). 파서·빌더·라우트·검증은 그대로이고 지도만 늘었다 — Q-2가 예고한 대로다.
+ *  다만 제1장에 없던 갈래 둘이 여기서 처음 나온다:
+ *
+ *   · **중첩표**(S1-1이 미리 대응해 둔 자리) — 서식 2.3의 조직도(#51)와 임무(#53)는 각각
+ *     머리 블록 표(#50 3x2 · #52 2x1) **안에** 들어 있다. 머리 블록을 배너로 얹고 중첩표를
+ *     격자로 쓴다. 조직도 18열과 임무 16열은 격자가 달라 한 시트에 못 넣는다(1.11.4 앞/뒷쪽과 같다).
+ *   · **세로 병합**(S3-1이 예고한 유일한 자리) — 개별임무카드 #55~#60은 열 경계 벡터가
+ *     **완전히 같은 6표**다. 6시트로 쪼개면 같은 서식이 여섯 장 따로 인쇄되므로 한 시트에 쌓는다.
+ *
+ *  ⚠ 서식 **2.7이 없다**. #65 배너가 `서식 2.8`이고 2.7 배너는 문서에 존재하지 않는다 —
+ *    누락이 아니라 양식이 그렇다(표 95/95 대조가 이미 섰다). 없는 번호를 지어내지 않는다.
+ */
+const CHAPTER2: SectionDef[] = [
+  // 장 제목 #44 는 이 장 첫 시트의 배너로 얹는다(제1장의 1.1이 #3·#4 두 배너를 이고 있는 것과 같다)
+  { name: '2.1 자위소방대 일반현황', no: '2.1', parts: [{ kind: 'banner', table: 44 }, { kind: 'banner', table: 45 }, { kind: 'grid', table: 46, rc: [27, 17] }] },
+  { name: '2.2 자위소방대 편성표', no: '2.2', parts: [{ kind: 'banner', table: 47 }, { kind: 'grid', table: 48, rc: [35, 8] }] },
+
+  // 서식 2.3 — 머리 블록(#50·#52)이 배너, 실제 격자는 그 안의 중첩표(#51·#53)
+  { name: '2.3 조직도', no: '2.3', parts: [{ kind: 'banner', table: 49 }, { kind: 'banner', table: 50 }, { kind: 'grid', table: 51, rc: [14, 18] }] },
+  { name: '2.3 임무', no: '2.3', parts: [{ kind: 'banner', table: 52 }, { kind: 'grid', table: 53, rc: [12, 16] }] },
+
+  // 서식 2.4 — 개별임무카드 6장을 한 시트에 세로로 쌓는다(열 경계 동일)
+  {
+    name: '2.4 개별임무카드', no: '2.4',
+    parts: [
+      { kind: 'banner', table: 54 },
+      { kind: 'grid', table: 55, rc: [11, 5] }, { kind: 'grid', table: 56, rc: [11, 5] },
+      { kind: 'grid', table: 57, rc: [11, 5] }, { kind: 'grid', table: 58, rc: [11, 5] },
+      { kind: 'grid', table: 59, rc: [11, 5] }, { kind: 'grid', table: 60, rc: [11, 5] },
+    ],
+  },
+
+  { name: '2.5 지휘통제팀', no: '2.5', parts: [{ kind: 'banner', table: 61 }, { kind: 'grid', table: 62, rc: [49, 6] }] },
+  { name: '2.6 비상연락팀(지휘반)', no: '2.6', parts: [{ kind: 'banner', table: 63 }, { kind: 'grid', table: 64, rc: [24, 9] }] },
+  { name: '2.8 비상상황별 연락방법', no: '2.8', parts: [{ kind: 'banner', table: 65 }, { kind: 'grid', table: 66, rc: [10, 6] }] },
+  { name: '2.9 초기소화팀(진압반)', no: '2.9', parts: [{ kind: 'banner', table: 67 }, { kind: 'grid', table: 68, rc: [23, 9] }] },
+  { name: '2.10 피난유도팀', no: '2.10', parts: [{ kind: 'banner', table: 69 }, { kind: 'grid', table: 70, rc: [23, 10] }] },
+  { name: '2.11 응급구조팀', no: '2.11', parts: [{ kind: 'banner', table: 71 }, { kind: 'grid', table: 72, rc: [21, 10] }] },
+  { name: '2.12 방호안전팀', no: '2.12', parts: [{ kind: 'banner', table: 73 }, { kind: 'grid', table: 74, rc: [25, 14] }] },
+  { name: '2.13 초기대응체계', no: '2.13', parts: [{ kind: 'banner', table: 75 }, { kind: 'grid', table: 76, rc: [24, 12] }] },
+
+  // 별지 서식이라 앞쪽·뒷쪽 두 표다(1.11.4와 같은 부류 — 15열 vs 9열이라 못 합친다)
+  { name: '2.14 교육·훈련 결과기록부', no: '2.14', parts: [{ kind: 'banner', table: 77 }, { kind: 'grid', table: 78, rc: [31, 15] }] },
+  { name: '2.14 결과기록부 뒷쪽', no: '2.14', parts: [{ kind: 'grid', table: 79, rc: [27, 9] }] },
+]
+
+/* ══════════════════════ 제3장 시트 지도 (표 #80..#94 · 15표) ══════════════════════ */
+const CHAPTER3: SectionDef[] = [
+  { name: '3.1 피난시설 일반현황', no: '3.1', parts: [{ kind: 'banner', table: 80 }, { kind: 'banner', table: 81 }, { kind: 'grid', table: 82, rc: [19, 13] }] },
+  { name: '3.2 피난시설 세부현황', no: '3.2', parts: [{ kind: 'banner', table: 83 }, { kind: 'grid', table: 84, rc: [14, 7] }] },
+  { name: '3.3 피난인원현황', no: '3.3', parts: [{ kind: 'banner', table: 85 }, { kind: 'grid', table: 86, rc: [25, 9] }] },
+  { name: '3.4 피난유도 절차·경로', no: '3.4', parts: [{ kind: 'banner', table: 87 }, { kind: 'grid', table: 88, rc: [15, 11] }] },
+  { name: '3.5 피난약자 현황·계획', no: '3.5', parts: [{ kind: 'banner', table: 89 }, { kind: 'grid', table: 90, rc: [21, 17] }] },
+  { name: '3.6 피난약자 유형별 방법', no: '3.6', parts: [{ kind: 'banner', table: 91 }, { kind: 'grid', table: 92, rc: [6, 3] }] },
+  { name: '3.7 피난기구·유도장비 현황', no: '3.7', parts: [{ kind: 'banner', table: 93 }, { kind: 'grid', table: 94, rc: [16, 6] }] },
+]
+
+/** 전 장 — 지도는 장별로 적되 빌드는 한 목록으로 돈다(갈라 두면 한쪽만 낡는다) */
+const SECTIONS: SectionDef[] = [...CHAPTER1, ...CHAPTER2, ...CHAPTER3]
 
 /* ══════════════════════ 표본 답 비우기 (S7-3 강순기 대조가 찾아낸 것) ══════════════════════
  *
@@ -268,7 +331,7 @@ else ok(`제1장 = 표 #0..#${ch2At - 1} (제2장 배너 #${ch2At})`)
 
 {
   const used = new Map<number, string>()
-  for (const sec of CHAPTER1) {
+  for (const sec of SECTIONS) {
     for (const p of sec.parts) {
       const prev = used.get(p.table)
       if (prev) fail(`표 #${p.table} 를 두 시트가 쓴다 — '${prev}' · '${sec.name}'`)
@@ -276,7 +339,10 @@ else ok(`제1장 = 표 #0..#${ch2At - 1} (제2장 배너 #${ch2At})`)
       const t = tables[p.table]
       if (!t) { fail(`표 #${p.table} 가 없다 (${sec.name})`); continue }
       if (p.kind === 'banner') {
-        if (t.rowCnt !== 1) fail(`배너 #${p.table} 의 행수가 1이 아니다 (${t.rowCnt}) — ${sec.name}`)
+        // ⚠ 2단계에서 규약이 넓어졌다 — 서식 2.3의 머리 블록(#50 3x2 · #52 2x1)은 여러 행이다.
+        //   행 수를 1로 못 박는 대신 **한 줄로 접을 만큼 작은가**(≤3행)를 묻는다. 큰 표를
+        //   실수로 배너에 얹으면 내용이 통째로 한 칸에 뭉개지므로 상한은 그대로 필요하다.
+        if (t.rowCnt > 3) fail(`배너 #${p.table} 가 너무 크다 (${t.rowCnt}행) — ${sec.name}`)
         const m = /^서식\s*([\d.]+)/.exec(t.cells.map(c => c.text.trim()).find(Boolean) ?? '')
         if (m && sec.no && !sec.no.startsWith(m[1])) {
           fail(`배너 #${p.table} 의 서식번호 '${m[1]}' 가 시트 번호 '${sec.no}' 와 다르다 — ${sec.name}`)
@@ -286,17 +352,18 @@ else ok(`제1장 = 표 #0..#${ch2At - 1} (제2장 배너 #${ch2At})`)
       }
     }
   }
-  if (ch2At >= 0) {
-    const missing = Array.from({ length: ch2At }, (_, i) => i).filter(i => !used.has(i))
-    if (missing.length) fail(`제1장 표 중 지도에 없는 것 ${missing.length}개: ${missing.join(',')}`)
-    else ok(`제1장 표 ${ch2At}개를 ${CHAPTER1.length}시트가 빠짐없이 한 번씩 덮는다`)
-  }
+  // 🚨 2단계부터는 **문서 전건**을 요구한다 — 제1장만 덮는 종전 단언은 제2·3장이 통째로
+  //   빠져도 초록이었다(범위가 곧 분모였다). 이제 95표 중 하나라도 지도에 없으면 붉어진다.
+  const missing = tables.map((_, i) => i).filter(i => !used.has(i))
+  if (missing.length) fail(`지도에 없는 표 ${missing.length}개: ${missing.slice(0, 12).join(',')}`)
+  else ok(`표 ${tables.length}개 전건을 ${SECTIONS.length}시트가 빠짐없이 한 번씩 덮는다`)
+  if (ch2At >= 0) ok(`제1장 ${CHAPTER1.length}시트 · 제2장 ${CHAPTER2.length} · 제3장 ${CHAPTER3.length}`)
 }
 
 // 시트명 규약(S3-2) — buildXlsx도 막지만 여기서 먼저 이유를 붙여 세운다
 {
   const seen = new Set<string>()
-  for (const sec of CHAPTER1) {
+  for (const sec of SECTIONS) {
     if (sec.name.length > 31) fail(`시트명 31자 초과(${sec.name.length}) — ${sec.name}`)
     if (/[:\\/?*[\]]/.test(sec.name)) fail(`시트명 금지문자 — ${sec.name}`)
     if (seen.has(sec.name)) fail(`시트명 중복 — ${sec.name}`)
@@ -402,6 +469,11 @@ interface SheetManifest {
   sampleBlanked: Record<string, string>
   /** 0열이 1,2,3… 으로 이어지는 구간 — 반복 행 예산의 파생 원천(S4-3) */
   numberedRuns: { startRow: number; rows: number }[]
+  /** 각 격자 표가 이 시트의 **몇 번째 행에서 시작하는가**(0-based) — 세로로 쌓인 시트
+   *  (2.4 개별임무카드 6장)에서 원본 표 좌표 ↔ 시트 좌표를 잇는 유일한 사실.
+   *  🚨 이걸 안 실으면 대조기가 기하를 **추측**한다 — 실제로 강순기 대조가 카드 6장을 전부
+   *  첫 장 자리로 읽어 멀쩡한 서식을 '자구 불일치 26건'으로 신고했다(2026-09-08). */
+  gridTops: { table: number; top: number; rows: number }[]
 }
 
 function styleOf(bf: HwpxBorderFill | undefined): CellStyle {
@@ -422,11 +494,22 @@ let uncheckHits = 0
 let tokenCellCount = 0
 let blankHits = 0
 
-for (const sec of CHAPTER1) {
-  const gridPart = sec.parts.find(p => p.kind === 'grid') as Extract<Part, { kind: 'grid' }> | undefined
-  if (!gridPart) { fail(`${sec.name}: 격자 표가 없다`); continue }
+for (const sec of SECTIONS) {
+  const gridParts = sec.parts.filter(p => p.kind === 'grid') as Extract<Part, { kind: 'grid' }>[]
+  if (!gridParts.length) { fail(`${sec.name}: 격자 표가 없다`); continue }
+  const gridPart = gridParts[0]
   const grid = tables[gridPart.table]
   const nCols = grid.colCnt
+
+  /* 세로 병합(S3-1) — 격자가 둘 이상이면 **열 경계 벡터가 같아야만** 쌓는다.
+   * 🚨 열 수만 같은지 보면 안 된다. 폭이 다른 5열 표 둘을 겹치면 아래 표의 칸이 위 표의
+   *    열 경계에 끌려가 서식이 조용히 어긋난다 — 경계 좌표까지 같은지 묻는다. */
+  if (gridParts.length > 1) {
+    const edgeKey = (i: number) => columnEdges(tables[i]).join(',')
+    const base = edgeKey(gridPart.table)
+    const bad = gridParts.slice(1).filter(p => edgeKey(p.table) !== base)
+    if (bad.length) fail(`${sec.name}: 세로 병합 불가 — 열 경계가 다른 격자 ${bad.map(p => `#${p.table}`).join(',')}`)
+  }
 
   const banners = sec.parts.filter(p => p.kind === 'banner') as Extract<Part, { kind: 'banner' }>[]
   // 배너를 격자 앞에 둘지 뒤에 둘지는 **원문 순서**가 정한다(표지는 제목이 용도상자 뒤에 온다)
@@ -440,7 +523,7 @@ for (const sec of CHAPTER1) {
   const m: SheetManifest = {
     name: sec.name, no: sec.no, tables: sec.parts.map(p => p.table),
     rows: 0, cols: nCols, merges: 0, bannerRows: [],
-    labels: {}, boxes: {}, restoredBoxes: {}, bulletCells: {}, tokenCells: {}, scrubbed: {}, sampleBlanked: {}, fillInStripped: {}, numberedRuns: [],
+    labels: {}, boxes: {}, restoredBoxes: {}, bulletCells: {}, tokenCells: {}, scrubbed: {}, sampleBlanked: {}, fillInStripped: {}, numberedRuns: [], gridTops: [],
   }
 
   /** 원문 → 스크럽 → 체크 되돌리기 → 토큰 비우기. **배너와 격자가 같은 관을 지난다** —
@@ -492,8 +575,11 @@ for (const sec of CHAPTER1) {
 
   const emitBanner = (idx: number, row: number) => {
     const bt = tables[idx]
+    // ⚠ **행 먼저, 그다음 열**로 정렬한다. 열로만 정렬하면 여러 행짜리 머리 블록(서식 2.3의
+    //   #50·#52)에서 아래 행의 왼쪽 칸이 위 행의 오른쪽 칸보다 앞서 붙어 문장이 뒤섞인다.
+    //   1행 배너에는 아무 영향이 없다(제1장 전건 무변경).
     const raw = bt.cells
-      .slice().sort((a, b) => a.col - b.col)
+      .slice().sort((a, b) => (a.row - b.row) || (a.col - b.col))
       .map(c => c.text.trim()).filter(Boolean).join('  ')
     const style = styleOf(fills.get(bt.cells[0]?.borderFillId ?? 0))
     const text = processText(raw, cellRef(row, 0), () => null)
@@ -507,31 +593,38 @@ for (const sec of CHAPTER1) {
   for (const b of before) emitBanner(b.table, row++)
 
   const gridTop = row
-  const oracle = makeBoxOracle(grid)
-  const gridHeights = rowHeights(grid).map(hwpToPt)
-  for (const h of gridHeights) heights.push(h)
-  row += grid.rowCnt
+  // 격자가 여럿이면 순서대로 **세로로 쌓는다**(#55~#60 개별임무카드). 하나뿐이면 종전과 같다.
+  for (const gp of gridParts) {
+    const g = tables[gp.table]
+    const top = row
+    m.gridTops.push({ table: gp.table, top, rows: g.rowCnt })
+    const oracle = makeBoxOracle(g)
+    for (const h of rowHeights(g).map(hwpToPt)) heights.push(h)
+    row += g.rowCnt
 
-  for (const c of grid.cells) {
-    const style = styleOf(fills.get(c.borderFillId))
-    const r0 = gridTop + c.row
-    const ref = cellRef(r0, c.col)
-    const blank = blankAt.get(`${gridPart.table}:${c.row}:${c.col}`)
-    // 표본 답 비우기 — 상자만 남기라는 지시면 빈 상자 글자 하나만 남긴다
-    const raw = blank ? (blank.keep === 'box' ? (c.text.match(BOX_RE)?.[0] ?? '') : '') : c.text
-    if (blank) { m.sampleBlanked[ref] = blank.why; blankHits++ }
-    const text = processText(raw, ref, () => oracle.glyphFor(c))
+    for (const c of g.cells) {
+      const style = styleOf(fills.get(c.borderFillId))
+      const r0 = top + c.row
+      const ref = cellRef(r0, c.col)
+      // 🚨 표본 답 좌표는 **그 격자의 표 번호**로 찾는다 — 쌓인 시트에서 첫 격자 번호로만
+      //   찾으면 둘째 이후 카드의 답이 조용히 안 지워진다
+      const blank = blankAt.get(`${gp.table}:${c.row}:${c.col}`)
+      // 표본 답 비우기 — 상자만 남기라는 지시면 빈 상자 글자 하나만 남긴다
+      const raw = blank ? (blank.keep === 'box' ? (c.text.match(BOX_RE)?.[0] ?? '') : '') : c.text
+      if (blank) { m.sampleBlanked[ref] = blank.why; blankHits++ }
+      const text = processText(raw, ref, () => oracle.glyphFor(c))
 
-    cells.push({ row: r0, col: c.col, text, style })
+      cells.push({ row: r0, col: c.col, text, style })
 
-    if (c.rowSpan > 1 || c.colSpan > 1) {
-      merges.push(`${cellRef(r0, c.col)}:${cellRef(r0 + c.rowSpan - 1, c.col + c.colSpan - 1)}`)
-      // ⚠ 덮인 칸도 만든다 — xlsx에서 병합 영역의 테두리는 구성 셀들의 바깥 변에서 나온다.
-      //   안 만들면 병합 안쪽 테두리가 통째로 빠진다.
-      for (let r = r0; r < r0 + c.rowSpan; r++) {
-        for (let k = c.col; k < c.col + c.colSpan; k++) {
-          if (r === r0 && k === c.col) continue
-          cells.push({ row: r, col: k, text: '', style })
+      if (c.rowSpan > 1 || c.colSpan > 1) {
+        merges.push(`${cellRef(r0, c.col)}:${cellRef(r0 + c.rowSpan - 1, c.col + c.colSpan - 1)}`)
+        // ⚠ 덮인 칸도 만든다 — xlsx에서 병합 영역의 테두리는 구성 셀들의 바깥 변에서 나온다.
+        //   안 만들면 병합 안쪽 테두리가 통째로 빠진다.
+        for (let r = r0; r < r0 + c.rowSpan; r++) {
+          for (let k = c.col; k < c.col + c.colSpan; k++) {
+            if (r === r0 && k === c.col) continue
+            cells.push({ row: r, col: k, text: '', style })
+          }
         }
       }
     }
@@ -702,7 +795,11 @@ async function contentFingerprint(bytes: Uint8Array): Promise<string> {
 const manifest = {
   version: 1,
   doc: '소방계획서_42',
-  scope: '제1장',
+  // ⚠ 범위를 손으로 적지 않는다 — 종전 `'제1장'`은 제2·3장을 실은 뒤에도 그대로 남아
+  //   라우트 고지 헤더가 사용자에게 거짓을 말할 뻔했다. 지도에서 파생시킨다.
+  scope: [
+    CHAPTER1.length ? '제1장' : '', CHAPTER2.length ? '제2장' : '', CHAPTER3.length ? '제3장' : '',
+  ].filter(Boolean).join('·'),
   builtBy: 'scripts/build-fire-plan-template.mts',
   source: { file: 'erp_goal/_Data/양식-placeholder.hwpx', sha256: sha(readFileSync(HWPX)), tables: tables.length, cells: cellTotal },
   asset: {
