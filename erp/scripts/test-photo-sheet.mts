@@ -177,7 +177,8 @@ console.log('\n[4] localSheetId 재번호')
 console.log('\n[5] 페이지 나눔')
 {
   const brks = [...sheetXml.matchAll(/<brk id="(\d+)"/g)].map(m => Number(m[1]))
-  check('6건 → brk [6,12]', brks.join(',') === '6,12', brks.join(','))
+  // 3건/장 = 9행/장 → 6건(18행)이면 9행에서 한 번만 끊는다
+  check('6건 → brk [9]', brks.join(',') === '9', brks.join(','))
   check('꼬리 brk 없음(빈 페이지 방지)', !brks.includes(18))
   const cnt = /<rowBreaks count="(\d+)" manualBreakCount="(\d+)"/.exec(sheetXml)
   check('rowBreaks count == 실개수', !!cnt && Number(cnt[1]) === brks.length && Number(cnt[2]) === brks.length)
@@ -273,8 +274,12 @@ console.log('\n[12] 셀 내용')
   check('캡션 텍스트 실재', defects.every(d => sheetXml.includes(`${d.defect_code} ${d.defect_name}`)))
   const rows = [...sheetXml.matchAll(/<row [^>]*>([\s\S]*?)<\/row>/g)]
   check('행마다 셀 3개', rows.every(r => [...r[1].matchAll(/<c /g)].length === 3))
-  check('사진 행 높이 180pt × 12', [...sheetXml.matchAll(/ht="180"/g)].length === 12)
-  check('캡션 행 높이 21pt × 6', [...sheetXml.matchAll(/ht="21"/g)].length === 6)
+  // 3건/장으로 바뀌며 사진 117pt·캡션 20pt — 3건(캡션 20 + 사진 117×2 = 254pt)이 A4 791.5pt 안
+  check('사진 행 높이 117pt × 12', [...sheetXml.matchAll(/ht="117"/g)].length === 12)
+  check('캡션 행 높이 20pt × 6', [...sheetXml.matchAll(/ht="20"/g)].length === 6)
+  // 한 장(3건)의 실제 높이가 A4 가용 높이를 넘지 않는가 — 상수를 키우면 여기서 먼저 붉어진다
+  const perPage = 3 * (20 + 117 * 2)
+  check('3건/장 높이 762pt ≤ A4 가용 791.5pt', perPage <= 791.5, `${perPage}pt`)
   check('인쇄영역 A1:C18', built.part.printArea === '$A$1:$C$18', built.part.printArea)
 }
 
@@ -295,7 +300,7 @@ console.log('\n[13] 사유 고지 — 조용히 버리지 않는가')
     // 전 슬롯 실패한 3건(X-1~X-3)은 빠지고, 한쪽만 있는 X-5는 남는다 → 4건 12행
     check('전멸한 건은 싣지 않는다 → 4건 12행', [...x2.matchAll(/<row /g)].length === 12,
       `${[...x2.matchAll(/<row /g)].length}`)
-    check('4건 = brk [6]', [...x2.matchAll(/<brk id="(\d+)"/g)].map(m => m[1]).join(',') === '6')
+    check('4건 = brk [9]', [...x2.matchAll(/<brk id="(\d+)"/g)].map(m => m[1]).join(',') === '9')
     check('빈 상자 건이 캡션에도 없다', !x2.includes('0바이트') && !x2.includes('없는경로'))
     check('한쪽만 있는 건은 남는다(X-5)', x2.includes('조치전만'))
   }
@@ -323,16 +328,27 @@ if (process.argv.includes('--lo')) {
     const pdf = readFileSync(join(dir, `n${n}.pdf`)).toString('latin1')
     return [...pdf.matchAll(/\/Type\s*\/Page[^s]/g)].length
   }
-  const p4 = await pagesOf(4), p5 = await pagesOf(5), p6 = await pagesOf(6), p7 = await pagesOf(7), p8 = await pagesOf(8)
-  // ⚠ 5→6·6→7만 보면 **2건/장과 3건/장이 구별되지 않는다**(둘 다 0·+1이 나온다).
-  //   4→5가 그 둘을 가르는 유일한 차분이다: 2건/장이면 +1(2쪽→3쪽), 3건/장이면 0(둘 다 2쪽).
-  check('4건 → 5건: +1 ⇒ 2건/장(3건/장이면 0)', p5 - p4 === 1, `${p4}→${p5}`)
-  check('5건 → 6건: 페이지 증가 0(같은 3쪽)', p6 - p5 === 0, `${p5}→${p6}`)
-  check('6건 → 7건: 페이지 증가 1', p7 - p6 === 1, `${p6}→${p7}`)
-  check('6건 → 8건: 페이지 증가 1(둘 다 4쪽)', p8 - p6 === 1, `${p6}→${p8}`)
-  // 요구의 원문("총6건이면 a용지 3페이지")을 직접 센다 — 차분이 아니라 절대 쪽수로
-  check('6건 = 정확히 3쪽(2·4·6·8건이 2·3·4·4쪽 사슬과 정합)',
-    p4 + 1 === p5 && p5 === p6 && p6 + 1 === p7 && p7 === p8, `${p4}/${p5}/${p6}/${p7}/${p8}`)
+  // 기준선 = 사진 대지가 **없는** 워크북. 이걸 빼야 대지 자체의 쪽수가 나온다 —
+  // 차분만 보면 "몇 건부터 2쪽인가"라는 요구를 직접 셀 수 없다(도너 구성이 절대값을 흔든다).
+  const baseXlsx = join(dir, 'base.xlsx')
+  writeFileSync(baseXlsx, base)
+  execFileSync(SOFFICE, ['-env:UserInstallation=file:///' + dir.replace(/\\/g, '/') + '/lo',
+    '--headless', '--norestore', '--convert-to', 'pdf', '--outdir', dir, baseXlsx], { timeout: 600_000 })
+  const basePages = [...readFileSync(join(dir, 'base.pdf')).toString('latin1').matchAll(/\/Type\s*\/Page[^s]/g)].length
+  const sheetPages = async (n: number) => (await pagesOf(n)) - basePages
+
+  const s3 = await sheetPages(3), s4 = await sheetPages(4), s6 = await sheetPages(6)
+  const s7 = await sheetPages(7), s9 = await sheetPages(9), s10 = await sheetPages(10)
+  console.log(`  기준선 ${basePages}쪽 · 대지 3건=${s3} 4건=${s4} 6건=${s6} 7건=${s7} 9건=${s9} 10건=${s10}`)
+
+  // ⚠ **3→4가 2건/장과 3건/장을 가르는 축이다.** 3건일 때 2건/장은 2쪽, 3건/장은 1쪽이다.
+  //   5→6·6→7만 보면 둘 다 같은 모양이 나와 아무것도 구별하지 못한다(옛 검사가 그 함정에 있었다).
+  check('3건 = 1쪽 ⇒ 3건/장(2건/장이면 2쪽)', s3 === 1, `${s3}쪽`)
+  check('3건 → 4건: +1 (1쪽→2쪽)', s4 - s3 === 1, `${s3}→${s4}`)
+  // 사용자 확정 규격(2026-09-08): 1~3건 1쪽 · 4~6건 2쪽 · 7~9건 3쪽 · 10~12건 4쪽
+  check('4~6건 = 2쪽(6건에서 안 넘친다)', s4 === 2 && s6 === 2, `4건 ${s4} · 6건 ${s6}`)
+  check('7~9건 = 3쪽', s7 === 3 && s9 === 3, `7건 ${s7} · 9건 ${s9}`)
+  check('10건 = 4쪽(9→10에서 넘어간다)', s10 === 4, `${s9}→${s10}`)
 } else {
   console.log('\n[14] LibreOffice 페이지 차분 — 생략(--lo 로 실행)')
 }
