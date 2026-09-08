@@ -41,7 +41,13 @@ export const FIRE_PLAN_SCRUB_RULES: ScrubRule[] = [
 
 export const FIRE_PLAN_SCRUB_NEEDLES: string[] = FIRE_PLAN_SCRUB_RULES.map(r => r.needle)
 
-/** 한 셀의 원문에서 니들을 지운다. 앞뒤 공백은 다듬되 셀 안의 줄바꿈은 보존한다 */
+/**
+ * 한 셀의 원문에서 니들을 지운다. 앞뒤 공백은 다듬되 셀 안의 줄바꿈은 보존한다.
+ *
+ * ⚠ `hits`는 **니들 리터럴이 아니라 사유**를 돌려준다. manifest에 칸마다 니들을 적으면
+ *   지우려던 그 문자열이 자산에 11벌 더 실린다 — 목록 한 벌이면 충분하다. 사유 쪽이 나중에
+ *   그 칸을 다시 볼 사람에게도 더 쓸모 있다.
+ */
 export function scrubText(text: string): { text: string; hits: string[] } {
   let out = text
   const hits: string[] = []
@@ -50,7 +56,7 @@ export function scrubText(text: string): { text: string; hits: string[] } {
     if (!r.strip.test(out)) continue
     r.strip.lastIndex = 0
     out = out.replace(r.strip, '')
-    hits.push(r.needle)
+    hits.push(r.why)
   }
   if (!hits.length) return { text, hits }
   return { text: out.replace(/[ \t]{2,}/g, ' ').trim(), hits }

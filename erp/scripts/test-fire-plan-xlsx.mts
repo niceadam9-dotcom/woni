@@ -47,6 +47,16 @@ console.log('\n[1] manifest 지문 — 자산과 manifest가 같은 빌드에서
     `파일 ${sha.slice(0, 12)} vs manifest ${FIRE_PLAN_MANIFEST.asset.sha256.slice(0, 12)}`)
   check('asset 바이트 수 일치', bytes.length === FIRE_PLAN_MANIFEST.asset.bytes,
     `${bytes.length} vs ${FIRE_PLAN_MANIFEST.asset.bytes}`)
+
+  // 내용 지문 — 파일 sha는 재빌드마다 바뀌지만(zip 타임스탬프) 이건 내용이 같으면 같다.
+  // '자산이 실제로 달라졌는가'를 묻는 유일한 축이라 별도로 센다.
+  const z = await JSZip.loadAsync(bytes)
+  const names = Object.keys(z.files).filter(n => !z.files[n].dir).sort()
+  const h = createHash('sha256')
+  for (const n of names) { h.update(n); h.update(await z.file(n)!.async('nodebuffer')) }
+  const content = h.digest('hex')
+  check('내용 지문 일치', content === FIRE_PLAN_MANIFEST.asset.contentSha256,
+    `${content.slice(0, 12)} vs ${(FIRE_PLAN_MANIFEST.asset.contentSha256 ?? '(없음)').slice(0, 12)}`)
 }
 
 /* ══════════════════════ [2] 앵커 ══════════════════════ */

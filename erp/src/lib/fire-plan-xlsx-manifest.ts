@@ -37,7 +37,9 @@ export interface FirePlanManifest {
   doc: string
   scope: string
   source: { file: string; sha256: string; tables: number; cells: number }
-  asset: { file: string; sha256: string; bytes: number; styles: number }
+  /** `sha256`은 '이 manifest와 이 파일이 한 빌드에서 나왔나', `contentSha256`은 '내용이 실제로
+   *  달라졌나'를 답한다. 앞은 재빌드마다 바뀐다(JSZip이 zip 엔트리에 현재 시각을 찍는다) */
+  asset: { file: string; sha256: string; contentSha256: string; bytes: number; styles: number }
   scrubNeedles: string[]
   sheets: FirePlanSheetManifest[]
 }

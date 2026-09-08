@@ -587,13 +587,34 @@ if (fails.length) {
 
 const sha = (b: Uint8Array | string) => createHash('sha256').update(b).digest('hex')
 
+/**
+ * **내용 지문** — 파트 이름+바이트만으로 만든다(zip 엔트리 타임스탬프 제외).
+ *
+ * ⚠ 실측: 소스를 한 글자도 안 고치고 재빌드해도 파일 sha가 매번 바뀐다(JSZip이 엔트리에
+ *   현재 시각을 찍는다). 이걸 모르면 자산을 재빌드했을 때 뜨는 diff를 보고 "뭔가 바뀌었다"고
+ *   오판한다. 파일 sha는 '이 manifest와 이 파일이 한 빌드에서 나왔나'를, 내용 지문은
+ *   '내용이 실제로 달라졌나'를 답한다 — **두 질문이 다르므로 둘 다 적는다**.
+ */
+async function contentFingerprint(bytes: Uint8Array): Promise<string> {
+  const z = await JSZip.loadAsync(bytes)
+  const names = Object.keys(z.files).filter(n => !z.files[n].dir).sort()
+  const h = createHash('sha256')
+  for (const n of names) { h.update(n); h.update(await z.file(n)!.async('nodebuffer')) }
+  return h.digest('hex')
+}
+
 const manifest = {
   version: 1,
   doc: '소방계획서_42',
   scope: '제1장',
   builtBy: 'scripts/build-fire-plan-template.mts',
   source: { file: 'erp_goal/_Data/양식-placeholder.hwpx', sha256: sha(readFileSync(HWPX)), tables: tables.length, cells: cellTotal },
-  asset: { file: 'templates/fire-plan-workbook.xlsx', sha256: sha(built.bytes), bytes: built.bytes.length, styles: built.styleCount },
+  asset: {
+    file: 'templates/fire-plan-workbook.xlsx',
+    sha256: sha(built.bytes),
+    contentSha256: await contentFingerprint(built.bytes),
+    bytes: built.bytes.length, styles: built.styleCount,
+  },
   scrubNeedles: FIRE_PLAN_SCRUB_NEEDLES,
   sheets: manifests,
 }
