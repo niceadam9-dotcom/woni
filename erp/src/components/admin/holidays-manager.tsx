@@ -1,11 +1,12 @@
 ﻿'use client'
 
 import { useState, useTransition } from 'react'
-import { RefreshCw, Plus, Trash2, Loader2 } from 'lucide-react'
+import { RefreshCw, Plus, Trash2, Loader2, Pencil, Check, X } from 'lucide-react'
 import {
   syncNationalHolidaysAction,
   addCustomHolidayAction,
   deleteHolidayAction,
+  updateHolidayAction,
 } from '@/app/(dashboard)/admin/holidays/actions'
 import { DateInput } from '@/components/ui/date-input'
 import type { Holiday } from '@/types'
@@ -22,6 +23,11 @@ export function HolidaysManager({ initialHolidays, initialYear }: Props) {
   const [addDate, setAddDate] = useState('')
   const [addName, setAddName] = useState('')
   const [addErr, setAddErr] = useState('')
+  // 인라인 수정(R-4) — 종전엔 오타 하나도 삭제 후 재등록해야 했다
+  const [editId, setEditId] = useState<string | null>(null)
+  const [editDate, setEditDate] = useState('')
+  const [editName, setEditName] = useState('')
+  const [editErr, setEditErr] = useState('')
   const [isPending, startTransition] = useTransition()
 
   const yearHolidays = holidays
@@ -69,6 +75,26 @@ export function HolidaysManager({ initialHolidays, initialYear }: Props) {
     })
   }
 
+  function startEdit(h: Holiday) {
+    setEditId(h.id)
+    setEditDate(h.date)
+    setEditName(h.name)
+    setEditErr('')
+  }
+
+  function handleEditSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    setEditErr('')
+    if (!editId) return
+    startTransition(async () => {
+      const res = await updateHolidayAction(editId, editDate, editName)
+      if (res.error) { setEditErr(res.error); return }
+      setEditId(null)
+      // 승격이 일어났으면 배지가 바뀌므로 새로 읽는다 — 화면과 DB가 갈라진 채로 두지 않는다
+      window.location.reload()
+    })
+  }
+
   const currentYear = new Date().getFullYear()
   // 내후년까지 — 연말 점검의 6단계 마감일이 **다음 해로 넘어가기 때문**이다.
   // (예: 2027-12-20 점검 → ③④⑤⑥이 2028년. 그 해 공휴일이 없으면 마감일이 앞당겨진다)
@@ -87,9 +113,11 @@ export function HolidaysManager({ initialHolidays, initialYear }: Props) {
           직접 추가한 날을 다시 자동 관리로 되돌리려면 <strong className="text-ink-sub">삭제 후 동기화</strong>하시면 됩니다.
         </p>
         <p className="text-xs text-ink-faint mb-4">
-          자동 동기화: 매년 <strong className="text-ink-sub">1월 1일</strong> · <strong className="text-ink-sub">12월 1일</strong> 에{' '}
+          자동 동기화: <strong className="text-ink-sub">매월 1일</strong> 에{' '}
           <strong className="text-ink-sub">올해·내년·내후년</strong> 공휴일이 자동 갱신됩니다.
           연말 점검은 6단계 마감일이 다음 해로 넘어가므로 미리 받아 둡니다.
+          임시공휴일은 1~3주 전에 지정되는 경우가 많아 매월 확인합니다 — 그래도 아직 안 올라온 날은
+          아래에서 직접 추가해 주세요.
         </p>
         <div className="flex items-center gap-3">
           <select
@@ -166,6 +194,47 @@ export function HolidaysManager({ initialHolidays, initialYear }: Props) {
             {yearHolidays.map(h => {
               const d = new Date(h.date)
               const dow = ['일', '월', '화', '수', '목', '금', '토'][d.getDay()]
+              if (editId === h.id) {
+                return (
+                  <li key={h.id} className="px-5 py-3">
+                    <form onSubmit={handleEditSubmit} className="flex items-start gap-3">
+                      <DateInput
+                        value={editDate}
+                        onChange={e => setEditDate(e.target.value)}
+                        required
+                        className="h-9 rounded-lg border border-line px-3 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-brand/30"
+                      />
+                      <input
+                        type="text"
+                        value={editName}
+                        onChange={e => setEditName(e.target.value)}
+                        required
+                        autoFocus
+                        className="flex-1 h-9 rounded-lg border border-line px-3 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-brand/30"
+                      />
+                      <button type="submit" disabled={isPending} title="저장"
+                        className="flex items-center gap-1.5 h-9 px-3 rounded-lg bg-brand text-white text-sm font-medium hover:bg-brand-strong disabled:opacity-60 transition-colors shrink-0">
+                        {isPending ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}
+                        저장
+                      </button>
+                      <button type="button" onClick={() => setEditId(null)} disabled={isPending} title="취소"
+                        className="h-9 px-2 rounded-lg text-ink-faint hover:text-ink hover:bg-line/40 disabled:opacity-40 transition-colors shrink-0">
+                        <X className="size-4" />
+                      </button>
+                    </form>
+                    {/* 자동 생성분을 고치면 다음 동기화가 되돌린다 — 그래서 수정은 manual 승격을
+                        동반한다(액션 updateHolidayAction). 승격을 말없이 하면 배지가 갑자기 바뀐
+                        것처럼 보이므로 **누르기 전에** 알린다 */}
+                    {h.source !== 'manual' && (
+                      <p className="mt-2 text-xs text-amber-700">
+                        이 날짜는 자동으로 받아온 값입니다. 수정하면 <strong>「수동 등록」으로 바뀌어</strong> 이후
+                        자동 동기화가 이 날짜를 건드리지 않습니다. 다시 자동 관리로 되돌리려면 삭제 후 동기화하세요.
+                      </p>
+                    )}
+                    {editErr && <p className="mt-2 text-xs text-red-600">{editErr}</p>}
+                  </li>
+                )
+              }
               return (
                 <li key={h.id} className="flex items-center justify-between px-5 py-3">
                   <div className="flex items-center gap-3">
@@ -196,14 +265,24 @@ export function HolidaysManager({ initialHolidays, initialYear }: Props) {
                       <span className="text-xs text-ink-faint">자체휴무</span>
                     )}
                   </div>
-                  <button
-                    onClick={() => handleDelete(h.id)}
-                    disabled={isPending}
-                    className="p-1.5 rounded-lg text-ink-faint hover:text-red-500 hover:bg-red-50 disabled:opacity-40 transition-colors"
-                    title="삭제"
-                  >
-                    <Trash2 className="size-4" />
-                  </button>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button
+                      onClick={() => startEdit(h)}
+                      disabled={isPending}
+                      className="p-1.5 rounded-lg text-ink-faint hover:text-brand hover:bg-brand/10 disabled:opacity-40 transition-colors"
+                      title="날짜·이름 수정"
+                    >
+                      <Pencil className="size-4" />
+                    </button>
+                    <button
+                      onClick={() => handleDelete(h.id)}
+                      disabled={isPending}
+                      className="p-1.5 rounded-lg text-ink-faint hover:text-red-500 hover:bg-red-50 disabled:opacity-40 transition-colors"
+                      title="삭제"
+                    >
+                      <Trash2 className="size-4" />
+                    </button>
+                  </div>
                 </li>
               )
             })}

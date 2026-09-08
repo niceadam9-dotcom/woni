@@ -251,6 +251,14 @@
             ]
           },
           "why_partial": "잠금 존재는 확인됐으나 T4가 요구한 '레이스 실재현 프로브'는 만들지 않았다. 152 주석이 스스로 밝힌 대로 이 잠금은 hard delete끼리만 직렬화하고 남의 일반 INSERT는 배제하지 못한다 — 그 잔여 창을 실제로 재현해 본 적이 없다(S8-1).",
+          "resolved_2026_09_08": {
+            "status_now": "implemented",
+            "probe": "scripts/test-hard-delete-race.mts 8/0 (test:all 등재 '고객 완전삭제 동시성'). 관리 API 토큰 없이 PostgREST만 써서 등재 가능하게 만들었다 — 선행 세션의 _s8a-race.mts는 %TEMP%/sbtok.txt에 의존해 등재할 수 없었고, **152 시맨틱(has_history 차단)으로 쓰여 있어 156에서는 돌리면 빨갛다**(HEAD에 없는 일회성 스크래치라 영구 빨강이 되진 않았다)",
+            "reframed": "156이 위험의 정의를 바꿨다. 152에서는 '차단을 뚫고 함께 지워지는 것'(유령 삭제)이 결함이었는데 **156은 무조건 삭제라 그게 의도된 동작**이다. 156에서 금지되는 결과는 **고아**(고객은 없는데 자식 행이 남는 것) 하나뿐이라 프로브를 그 축으로 다시 세웠다",
+            "mutation_finding": "⭐ **처음 적은 설명이 틀렸고 변이 검사가 잡았다.** scripts/_probe-hdrace-mutation.mts로 156 함수에서 보호를 떼어 쌍둥이를 만들어 돌린 결과: ①고아 축 — 둘 다 떼도 **고아 0건**. 고아를 막는 것은 우리 잠금이 아니라 **PostgreSQL의 FK 잠금**이다(자식 INSERT가 부모에 FOR KEY SHARE를 잡아야 하고 부모 DELETE와 상호 배제). 즉 C의 초록을 'FOR UPDATE 덕분'이라 읽으면 안 된다. ②직렬화 축 — 둘 다 떼면 5회 중 4회가 **둘 다 ok=true**를 반환했다(감사 로그에 같은 삭제가 두 번, 각각 전체 history 카운트를 달고 남는다)",
+            "answer_to_the_or": "T4가 물은 '**FOR UPDATE 또는 advisory lock**'의 답: 셋을 나란히 변이시켜 보니 advisory만 제거 0/5 · FOR UPDATE만 제거 0/5 · 둘 다 제거 4/5 — **두 보호는 서로 중복이고 어느 하나만 있어도 직렬화된다.** 현재 함수는 둘 다 갖고 있다(벨트+멜빵)",
+            "honest_limit": "트랜잭션을 밖에서 붙잡아 창을 인위로 넓히는 결정적 재현은 관리 API가 필요해 등재 검사에서 **하지 않는다**. 그래서 이 검사는 '보호가 전멸했는가'를 보지 '하나가 사라졌는가'는 못 본다 — 파일 머리에 그렇게 적었다"
+          },
           "fix": {
             "date": "2026-08-29",
             "by": "구현자 자기신고 — 독립 재판정 전",
@@ -459,8 +467,16 @@
         {
           "id": "S8-3",
           "desc": "[A] fire-plans 외 버킷(customer-assets 등) 고아 파일 여부",
-          "status": "partial",
-          "note": "2026-08-30 — **fire-plans 버킷 몫은 닫혔다**(S10-6: `{cid}/assets/`·`{cid}/gen-assets/sub/` 포함 접두사 전체가 비워지는 것을 실측). 다른 버킷(inspection-defects·reports)은 inspections가 차단축이라 물리 삭제 경로로는 도달 불가 — 정적 추론이며 실측은 아직이다."
+          "status": "implemented",
+          "note": "2026-08-30 — **fire-plans 버킷 몫은 닫혔다**(S10-6: `{cid}/assets/`·`{cid}/gen-assets/sub/` 포함 접두사 전체가 비워지는 것을 실측). 다른 버킷(inspection-defects·reports)은 inspections가 차단축이라 물리 삭제 경로로는 도달 불가 — 정적 추론이며 실측은 아직이다.",
+          "resolved_2026_09_08": {
+            "correction": "⚠ 위 note의 '**정적 추론**'이 틀렸다. 실측하니 ①`customer_assets` 버킷은 **존재하지 않는다**(desc의 예시가 가상이었다) ②실제 버킷은 5개 — fire-plans · inspection-defects · inspection-reports · reports · log-archives ③**`inspection-reports`가 삭제 경로에서 통째로 빠져 있었다**. 152의 차단축 논리는 156이 무조건 삭제로 바꾸면서 이미 무효였는데 note가 그 전제로 멈춰 있었다",
+            "measured": "스테이징 버킷별 고아(경로 첫 세그먼트가 사라진 행을 가리키는 파일): fire-plans 4/91 · inspection-defects 1/9 · **inspection-reports 1/1(보유 파일 전부)** · reports 0/5 · log-archives 0/0",
+            "fix": "customers/actions.ts — inspections 순회에 `_purgeStoragePrefix(admin, 'inspection-reports', id)` 추가. 경로 규약이 defects와 같은 `{inspectionId}/{reportType}/…`임을 report-actions.ts:63에서 확인한 뒤 붙였다(잘못 짚으면 남의 파일을 지운다). `_purgeStoragePrefix` 주석에 '버킷을 새로 만들면 여기 추가할 것'과 현재 대상 목록을 명시",
+            "guard": "scripts/test-storage-purge-coverage.mts 3/0 (test:all 등재). 실제 버킷 목록과 삭제 액션 소스를 대조한다 — 양방향이다: ①미연결 버킷 0 ②소스에 적힌 버킷이 전부 실재(오타·이름 변경으로 '지우는 척'하는 줄 방지) ③제외 목록에 사라진 버킷이 남아 있지 않음. 고객 축이 아닌 버킷은 **사유와 함께** NOT_CUSTOMER_SCOPED에 등록하게 했다",
+            "gotcha": "이 검사만 종료 코드가 -1073740791로 죽었다 — Storage 클라이언트의 keep-alive 소켓과 summary()의 process.exit가 겹쳐 libuv assertion이 난다(재현 2/2). **검사는 전부 초록인데 종료 코드만 실패**라 test:all이 빨갛게 보는 유형이라, 300ms 지연으로 소켓이 닫힐 틈을 줬다(3/3 rc=0)",
+            "remaining": "이미 쌓인 고아 6건(fire-plans 4 · defects 1 · reports 1)은 **지우지 않았다** — 내가 만든 파일이 아니고 삭제는 되돌릴 수 없다. 정리할지는 사용자 판단"
+          }
         },
         {
           "id": "S8-4",

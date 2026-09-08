@@ -195,8 +195,14 @@
           "note": "★ **차단급 결함이었다**(독립 판정 D1). UI는 처음부터 있었지만 loadSmsTargets가 from을 today로 clamp하고 과거 행을 drop해 overdue가 **구조적으로 항상 0** — 이 줄은 렌더될 수 없었다. '안내 못 하고 지나간 방문'이 시스템 어디에도 안 뜨니, 사용자는 연락 없이 방문한 사실 자체를 몰랐다" }
       ] },
 
-    { "id": "S3-b", "title": "서버측 중복 발송 방지 + 1차 독립 판정 결함 6건 수리 (2026-08-19)", "status": "code_present", "phase": "A",
-      "not_independently_verified": "수리 자체는 구현자=검증자 — 2차 판정 대기",
+    { "id": "S3-b", "title": "서버측 중복 발송 방지 + 1차 독립 판정 결함 6건 수리 (2026-08-19)", "status": "implemented", "phase": "A",
+      "independent_verification_2026_09_08": {
+        "judge": "잔여 정리 세션 — 구현·수리에 관여하지 않은 세션(Json_Rule 규칙 3)",
+        "verdict": "**기능은 실재하고 동작한다.** 두 겹이 코드에 그대로 있다 — ②-b 의도적 중복(sms.ts:477-489, loadSentPairs로 (고객|방문일) 대조 후 allowResend 없으면 거부) · ④-b 경합(sms.ts:588-659, claim **뒤에** 라이벌 조회 후 (created_at,id) 전순서로 메시지 단위 판정). 스위트 재실행 전건 그린: test-sms-pure 88/0 · _probe-sms-send 92/0",
+        "hermetic_check": "프로브가 환경의 결핍에 기대지 않는 것을 확인했다 — _probe-sms-send가 SOLAPI 자격증명을 **스스로 삭제**하고(L22-23) SMS_DRY_RUN도 지워(L28) ②-b·④-b가 실제로 돌게 만든다. 로컬 .env.local에 실키가 있는 상태에서도 안전하다(추가로 SMS_DRY_RUN=1·allowlist 본인 1번호·MAX_PER_RUN=1로 3중)",
+        "defect_found": "⭐ **주석이 코드보다 넓게 주장하고 있었다.** `recordNoPhone` 주석이 '**모든** 종료 경로에서 불린다'였는데, claim 이전의 조기 반환 6곳(①상한·①-b오타·①-c전건빈값·②리허설·②-b중복·③allowlist)은 부르지 않는다 — 그 함수 선언 자체가 해당 반환들보다 **아래**에 있어 구조적으로 부를 수 없다. 읽는 사람이 '②-b 중복 차단에서도 미수신 기록이 남는다'고 믿게 만드는 문장이다. 경계 자체는 옳다고 판단해(그 지점은 배치가 시작되지도 않았고, 거기서 no_phone을 쌓으면 진짜 미수신 기록이 묻힌다) **주석을 코드에 맞춰 정정**했다",
+        "note_on_dry_run": "부수 관찰 — ②리허설 조기 반환(sms.ts:448)이 ②-b 중복 확인(:477)보다 **앞**이라, 이미 보낸 건을 리허설하면 '실제로 보내면 N통'이라고 답한 뒤 실제 발송은 중복으로 거부된다. 돈이 나가는 방향은 아니라 결함으로 올리지 않고 기록만 남긴다"
+      },
       "design_note": "유니크 인덱스는 여전히 걸지 않는다(Q-12 재발송=사람 판단). 원인이 다른 두 겹으로 나눔 — ②-b 의도(allowResend 명시해야 통과) / ④-b 경합(claim 후 판정, TOCTOU)",
       "independent_check": { "date": "2026-08-19", "judge": "독립 판정자(구현 무관 세션) — 요구 12항목을 코드로 재판정 + 적대적 탐색",
         "verdict": "충족 6 · 부분 6. 실결함 6건 지적, 전부 수리",
@@ -295,7 +301,14 @@
         { "id": "S8-9", "desc": "세 번째 진입 {kind:'adhoc'}(Q-17) — 고객 검색(CustomerFilterSearch 재사용) → 방문일 → 수신자는 고객관리 지정값 → 문구는 사전안내 기본값을 띄우되 자유 수정(AS·재방문은 문구가 다르다). 계획 항목 생성 없이 sms_send_log에 kind='adhoc', plan_item_ids=[]로 기록. 결과 화면에서 '임의' 배지로 구분", "status": "implemented", "verified": { "date": "2026-08-21", "method": "코드 대조(재판정 세션 — 구현자 아님)", "evidence": ["inspection-sms-modal.tsx:299-311 방문일 입력 · sms-actions.ts:54-59 adhoc 분기(plan_item_ids=[])"] }, "depends": ["Q-17", "P-20"] },
         { "id": "S8-8", "desc": "발송 버튼에 실통수 표기('[7통 발송]' — 수신자 수 기준) + 이미 발송된 건 포함 시 확인 1회(승인 방식의 중복 방어, G-11)", "status": "implemented", "verified": { "date": "2026-08-21", "method": "코드 대조(재판정 세션 — 구현자 아님)", "evidence": ["inspection-sms-modal.tsx:559 통수 표기 · :176 중복 포함 시 확인 1회"] }, "depends": ["Q-12"] },
         { "id": "S8-7", "desc": "monitor-client.tsx의 구 SmsModal(:146-307) 삭제 — 중복 UI를 만들지 않는다", "status": "implemented", "verified": { "date": "2026-08-21", "method": "코드 대조(재판정 세션 — 구현자 아님)", "evidence": ["monitor-client.tsx 부재 — 구 SmsModal 삭제 확인"] } },
-        { "id": "S8-10", "desc": "발송 결과 패널 하단에 [발송 결과 전체 보기 →](/inspections/sms, 그 날짜로 필터) — 실패가 1건이라도 있으면 강조. 주 발송 경로는 달력인데 결과 창구는 문자 발송 화면이라(Q-14·Q-15) 그대로 두면 달력에서 보낸 사용자의 확인 동선이 끊긴다", "status": "partial", "gap": "[발송 결과 전체 보기] 링크는 있으나(inspection-sms-modal.tsx:350-355) href가 /inspections/sms 고정이라 **그 날짜로 필터되지 않는다** — 기준의 괄호 조건 미충족", "rechecked": "2026-08-21", "depends": ["Q-15"], "note": "개정 4판 G-26 — 실패를 못 보고 닫는 것이 이 설계에서 가장 비싼 실수다" },
+        { "id": "S8-10", "desc": "발송 결과 패널 하단에 [발송 결과 전체 보기 →](/inspections/sms, 그 날짜로 필터) — 실패가 1건이라도 있으면 강조. 주 발송 경로는 달력인데 결과 창구는 문자 발송 화면이라(Q-14·Q-15) 그대로 두면 달력에서 보낸 사용자의 확인 동선이 끊긴다", "status": "implemented", "gap": "[발송 결과 전체 보기] 링크는 있으나(inspection-sms-modal.tsx:350-355) href가 /inspections/sms 고정이라 **그 날짜로 필터되지 않는다** — 기준의 괄호 조건 미충족", "rechecked": "2026-08-21", "depends": ["Q-15"], "note": "개정 4판 G-26 — 실패를 못 보고 닫는 것이 이 설계에서 가장 비싼 실수다",
+          "resolved_2026_09_08": {
+            "found_more_than_the_gap": "gap은 날짜 필터만 지적했는데, 실측하니 **더 큰 것이 있었다** — 도착 화면의 기본 상태 필터가 `not_sent`(발송 제외)라 방금 보낸 건은 status 파생이 'sent'가 되어 **정확히 그 필터에 걸려 사라진다.** '발송 결과 전체 보기'를 눌렀는데 결과가 없는 목록이 뜬다. 실패 건은 파생이 'failed'라 살아남으므로, **실패 케이스만 눌러 본 사람에게는 멀쩡해 보인다**",
+            "third_axis": "⭐ 그리고 이 모달은 **문자 발송 화면 자체에서도 열린다**(sms-status-client가 setModal). 거기서 누르면 `/inspections/sms` → `/inspections/sms?…`가 되는데, [[risk_same_path_tab_link]] 그대로 **같은 경로로 가는 `<Link>`는 서버를 재렌더하지 않아** searchParams가 다시 읽히지 않는다. 달력에서는 되고 결과 창구에서는 안 되는, 경로에 따라 갈리는 버그였을 것이다 — `<a>` 전체 이동으로 바꿔 어디서 눌러도 동작하게 했다",
+            "fix": ["inspection-sms-modal.tsx — 방문일 min/max와 status(성공→sent·실패→failed)를 쿼리로 싣고 `<a>`로 이동", "inspections/sms/page.tsx — searchParams 수신 + status 화이트리스트·날짜 형식 검증 후 클라이언트로 전달(URL은 사용자가 손댈 수 있다)", "sms-status-client.tsx — initialFrom/To/Status를 초기 상태로. **초기값일 뿐 잠금이 아니라** 사용자가 필터를 바꾸면 그대로 따르고, 링크 없이 들어오면 종전 기본값 not_sent 그대로"],
+            "verified": "scripts/test-sms-result-link.mts 14/14 rc=0 (test:all 등재). **정적 배선 검사임을 파일에 명시**했다 — 실제 발송이 필요한 축은 회귀 스위트에서 할 일이 아니다(돈이 나가고 되돌릴 수 없다). 변이 검증으로 가드가 진짜임을 확인: <a>→<Link> · 기간 제거 · status를 not_sent로 — 3종 전부 잡힌다(제품 파일을 건드리지 않고 **사본에 변이**를 넣어 확인 — 공유 트리라 잠깐의 변조도 타 세션과 겹칠 수 있다)",
+            "test_own_bug": "검사를 처음 썼을 때 `lastIndexOf('<')`가 href 식 안의 `a < b` **비교 연산자**를 태그로 오인해 멀쩡한 제품을 빨갛다고 말했다 — 정적 검사도 자기 버그로 거짓말한다. 여는 태그 이름을 명시해 잡고, '블록을 잘라냈다'를 별도 단언으로 두어 추출 실패가 판정 실패로 위장되지 않게 했다"
+          } },
         { "id": "S8-11", "desc": "미확정(planned) 건은 목록에서 빼지 않고 회색 줄 + '점검일 미확정' + [점검확정으로 이동 →]로 보여주되 체크 불가. 달력에는 미확정 계획 칩도 보이므로 조용히 빼면 '달력에 있는데 문자 목록엔 없다'가 된다", "status": "implemented", "verified": { "date": "2026-08-21", "method": "코드 대조(재판정 세션 — 구현자 아님)", "evidence": ["inspection-sms-modal.tsx:433-439 — 미확정 건 회색 줄 + [점검확정으로 이동]"] }, "depends": ["Q-14"], "note": "개정 4판 — loadSmsTargets가 sendable:false로 함께 반환" }
       ] },
 

@@ -1429,11 +1429,18 @@ async function _countFacilityLedger(
   return fac + flr
 }
 
-/** 물리 삭제 뒤 남는 스토리지 고아 정리 (소방계획서_32 DEF-2).
- *  fire-plans 버킷의 고객 파일은 전부 `{customerId}/` 아래에 있고, 불량 사진은
- *  inspection-defects 버킷의 `{inspectionId}/` 아래에 있다 — 표지·위치도(`assets/`)는
- *  **DB 행이 아예 없어** 어떤 FK로도 따라갈 수 없다. 접두사째 비우는 이유가 이것.
- *  list()는 재귀하지 않으므로(폴더는 id=null로 온다) 직접 훑는다. */
+/** 물리 삭제 뒤 남는 스토리지 고아 정리 (소방계획서_32 DEF-2 · S8-3).
+ *  fire-plans 버킷의 고객 파일은 전부 `{customerId}/` 아래에 있고, 불량 사진과 제출 보고서는
+ *  inspection-defects·inspection-reports 버킷의 `{inspectionId}/` 아래에 있다 —
+ *  표지·위치도(`assets/`)는 **DB 행이 아예 없어** 어떤 FK로도 따라갈 수 없다.
+ *  접두사째 비우는 이유가 이것.
+ *  list()는 재귀하지 않으므로(폴더는 id=null로 온다) 직접 훑는다.
+ *
+ *  ⚠ 버킷을 새로 만들면 여기 추가할 것 — 빠뜨려도 아무 오류가 안 나고 파일만 조용히 남는다.
+ *    실측(2026-09-08) 당시 5개 버킷 중 inspection-reports가 빠져 있었고 그 버킷은
+ *    보유 파일 전부가 고아였다. 현재 대상: fire-plans · inspection-defects ·
+ *    inspection-reports · reports(경로가 generated_reports.xlsx_path라 별도 처리).
+ *    log-archives는 고객 축이 아니다. */
 async function _purgeStoragePrefix(
   admin: ReturnType<typeof createAdminClient>, bucket: string, prefix: string,
 ): Promise<{ removed: number; error?: string }> {
@@ -1525,7 +1532,14 @@ export async function hardDeleteCustomerAction(customerId: string): Promise<{ er
   // 파일 정리는 RPC **뒤**에 한다 — 삭제가 성립한 다음에만 파일을 파괴한다.
   const purges: Array<{ removed: number; error?: string }> = []
   purges.push(await _purgeStoragePrefix(admin, 'fire-plans', customerId))
-  for (const id of inspIds) purges.push(await _purgeStoragePrefix(admin, 'inspection-defects', id))
+  for (const id of inspIds) {
+    purges.push(await _purgeStoragePrefix(admin, 'inspection-defects', id))
+    // inspection-reports(2026-09-08, S8-3): 156이 `inspection_reports` **DB 행은 첫 번째로
+    // 지우면서** 그 행이 가리키던 파일은 남겨 두고 있었다. 실측으로 드러났다 — 이 버킷의
+    // 파일 전부(1/1)가 사라진 점검을 가리키는 고아였다. 경로 규약은 defects와 같은
+    // `{inspectionId}/{reportType}/…`(report-actions.ts:63)라 같은 방식으로 접두사째 비운다.
+    purges.push(await _purgeStoragePrefix(admin, 'inspection-reports', id))
+  }
   if (reportPaths.length > 0) {
     const { error: rErr } = await admin.storage.from('reports').remove(reportPaths)
     purges.push(rErr ? { removed: 0, error: `reports 파일 삭제 실패: ${rErr.message}` } : { removed: reportPaths.length })

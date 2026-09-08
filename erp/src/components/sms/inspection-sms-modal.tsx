@@ -346,13 +346,33 @@ export function InspectionSmsModal({ source, onClose, onSent }: {
                 ))}
               </ul>
               {/* 주 발송 경로는 달력인데 결과 창구는 문자 발송 화면이다(Q-15) —
-                  링크가 없으면 달력에서 보낸 사용자의 확인 동선이 끊긴다 (S8-10) */}
-              <Link href="/inspections/sms"
+                  링크가 없으면 달력에서 보낸 사용자의 확인 동선이 끊긴다 (S8-10)
+
+                  ⚠ href를 `/inspections/sms` 고정으로 두면 **약속한 화면에 도착하지 못한다**:
+                    ① 그 화면의 기본 상태 필터는 `not_sent`(발송 제외)라, 방금 보낸 건이
+                       정확히 그 필터에 걸려 사라진다 — '발송 결과 전체 보기'를 눌렀는데
+                       결과가 없는 화면이 뜬다(실패 건은 status 파생이 failed라 남는다).
+                    ② 기간이 비어 있으면 서버가 오늘~+30일로 해석하므로, 오늘 보낸 건이라도
+                       방문일이 그 밖이면 안 보인다.
+                  그래서 방금 보낸 **그 방문일 범위**와 **보러 가는 상태**를 함께 실어 보낸다.
+
+                  ⚠ `<Link>`가 아니라 `<a>`인 이유: 이 모달은 **문자 발송 화면 자체에서도 열린다**
+                    (sms-status-client가 setModal로 연다). 그 경우 이동이 `/inspections/sms` →
+                    `/inspections/sms?…`가 되는데, **같은 경로로 가는 Link는 서버를 재렌더하지 않아**
+                    URL만 바뀌고 searchParams가 다시 읽히지 않는다 — 필터가 조용히 무시된다.
+                    달력에서 눌렀을 때만 동작하고 정작 결과 창구에서 누르면 안 되는, 경로에 따라
+                    갈리는 종류의 버그라 눈에 잘 안 띈다. 전체 이동이면 어디서 눌러도 확실하다. */}
+              <a href={`/inspections/sms?${new URLSearchParams({
+                ...(dateSet.length > 0
+                  ? { from: dateSet.reduce((a, b) => a < b ? a : b), to: dateSet.reduce((a, b) => a > b ? a : b) }
+                  : {}),
+                status: result.failed > 0 ? 'failed' : 'sent',
+              }).toString()}`}
                 data-testid="sms-result-link"
                 className={`flex items-center justify-center gap-1 px-3 py-2 border-t border-brand-line-soft text-form-xs ${
                   result.failed > 0 ? 'bg-red-50 text-red-700 font-semibold' : 'text-brand hover:bg-brand-tint'}`}>
                 {result.failed > 0 ? '실패한 건을 확인하고 재발송하기' : '발송 결과 전체 보기'} <ExternalLink className="size-3" />
-              </Link>
+              </a>
             </div>
           )}
 

@@ -114,27 +114,8 @@
       ]
     }
   ],
-  "deployment": {
-    "status": "🟢 운영 반영 완료 — 2026-09-08 배포 16회차",
-    "how": "내가 배포한 것이 아니다. 타 세션이 `1af1abc`로 배포를 완료했고 그 안에 41 제품 수리 `00d6fe0`이 포함돼 있었다(merge-base --is-ancestor rc=0). 나는 **독립 검증만** 수행했다",
-    "verified": {
-      "date": "2026-09-08", "method": "독립 검증(배포자≠판정자)",
-      "evidence": [
-        "서버 HEAD `1af1abc` · DIRTY 0 · ROOT_OWNED 0 · AHEAD 0",
-        "가동 이미지 = latest = `e628132bf2f9`(둘이 같아야 '올라간 것' — 5시간 전 상태는 latest≠가동이었다)",
-        "복귀점 `erp-app:rollback-1af1abc`=`e628132bf2f9` 실재(남이 배포했어도 태그 유무는 내가 확인한다)",
-        "외부 `/login` 200(14,736B) · `/` 307 · **컨테이너 내부 `/login` 200**(외부 프록시와 앱을 가르는 축)",
-        "운영 INV **19/19 위반 0건**(로컬에서 .env.production으로 — 서버엔 node가 없다)",
-        "마커 3분법 — 신규 `compartment_applies`=1·`compartment_floor`=1·`cover_title`=1·`X-FirePlan-Missing`=3 / 양성 `data-defect-card`=2 / 음성 `zzzNoSuchMarker41`=0",
-        "⚠ **41 자체는 마커로 판정 불가** — `00d6fe0`은 순수 로직 수리라 신규 ASCII 리터럴이 0개다. 억지 마커를 만들지 않고 커밋sha+이미지ID로 판정했다(기록된 규칙)"
-      ]
-    },
-    "incident_avoided": "⭐⭐ 배포 직전 가드가 사고를 막았다. 착수 시점 관측(HEAD `ff27e77`·latest `d04f5cf020e7`·가동 `e347f638a36d`)은 **다른 세션이 빌드만 하고 up을 안 한 절반 상태**였다. 사용자 확인을 기다리는 사이 그 세션이 `1af1abc`까지 배포를 끝냈고, 내 up 스크립트의 3중 기대치 가드(HEAD·latest·가동 이미지)가 전부 어긋나 **아무것도 하지 않고 exit 21**로 중단했다. 가드가 없었으면 5시간 묵은 이미지를 올려 그들의 배포를 되돌렸을 것이다(13회차 사고와 동형)."
-  },
   "followups": [
-    { "id": "F-1", "what": "Gotenberg 육안 1회 — 8쪽·갑지 현5·계획서!H를 나란히(대조군: fold 전 산출물)", "status": "open",
-      "blocked_by": "해소됨 — 2026-09-08 운영 배포 16회차로 41 제품 수리가 운영에 올라갔다(아래 deployment). 이제 운영 Gotenberg로 육안이 가능하다. ⚠ 로컬은 여전히 불가: GOTENBERG_URL이 .env.production에만 있고 값이 docker 내부 호스트(gotenberg-prod:3000)라 로컬에서 해소할 방법이 없다 — 서버 축 전용",
-      "next": "운영에서 실제 문서를 생성하면 실고객 데이터에 storage 파일·잡 행이 남는다 — 사용자 승인 후 대상 건을 지정해 진행할 것" },
+    { "id": "F-1", "what": "Gotenberg 육안 1회 — 8쪽·갑지 현5·계획서!H를 나란히(대조군: fold 전 산출물)", "status": "open", "blocked_by": "로컬 GOTENBERG_URL 미설정" },
     { "id": "F-2", "what": "test-doc-generation에 GOTENBERG_URL 건너뛰기 가드 추가(test-annex-compose.mts:155 패턴) — 환경 결핍이 코드 결함으로 보이는 것을 막는다", "status": "code_present",
       "done": "2026-09-08 — `7c1dfce`(가드 3파일) + `a79d824`(NUL 바이트 수리) **푸시완료**(origin/main `ff27e77`→`a79d824`, 6커밋 동반). 판정은 조상 rc=0 **+ 원격 blob 내용 확인**(푸시 메시지만 보지 않는다) · 게이트 통과 · INV 19/19 그린",
       "how": "①clickAndWait의 폴링에 UI 오류 문구를 함께 태워 조기 이탈(Gotenberg가 없으면 **잡 행 자체가 안 생긴다** — report9-actions.ts:542 insert는 성공 경로에서만 돈다. 그래서 DB 축만 보면 60초를 헛기다린 끝에 코드 결함과 똑같은 모양으로 실패했다) ②계획서 즉석 PDF 라우트는 500 JSON 본문(pdf/route.ts:44)으로 판정 ③skip 카운터를 pass와 분리하고 요약에 「회귀를 확인한 것이 아니다」를 명시 — 건너뜀이 통과로 둔갑하지 않는다",

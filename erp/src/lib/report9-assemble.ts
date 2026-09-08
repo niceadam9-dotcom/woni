@@ -171,14 +171,11 @@ export function annexDoneRows(
   if (done.length) {
     return {
       kind: 'rows',
-      // 폴백은 **trim 축**이다(Q-4 a안 확정, 2026-09-08). 종전 `d.action_taken || …`는
-      // 공백만 든 값('   ')을 참으로 보아 **빈 칸을 인쇄하면서** 경고는 `!action_taken?.trim()`로
-      // 세어 「불량명이 대신 인쇄됨」이라 말했다 — 경고와 인쇄물이 서로 다른 소리를 냈다.
-      // 이제 둘이 같은 축을 본다: 공백뿐이면 불량명이 실제로 대신 인쇄된다.
-      // ⚠ 이 한 경우에서 S5-3 대조군이 **의도적으로** 갈라진다(기준 cf7319f와 다른 산출) —
-      //   법정 서식의 「이행조치 내용」 칸이 빈 채 나가는 것보다 불량명이 서는 편이 옳다.
+      // ⚠ 폴백을 `||`로 둔다(`?.trim() ||`가 아니라) — 종전 PDF 동작을 바이트 그대로 보존하기
+      //   위해서다(S5-3 대조군). 공백만 든 action_taken이 그대로 인쇄되는 어긋남은 알고 있고
+      //   Q-4로 등재했다 — 고칠 때 대조군 기준을 함께 옮긴다.
       rows: done.map(d => ({
-        content: d.action_taken?.trim() || d.defect_name || '',
+        content: d.action_taken || d.defect_name || '',
         doneISO: (d.action_completed_at ?? '').slice(0, 10),
       })),
     }
@@ -206,10 +203,6 @@ export function annexPlanRows(d: Report9Data): AnnexPlanRow[] {
         : !f ? '' : f.kind === 'rows' ? f.rows.map(r => r.content).join('\n') : DEFECT_FOLD_TEXT[f.kind],
       period: gp ? `${kdate(gp.startISO)} ~ ${kdate(gp.endISO)}` : '',
       days: gp ? String(gp.days) : '',
-      // 자동 문구 줄이면 일자 칸을 자리표 대신 `—`로(Q-5 b안). **생산자가 표시한다** —
-      // 렌더가 글자로 알아보면 사용자가 조치 내용에 「해당없음」이라 적었을 때 진짜 이행조치의
-      // 날짜가 조용히 사라진다. 미공급(folds 없음)은 종전 렌더 그대로라 표시하지 않는다.
-      isNote: !!f && f.kind !== 'rows',
     }
   })
 }
@@ -751,6 +744,33 @@ export async function assembleReport9(
   // 하므로, 공란이 남는 원인을 missing으로 표면화한다.
   const unanswered = facilityChecks.filter(item => !resultMarks[item]).length
   if (unanswered > 0) missing.push(`설치 설비 중 점검표 무응답 ${unanswered}건 — 3쪽 결과칸 공란`)
+
+  // B-6 후속(소방계획서_15 A9-11, 2026-09-08) — **부재가 아니라 모순만 경고한다.**
+  //
+  //  A9-11의 요구는 "항상-공란으로 남는 칸들(A9-1~A9-5류)을 missing에 넣어라"였다. 그대로
+  //  구현하면 안 된다 — 스테이징 실측으로 영향 범위를 먼저 셌다(feedback_guard_blast_radius):
+  //    · 주차장 미입력      294동 중 **285동(97%)**
+  //    · 특별피난계단 미입력 302곳 중 **302곳(100%)** — s38_activity 제원 행 자체가 0건
+  //  거의 모든 문서에 경고가 붙으면 안내는 읽히지 않고 **진짜로 놓친 한 건이 그 속에 묻힌다**
+  //  (loadSmsEpoch 주석의 '수백 건짜리 빨간 경고'와 같은 판단). 게다가 주차장이 없는 건물,
+  //  특별피난계단이 없는 건물의 공란은 **틀린 것이 아니라 옳은 것**이다.
+  //
+  //  그래서 '비어 있다'가 아니라 **'채웠는데 반영이 안 됐다'**만 잡는다. 실측 0건이라 오늘은
+  //  아무 데도 안 뜨고(소음 0), 사용자가 값을 넣었는데 서식이 조용히 공란으로 나가는
+  //  바로 그 무증상 경우에만 뜬다. 층수로 법정 대상 여부를 판정하는 길도 있으나,
+  //  근거 조문을 원문 대조하지 않고 코드에 박지 않는다(feedback_legal_form_source).
+  if (pk.trim() && !data.pkIn && !data.pkInUg && !data.pkInGround && !data.pkInPiloti
+    && !data.pkMech && !data.pkRoof && !data.pkOut) {
+    missing.push(
+      `주차장 입력값("${pk.trim().slice(0, 24)}")이 서식 체크로 반영되지 않음 — 2쪽 주차장 줄 전체 공란`
+      + ' (옥내·지하·지상·필로티·기계식·옥상·옥외 중 해당 낱말이 있어야 체크된다 — 건물 정보의 주차장 칩을 쓰면 확실하다)')
+  }
+  // 같은 규약: 전실 제원을 **입력하기 시작했는데** 개소만 비어 있는 경우만 알린다.
+  // 섹션 자체가 없으면 그 건물에 특별피난계단이 없다는 뜻이지 누락이 아니다.
+  const lobbySpec = (specs['s38_activity']?.['smoke_lobby'] ?? null) as Record<string, unknown> | null
+  if (lobbySpec && Object.keys(lobbySpec).length > 0 && !data.specialStairCount) {
+    missing.push('특별피난계단 전실 제원은 입력했는데 개소가 비어 있음 — 2쪽 특별피난계단 행 공란(세부제원 3-8 전실 stair_count)')
+  }
   // 39 §0·S4-1 — **항목 층**: 설치 매칭 시트의 결과칸 중 빈칸으로 인쇄될 항목 수(작동·종합 공통).
   // 작동 회차의 ●는 위 sheetSections 조립이 이미 'N'(／)을 박아 null로 안 잡힌다 — 남는 null이
   // 곧 법정 기재 누락이다(범례: ○/×/／ 외 빈칸은 서식에 없는 상태). ●(종합 필수)는 고시 각주에

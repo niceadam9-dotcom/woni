@@ -129,6 +129,20 @@ export function normalizeLibraryHolidays(raw: LibRawHoliday[], year: number): Ba
   return mergeByDate(active.map(r => ({ ...r, clause: clauseOf(r.name) })))
 }
 
+/** raw → 최종 목록(정규화 + 제3조 대체공휴일). **순수** 함수라 fixture로 회귀 검증할 수 있다.
+ *
+ *  왜 갈라 두나: 이 조립을 검사가 복붙해 갖고 있으면 실경로와 조용히 갈라진다. 검사는 통과하는데
+ *  제품은 틀린 상태가 만들어지므로, `fetchHolidaysFromLibrary`와 `test-holiday-fixture.mts`가
+ *  **같은 이 함수**를 탄다(사본 금지 — parseParkingSummary와 같은 규약). */
+export function resolveLibraryHolidaysFromRaw(raw: LibRawHoliday[], year: number): ResolvedHoliday[] {
+  const base = normalizeLibraryHolidays(raw, year)
+  const merged = mergeByDate([
+    ...base.flatMap(b => b.names.map(n => ({ date: b.date, name: n }))),
+    ...computeSubstitutes(base).flatMap(b => b.names.map(n => ({ date: b.date, name: n }))),
+  ])
+  return flatten(merged)
+}
+
 export async function fetchHolidaysFromLibrary(year: number): Promise<ProviderResult> {
   try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -137,12 +151,8 @@ export async function fetchHolidaysFromLibrary(year: number): Promise<ProviderRe
     hd.setLanguages('ko')
     const raw = hd.getHolidays(year) as LibRawHoliday[]
 
-    const base = normalizeLibraryHolidays(raw, year)
-    const merged = mergeByDate([
-      ...base.flatMap(b => b.names.map(n => ({ date: b.date, name: n }))),
-      ...computeSubstitutes(base).flatMap(b => b.names.map(n => ({ date: b.date, name: n }))),
-    ])
-    return { ok: true, source: 'library', holidays: flatten(merged) }
+    // 라이브러리 호출만 여기 있고, 판정은 전부 위 순수 함수가 한다
+    return { ok: true, source: 'library', holidays: resolveLibraryHolidaysFromRaw(raw, year) }
   } catch (e) {
     return { ok: false, error: `공휴일 라이브러리 오류: ${(e as Error).message.slice(0, 120)}` }
   }

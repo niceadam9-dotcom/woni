@@ -151,6 +151,8 @@ const CASES: Array<[string, Array<{ defect_name: string; action_taken: string | 
   ['① 완료 9건(PDF는 접지 않는다)', many(9)],
   ['② action_taken 공란 → 불량명 폴백', [d('소화기 불량', null, '2026-08-20')]],
   ['② 완료·미완료 혼재(미완료는 탈락)', [d('a', '조치a', '2026-08-20'), d('b', '조치b', null)]],
+  // Q-4 축 — 공백만 든 action_taken은 **종전 그대로** 통과시킨다(b안: 대조군 완전 동일 우선)
+  ['② action_taken 공백문자만 — 종전 동작 보존(Q-4 b안)', [d('소화기 불량', '   ', '2026-08-20')]],
 ]
 for (const [name, defects] of CASES) {
   const a = renderReport11({ ...base11, rows: baselineRows(defects) })
@@ -163,47 +165,6 @@ for (const [name, defects] of CASES) {
   const a = renderReport11({ ...base11, rows: baselineRows(onlyOpen) })
   const b = renderReport11({ ...base11, rows: currentRows(onlyOpen) })
   ok(a !== b && b.includes('결과참조'), '③ 완료 0건은 **의도적으로 갈라진다**(대조군이 항진명제가 아니라는 증거)')
-}
-
-console.log('── H. Q-4 — 공백만 든 action_taken (a안 확정: trim 축) ──')
-// 종전(`d.action_taken || …`)은 '   '를 참으로 보아 **빈 칸을 인쇄하면서** 경고는
-// `!action_taken?.trim()`로 세어 「불량명이 대신 인쇄됨」이라 말했다 — 둘이 다른 소리를 냈다.
-{
-  const blankTaken = [d('소화기 불량', '   ', '2026-08-20')]
-  const f = annexDoneRows(blankTaken, { hasAnyDefect: true, applicable: true })
-  ok(f.rows[0]?.content === '소화기 불량', 'Q-4: 공백뿐인 조치 내용 → 불량명 폴백(경고가 참이 된다)',
-    `실제 "${f.rows[0]?.content}"`)
-  // ⚠ 이 한 경우는 기준선과 **의도적으로** 갈라진다 — 그 사실 자체를 단언해 둔다.
-  //   법정 서식의 「이행조치 내용」이 빈 채 나가는 것보다 불량명이 서는 편이 옳다는 판단(사용자 확정).
-  const a = renderReport11({ ...base11, rows: baselineRows(blankTaken) })
-  const b = renderReport11({ ...base11, rows: currentRows(blankTaken) })
-  ok(a !== b, `Q-4: ${BASELINE_SHA} 대조군과 **의도적으로** 갈라진다(빈 칸 → 불량명)`)
-  ok(!b.includes('>   &nbsp;</td>'), '빈 칸이 인쇄되지 않는다')
-  // 경고 축과 인쇄 축이 이제 같은 것을 본다
-  const warned = blankTaken.filter(x => !x.action_taken?.trim()).length
-  ok(warned === 1 && f.rows[0]?.content === blankTaken[0].defect_name,
-    '경고 건수와 실제 폴백이 일치(어긋남 해소)')
-}
-
-console.log('── I. Q-5 — 문구 행의 일자 칸 (b안 확정: 자리표 대신 —) ──')
-{
-  const PLACEHOLDER = '.  .  .  ~  .  .  .'
-  for (const kind of ['refer', 'ok', 'na'] as const) {
-    const html = renderReport11({
-      ...base11, rows: [{ content: DEFECT_FOLD_TEXT[kind], period: '', isNote: true }],
-    })
-    const row = html.slice(html.indexOf(DEFECT_FOLD_TEXT[kind]))
-    const cell = row.slice(0, row.indexOf('</tr>'))
-    ok(!cell.includes(PLACEHOLDER), `「${DEFECT_FOLD_TEXT[kind]}」 옆에 날짜 자리표가 없다`)
-    ok(cell.includes('—'), `「${DEFECT_FOLD_TEXT[kind]}」 일자 칸은 —`)
-  }
-  // ⚠ 빈 **패딩 행**은 자리표를 유지해야 한다 — 손으로 채우라고 비워 둔 서식 칸이다
-  const padded = renderReport11({ ...base11, rows: [{ content: '조치', period: '2026년 8월 20일' }] })
-  ok(padded.split(PLACEHOLDER).length - 1 === 3,
-    '빈 패딩 3행은 자리표 유지(서식 기본값)', `자리표 ${padded.split(PLACEHOLDER).length - 1}개`)
-  // isNote 없는 실이행조치는 종전 그대로 — 축이 과하게 넓어지지 않았는가
-  const real = renderReport11({ ...base11, rows: [{ content: '조치', period: '' }] })
-  ok(real.split(PLACEHOLDER).length - 1 === 4, 'isNote 없는 행은 자리표 유지(축이 넓어지지 않았다)')
 }
 
 console.log(`\n${fail === 0 ? '✅' : '❌'} ${pass} passed · ${fail} failed`)

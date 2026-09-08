@@ -164,21 +164,32 @@ const LAST_REGION_KEY = 'sms:lastRegion'
  *  임의 발송 행은 필터를 거는 순간 사라진 채 되돌아올 길이 없다(sms-recipients FILTER_NONE). */
 const optLabel = (v: string) => v === FILTER_NONE ? '(없음)' : v
 
-export function SmsStatusClient({ canSend }: { canSend: boolean }) {
+export function SmsStatusClient({ canSend, initialFrom, initialTo, initialStatus }: {
+  canSend: boolean
+  /** 발송 모달의 [발송 결과 전체 보기]에서 넘어온 값 (S8-10).
+   *  **초기값일 뿐 잠금이 아니다** — 사용자가 필터를 바꾸면 그대로 따른다. */
+  initialFrom?: string
+  initialTo?: string
+  initialStatus?: 'all' | 'not_sent' | 'unsent' | 'sent' | 'failed' | 'no_phone' | 'stuck'
+}) {
   const today = todayKst()
   // 기간은 **기본 해제**(빈 값 = 전체). 종전엔 오늘~+7이 미리 걸려 있어,
   // 사용자가 필터를 건 적이 없는데도 목록이 잘려 있었다 — 안 보이는 건이 있다는 사실 자체를 모른다.
   // 빈 값이면 서버가 **오늘~+30일**로 해석한다(sms-actions.ts:184-185, 2026-08-19 사용자 지시 '1개월').
   // 지난 방문일은 어차피 발송 대상이 아니라 하한이 오늘이고, 놓친 건은 배너 '시기 지남'이 따로 알린다.
-  const [from, setFrom] = useState('')
-  const [to, setTo] = useState('')
+  // 발송 직후 링크로 들어오면 그 방문일 범위가 실려 온다 — 없으면 종전대로 빈 값(전체)
+  const [from, setFrom] = useState(initialFrom ?? '')
+  const [to, setTo] = useState(initialTo ?? '')
   const [regionSi, setRegionSi] = useState('')
   const [regionMyeon, setRegionMyeon] = useState('')
   const [regionRi, setRegionRi] = useState('')
   // 기본은 **발송됨 제외**(2026-08-19 사용자 지시) — 이 화면에서 할 일은 '아직 안 보낸 것'이다.
   // 이미 보낸 건이 섞여 있으면 목록이 길어지기만 하고 남은 일이 안 보인다.
   // 발송 결과를 확인하려면 상태를 '발송됨'이나 '전체'로 바꾼다(결과 창구 역할은 그대로다).
-  const [status, setStatus] = useState<'all' | 'not_sent' | 'unsent' | 'sent' | 'failed' | 'no_phone' | 'stuck'>('not_sent')
+  // ⚠ 기본이 'not_sent'라, 발송 직후 [발송 결과 전체 보기]로 들어오면 **방금 보낸 건이
+  //   정확히 이 필터에 걸려 사라진다**(status 파생에서 성공 행은 'sent'). 그래서 그 링크는
+  //   status를 실어 보내고 여기서 초기값으로 받는다 — 안 그러면 결과가 빈 화면이 뜬다(S8-10).
+  const [status, setStatus] = useState<'all' | 'not_sent' | 'unsent' | 'sent' | 'failed' | 'no_phone' | 'stuck'>(initialStatus ?? 'not_sent')
   const [assignee, setAssignee] = useState('')
   // 필터는 **항상 펼쳐 둔다**(2026-08-19 사용자 지시).
   // 설계 초안(S5-11)은 "주 동선이 배너 승인이니 접어 둔다"였는데, 실사용에서 뒤집혔다 —

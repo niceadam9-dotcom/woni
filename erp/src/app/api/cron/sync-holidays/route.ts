@@ -2,7 +2,13 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { syncHolidaysForYear, type SyncResult } from '@/lib/holiday-sync'
 
-// Vercel Cron에서 매년 1월 1일(0 0 1 1 *) + 12월 1일(0 0 1 12 *)에 자동 호출
+// 스케줄 **정본은 deploy/cron/sjfire-erp.cron**(VPS /etc/cron.d) — 매월 1일 00:10.
+//   2026-08-18 사용자 확정으로 종전 연 2회(1/1·12/1)에서 상향했다(소방계획서_25 R-2):
+//   임시공휴일은 1~3주 전에 지정되는데 연 2회로는 그 사이 지정분을 다음 발화까지 놓치고,
+//   공휴일 하나가 틀리면 6단계 마감일이 통째로 밀리면서 화면 어디에도 안 드러난다.
+//   호출당 3년치를 갱신하고 멱등이라 월 1회 비용은 작다.
+// vercel.json에도 같은 스케줄이 있다 — 이 배포는 VPS라 그쪽은 예비다. **셋을 함께 고칠 것**
+//   (2026-09-08 실측: 셋 중 둘이 연 2회로 남아 화면이 사용자에게 거짓 주기를 안내하고 있었다).
 // 수동 테스트: GET /api/cron/sync-holidays?year=2026
 // Authorization: Bearer {CRON_SECRET} 헤더 필수
 //
