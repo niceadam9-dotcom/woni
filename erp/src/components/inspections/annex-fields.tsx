@@ -46,7 +46,7 @@ export const FIELD_DEFS: Record<ComposeAnnexNo, FieldDef[]> = {
   ],
   report10: [
     { key: 'reportDate', label: '제출일', type: 'date', hint: '미입력 시 생성일(오늘)로 출력' },
-    { key: 'totalPeriod', label: '총 이행기간 (수동 보정)', type: 'daterange', hint: '[10일]·[20일]을 누르면 제출일 기준 법정 기간이 채워집니다(시행규칙 제23조제2항). 미입력 시 불량별 계획 시작·종료일로 자동 산출 — 문서에는 "○년 ○월 ○일" 형식으로 출력' },
+    { key: 'totalPeriod', label: '총 이행기간 (수동 보정)', type: 'daterange', hint: '[10일]·[20일]을 누르면 제출일 기준 법정 기간이 채워집니다(시행규칙 제23조제5항 — 휴일 포함 달력일). 미입력 시 불량별 계획 시작·종료일로 자동 산출 — 문서에는 "○년 ○월 ○일" 형식으로 출력' },
     { key: 'totalDays', label: '총 일수 (수동 보정)', type: 'text', placeholder: '예: 20', hint: '수리·정비 10일 / 철거·교체 20일 — 위 [10일]·[20일] 버튼이 이 칸도 함께 채웁니다' },
     { key: 'summary', label: '계획 내용 요약', type: 'textarea', hint: '이행조치 사항 표의 첫 행으로 출력' },
     { key: 'contractor', label: '공사업체 메모', type: 'text', hint: '내부 메모 — 문서에는 출력되지 않습니다' },
