@@ -60,7 +60,9 @@ if (built.notes.length) console.log(`고지: ${built.notes.join(' | ')}`)
 const zip = await JSZip.loadAsync(out.bytes)
 const sheet = await zip.file('xl/worksheets/sheetPhoto.xml')!.async('string')
 const blocks = [...sheet.matchAll(/<row /g)].length / 3
-console.log(`블록 ${blocks}건 → 예상 ${Math.ceil(blocks / 2)}쪽`)
+// ⚠ 2026-09-08 3건/장 전환 — 여기 나눗수가 2로 남아 **쪽수를 과대 예측**하고 있었다.
+// 규격은 defect-photo-embed의 DEFECTS_PER_PAGE가 정본이다(이 줄은 표시용 예측일 뿐).
+console.log(`블록 ${blocks}건 → 예상 ${Math.ceil(blocks / 3)}쪽 (3건/장)`)
 
 const dir = mkdtempSync(join(tmpdir(), 'realdb46-'))
 const xlsx = join(dir, 'out.xlsx')

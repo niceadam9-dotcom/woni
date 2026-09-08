@@ -32,13 +32,20 @@
     { "id": "M-11", "fact": "**신 규격(3건/장) 실측** — 기준선 72쪽 기준, 사진 대지 쪽수는 3건 1쪽 · 4건 2쪽 · 6건 2쪽 · 7건 3쪽 · 9건 3쪽 · 10건 4쪽. 사용자 확정 규격(1~3=1·4~6=2·7~9=3·10~12=4)과 전건 일치", "method": "2026-09-08 test-photo-sheet.mts --lo 재작성판, 기준선 포함 변환 7회" },
     { "id": "M-12", "fact": "LibreOffice는 762pt 분량을 ~650pt로 **줄여 그린다**(제 나름의 축소). 그래서 LO 렌더 아래에 여백이 남지만, 그걸 보고 행 높이를 키우면 **Excel에서는 넘친다** — Excel은 행을 명시 pt 그대로 찍는다. 구속 조건은 LO가 아니라 산수", "method": "신 규격 6건 산출물 p.15 렌더와 명목 높이 대조" },
     { "id": "M-9", "fact": "기준선(사진 대지 없는 워크북) = 72쪽. 건수별 **사진 대지 쪽수**는 1건 1쪽 · 2건 1쪽 · **3건 2쪽** · 4건 2쪽 · 5건 3쪽 · 6건 3쪽. 즉 2쪽이 시작되는 건 **3건부터**이지 4건부터가 아니다", "method": "2026-09-08 판정 세션, 기준선 포함 LO 변환 7회(임시 스크립트, 사용 후 삭제)" },
-    { "id": "M-10", "fact": "실 스테이징 DB에 사진 달린 불량은 4건 / 점검 2건뿐 — 표본이 작다. 표본 점검(불량 3건)은 사진 6장·2쪽", "method": "scripts/_probe-46-realdb.mts .env.local 재실행" }
+    { "id": "M-10", "fact": "실 스테이징 DB에 사진 달린 불량은 4건 / 점검 2건뿐 — 표본이 작다. 표본 점검(불량 3건)은 사진 6장·2쪽", "method": "scripts/_probe-46-realdb.mts .env.local 재실행" },
+    { "id": "M-13", "fact": "라우트 무인증 호출은 **401이 아니라 307 → `/login`**이다 — 미들웨어가 라우트 본문(`getProfile()` 401)보다 먼저 가로챈다. 그래서 인증 축을 상태코드 401로 재면 제품이 옳은데도 붉어진다", "method": "2026-09-08 무쿠키 Invoke-WebRequest -MaximumRedirection 0 실측 · D-4" },
+    { "id": "M-14", "fact": "자산 `report-workbook-full.xlsx`의 미디어 기준선은 `xl/media/image1.png` **1개**(로고)다. 사진 대지가 넣는 파트는 `defect{n}-before/after-{k}.jpeg` — 「전부 .jpeg」 축은 이 기준선을 뺀 **차분**에만 성립한다", "method": "JSZip으로 자산 xl/media/ 전수 열거 · D-5" },
+    { "id": "M-15", "fact": "실 라우트 왕복 산출물은 **3.69MB**(불량 3건·사진 6장). 「불량사진」은 「현5」 바로 뒤이고 시트 본문 9행(3건×3행) — 신 규격대로 1쪽", "method": "scripts/_probe-46-http.mts 19/0, dev 서버 실호출" }
   ],
 
   "defects_found": [
     { "id": "D-1", "sev": "MED", "kind": "검사", "desc": "자기검증 축(sheets[lsi] == ref 시트명)을 localSheetId 510건 전체에 걸어 삽입 전 원본에서도 실패했다", "fix": "축을 _xlnm.Print_Area 8건으로 좁히고 전수 ord 대조를 신설", "evidence": "M-3 · 프로브 [4]" },
     { "id": "D-2", "sev": "HIGH", "kind": "제품", "desc": "사진 경로는 있는데 다운로드·디코드가 전부 실패한 불량 건이 「사진 없음」 빈 상자만 있는 페이지로 인쇄됐다(3건이면 빈 3페이지)", "fix": "두 슬롯 모두 비면 블록에서 제외(S2-7). 한쪽만 빈 경우는 결손 표시로 남긴다", "evidence": "프로브 [13] 사유 시나리오가 잡음" },
-    { "id": "D-3", "sev": "LOW", "kind": "검사", "desc": "zip 디렉터리 항목 xl/media/ 를 zip.file()이 null로 돌려줘 새 media 파트를 13개로 오판", "fix": "dir 항목 제외", "evidence": "프로브 [0] 첫 실행" }
+    { "id": "D-3", "sev": "LOW", "kind": "검사", "desc": "zip 디렉터리 항목 xl/media/ 를 zip.file()이 null로 돌려줘 새 media 파트를 13개로 오판", "fix": "dir 항목 제외", "evidence": "프로브 [0] 첫 실행" },
+    { "id": "D-4", "sev": "MED", "kind": "검사", "desc": "S4-7 HTTP 프로브의 「인증 없으면 401」 단언이 붉었다 — **제품은 옳았다**. 라우트 본문은 401을 내지만 거기까지 가지 못하고 **미들웨어가 먼저 307 → /login**을 낸다. 상태코드 숫자를 축으로 삼은 것이 잘못", "fix": "축을 「실고객 사진이 든 xlsx가 새어나가지 않는다」로 바꿨다 — 200 아님 + 307/302/401/403 + Location `/login` + 본문에 zip 매직 없음. ⚠ maxRedirects:0이 필수(따라가면 /login 200이 되어 **통과처럼 보인다**)", "evidence": "_probe-46-http.mts [3] · Invoke-WebRequest 무쿠키 실측 307 Location=/login", "date": "2026-09-08" },
+    { "id": "D-5", "sev": "MED", "kind": "검사", "desc": "「미디어 확장자가 전부 .jpeg」를 zip **전체**에 걸어 자산 로고 `xl/media/image1.png`가 걸렸다 — 이것도 제품이 옳은데 붉은 경우다. 불변식은 '**이번에 늘어난** 미디어'에 대한 것이지 자산 기존 파트에 대한 것이 아니다", "fix": "자산 미디어 기준선을 빼고 차분만 판정 + 「기존 미디어는 그대로 남아 있다」를 별도 축으로 신설(검사가 더 세졌다)", "evidence": "자산 실측 기준선 = ['xl/media/image1.png'] 1개", "date": "2026-09-08" },
+    { "id": "D-6", "sev": "HIGH", "kind": "검사", "desc": "⭐ D-5 수리가 **공허 통과**를 낳았다 — 기준선을 `Object.keys(await JSZip.loadAsync(...))`로 지어 JSZip **인스턴스의 속성명**을 받았고 미디어 기준선이 **빈 집합**이 됐다. 그 결과 신설한 「기존 미디어는 그대로 남아 있다」가 `every()`의 공허 통과로 초록이 되어 **아무것도 지키지 않았다**", "fix": "`zip.files`로 정정 + `baseMedia.size === 0`이면 즉시 exit 1(정체 판정 — 0에서 통과하는 축을 남기지 않는다)", "evidence": "1차 재실행에서 image1.png가 여전히 added에 남아 드러남", "date": "2026-09-08" },
+    { "id": "D-7", "sev": "LOW", "kind": "검사", "desc": "_probe-46-realdb.mts:63의 쪽수 예측이 `Math.ceil(blocks / 2)`로 남아 3건/장 전환 뒤에도 **구 규격으로 과대 예측**하고 있었다", "fix": "/3으로 정정 + 규격 정본은 defect-photo-embed의 DEFECTS_PER_PAGE임을 주석으로 명시", "evidence": "859a8da가 test-photo-sheet.mts는 고쳤으나 이 프로브는 놓쳤다", "date": "2026-09-08" }
   ],
 
   "independent_verification": {
@@ -70,7 +77,7 @@
     },
     "code_evidence_recheck": "타 세션 리팩터로 파일:라인 근거가 썩는 부류를 확인 — 이번 패스의 evidence는 전부 2026-09-08 HEAD에서 다시 읽어 적었다",
     "findings": [
-      { "sev": "LOW", "kind": "표기", "desc": "xlsx-anchors.ts:40 주석이 이 기능을 「소방계획서_45」로 가리킨다 — 45는 타 세션이 선점해 문서가 46으로 채번됐다(numbering_note). 제품 무영향·주석만", "status": "미수리(보고만)" }
+      { "sev": "LOW", "kind": "표기", "desc": "xlsx-anchors.ts:40 주석이 이 기능을 「소방계획서_45」로 가리킨다 — 45는 타 세션이 선점해 문서가 46으로 채번됐다(numbering_note). 제품 무영향·주석만", "status": "수리 완료(2026-09-08 `58c4997`)", "fix_note": "같은 파일을 타 세션이 미커밋 편집 중(다수동일때 앵커 확장)이라 작업트리를 스테이징하지 않고, HEAD blob에 이 한 줄만 얹어 합성한 blob(fd584d9)을 임시 인덱스로 커밋했다. ⚠ 커밋 직후 공유 인덱스가 **옛 blob**을 들고 `MM`(내 변경의 스테이징된 되돌림)으로 떴다 — `update-index --cacheinfo`로 맞춰 ` M`(남의 미커밋만 남음)으로 정리했다. 안 맞췄으면 남이 커밋할 때 이 줄이 조용히 되돌아간다" }
     ],
     "product_defects_found": 0
   },
@@ -85,7 +92,7 @@
       } },
     { "id": "Q-2", "q": "캡션·우측 칸 어휘 — 지금은 캡션 '점검번호 불량명', 우측 칸에 defect_detail(전)·action_taken(후)", "status": "pending", "resolution": "미결정" },
     { "id": "Q-3", "q": "PDF 별지에도 사진을 실을지 — 법정 서식엔 사진 칸이 없어 이번 범위 밖", "status": "pending", "resolution": "미결정" },
-    { "id": "Q-4", "q": "실 DB 왕복·커밋·배포 승인", "status": "partial", "resolution": "커밋·푸시·배포는 완료(f9efe72 · origin/main 반영 · 운영 배포 15회차, 이미지 e347f638a36d). 남은 것은 **판정자가 실 DB 왕복을 재현할지**뿐 — scripts/_probe-46-realdb.mts는 읽기 전용이나 실 고객 사진을 내려받으므로 사용자 지시 대기(S4-7 참조)" }
+    { "id": "Q-4", "q": "실 DB 왕복·커밋·배포 승인", "status": "partial", "resolution": "실 DB 왕복·HTTP 200 재현 **완료**(2026-09-08 `_probe-46-http.mts` 19/0 — S4-7 implemented 승격). 코드는 `859a8da`(3건/장)·`337b168`(판정)·`58c4997`(주석) 커밋. ⚠ `859a8da`·`337b168`은 **이미 원격 반영됐다**(타 세션 푸시에 실려 `ff27e77`의 조상 — 종전 기록의 '미푸시 2'는 낡았다). 남은 것은 하나뿐: 🔴 **운영이 아직 구 2건/장(`f9efe72`)이라 재배포해야 3건/장이 반영된다**" }
   ],
 
   "sections": [
@@ -160,8 +167,8 @@
     },
     {
       "id": "S4",
-      "title": "검증 (test-photo-sheet.mts · _judge-photo-sheet-mutant.mts)",
-      "status": "partial",
+      "title": "검증 (test-photo-sheet.mts · _judge-photo-sheet-mutant.mts · _probe-46-http.mts)",
+      "status": "implemented",
       "criteria": [
         { "id": "S4-1", "desc": "하한 선단언(임베드 12·media 12·앵커 12·행 18) 후에만 이하 축을 판정 — 0이면 '고아 0'류가 공허 통과한다", "status": "implemented", "evidence": "프로브 [0], 실패 시 즉시 exit 1",
           "verified": { "date": "2026-09-08", "commit": "f9efe72", "method": "프로브 재실행",
@@ -193,15 +200,19 @@
         { "id": "S4-6", "desc": "돌연변이 3종(재번호 off·drawing 앞당기기·count 미갱신)이 전부 빨강이고, 같은 축이 정상본에서는 초록", "status": "implemented", "evidence": "_judge-photo-sheet-mutant.mts 6/0",
           "verified": { "date": "2026-09-08", "commit": "f9efe72", "method": "판정기 재실행",
             "evidence": ["_judge-photo-sheet-mutant.mts 재실행 6 passed / 0 failed — 정상본 초록 3 + 돌연변이 빨강 3", "M1 localSheetId 재번호 누락 · M2 drawing 위치 · M3 cellXfs count 전부 '잡힘'"] } },
-        { "id": "S4-7", "desc": "실 DB 1건 왕복 — 사진 있는 점검 건으로 200 · 「현5」 바로 뒤 · 육안 3페이지", "status": "partial",
-          "evidence": "2026-09-08 판정 세션이 실 DB 왕복·육안을 모두 재현 — 남은 것은 HTTP 라우트 200 실호출뿐",
-          "verified": { "date": "2026-09-08", "commit": "f9efe72", "method": "실 DB(스테이징) 프로브 재실행 + LO 렌더 육안",
+        { "id": "S4-7", "desc": "실 DB 1건 왕복 — 사진 있는 점검 건으로 200 · 「현5」 바로 뒤 · 육안 3페이지", "status": "implemented",
+          "evidence": "scripts/_probe-46-http.mts 19/0 (HTTP 200 실호출) + _probe-46-realdb.mts + LO 렌더 육안",
+          "verified": { "date": "2026-09-08", "commit": "58c4997", "method": "구동 dev 서버에 인증 세션으로 실호출 + 실 DB(스테이징) 프로브 + LO 렌더 육안",
             "evidence": [
-              "_probe-46-realdb.mts .env.local → 임베드 6장 · 928ms · 4.54MB · 재번호 481건 · 삽입 index 11 · 누락 고지 0 — 구현 세션 기록과 전 수치 일치",
+              "_probe-46-http.mts **19 통과 / 0 실패** — 종전 partial의 유일한 사유였던 '**200**'(HTTP 응답)을 처음으로 실제 실행했다",
+              "양성 표본 98e3a13b(불량 3건): 200 · Content-Type spreadsheetml · 본문 zip 매직 PK · 3.69MB · 「불량사진」 index == 「현5」 index+1 · sheetPhoto.xml 실재 · 9행(3건×3) · 늘어난 미디어 전부 .jpeg",
+              "음성 대조군 00597448(사진 0건): 200이지만 「불량사진」 시트도 sheetPhoto.xml도 **없다** — '시트가 있다'가 공허 통과가 아님을 이 축이 증명한다",
+              "인증 축: 세션 없이 부르면 307 → Location `/login`, 본문에 zip 매직 없음(실고객 사진 미유출)",
+              "_probe-46-realdb.mts .env.local → 임베드 6장 · 928ms · 4.54MB · 재번호 481건 · 삽입 index 11 · 누락 고지 0",
               "삽입 index 11 == 「현5」(index 10) 바로 뒤 — M-1과 정합",
-              "육안: n6.pdf p.15·16·17 렌더로 6건 3쪽·사진 실재·캡션·종횡비 확인"
+              "육안: 6건 산출물 p.15 = 불량 1·2·3 (3건/장 신 규격)"
             ] },
-          "note": "⚠ **implemented로 올리지 않는 이유는 하나뿐** — 프로브는 라이브러리를 직접 부르지 라우트를 타지 않는다. 그래서 criteria 문구의 '**200**'(HTTP 응답)은 여전히 미실행이다(구동 서버·인증 세션 필요). 라우트 배선 자체는 S3에서 코드로 검증됐다. 나머지 축(실 DB 왕복·현5 바로 뒤·육안)은 전부 충족" }
+          "note": "종전 note('200은 여전히 미실행')는 **2026-09-08 해소**됐다. 이 프로브는 라이브러리가 아니라 라우트를 타므로 인증·권한·조립·주입·삽입·스트리밍이 한 줄로 이어진 실응답을 판정한다. ⚠ `_probe-` 접두사 그대로 test-all에는 넣지 않는다 — 구동 dev 서버와 스테이징 DB가 필요하고 임시 계정을 만든다" }
       ]
     }
   ],
@@ -221,7 +232,8 @@
     "같은 프로브 --lo → LibreOffice 절대 쪽수 사슬(프로필 격리)",
     "npx tsx --conditions=react-server scripts/_judge-photo-sheet-mutant.mts → 돌연변이 3종 전부 잡힘",
     "회귀 test-xlsx-donors · test-xlsx-inject · test-xlsx-anchors",
-    "실 DB 1건 왕복 + 육안 1회 (S4-7)"
+    "실 DB 1건 왕복 + 육안 1회 (S4-7)",
+    "npx tsx --conditions=react-server scripts/_probe-46-http.mts → **HTTP 라우트 실호출**(구동 dev 서버 + 스테이징 DB 필요). 양성·음성 대조군·인증 3축. test-all에는 넣지 않는다"
   ],
 
   "results": {
@@ -244,6 +256,13 @@
       "_judge-photo-sheet-mutant.mts": "6 passed, 0 failed",
       "tsc --noEmit": "rc=0 · 0줄",
       "육안": "6건 산출물 p.15 = 불량 1·2·3 — 3건/장 확인"
+    },
+    "S4-7 HTTP 실호출 2026-09-08": {
+      "_probe-46-http.mts": "19 통과 / 0 실패 (신규)",
+      "test-photo-sheet.mts (LO 축 제외)": "62 통과 / 0 실패 — 타 세션이 workbook/route.ts를 고친 뒤에도 회귀 0",
+      "tsc --noEmit": "rc=0 · 0줄",
+      "제품 결함": "0 — 붉었던 2건은 전부 **내 검사의 축이 틀린 것**(D-4 401 vs 미들웨어 307 · D-5 자산 로고 png)",
+      "검사 결함": "4건 수리(D-4·D-5·D-6·D-7). ⭐ D-6은 **D-5 수리가 만든 공허 통과**였다 — 고치다 만든 초록을 다음 실행이 잡았다"
     }
   },
 
