@@ -1,20 +1,25 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { ChevronDown, ChevronRight, Download, Loader2, Printer } from 'lucide-react'
+import { ChevronDown, ChevronRight, Download, FileSpreadsheet, Loader2, Printer } from 'lucide-react'
 import { previewFirePlanHtmlAction } from '@/app/(dashboard)/customers/fire-plan-form-actions'
 
 /** 소방계획서 즉석 조회·인쇄 (2026-09-02 사용자 확정 — 보관함 폐지)
  *
- *  ERP는 계획서 파일을 저장하지 않는다. [현재 내용]은 즉석 HTML 렌더, [인쇄]·[PDF 받기]는
- *  누를 때마다 현재 입력값으로 서버가 즉석 생성해 내려준다(/customers/{id}/fire-plan/pdf) —
+ *  ERP는 계획서 파일을 저장하지 않는다. [현재 내용]은 즉석 HTML 렌더, [엑셀 받기]·[인쇄]·
+ *  [PDF 받기]는 누를 때마다 현재 입력값으로 서버가 즉석 생성해 내려준다 —
  *  파일도 개정 차수도 만들지 않는다. 소방서 제출본 등 파일 보관은 외부 폴더가 담당한다.
- *  연도 표기는 '보고서 커버' 서식(비우면 생성 연도), 변경 이력은 개정이력(수동 기록)이 담당한다. */
+ *  연도 표기는 '보고서 커버' 서식(비우면 생성 연도), 변경 이력은 개정이력(수동 기록)이 담당한다.
+ *
+ *  소방계획서_42 D-1 — **엑셀이 기본 산출물**이다(받은 뒤 사용자가 직접 고쳐 최종본을 만든다).
+ *  PDF는 뒤로 물리되 존치한다. */
 
 export function FirePlanViewClient({ customerId }: { customerId: string }) {
   const [preview, setPreview] = useState<{ open: boolean; html: string; missing: string[]; loading: boolean }>(
     { open: false, html: '', missing: [], loading: false })
   const [error, setError] = useState('')
+  const [notice, setNotice] = useState('')
+  const [xlsxBusy, setXlsxBusy] = useState(false)
   const [isPending, startTransition] = useTransition()
 
   const currentYear = new Date().getFullYear()
@@ -36,6 +41,44 @@ export function FirePlanViewClient({ customerId }: { customerId: string }) {
     window.open(`/customers/${customerId}/fire-plan/pdf${download ? '?download=1' : ''}`, '_blank')
   }
 
+  /** 엑셀 받기 — 소방계획서_42 S6-3.
+   *
+   *  ⚠ **`window.open`으로는 응답 헤더를 못 읽는다.** 라우트가 `X-FirePlan-Missing`으로 보내는
+   *    고지(자가치유·구역 넘침·미입력)를 새 탭으로 열면 그대로 사라진다. 그래서 엑셀만
+   *    `fetch`+`Blob`으로 받아 고지를 화면에 띄운다. PDF 쪽 `openPdf()`는 고지 헤더가 없으므로
+   *    그대로 둔다(회귀 금지).
+   */
+  async function downloadXlsx() {
+    setError(''); setNotice(''); setXlsxBusy(true)
+    try {
+      const res = await fetch(`/customers/${customerId}/fire-plan/xlsx`)
+      if (!res.ok) {
+        // 라우트는 앵커 불일치·미착지를 500으로 끊는다 — 조용한 오적용 대신 사유를 보여 준다
+        const body = await res.json().catch(() => null) as { error?: string } | null
+        setError(body?.error ?? `엑셀 생성 실패 (HTTP ${res.status})`)
+        return
+      }
+      const raw = res.headers.get('X-FirePlan-Missing') ?? ''
+      if (raw) { try { setNotice(decodeURIComponent(raw)) } catch { setNotice(raw) } }
+
+      const blob = await res.blob()
+      // 파일명은 Content-Disposition의 RFC 5987 filename*에서 — 없으면 밋밋한 폴백
+      const cd = res.headers.get('Content-Disposition') ?? ''
+      const star = /filename\*=UTF-8''([^;]+)/i.exec(cd)
+      const name = star ? decodeURIComponent(star[1]) : `소방계획서_${currentYear}.xlsx`
+
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url; a.download = name
+      document.body.appendChild(a); a.click(); a.remove()
+      URL.revokeObjectURL(url)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setXlsxBusy(false)
+    }
+  }
+
   return (
     <div>
       <div className="flex items-center gap-2 flex-wrap pb-3 mb-3 border-b border-brand-line-soft">
@@ -45,14 +88,20 @@ export function FirePlanViewClient({ customerId }: { customerId: string }) {
           {preview.loading ? <Loader2 className="size-3.5 animate-spin" /> : preview.open ? <ChevronDown className="size-3.5" /> : <ChevronRight className="size-3.5" />}
           현재 내용
         </button>
+        {/* D-1 — 엑셀이 주 버튼. 받은 뒤 엑셀에서 직접 고쳐 최종본을 만드는 것이 실사용 흐름이다 */}
+        <button onClick={downloadXlsx} disabled={xlsxBusy}
+          title="현재 입력값으로 즉석 생성한 엑셀을 내려받습니다 — 받은 뒤 직접 고쳐 쓰실 수 있습니다"
+          className="inline-flex items-center gap-1 h-form-8 px-3 rounded-lg bg-brand hover:bg-brand-strong text-white text-form-sm font-medium transition-colors disabled:opacity-50">
+          {xlsxBusy ? <Loader2 className="size-3.5 animate-spin" /> : <FileSpreadsheet className="size-3.5" />} 엑셀 받기
+        </button>
         <button onClick={() => openPdf(false)}
           title="현재 입력값으로 즉석 생성해 새 탭에서 엽니다 — 뷰어에서 바로 인쇄하세요"
-          className="inline-flex items-center gap-1 h-form-8 px-3 rounded-lg bg-brand hover:bg-brand-strong text-white text-form-sm font-medium transition-colors">
+          className="inline-flex items-center gap-1 h-form-8 px-3 rounded-lg border border-brand-line text-form-sm text-brand hover:bg-brand-tint transition-colors">
           <Printer className="size-3.5" /> 인쇄
         </button>
         <button onClick={() => openPdf(true)}
           title="현재 입력값으로 즉석 생성한 PDF를 내려받습니다"
-          className="inline-flex items-center gap-1 h-form-8 px-3 rounded-lg border border-brand-line text-form-sm text-brand hover:bg-brand-tint transition-colors">
+          className="inline-flex items-center gap-1 h-form-8 px-3 rounded-lg border border-brand-line text-form-sm text-ink-sub hover:bg-brand-tint hover:text-brand transition-colors">
           <Download className="size-3.5" /> PDF 받기
         </button>
         <span className="text-form-xs text-ink-meta">
@@ -61,6 +110,12 @@ export function FirePlanViewClient({ customerId }: { customerId: string }) {
       </div>
 
       {error && <p className="text-form-sm text-red-600 bg-red-50 rounded-lg px-3 py-2 mb-3">{error}</p>}
+      {/* 헤더 고지 — `window.open`이면 사라졌을 정보다(S6-3). 잘림 표기까지 그대로 보여 준다 */}
+      {notice && (
+        <p className="text-form-xs text-amber-700 bg-amber-50 rounded-lg px-3 py-2 mb-3 whitespace-pre-wrap break-words">
+          엑셀 고지: {notice}
+        </p>
+      )}
 
       {preview.open && (
         <div className="mb-4">
