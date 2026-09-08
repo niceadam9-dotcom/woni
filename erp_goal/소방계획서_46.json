@@ -149,7 +149,7 @@
             "evidence": ["defect-photo-embed.ts:298-299 usable = imgOf에 before 또는 after가 있는 건만", "defect-photo-embed.ts:180 한쪽만 빈 슬롯은 '사진 없음' 텍스트로 남는다", "프로브 '빈 상자 건이 캡션에도 없다' / '한쪽만 있는 건은 남는다(X-5)' 둘 다 초록"] } },
         { "id": "S2-9", "desc": "캡션은 「점검번호 불량명」이되 **둘이 같은 값이면 한 번만** 찍는다(Q-2 사용자 확정). 공백뿐인 이름은 없는 것으로 본다", "status": "implemented",
           "evidence": "defect-photo-embed.ts captionOf · test-photo-sheet [13b] 6축 · _probe-46-http 실데이터 캡션",
-          "verified": { "date": "2026-09-08", "commit": "작업트리(미커밋 시점 기록 — 커밋 후 sha 갱신할 것)", "method": "코드 대조 + 돌연변이 판정 + 실데이터 왕복",
+          "verified": { "date": "2026-09-08", "commit": "fbb9c6c", "method": "코드 대조 + 돌연변이 판정 + 실데이터 왕복",
             "evidence": [
               "defect-photo-embed.ts captionOf — code·name을 trim 후 동일하면 code만 반환",
               "test-photo-sheet [13b] 6축 초록: 동일→한 번 · **상이→둘 다(대조군)** · code만 · name만 · 둘 다 없음→'(불량명 없음)' · 이름이 공백뿐→코드만",
