@@ -147,6 +147,81 @@ const SAMPLE_ANSWER_CELLS: BlankCell[] = [
 
 const blankAt = new Map<string, BlankCell>(SAMPLE_ANSWER_CELLS.map(b => [`${b.table}:${b.row}:${b.col}`, b]))
 
+/* ══════════════════════ 표본 답 잔재 — **규칙 축**(2026-09-08) ══════════════════════
+ *
+ *  위 `SAMPLE_ANSWER_CELLS`는 강순기 대조가 잡아 준 손목록이다. 그 대조에는 구조적 사각이 있다:
+ *  판별식이 **'두 문서의 값이 다르면 값 칸'** 이라, **두 문서가 같은 답을 쓴 칸은 영영 못 본다**
+ *  (양식과 강순기가 둘 다 승진소방 문서라 그런 칸이 실제로 있다).
+ *
+ *  그래서 대조에 기대지 않는 **다른 축**을 하나 더 세운다 — 문서 자신의 모양만 본다:
+ *
+ *    R1  「공백으로 패딩된 괄호」 안의 숫자 — 양식은 채우라고 빈칸을 만들 뿐, 거기 숫자를
+ *        미리 적어 두지 않는다.  `☐ 매월 (   1   일)` · `[   25 년 제  1 차]`
+ *    R2  「기타(…)」 괄호 안의 내용 — '기타' 뒤 괄호는 정의상 자유 기재란이다.
+ *        `□ 기타 (   옥상       )` · `□ 기타(  상시 부착        )`
+ *    R3  칸 전체가 「숫자+단위」인 칸 — 빈 템플릿에 홀로 선 `100명`은 서식이 아니라 답이다.
+ *        (1.1 인원현황: 근무·거주 칸은 ` 명`인데 최대수용인원만 `100명`이었다)
+ *
+ *  ⭐ 세 규칙 다 **법정 자구는 건드리지 않는다** — 숫자·자유 텍스트만 걷어내고 단위·조사는 남긴다.
+ *    `☐ 교대직 (    조   교대)`(숫자 없음)나 `□ 합동훈련 (참여기관 :     )`(패딩만)은 그대로 통과한다.
+ *
+ *  🚨 각 규칙의 적중 수를 **정확히 단언**한다(아래 EXPECT). 좌표가 밀리거나 양식이 개정돼
+ *    0건이 되면 '깨끗하다'가 아니라 **정체 판정**으로 붉어져야 한다 — 0에서 공허 통과하는
+ *    개수 단언은 검사가 아니다.
+ *
+ *  ⭐ 실측 6칸(2026-09-08) — 전부 표본 고객의 답이고, **강순기 대조는 이 중 하나도 못 잡았다**:
+ *      1.1!J19      `100명`                  최대수용인원(형제 칸은 ` 명`인데 이 칸만 값이 있었다)
+ *      1.5.1!C11    `기타 (   옥상       )`   피난기구 설치 기타 위치
+ *      1.5.1!J13    `1 개소`                  개소 수
+ *      1.10.1!F17   `매월 (   1   일)`        일상점검 실시일
+ *      1.11.2!A3    `[   25 년 제  1 차]`     훈련 연도·회차
+ *      1.14.1!J17   `기타(  상시 부착     )`   홍보방법 기타
+ */
+const FILL_IN_EXPECT = { padded: 2, etc: 2, unit: 2 }
+
+const PADDED_GROUP_RE = /([([])([^)\]]*)([)\]])/g
+const UNIT_ONLY_RE = /^\s*\d[\d,.]*\s*(명|대|개소|㎡|천원)\s*$/
+
+const fillIn = { padded: 0, etc: 0, unit: 0 }
+/** 걷어낸 칸의 전/후 — **콘솔에만** 찍는다. manifest에 원문을 적으면 지우려던 답이 자산으로
+ *  되돌아온다(F-17에서 스크럽 기록이 니들을 11벌 되살렸던 것과 같은 함정). */
+const fillInLog: string[] = []
+
+/** 표본 답 잔재를 규칙으로 걷어낸다. 반환은 [정리된 글, 적용된 규칙들] */
+function stripFillIns(raw: string): [string, string[]] {
+  const applied: string[] = []
+  let text = raw
+
+  // R3 — 칸 전체가 숫자+단위
+  const um = UNIT_ONLY_RE.exec(text)
+  if (um) {
+    text = um[1]
+    fillIn.unit++
+    applied.push('unit')
+    return [text, applied]
+  }
+
+  text = text.replace(PADDED_GROUP_RE, (whole, open: string, inside: string, close: string) => {
+    // R2 — 「기타(…)」: 여는 괄호 바로 앞이 '기타'면 안쪽은 통째로 자유 기재란이다
+    const at = raw.indexOf(whole)
+    const before = raw.slice(0, at).trimEnd()
+    if (before.endsWith('기타') && inside.trim() !== '') {
+      fillIn.etc++
+      applied.push('etc')
+      return `${open}${' '.repeat(inside.length)}${close}`
+    }
+    // R1 — 패딩된 빈칸 안의 숫자만
+    if (!/\s{2,}/.test(inside) || !/\d/.test(inside)) return whole
+    const cleaned = inside.replace(/\d[\d,.]*/g, m => ' '.repeat(m.length))
+    if (cleaned === inside) return whole
+    fillIn.padded++
+    applied.push('padded')
+    return `${open}${cleaned}${close}`
+  })
+
+  return [text, applied]
+}
+
 /* ══════════════════════ 게이트 수집기 ══════════════════════ */
 
 const fails: string[] = []
@@ -321,6 +396,8 @@ interface SheetManifest {
   tokenCells: Record<string, string>
   /** 스크럽된 칸 → 지운 니들 */
   scrubbed: Record<string, string[]>
+  /** 표본 답 잔재를 규칙으로 걷은 칸 → 적용된 규칙(padded·etc·unit) */
+  fillInStripped: Record<string, string>
   /** 표본 고객의 자유 텍스트 답이라 비운 칸 → 이유(S7-3 강순기 대조가 찾아냈다) */
   sampleBlanked: Record<string, string>
   /** 0열이 1,2,3… 으로 이어지는 구간 — 반복 행 예산의 파생 원천(S4-3) */
@@ -363,7 +440,7 @@ for (const sec of CHAPTER1) {
   const m: SheetManifest = {
     name: sec.name, no: sec.no, tables: sec.parts.map(p => p.table),
     rows: 0, cols: nCols, merges: 0, bannerRows: [],
-    labels: {}, boxes: {}, restoredBoxes: {}, bulletCells: {}, tokenCells: {}, scrubbed: {}, sampleBlanked: {}, numberedRuns: [],
+    labels: {}, boxes: {}, restoredBoxes: {}, bulletCells: {}, tokenCells: {}, scrubbed: {}, sampleBlanked: {}, fillInStripped: {}, numberedRuns: [],
   }
 
   /** 원문 → 스크럽 → 체크 되돌리기 → 토큰 비우기. **배너와 격자가 같은 관을 지난다** —
@@ -376,6 +453,14 @@ for (const sec of CHAPTER1) {
     // `[√]`·`☑`는 글자가 하나로 정해져 있어 상자 어휘를 물을 필요가 없다 — 항상 되돌린다
     const bracketed = text.replace(/\[\s*[√✓✔]\s*\]/g, '[ ]').replace(/[☑▣]/g, '☐')
     if (bracketed !== text) { text = bracketed; uncheckHits++ }
+
+    // 표본 답 잔재(규칙 축) — 스크럽·체크덮개·강순기 대조를 **셋 다** 통과한 부류를 걷는다
+    const [stripped, rules] = stripFillIns(text)
+    if (rules.length) {
+      fillInLog.push(`      ${sec.name}!${ref} [${rules.join('+')}]  ${JSON.stringify(text)} → ${JSON.stringify(stripped)}`)
+      text = stripped
+      m.fillInStripped[ref] = rules.join('+')
+    }
 
     if (text.includes('■')) {
       const hit = boxGlyph()
@@ -485,6 +570,17 @@ notes.push(`스크럽 ${scrubHits}칸 · 체크 되돌림 ${uncheckHits}칸 · �
 // 선언한 만큼 실제로 비웠는가 — 좌표가 밀리면 조용히 0칸이 된다(항진명제 방지)
 if (blankHits !== SAMPLE_ANSWER_CELLS.length) {
   fail(`표본답 비움 ${blankHits}칸 ≠ 선언 ${SAMPLE_ANSWER_CELLS.length}칸 — 좌표가 밀렸다`)
+}
+
+// 규칙 축도 **정확히** 단언한다. 0건은 '깨끗하다'가 아니라 '규칙이 눈멀었다'일 수 있다
+{
+  // 걷어낸 칸을 **전건 눈에 보이게** 한다 — 법정 서식을 고치는 일이라 개수만 세면 안 된다
+  for (const line of fillInLog) console.log(line)
+  const got = `padded ${fillIn.padded} · etc ${fillIn.etc} · unit ${fillIn.unit}`
+  const want = `padded ${FILL_IN_EXPECT.padded} · etc ${FILL_IN_EXPECT.etc} · unit ${FILL_IN_EXPECT.unit}`
+  if (got !== want) fail(`표본답 규칙 적중 [${got}] ≠ 선언 [${want}] — 양식이 바뀌었거나 규칙이 눈멀었다`)
+  else ok(`표본답 규칙 ${want}`)
+  notes.push(`표본답 규칙 ${got}`)
 }
 
 /* ══════════════════════ ⑤ 조립 ══════════════════════ */

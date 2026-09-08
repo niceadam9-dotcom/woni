@@ -22,6 +22,7 @@ import type { FirePlanGenData } from '@/lib/fire-plan-template'
 import { FIRE_PLAN_ANCHORS, FP_SHEET, ZONE_ROWS, ZONE_SHEET } from '@/lib/fire-plan-anchors'
 import { boxGlyphAt, labelAt, tokenTemplateAt } from '@/lib/fire-plan-xlsx-manifest'
 import { compartmentApplies, compartmentHasArea, compartmentHasFloor } from '@/lib/evac-compartment'
+import { isMultiUseApplicable, isMultiUseNone } from '@/lib/multi-use'
 
 /* ────────────────────────── 표기 ────────────────────────── */
 
@@ -73,6 +74,25 @@ export function boxLabelCell(sheet: string, cell: string, on: boolean): string {
   return stampBoxes(sheet, cell, i => i === 0 && on)
 }
 
+/**
+ * **단위칸** — 자구가 값 **뒤에** 붙는 칸(`대상물 급수 [2]급` · `건축면적 [1234]㎡` · `[100] 명`).
+ *
+ * 상자칸과 같은 부류다: 템플릿이 공란이 아니라 법정 자구(`급`·`㎡`·` 명`)를 이고 있고, 우리는
+ * 그 앞에 값을 끼운다. 손으로 `` `${n}명` `` 이라 적지 않는 이유도 같다 — 양식이 `명`을
+ * `인`으로 개정하면 코드가 옛 자구를 들고 있는다. manifest 원문을 읽어 조립한다.
+ *
+ * ⚠ 값이 이미 단위로 끝나면(`특급`·`2급`) 겹쳐 찍지 않는다 — `특급급`이 인쇄되면 안 된다.
+ * ⚠ 값이 없으면 자구만 남긴다(빈 서식). 지워 버리면 `급`·`㎡`가 사라져 서식이 훼손된다.
+ */
+export function unitCell(sheet: string, cell: string, value: string | number | null | undefined): string {
+  const unit = labelAt(sheet, cell)
+  const v = txt(value)
+  if (!v) return unit
+  const bare = unit.trim()
+  const core = bare && v.endsWith(bare) ? v.slice(0, v.length - bare.length).trim() : v
+  return core ? `${core}${unit}` : unit
+}
+
 /** 유·무가 한 칸인 칸(`□유 □무`). `null`(미입력)이면 **둘 다** 비운다 — 미입력과 '무'는 다르다 */
 export function yesNoCell(sheet: string, cell: string, yes: boolean | null): string {
   return stampBoxes(sheet, cell, i => (i === 0 ? yes === true : i === 1 ? yes === false : false))
@@ -113,6 +133,58 @@ export function buildFirePlanValues(d: FirePlanGenData): Map<string, CellValue> 
   v.set('main_structure', txt(d.structure))
   v.set('roof_structure', txt(d.roof))
 
+  /* ── 서식 1.1 §시설현황·운영현황 (2026-09-08) ────────────────────────────────
+   *  단위칸은 `unitCell`, 상자칸은 `boxLabelCell`이 **manifest 자구**를 읽어 조립한다.
+   *  ⚠ 상자를 켜는 조건은 전부 '값이 있는가'다. 값이 없으면 끄는 게 아니라 **안 켠다** —
+   *    미입력과 '해당없음'은 다르고, 후자는 반대편 칸(`해당없음`)이 따로 표현한다.
+   */
+  v.set('grade', unitCell(FP_SHEET.F1_1, 'D9', d.grade))
+  v.set('building_area', unitCell(FP_SHEET.F1_1, 'G10', d.buildingArea))
+
+  const el = d.elevators
+  v.set('elevator_passenger', boxLabelCell(FP_SHEET.F1_1, 'C12', !!txt(el?.passenger)))
+  v.set('elevator_emergency', boxLabelCell(FP_SHEET.F1_1, 'F12', !!txt(el?.emergency)))
+  v.set('elevator_evac', boxLabelCell(FP_SHEET.F1_1, 'H12', !!txt(el?.evac)))
+
+  // 계단 — `stairs`는 '종류 → 개소' 지도이고 `''`가 미설치다(plan-form15.tsx). 양식 1.1에는
+  //   개소를 적을 자리가 없어 **상자만** 켠다(개소는 서식 1.5.1이 받는다).
+  const stairs = d.forms?.evacFire?.stairs
+  const hasStair = (kind: string) => !!txt(stairs?.[kind])
+  v.set('stair_special', boxLabelCell(FP_SHEET.F1_1, 'C15', hasStair('특별피난계단')))
+  v.set('stair_direct', boxLabelCell(FP_SHEET.F1_1, 'G15', hasStair('직통계단')))
+  v.set('stair_escape', boxLabelCell(FP_SHEET.F1_1, 'C16', hasStair('피난계단')))
+  v.set('stair_outdoor', boxLabelCell(FP_SHEET.F1_1, 'G16', hasStair('옥외계단')))
+
+  const opw = txt(d.ops?.opHoursWeekday)
+  const oph = txt(d.ops?.opHoursHoliday)
+  v.set('ophours_weekday', boxLabelCell(FP_SHEET.F1_1, 'C17', !!opw))
+  v.set('ophours_weekday_time', opw)
+  v.set('ophours_holiday', boxLabelCell(FP_SHEET.F1_1, 'G17', !!oph))
+  v.set('ophours_holiday_time', oph)
+
+  const hcWorker = txt(d.ops?.headcountWorker)
+  const hcResident = txt(d.ops?.headcountResident)
+  const hcMax = txt(d.ops?.headcountMax)
+  v.set('headcount_worker_on', boxLabelCell(FP_SHEET.F1_1, 'C19', !!hcWorker))
+  v.set('headcount_worker', unitCell(FP_SHEET.F1_1, 'D19', hcWorker))
+  v.set('headcount_resident_on', boxLabelCell(FP_SHEET.F1_1, 'F19', !!hcResident))
+  v.set('headcount_resident', unitCell(FP_SHEET.F1_1, 'G19', hcResident))
+  v.set('headcount_max_on', boxLabelCell(FP_SHEET.F1_1, 'H19', !!hcMax))
+  v.set('headcount_max', unitCell(FP_SHEET.F1_1, 'J19', hcMax))
+
+  // 업무대행 — 대행업체가 배선돼 있으면 '해당'이다(서식 1.8이 그 업체로 채워진다).
+  //   ⚠ PDF는 `■ 해당`을 **글자로 박아** 두어 대행이 없어도 늘 해당으로 인쇄된다.
+  //     엑셀은 데이터를 따른다 — 같은 조립 결과를 쓰되 이 칸은 PDF 쪽이 낡은 것이다.
+  const hasAgency = !!txt(d.companyName)
+  v.set('agency_yes', boxLabelCell(FP_SHEET.F1_1, 'C21', hasAgency))
+  v.set('agency_no', boxLabelCell(FP_SHEET.F1_1, 'G21', !hasAgency))
+
+  // 다중이용업 — 1.10.3에서 '해당'을 명시적으로 켠 경우에만 참(isMultiUseApplicable 규약).
+  //   여집합이 '해당없음'이라 미입력은 해당없음 쪽에 붙는다 — 그 판정은 multi-use.ts가 단일 원천.
+  const mu = d.forms?.multiUse
+  v.set('multiuse_yes', boxLabelCell(FP_SHEET.F1_1, 'C23', isMultiUseApplicable(mu)))
+  v.set('multiuse_no', boxLabelCell(FP_SHEET.F1_1, 'G23', isMultiUseNone(mu)))
+
   // 화재보험 — `ops`는 v2 확장이라 없을 수 있다(하위 호환). 미가입이면 네 칸을 **모두 비운다**:
   // 한 칸이라도 남으면 '미가입인데 보험사가 적힌' 문서가 나간다(체크 축과 값 축이 갈라지는 자리).
   // ⚠ `insuranceJoined`는 `null`(미입력)일 수 있다 — 그때는 값이 있으면 가입으로 본다.
@@ -122,6 +194,10 @@ export function buildFirePlanValues(d: FirePlanGenData): Map<string, CellValue> 
   v.set('insurance_period', joined ? txt(ins?.insurancePeriod) : '')
   v.set('insurance_amount_person', joined ? txt(ins?.insuranceAmountPerson) : '')
   v.set('insurance_amount_property', joined ? txt(ins?.insuranceAmountProperty) : '')
+  // 가입/미가입 상자 — ⚠ **셋째 상태가 있다**. `ops`가 없거나 `insuranceJoined`가 null이면
+  //   둘 다 빈 상자로 둔다(미입력). '미가입'을 찍는 건 관계인이 그렇게 답한 경우뿐이다.
+  v.set('insurance_yes', boxLabelCell(FP_SHEET.F1_1, 'C24', joined))
+  v.set('insurance_no', boxLabelCell(FP_SHEET.F1_1, 'G24', ins?.insuranceJoined === false))
 
   // ── 서식 1.3 소방차 진입경로 ──
   v.set('fire_station', txt(d.fireStation))
@@ -151,6 +227,7 @@ export function buildFirePlanValues(d: FirePlanGenData): Map<string, CellValue> 
     v.set(`zone_${i}_floor`, txt(z?.zone))
     v.set(`zone_${i}_usage`, txt(z?.name))
     v.set(`zone_${i}_area`, txt(z?.area))
+    v.set(`zone_${i}_company`, txt(z?.managerCo))
     v.set(`zone_${i}_contact`, txt(z?.contact))
   }
 

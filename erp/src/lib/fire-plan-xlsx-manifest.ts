@@ -28,6 +28,9 @@ export interface FirePlanSheetManifest {
   /** 앵커 씨앗 — 'A1' → `{{token}}`이 든 원본 문자열. 템플릿에서 그 셀은 **공란**이다 */
   tokenCells: Record<string, string>
   scrubbed: Record<string, string[]>
+  /** 표본 답 잔재를 **규칙**으로 걷어낸 칸 → 적용 규칙(padded·etc·unit).
+   *  ⚠ 원문(걷어낸 답)은 일부러 담지 않는다 — 기록이 그 답을 자산으로 되살린다(F-17). */
+  fillInStripped: Record<string, string>
   /** 0열이 1,2,3…으로 이어지는 구간 — 반복 행 예산의 파생 원천(S4-3) */
   numberedRuns: { startRow: number; rows: number }[]
 }

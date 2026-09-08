@@ -126,9 +126,16 @@ for (const s of FIRE_PLAN_MANIFEST.sheets) {
       //      템플릿은 공란이어야 한다. 강순기에서 숫자를 지웠을 때 우리와 같아지면 이 갈래다.
       const frameFilled = !/\d/.test(a) && /\d/.test(b)
         && noSpace(b.replace(/[\d]/g, '')) === noSpace(a)
+      //   ③ 🎯 **우리가 규칙으로 걷어낸 표본 답**(2026-09-08). 빌드의 fill-in 규칙이 이 칸의
+      //      숫자·자유 텍스트를 지웠고 manifest가 그 사실을 `fillInStripped`에 적어 두었다.
+      //      ⭐ 여기서 강순기는 **반대편 증인**이다 — 같은 칸에 고객의 답이 실제로 들어 있으니
+      //        '그 자리는 답을 적는 칸'이라는 규칙의 판정이 독립적으로 확인된다. 아래 [3b]가
+      //        방향(강순기 ⊋ 우리)까지 단언하므로 이 갈래는 봐주기가 아니라 **검증**이다.
+      const stripped = !!s.fillInStripped?.[ref]
       const kind =
         !a && b ? '강순기에만(고객이 채운 값)'
         : a && !b ? '우리에만(양식 자구·강순기가 비운 칸)'
+        : stripped ? '걷어낸 표본 답(규칙 축 · 강순기가 증언)'
         : lineBreakOnly ? '줄바꿈만 다름(자구 동일)'
         : frameFilled ? '틀 칸(우리 공란·강순기 기입 — 정상)'
         : b.includes(a) || a.includes(b) ? '부분포함(값이 라벨에 덧붙음)'
@@ -149,6 +156,24 @@ say(`  완전 일치: ${same}/${compared}`)
 
 const wording = diffs.filter(d => d.kind === '자구 불일치')
 check('🎯 자구 불일치 0건 (법정 문구가 갈라지지 않았다)', wording.length === 0, `${wording.length}건`)
+
+/* ══════ [3b] 걷어낸 표본 답 — 방향 단언 ══════
+ *  분류만 해 두면 '봐주기'가 된다. 이 갈래가 **검증**이 되려면 방향이 서야 한다:
+ *  같은 칸에서 강순기는 답을 이고 있고 우리는 그것을 비웠는가. 반대라면(우리가 더 많다면)
+ *  규칙이 엉뚱한 칸을 건드린 것이므로 붉어져야 한다. */
+{
+  const st = diffs.filter(d => d.kind.startsWith('걷어낸 표본 답'))
+  // 🚨 정체 판정 — 0건이면 '깨끗'이 아니라 대조가 이 축을 잃은 것이다.
+  // ⭐ 실측 **6/6** — 규칙이 걷어낸 여섯 칸을 강순기가 하나도 빠짐없이 증언했다. 그중 넷은
+  //   종전 분류에서 '부분포함·틀 칸'으로 흡수돼 조용히 지나가고 있었다(대조는 그 칸을 보고도
+  //   답이라 부르지 못했다). 규칙 축과 대조 축이 **서로를 확인**한 자리다.
+  check('걷어낸 표본 답을 강순기가 증언한다(정체 판정)', st.length === 6,
+    st.map(d => `${d.sheet}!${d.ref}`).join(' · '))
+  const wrongWay = st.filter(d => d.theirs.replace(/\s/g, '').length <= d.ours.replace(/\s/g, '').length)
+  check('방향이 맞다 — 강순기에 답이 있고 우리는 비었다', wrongWay.length === 0,
+    wrongWay.map(d => `${d.sheet}!${d.ref}`).join(' · '))
+  for (const d of st) say(`  걷어냄 ${d.sheet}!${d.ref}\n      우리 : ${JSON.stringify(d.ours)}\n      강순기: ${JSON.stringify(d.theirs)}`)
+}
 
 say('\n── 자구 불일치 전건 ──')
 for (const d of wording) say(`  ${d.sheet}!${d.ref} (표#${d.table})\n      우리 : ${JSON.stringify(d.ours)}\n      강순기: ${JSON.stringify(d.theirs)}`)

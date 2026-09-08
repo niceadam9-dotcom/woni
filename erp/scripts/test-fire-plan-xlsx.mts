@@ -14,7 +14,7 @@ import * as XLSX from 'xlsx'
 import { validateAnchors } from '../src/lib/xlsx-anchors.ts'
 import { toInjectTargets } from '../src/lib/xlsx-workbook.ts'
 import { injectWorkbook } from '../src/lib/xlsx-inject.ts'
-import { FIRE_PLAN_ANCHORS, FIRE_PLAN_FIELDS, FP_SHEET, ZONE_ROWS, ZONE_SHEET, ZONE_FIRST_ROW, isBoxLabelAnchor } from '../src/lib/fire-plan-anchors.ts'
+import { FIRE_PLAN_ANCHORS, FIRE_PLAN_FIELDS, FP_SHEET, ZONE_ROWS, ZONE_SHEET, ZONE_FIRST_ROW, isBoxLabelAnchor, isUnitLabelAnchor } from '../src/lib/fire-plan-anchors.ts'
 import { buildFirePlanValues, missingValueFields, planDate, zoneRowOverflow } from '../src/lib/fire-plan-xlsx-values.ts'
 import { FIRE_PLAN_MANIFEST, labelAt, boxGlyphAt } from '../src/lib/fire-plan-xlsx-manifest.ts'
 import { FIRE_PLAN_SCRUB_NEEDLES, FIRE_PLAN_MARK_CHECKED_RE } from '../src/lib/fire-plan-scrub.ts'
@@ -103,19 +103,32 @@ console.log('\n[3] 백지 불변식 — 템플릿에 표본의 답이 남아 있
     String((wb.Sheets[a.sheet]?.[a.cell] as XLSX.CellObject | undefined)?.v ?? '').trim()
   const boxLabelOk = (a: { sheet: string; cell: string }) =>
     isBoxLabelAnchor(a) && cellText(a) === labelAt(a.sheet, a.cell).trim()
+  //
+  // 세 번째 갈래는 **단위칸**(2026-09-08): `급`·`㎡`·`명` 처럼 자구가 값 **뒤에** 붙는 칸이다.
+  // ⚠ 이 예외를 `셀 글자 == manifest 라벨`로 판정하면 **항진명제**가 된다 — manifest 라벨
+  //   자체가 자산에서 파생되므로 표본 답이 남아 있어도 등식은 성립한다(위 boxLabelOk의
+  //   등식도 같은 한계를 갖고, 실질 판별은 `isBoxLabelAnchor` 쪽이 한다). 그래서
+  //   `isUnitLabelAnchor`는 등식이 아니라 **'남은 글자가 단위처럼 생겼는가'**를 묻는다.
   const dirty = FIRE_PLAN_ANCHORS.filter(a => {
     const t = cellText(a)
-    return t && !/^[□☐]$/.test(t) && !boxLabelOk(a)
+    return t && !/^[□☐]$/.test(t) && !boxLabelOk(a) && !isUnitLabelAnchor(a)
   })
-  check('앵커 셀 공란(빈 상자·상자칸만 예외)', dirty.length === 0,
+  check('앵커 셀 공란(빈 상자·상자칸·단위칸만 예외)', dirty.length === 0,
     dirty.slice(0, 5).map(a => `${a.sheet}!${a.cell}='${cellText(a)}'`).join(' · '))
   const boxOnly = FIRE_PLAN_ANCHORS.filter(a => /^[□☐]$/.test(cellText(a)))
   check('빈 상자만 남은 앵커는 소수', boxOnly.length <= 3, boxOnly.map(a => `${a.sheet}!${a.cell}`).join(','))
   const boxLabel = FIRE_PLAN_ANCHORS.filter(isBoxLabelAnchor)
-  check('상자칸 예외가 소수(1.5.1 방화구획 3칸)', boxLabel.length <= 4 && boxLabel.length >= 1,
-    boxLabel.map(a => `${a.sheet}!${a.cell}`).join(','))
+  // 🚨 정체 판정 — 상한만 두면 예외가 **0개로 사라져도** 초록이다(1.5.1 3칸 + 1.1 19칸)
+  check('상자칸 예외 수가 그대로(1.5.1 3 + 1.1 19)', boxLabel.length === 22, `${boxLabel.length}칸`)
   check('상자칸은 템플릿에서 전부 미체크', boxLabel.every(a => !/■/.test(cellText(a))),
     boxLabel.filter(a => /■/.test(cellText(a))).map(a => a.cell).join(','))
+  const unitCells = FIRE_PLAN_ANCHORS.filter(isUnitLabelAnchor)
+  check('단위칸 예외 수가 그대로(급·㎡·명 5칸)', unitCells.length === 5,
+    unitCells.map(a => `${a.cell}='${cellText(a)}'`).join(' · '))
+  // 🎯 표본 답이 단위칸 예외 **뒤에 숨지 못한다** — 숫자가 남았으면 그건 단위가 아니라 답이다
+  //   (이 칸들에 실제로 `100명`·`1 개소`가 있었다)
+  check('단위칸에 숫자가 없다', unitCells.every(a => !/\d/.test(cellText(a))),
+    unitCells.filter(a => /\d/.test(cellText(a))).map(a => `${a.sheet}!${a.cell}`).join(','))
 }
 {
   // 원시 바이트 축 — 셀 값 스캔은 파트 안에 남은 원문을 못 본다(.xlsx는 zip이다)
@@ -285,18 +298,27 @@ console.log('\n[7] 값 맵 완결성 · 표기 규약')
     useApprovalDate: '2019-03-07', totalArea: '1,234.56', floors: '지상5층',
     height: '15', structure: '철근콘크리트', roof: '슬라브',
     fireStation: '어딘가소방서', managerSelectedAt: '2025-01-14',
-    contractStart: '2025-01-01',
+    contractStart: '2025-01-01', companyName: '어느소방이엔지',
+    // ⚠ 1.1 §시설현황·운영현황(2026-09-08 배선)은 **켜짐과 꺼짐을 둘 다** 담아야 한다.
+    //   전부 채우면 '늘 켜는 구현'이, 전부 비우면 '늘 끄는 구현'이 초록으로 통과한다.
+    //   그래서 승강기는 승용·비상용만(피난용 없음), 계단은 직통만(특별피난 없음)으로 둔다.
+    grade: '2급', buildingArea: '567.8',
+    elevators: { passenger: '2', emergency: '1', evac: '' },
     ops: {
       insuranceJoined: true, insuranceCompany: '어느화재', insurancePeriod: '2025.1.1~2026.1.1',
       insuranceAmountPerson: '1000', insuranceAmountProperty: '2000',
-      opHoursWeekday: '', opHoursHoliday: '', headcountWorker: '', headcountResident: '', headcountMax: '',
+      opHoursWeekday: '09:00~18:00', opHoursHoliday: '',
+      headcountWorker: '10', headcountResident: '', headcountMax: '150',
     },
     // 방화구획은 **네 갈래 중 가장 어려운 것**을 픽스처로 잡는다 — '면적별·층별'은 상자 둘을
     // 함께 체크해야 하므로, 한 상자만 찍는 구현도 초록으로 통과하는 'area'로는 판별이 안 된다.
-    forms: { evacFire: { compartment: 'area_floor' } },
+    forms: {
+      evacFire: { compartment: 'area_floor', stairs: { 직통계단: '2', 특별피난계단: '', 피난계단: '', 옥외계단: '' } },
+      multiUse: { applicable: true },
+    },
     zones: Array.from({ length: ZONE_ROWS + 2 }, (_, i) => ({
       zone: `${i + 1}층`, name: `구역${i + 1}`, area: `${100 + i}`,
-      weekday: '', holiday: '', managerCo: '', contact: `010-1111-00${i}`,
+      weekday: '', holiday: '', managerCo: `입주사${i + 1}`, contact: `010-1111-00${i}`,
     })),
   } as unknown as FirePlanGenData
 
@@ -351,6 +373,46 @@ console.log('\n[7] 값 맵 완결성 · 표기 규약')
   check('1.2.1 구역 첫 행 착지', at(ZONE_SHEET, `B${ZONE_FIRST_ROW}`) === '1층', at(ZONE_SHEET, `B${ZONE_FIRST_ROW}`))
   check('1.2.1 구역 마지막 행 착지', at(ZONE_SHEET, `B${ZONE_FIRST_ROW + ZONE_ROWS - 1}`) === `${ZONE_ROWS}층`)
   check('1.3 관할소방서 착지', at('1.3 소방차 진입경로', 'C5') === '어딘가소방서')
+  check('1.2.1 관리주체(입주사) 착지', at(ZONE_SHEET, `J${ZONE_FIRST_ROW}`) === '입주사1',
+    at(ZONE_SHEET, `J${ZONE_FIRST_ROW}`))
+
+  /* ── 1.1 §시설현황·운영현황(2026-09-08 배선) ────────────────────────────────
+   *  🚨 **켜짐만 보면 안 된다.** '전부 체크하는 구현'도 켜짐 검사는 통과한다. 그래서 칸마다
+   *    데이터가 있는 짝(켜짐)과 없는 짝(꺼짐)을 나란히 요구한다. 자구 보존도 함께 본다 —
+   *    상자만 갈아 끼워야지 법정 문구를 덮어쓰면 안 된다. */
+  const F11 = FP_SHEET.F1_1
+  check('1.1 대상물 급수 = 값+자구', at(F11, 'D9') === '2급', at(F11, 'D9'))
+  check('1.1 건축면적 = 값+단위', at(F11, 'G10') === '567.8㎡', at(F11, 'G10'))
+  check('1.1 승강기 승용·비상용 체크', at(F11, 'C12').includes('■') && at(F11, 'F12').includes('■'),
+    `${at(F11, 'C12')} / ${at(F11, 'F12')}`)
+  check('1.1 승강기 피난용은 미체크(데이터 없음)', !at(F11, 'H12').includes('■'), at(F11, 'H12'))
+  check('1.1 승강기 법정 자구 보존', at(F11, 'C12').replace('■', '☐') === labelAt(F11, 'C12'), at(F11, 'C12'))
+  check('1.1 계단 직통만 체크', at(F11, 'G15').includes('■') && !at(F11, 'C15').includes('■'),
+    `직통='${at(F11, 'G15')}' 특별피난='${at(F11, 'C15')}'`)
+  check('1.1 운영시간 평일 체크 + 시각 착지',
+    at(F11, 'C17').includes('■') && at(F11, 'F17') === '09:00~18:00',
+    `${at(F11, 'C17')} / ${at(F11, 'F17')}`)
+  check('1.1 운영시간 휴일은 미체크(데이터 없음)', !at(F11, 'G17').includes('■'), at(F11, 'G17'))
+  // ⚠ 주간/야간은 배선하지 않았다 — ERP가 평일·휴일에 한 값만 저장해 어느 쪽인지 모른다
+  check('1.1 주간/야간 상자는 손대지 않는다', !at(F11, 'D17').includes('■') && !at(F11, 'D18').includes('■'),
+    `${at(F11, 'D17')} / ${at(F11, 'D18')}`)
+  check('1.1 근무인원 체크 + 값', at(F11, 'C19').includes('■') && at(F11, 'D19') === '10 명',
+    `${at(F11, 'C19')} / ${at(F11, 'D19')}`)
+  check('1.1 거주인원은 미체크·빈 단위(데이터 없음)',
+    !at(F11, 'F19').includes('■') && at(F11, 'G19').trim() === '명', `${at(F11, 'F19')} / '${at(F11, 'G19')}'`)
+  // 🎯 이 칸에 표본 고객의 답 `100명`이 박혀 있었다 — 값이 덮어쓰는지, 잔재가 없는지 둘 다 본다
+  check('1.1 최대수용인원 = 우리 값(표본 100명이 아니다)',
+    at(F11, 'J19') === '150명' && !at(F11, 'J19').includes('100'), at(F11, 'J19'))
+  check('1.1 업무대행 해당(대행업체 있음)',
+    at(F11, 'C21').includes('■') && !at(F11, 'G21').includes('■'), `${at(F11, 'C21')} / ${at(F11, 'G21')}`)
+  check('1.1 다중이용업 해당',
+    at(F11, 'C23').includes('■') && !at(F11, 'G23').includes('■'), `${at(F11, 'C23')} / ${at(F11, 'G23')}`)
+  check('1.1 화재보험 가입',
+    at(F11, 'C24').includes('■') && !at(F11, 'G24').includes('■'), `${at(F11, 'C24')} / ${at(F11, 'G24')}`)
+  // ⚠ 데이터가 없어 일부러 안 세운 칸 — 주차장·공공기관·권원분리는 늘 빈 상자여야 한다
+  check('1.1 미배선 칸(주차장·공공기관·권원분리)은 손대지 않는다',
+    !at(F11, 'C13').includes('■') && !at(F11, 'C20').includes('■') && !at(F11, 'C22').includes('■'),
+    `${at(F11, 'C13')} / ${at(F11, 'C20')} / ${at(F11, 'C22')}`)
 
   /* ── 1.5.1 방화구획(상자칸) ── 값칸과 달리 **라벨은 남고 상자만 바뀐다**. 라벨까지 덮어쓰면
    *  법정 자구가 사라지는데, 상자 하나만 보는 검사는 그걸 못 본다 — 자구 보존을 따로 요구한다. */

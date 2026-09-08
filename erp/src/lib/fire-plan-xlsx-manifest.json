@@ -11,9 +11,9 @@
   },
   "asset": {
     "file": "templates/fire-plan-workbook.xlsx",
-    "sha256": "a3bfe8c44fc123ee4dfb3f24b057d4efc18709fb010eca3af43a438011d93fb1",
-    "contentSha256": "ac586c7cfe80fa6579db92201b6e19e160ba2160d048aaea447ed15da04e4178",
-    "bytes": 292086,
+    "sha256": "6360ceac94514a3e54509b24466596a3f573c378a6f824b2030ab86f35f419e0",
+    "contentSha256": "abe83941d4cb1d073448614db96d03c4aa4945efe6de50f14210a846a9955ce5",
+    "bytes": 292069,
     "styles": 68
   },
   "scrubNeedles": [
@@ -58,6 +58,7 @@
       "sampleBlanked": {
         "B1": "표지 용도 = 고객별 값(강순기는 근린생활시설)"
       },
+      "fillInStripped": {},
       "numberedRuns": []
     },
     {
@@ -98,6 +99,7 @@
         "B2": "개정이력 일자 = 표본(25.1.14). 개정이력 배선은 2단계",
         "C2": "개정이력 내용 = 표본('2025년 …' 연도 고정)"
       },
+      "fillInStripped": {},
       "numberedRuns": [
         {
           "startRow": 1,
@@ -180,7 +182,7 @@
         "F19": "☐ 거주인원",
         "G19": " 명",
         "H19": "☐최대수용인원",
-        "J19": "100명",
+        "J19": "명",
         "B20": "공공기관",
         "C20": "☐ 해당 [서식1.11.5] 작성 생략",
         "G20": "☐ 해당없음",
@@ -272,6 +274,9 @@
       },
       "scrubbed": {},
       "sampleBlanked": {},
+      "fillInStripped": {
+        "J19": "unit"
+      },
       "numberedRuns": []
     },
     {
@@ -354,6 +359,7 @@
       },
       "scrubbed": {},
       "sampleBlanked": {},
+      "fillInStripped": {},
       "numberedRuns": []
     },
     {
@@ -450,6 +456,7 @@
         "B8": "주방 위치 = 고객별 값",
         "B12": "전기실 위치 = 고객별 값(강순기와 우연히 일치해 대조엔 안 걸렸다)"
       },
+      "fillInStripped": {},
       "numberedRuns": []
     },
     {
@@ -476,6 +483,7 @@
       "tokenCells": {},
       "scrubbed": {},
       "sampleBlanked": {},
+      "fillInStripped": {},
       "numberedRuns": []
     },
     {
@@ -512,6 +520,7 @@
       },
       "scrubbed": {},
       "sampleBlanked": {},
+      "fillInStripped": {},
       "numberedRuns": []
     },
     {
@@ -636,6 +645,7 @@
       "tokenCells": {},
       "scrubbed": {},
       "sampleBlanked": {},
+      "fillInStripped": {},
       "numberedRuns": []
     },
     {
@@ -666,14 +676,14 @@
         "C8": "□ 대피공간",
         "C9": "□ 경량칸막이",
         "C10": "□ 피난안전구역",
-        "C11": "□ 기타 (   옥상       )",
+        "C11": "□ 기타 (            )",
         "C12": "□ 옥상광장",
         "G12": "개폐방법",
         "B13": "피난층",
         "C13": "위치",
         "D13": "1층",
         "I13": "출입구",
-        "J13": "1 개소",
+        "J13": "개소",
         "A14": "방화\n구획",
         "B14": "해당유무",
         "C14": "□ 면적별",
@@ -751,6 +761,10 @@
       "tokenCells": {},
       "scrubbed": {},
       "sampleBlanked": {},
+      "fillInStripped": {
+        "C11": "etc",
+        "J13": "unit"
+      },
       "numberedRuns": []
     },
     {
@@ -786,6 +800,7 @@
         ]
       },
       "sampleBlanked": {},
+      "fillInStripped": {},
       "numberedRuns": []
     },
     {
@@ -872,6 +887,7 @@
       "tokenCells": {},
       "scrubbed": {},
       "sampleBlanked": {},
+      "fillInStripped": {},
       "numberedRuns": []
     },
     {
@@ -909,6 +925,7 @@
       },
       "scrubbed": {},
       "sampleBlanked": {},
+      "fillInStripped": {},
       "numberedRuns": []
     },
     {
@@ -986,6 +1003,7 @@
       },
       "scrubbed": {},
       "sampleBlanked": {},
+      "fillInStripped": {},
       "numberedRuns": []
     },
     {
@@ -1038,6 +1056,7 @@
       "tokenCells": {},
       "scrubbed": {},
       "sampleBlanked": {},
+      "fillInStripped": {},
       "numberedRuns": [
         {
           "startRow": 2,
@@ -1143,6 +1162,7 @@
       "tokenCells": {},
       "scrubbed": {},
       "sampleBlanked": {},
+      "fillInStripped": {},
       "numberedRuns": []
     },
     {
@@ -1200,7 +1220,7 @@
         "B17": "수 행 자",
         "C17": "소방안전관리자",
         "D17": "수행주기",
-        "F17": "☐ 매월 (   1   일)",
+        "F17": "☐ 매월 (       일)",
         "B18": "수행횟수",
         "C18": "월 1회 이상",
         "F18": "□ 월",
@@ -1268,6 +1288,9 @@
         ]
       },
       "sampleBlanked": {},
+      "fillInStripped": {
+        "F17": "padded"
+      },
       "numberedRuns": []
     },
     {
@@ -1391,6 +1414,7 @@
       "tokenCells": {},
       "scrubbed": {},
       "sampleBlanked": {},
+      "fillInStripped": {},
       "numberedRuns": []
     },
     {
@@ -1418,6 +1442,7 @@
       "tokenCells": {},
       "scrubbed": {},
       "sampleBlanked": {},
+      "fillInStripped": {},
       "numberedRuns": []
     },
     {
@@ -1647,6 +1672,7 @@
       "tokenCells": {},
       "scrubbed": {},
       "sampleBlanked": {},
+      "fillInStripped": {},
       "numberedRuns": []
     },
     {
@@ -1662,7 +1688,7 @@
       "labels": {
         "A1": "1.11.2 소방훈련 및 교육 세부계획",
         "E2": "※ □에는 해당되는 곳에 √표를 합니다.",
-        "A3": "[   25 년 제  1 차] 소방훈련 · 교육 및 자체평가 계획",
+        "A3": "[      년 제    차] 소방훈련 · 교육 및 자체평가 계획",
         "A4": "명  칭",
         "B4": "       자체 소방훈련 ",
         "A5": "일시",
@@ -1727,6 +1753,9 @@
       "sampleBlanked": {
         "B13": "소방훈련 시나리오 = 고객별 값(강순기와 문구가 다르다)"
       },
+      "fillInStripped": {
+        "A3": "padded"
+      },
       "numberedRuns": []
     },
     {
@@ -1767,6 +1796,7 @@
       "tokenCells": {},
       "scrubbed": {},
       "sampleBlanked": {},
+      "fillInStripped": {},
       "numberedRuns": []
     },
     {
@@ -1853,6 +1883,7 @@
         ]
       },
       "sampleBlanked": {},
+      "fillInStripped": {},
       "numberedRuns": []
     },
     {
@@ -1902,6 +1933,7 @@
         ]
       },
       "sampleBlanked": {},
+      "fillInStripped": {},
       "numberedRuns": []
     },
     {
@@ -1945,6 +1977,7 @@
       "tokenCells": {},
       "scrubbed": {},
       "sampleBlanked": {},
+      "fillInStripped": {},
       "numberedRuns": []
     },
     {
@@ -1985,6 +2018,7 @@
       "tokenCells": {},
       "scrubbed": {},
       "sampleBlanked": {},
+      "fillInStripped": {},
       "numberedRuns": []
     },
     {
@@ -2152,7 +2186,7 @@
         "B16": " □ 소방계획서 내 별첨     ",
         "J16": " □ 별도 파일철",
         "B17": " □ 전자문서",
-        "J17": " □ 기타(  상시 부착        )"
+        "J17": " □ 기타(               )"
       },
       "boxes": {
         "F3": "□",
@@ -2289,6 +2323,9 @@
       "tokenCells": {},
       "scrubbed": {},
       "sampleBlanked": {},
+      "fillInStripped": {
+        "J17": "etc"
+      },
       "numberedRuns": []
     },
     {
@@ -2318,6 +2355,7 @@
       "tokenCells": {},
       "scrubbed": {},
       "sampleBlanked": {},
+      "fillInStripped": {},
       "numberedRuns": []
     },
     {
@@ -2399,6 +2437,7 @@
         ]
       },
       "sampleBlanked": {},
+      "fillInStripped": {},
       "numberedRuns": []
     }
   ]
