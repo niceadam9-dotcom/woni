@@ -541,7 +541,7 @@ export function BuildingListPanel({ customerId, customerName, customerAddress, b
           </div>
 
           <div className="flex flex-wrap gap-2 items-end">
-            <div className="w-52"><label className={labelCls}>건물명 *</label>
+            <div className="w-52"><label className={labelCls}>건물명<span className="text-red-500 ml-0.5">*</span></label>
               <input value={form.building_name} onChange={e => setField('building_name', e.target.value)} disabled={!canManage} className={inputCls} /></div>
             <div className="flex-1 min-w-64"><label className={labelCls}>주소</label>
               <input value={form.address} readOnly placeholder="주소 검색 또는 고객 주소 상속" className={`${inputCls} bg-paper`} /></div>
@@ -594,13 +594,15 @@ export function BuildingListPanel({ customerId, customerName, customerAddress, b
             </p>
             {/* ① 허가·승인·면적·규모 — 연면적·층수는 위 기본 정보 행에서 입력 */}
             <div className="flex flex-wrap gap-2 items-end">
-              <div className="w-32"><label className={labelCls}>건축허가일 *</label>
+              <div className="w-32"><label className={labelCls}>건축허가일<span className="text-red-500 ml-0.5">*</span></label>
                 <DateInput id="bf-permit-date" value={form.permit_date} onChange={e => setField('permit_date', e.target.value)} disabled={!canManage} className={inputCls} /></div>
               <div className="w-32"><label className={labelCls}>사용승인일</label>
                 <input value={useApprovalDate ?? ''} readOnly placeholder="고객 정보에서 입력"
                   title="사용승인일은 고객 기본 정보의 값입니다 — 점검 기산점 축이라 고객 정보에서 수정합니다"
                   className={`${inputCls} bg-paper`} /></div>
-              <div className="w-28"><label className={labelCls}>건축면적(㎡)</label>
+              {/* 건축면적 — 표시만 필수(빨간 *), 저장은 막지 않는다(2026-09-08 사용자 확정): 대장 표제부에
+                  archArea가 없는 건물이 실재해(실호출 11/14) 차단하면 그 건물은 영영 저장이 안 된다 */}
+              <div className="w-28"><label className={labelCls}>건축면적(㎡)<span className="text-red-500 ml-0.5">*</span></label>
                 <input id="bf-building-area" type="number" value={form.building_area} onChange={e => setField('building_area', e.target.value)} disabled={!canManage} className={inputCls} /></div>
               <div className="w-20"><label className={labelCls}>높이(m)</label>
                 <input id="bf-height" type="number" value={form.height} onChange={e => setField('height', e.target.value)} disabled={!canManage} className={inputCls} /></div>
