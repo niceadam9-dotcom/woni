@@ -126,16 +126,43 @@ const walk = (dir: string): string[] => readdirSync(dir, { withFileTypes: true }
   const p = path.join(dir, e.name)
   return e.isDirectory() ? walk(p) : /\.(ts|tsx)$/.test(e.name) ? [p] : []
 })
+// ⚠ 패턴을 **다중이용업 문맥으로 한정**한다(2026-09-08 정정).
+//   종전엔 `.applicable`이 든 줄을 전부 잡았다. `applicable`은 흔한 낱말이라, 다른 축이 같은
+//   이름을 쓰는 순간 오탐이 난다 — 실제로 별지 11호 완료 축이 `annexDoneRows(rows, ctx:
+//   { hasAnyDefect, applicable })`를 도입하자(report9-assemble.ts:198·218) 이 가드가 빨개졌다.
+//   그건 '해당하는 불량 구분이 있는가'(:818 applicableGroups.length > 0)라 다중이용업과 무관하다.
+//   **울지 말아야 할 때 우는 가드는 무시당한다** — 그리고 이 프로브는 test-all에 등재조차
+//   안 돼 있어서, 빨간 채로 아무도 모르고 지나가고 있었다(둘이 겹치면 가드가 없는 것과 같다).
+//   그래서 다중이용업 문맥의 식별자에 붙은 `.applicable`만 잡는다.
+const MU_APPLICABLE = /\b(mu|muSection|multiUse|multi_use|muInfo|muData)\w*\s*(\?\.|\.|\]\s*\.)\s*applicable\b/i
+const MU_BRACKET = /\[\s*['"]multiUse['"]\s*\][\s\S]{0,40}?\.applicable\b/
 const offenders: string[] = []
 for (const file of walk(srcRoot)) {
   const rel = path.relative(path.join(import.meta.dirname, '..'), file).replace(/\\/g, '/')
   if (ALLOWED.has(rel)) continue
   const body = readFileSync(file, 'utf8')
   body.split(/\r?\n/).forEach((ln, i) => {
-    if (/\.applicable\b/.test(ln) && !/^\s*(\*|\/\/)/.test(ln)) offenders.push(`${rel}:${i + 1}`)
+    if (/^\s*(\*|\/\/)/.test(ln)) return                       // 주석은 규약 설명이라 제외
+    if (MU_APPLICABLE.test(ln) || MU_BRACKET.test(ln)) offenders.push(`${rel}:${i + 1}`)
   })
 }
-check('판정 원천·입력 UI 밖에서 .applicable 직접 접근 없음', offenders.length === 0, offenders.join(', '))
+check('다중이용업 판정을 원천 밖에서 직접 읽는 곳 없음', offenders.length === 0, offenders.join(', '))
+
+// 좁힌 만큼 **판별자가 살아 있는지**를 함께 단언한다 — 패턴을 좁히면 늘 통과하는 가드가 되기 쉽다.
+// 진짜 위반 모양을 만들어 넣어 잡히는지 보고, 무관한 `.applicable`은 안 잡히는지도 본다.
+const bait = [
+  "  const on = muSection.applicable === true",
+  "  const on2 = mu?.applicable",
+  "  const on3 = (sections['multiUse'] as X).applicable",
+]
+const innocent = [
+  "  return { kind: ctx.applicable ? 'ok' : 'na', rows: [] }",
+  "  applicable: applicableGroups ? applicableGroups.length > 0 : true,",
+]
+const caught = bait.filter(l => MU_APPLICABLE.test(l) || MU_BRACKET.test(l)).length
+const falsePos = innocent.filter(l => MU_APPLICABLE.test(l) || MU_BRACKET.test(l)).length
+check(`D2 판별자 생존 — 위반 모양 ${bait.length}종을 전부 잡는다`, caught === bait.length, `잡은 것 ${caught}/${bait.length}`)
+check('D3 무관한 .applicable은 잡지 않는다(오탐 재발 방지)', falsePos === 0, `오탐 ${falsePos}건`)
 
 console.log(`\n=== 결과 — ${pass}/${pass + fail}`)
 process.exit(fail ? 1 : 0)

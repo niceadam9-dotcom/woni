@@ -172,7 +172,9 @@
         { "id": "S13-5", "desc": "다건 일괄(zip) 미채택 — 후보 기록만(Q-13 rejected)", "status": "deferred" }
       ] },
 
-    { "id": "S14", "title": "(3차 신설) 다중이용업소 단일화 — Q-10", "status": "partial", "phase": "A",
+    { "id": "S14", "title": "(3차 신설) 다중이용업소 단일화 — Q-10", "status": "implemented", "phase": "A",
+      "rollup_2026_09_08": "하위 S14-1~5 전건 implemented → 규칙 1대로 섹션 도출. 마지막까지 남아 있던 S14-5 ①('입력 화면 시트 1개')을 hermetic 픽스처 프로브로 실데이터 확인(test-mu-single-sheet.mts 11/0, test:all 등재). 137은 이미 스테이징 적용 완료라 blocked_by는 해소된 상태였다",
+      "unblocks": "소방계획서_21 V21-6 — 펌프성능시험 표에 32(다중이용업)를 아홉 번째로 넣을지의 판단이 이 축의 결론을 기다리고 있었다. 다만 V21-6의 실제 차단 사유는 '축이 다르다'가 아니라 **우리 STD-32에 32-A·32-B 그룹이 통째로 없어 법정 표가 붙을 문맥이 없다**는 것이고, 그건 이번 단일화로 바뀌지 않았다 — 시트 항목 축을 늘리는 별건이다",
       "blocked_by": "S9-3 DB 적용(137) — 코드는 준비됐고 18항목 적재 전에는 44항목 입력이 불가할 뿐",
       "verified": { "date": "2026-08-15", "method": "독립 검증(판정자 D) + 프로브 재실행 12/12 — S14-1~3만(S14-4/5는 23 소관 잔류 → 섹션 partial 유지)", "evidence": ["mu-std32-map.ts:15-37 매핑·:41-51 deriveMuFromStd32(X→O→N→공란)", "report9-actions.ts:350-353 직접 응답 선기록·:441-443 빈 칸만 파생", "원문 :3768-3783 MU-010/011/012 귀속 대조"] },
       "note": "2026-08-15 — 매핑·롤업은 lib/mu-std32-map.ts 단일 원천(MU 16칸 ↔ 법정 44항목 전건 1:1 귀속). 매핑 유도: MU 칸 라벨(스테이징 실측) ↔ 32번 블록 설비 단위. MU-011 방화문↔32-D-003, MU-012 비상구↔32-D-001·002, MU-010 창문↔32-E-004",
@@ -182,7 +184,20 @@
         { "id": "S14-3", "desc": "레거시 우선 — MU-01 직접 응답이 이긴다", "status": "implemented", "evidence": "assembleReport9 — 직접 응답 채운 뒤 빈 칸만 파생(if (!muResults[mu]))" },
         { "id": "S14-4", "desc": "노출 규칙 — multiUse 업종 ≥1이면 STD-32 노출, MU-01 숨김", "status": "implemented", "owner": "소방계획서_23 S7-27", "note": "인쇄 측(부속 시트 집합의 no===32 → multiUse 축)은 이번에 반영. 입력 화면 노출·숨김은 23 소관. ⚠2026-08-15 재확인 — 종전 위임처 '23 S7-5 확장'이 23 설계에 미반영(허공)이었음을 발견, 23 S7-27로 실등재(installedOnly 상호작용 경고 포함)",
           "independent_check": { "date": "2026-08-20", "judge": "재판정 세션(구현자≠판정자)", "method": "코드 대조 + 무DB 프로브 재실행 + 스테이징 읽기 전용 SELECT", "evidence": ["sheet-overview.ts:171-176 multiUse 판별(isMultiUseApplicable + categories 비어있지 않음)", "sheet-overview.ts:221 MU-01 숨김 — 레거시 응답 없으면 continue로 행 자체 제거", "sheet-overview.ts:240-241 installed에 (STD-32 && multiUse) 예외", "sheet-facility-map.ts:118-121 ALWAYS_SHOWN_SHEET_CODES에 STD-32를 의도적으로 넣지 않음(주석으로 명문화)"], "counter_evidence": "(a) 업종 0건이면 installed=false → 기본 on인 '설치 설비만'에서 탈락(_probe-sheet-visibility.mjs 16/16, STD-32 미노출 단언 포함) (b) MU-01은 배열에서 제거되므로 inspection-sheet-client.tsx:259·plan-annex-sheet-tree.tsx:321 어느 쪽으로도 누수 없음", "regression_note": "후속 커밋 1e591cf(!!mu?.applicable → isMultiUseApplicable)·f6a69d8(널 좁히기)·05e8d26(installedOnly 단일화)이 판정 의미를 바꾸지 않았음을 확인 — applicable이 boolean이라 두 식은 동치이고, 05e8d26은 오히려 STD-32를 예외에서 빼는 주석으로 규칙을 보호했다", "caveat": "숨김은 '연성' — 비대상 고객도 '설치 설비만'을 풀거나 설비정보 0건(noFacilityInfo 자동 해제)이면 STD-32가 다시 보인다. 다른 미설치 시트와 동일 취급이라 설계 의도 내로 판단" } },
-        { "id": "S14-5", "desc": "합격선 — 입력 화면 다중이용업소 시트 1개(STD-32)·별지 4호 2쪽 16칸 파생", "status": "partial", "note": "137 적용(스테이징 완료) + 23 S7-27 이후 실검증",
+        { "id": "S14-5", "desc": "합격선 — 입력 화면 다중이용업소 시트 1개(STD-32)·별지 4호 2쪽 16칸 파생", "status": "implemented", "note": "137 적용(스테이징 완료) + 23 S7-27 이후 실검증",
+          "progress_2026_09_08": {
+            "registered": "⭐ **두 프로브가 test-all에 하나도 등재돼 있지 않았다** — `_probe-mu-applicable`(판정 단일화 소스 가드)·`_probe-mu-std32-map`(16칸↔44항목 매핑). 둘 다 등재했다. 이번 잔여 정리에서 같은 형태를 네 번째로 만났다(3쪽 폴백·펌프성능시험·S8-10 배선·여기)",
+            "live_red_found": "🚨 **등재가 없어서 빨간 줄 모르고 있었다** — `_probe-mu-applicable`이 26/27로 실패 중이었다. 원인은 제품이 아니라 가드였다: `.applicable`이 든 줄을 전부 잡는 패턴이라, 별지 11호 완료 축이 도입한 `annexDoneRows(rows, ctx: { hasAnyDefect, applicable })`(report9-assemble.ts:198·218)를 이름만 보고 위반으로 셌다. 그 `applicable`은 `applicableGroups.length > 0`(:818)이라 다중이용업과 무관하다. **제품의 다중이용업 판정은 :486·:568·:663·:898 전부 isMultiUseApplicable을 쓴다 — 규약 위반 0건**",
+            "guard_fixed": "패턴을 다중이용업 문맥 식별자(mu·muSection·multiUse…)로 한정하고, 좁힌 만큼 공허해지지 않도록 **판별자 생존 단언**을 넣었다 — 위반 모양 3종을 전부 잡는가(D2) · 무관한 `.applicable`을 안 잡는가(D3). 29/29 rc=0",
+            "why_it_matters": "울지 말아야 할 때 우는 가드는 무시당하고, 등재까지 안 돼 있으면 빨강도 오탐도 아무도 모른다 — 둘이 겹치면 가드가 없는 것과 같다",
+            "closed": "①'입력 화면 시트 1개'를 **실데이터로 확인했다** — scripts/test-mu-single-sheet.mts 11/0 rc=0(test:all 등재). 자기 픽스처를 만들고 지운다(잔재 0건 단언 포함). ②'별지 4호 2쪽 16칸 파생'은 매핑(프로브 전건 통과)·배선(report9-actions:608→:717→report4.ts:58·135)에 더해 이 검사의 E축이 **실제로 넣은 STD-32 응답**이 MU-001←O·MU-004←N·MU-016←X로 굴러가는 것까지 본다"
+          },
+          "verified_2026_09_08": {
+            "judge": "잔여 정리 세션(구현자≠판정자)",
+            "실측": "A(multiUse·레거시 없음) → 시트 목록에 STD-32만, MU-01은 **행 자체가 없다** · B(레거시 MU-001·MU-003 있음) → STD-32 + MU-01 **둘 다** · C(비대상) → STD-32가 installed로 안 잡힘 · D(applicable=true인데 업종 전부 공백) → 대상 아님(:203의 AND 조건 고정)",
+            "why_B_matters": "⭐ **B가 없으면 A가 공허하다.** 어떤 이유로든 MU-01이 늘 사라지는 상태여도 A는 초록이 된다. B는 '숨김이 조건부'임을 증명하는 대조군이고, 실제로 2026-08-20 재판정이 본 스테이징 상태(레거시 응답 때문에 시트 2개)가 **결함이 아니라 정상**이었음도 이 대조군이 설명한다",
+            "residual": "없음. 다만 숨김은 '연성'이라 비대상 고객도 '설치 설비만'을 풀면 STD-32가 보인다(S14-4 caveat 그대로 — 다른 미설치 시트와 동일 취급이라 설계 의도 내)"
+          },
           "rejudge_2026_08_20": { "verdict": "부분해소", "judge": "재판정 세션(구현자≠판정자)", "done": "별지 4호 2쪽 16칸 파생 배선 성립 — report9-actions.ts:608 muResults → :717 report4로 전달, report4.ts:58·135 muResultSection(d)가 별지 9호 3쪽과 같은 객체를 공유", "residual": "실데이터 검증이 한 번도 안 됐다 — 스테이징 실측: inspection_sheet_responses의 '32-' 응답 0건, multiUse 고객은 1명뿐이고 그 점검엔 레거시 MU-001·MU-003 응답이 있어 :221 보존 분기로 MU-01이 남는다(다중이용 시트 2개). S14-5 문면의 '시트 1개'는 레거시 응답이 없는 신규 회차에서만 성립", "next": "레거시 MU 응답이 없는 multiUse 회차에 STD-32 응답을 넣어 ①입력 화면 시트 1개 ②별지 4호 2쪽 16칸 파생을 실데이터로 1회 확인 — 스테이징 쓰기가 필요하므로 사용자 승인 후" } }
       ] },
 
