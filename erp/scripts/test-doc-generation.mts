@@ -10,6 +10,10 @@
  *  전부 서버 동기라 클릭 즉시 완료. 스크립트는 스테이징 사이트 UI를 Playwright로 클릭(액션 직접 호출 불가).
  *  실행: $env:TEST_BASE_URL='https://staging.sjfire.co.kr'; npx tsx scripts/test-doc-generation.mts
  *  전제: .env.local = 대상 사이트와 같은 DB(스테이징) · 대상 서버에 GOTENBERG_URL 구성.
+ *
+ *  ⚠ GOTENBERG_URL이 없는 서버를 상대로 돌리면 PDF 구간은 **건너뛴다**(소방계획서_41 F-2).
+ *    종전에는 이 8건이 코드 결함과 똑같은 모양의 빨강으로 나와 판정을 흐렸다.
+ *    건너뛴 건 통과가 아니다 — 요약이 그 사실과 재실행 필요를 명시한다.
  */
 import { createClient } from '@supabase/supabase-js'
 import { readFileSync } from 'fs'
@@ -31,10 +35,28 @@ const KST = () => new Date(Date.now() + 9 * 3600_000).toISOString().split('T')[0
 const EMAIL = 'doc-gen-e2e@erp-test.com'
 const PW = 'DocGen1!'
 
-let pass = 0, fail = 0
+let pass = 0, fail = 0, skip = 0
 function check(name: string, cond: boolean, detail = '') {
   if (cond) { pass++; console.log(`  ✅ ${name}`) }
   else { fail++; console.log(`  ❌ ${name} ${detail}`) }
+}
+
+/** 소방계획서_41 F-2: 환경 결핍으로 **판정 불가**한 구간 — 통과로 세지 않고 사실을 남긴다.
+ *  조용히 통과시키면 회귀 그물에 구멍이 나고, 실패로 세면 환경 결핍이 코드 결함으로 보인다. */
+function skipped(name: string, reason: string): void {
+  skip++
+  console.log(`  ⏭ ${name} — 건너뜀: ${reason}`)
+}
+
+/** Gotenberg 미구성 환경에서 서버가 던지는 문구 (src/lib/pdf.ts:13·46·101·128).
+ *  ⚠ **이 문구일 때만** 건너뛴다 — 다른 오류까지 넓히면 진짜 결함이 '환경 탓'으로 삼켜진다. */
+const GOTENBERG_MISSING = 'GOTENBERG_URL 미설정'
+
+/** 생성 패널이 띄운 최근 메시지(✅/❌). 타임라인(inspection-timeline-client.tsx:877)과
+ *  별지 작성 패널(annex-compose-panel.tsx:344) 둘 다 같은 <p>로 렌더한다. */
+async function panelMsg(page: Page): Promise<string> {
+  return (await page.locator('p:has-text("생성 완료"), p:has-text("❌")').first()
+    .textContent({ timeout: 1000 }).catch(() => '')) ?? ''
 }
 
 let userId = ''
@@ -69,8 +91,21 @@ async function clickAndWait(
 ): Promise<void> {
   // :text-is — '10호 PDF 생성'·'11호 PDF 생성'이 'PDF 생성'을 포함하므로 부분일치면 여러 개가 걸린다
   await page.click(`button:text-is("${buttonText}")`)
-  const ok = await pollUntil(async () => (await jobDone(inspectionId, reportType))
-    && ((await raw.storage.from(BUCKET).list(prefix, { limit: 100 })).data ?? []).some((o: { name: string }) => re.test(o.name)), 60_000)
+  // 소방계획서_41 F-2 — Gotenberg가 없으면 **잡 행 자체가 안 생긴다**(report9-actions.ts:542 insert는
+  // 성공 경로에서만 돈다). DB 축만 보면 60초를 헛기다린 끝에 '코드 결함'과 똑같은 모양으로 실패한다.
+  // 그래서 UI 오류 문구를 폴링에 함께 태워, 그 문구가 GOTENBERG_MISSING일 때만 조기 이탈해 건너뛴다.
+  let envMiss = ''
+  const ok = await pollUntil(async () => {
+    const m = await panelMsg(page)
+    if (m.includes(GOTENBERG_MISSING)) { envMiss = m.trim(); return true }
+    return (await jobDone(inspectionId, reportType))
+      && ((await raw.storage.from(BUCKET).list(prefix, { limit: 100 })).data ?? []).some((o: { name: string }) => re.test(o.name))
+  }, 60_000)
+  if (envMiss) {
+    skipped(`${label}: 잡 done + 파일 생성`, envMiss)
+    skipped(`${label}: PDF 생성물 존재·매직 %PDF`, envMiss)
+    return
+  }
   check(`${label}: 잡 done + 파일 생성`, ok)
   await verifyPdf(label, prefix, re)
 }
@@ -237,9 +272,16 @@ try {
   // 즉석 PDF — 페이지 세션 쿠키를 공유하는 request 컨텍스트로 라우트를 직접 친다
   const pdfRes = await page.request.get(`${BASE}/customers/${custA}/fire-plan/pdf`, { timeout: 130_000 })
   const pdfBody = pdfRes.ok() ? await pdfRes.body() : Buffer.alloc(0)
-  check('계획서: 즉석 PDF 라우트 200 + %PDF 매직',
-    pdfRes.ok() && pdfBody.subarray(0, 4).toString('latin1') === '%PDF',
-    `status=${pdfRes.status()} bytes=${pdfBody.length}`)
+  // F-2 — 실패 시 라우트는 JSON {error}를 500으로 돌려준다(pdf/route.ts:44). 그 문구가
+  // GOTENBERG_MISSING일 때만 건너뛴다(그 외 500은 종전대로 실패).
+  const pdfErr = pdfRes.ok() ? '' : ((await pdfRes.text().catch(() => '')) || '')
+  if (pdfErr.includes(GOTENBERG_MISSING)) {
+    skipped('계획서: 즉석 PDF 라우트 200 + %PDF 매직', `status=${pdfRes.status()} ${GOTENBERG_MISSING}`)
+  } else {
+    check('계획서: 즉석 PDF 라우트 200 + %PDF 매직',
+      pdfRes.ok() && pdfBody.subarray(0, 4).toString('latin1') === '%PDF',
+      `status=${pdfRes.status()} bytes=${pdfBody.length}`)
+  }
   // 저장 없음 — fire_plans 행이 생기지 않았고 storage에도 generated_web_*이 새로 없다
   const { data: planRows } = await raw.from('fire_plans').select('id').eq('customer_id', custA)
   check('계획서: 저장 없음(fire_plans 0행 유지)', (planRows ?? []).length === 0, `rows=${(planRows ?? []).length}`)
@@ -290,5 +332,9 @@ try {
   console.log('\n[정리] 완료')
 }
 
-console.log(`\n결과: ${pass} 통과 / ${fail} 실패`)
+console.log(`\n결과: ${pass} 통과 / ${fail} 실패${skip > 0 ? ` / ${skip} 건너뜀` : ''}`)
+if (skip > 0) {
+  console.log(`⚠ PDF 변환 구간 ${skip}건은 판정하지 않았다 — 대상 서버(${BASE})에 ${GOTENBERG_MISSING}.`)
+  console.log('  이 실행은 PDF 생성 회귀를 확인한 것이 아니다. 스테이징·운영에서 재실행해야 판정이 선다.')
+}
 process.exit(fail > 0 ? 1 : 0)

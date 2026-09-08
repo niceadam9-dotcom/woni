@@ -110,13 +110,23 @@
           "verified": { "date": "2026-09-08", "commit": "b3c7e1a + 2026-09-08 수리(미커밋)", "method": "실행 실측",
             "evidence": ["test-defect-fold.mts [2][3][4]", "test-annex-compose.mts 25/0 — E2E 픽스처에 설비 대장 1건을 심어 **실제 조립 경로로** 자동 문구를 확인(종전엔 대장이 없어 `?? []`의 오독에 기대 초록이었다)"] } },
         { "id": "S4-3", "desc": "tsc 0 + report9·workbook 계열 회귀 + Gotenberg 육안 1회(8쪽·현5·계획서 나란히)", "status": "partial",
-          "evidence": "2026-09-08 재측정 전건 그린: tsc 0 · test-defect-fold 33/0 · test-annex-compose 25/0(E2E) · test-report10-plan-rows 32/0 · test-xlsx-inject 189/0 · test-xlsx-anchors 61/0 · test-form3-axis 66/0 · test-annex-overrides 57/57 · _probe-41-live 20/20. **잔여: Gotenberg 육안 1회**(로컬 GOTENBERG_URL 미설정 — 운영/스테이징 축). ⚠ test-doc-generation은 이 환경에서 판정 불가: 8건 실패가 전부 「PDF 생성물 존재」로 GOTENBERG_URL 부재 탓이다(annex-compose와 달리 건너뛰기 가드가 없어 환경 결핍이 코드 결함처럼 보인다 — 별건 후속)" }
+          "evidence": "2026-09-08 재측정 전건 그린: tsc 0 · test-defect-fold 33/0 · test-annex-compose 25/0(E2E) · test-report10-plan-rows 32/0 · test-xlsx-inject 189/0 · test-xlsx-anchors 61/0 · test-form3-axis 66/0 · test-annex-overrides 57/57 · _probe-41-live 20/20. **잔여: Gotenberg 육안 1회**(로컬 GOTENBERG_URL 미설정 — 운영/스테이징 축. 2026-09-08 재확인: GOTENBERG_URL은 .env.production에만 있고 값이 docker 내부 호스트(gotenberg-prod:3000)라 로컬에서 해소할 방법이 없다 — 서버 축에서만 닫힌다). ⚠ test-doc-generation은 이 환경에서 여전히 판정 불가지만, **2026-09-08 F-2 가드로 그 8건이 빨강이 아니라 「건너뜀」으로 표시된다** — 환경 결핍과 코드 결함이 더 이상 같은 모양이 아니다" }
       ]
     }
   ],
   "followups": [
     { "id": "F-1", "what": "Gotenberg 육안 1회 — 8쪽·갑지 현5·계획서!H를 나란히(대조군: fold 전 산출물)", "status": "open", "blocked_by": "로컬 GOTENBERG_URL 미설정" },
-    { "id": "F-2", "what": "test-doc-generation에 GOTENBERG_URL 건너뛰기 가드 추가(test-annex-compose.mts:155 패턴) — 환경 결핍이 코드 결함으로 보이는 것을 막는다", "status": "open" },
+    { "id": "F-2", "what": "test-doc-generation에 GOTENBERG_URL 건너뛰기 가드 추가(test-annex-compose.mts:155 패턴) — 환경 결핍이 코드 결함으로 보이는 것을 막는다", "status": "code_present",
+      "done": "2026-09-08 (미커밋)",
+      "how": "①clickAndWait의 폴링에 UI 오류 문구를 함께 태워 조기 이탈(Gotenberg가 없으면 **잡 행 자체가 안 생긴다** — report9-actions.ts:542 insert는 성공 경로에서만 돈다. 그래서 DB 축만 보면 60초를 헛기다린 끝에 코드 결함과 똑같은 모양으로 실패했다) ②계획서 즉석 PDF 라우트는 500 JSON 본문(pdf/route.ts:44)으로 판정 ③skip 카운터를 pass와 분리하고 요약에 「회귀를 확인한 것이 아니다」를 명시 — 건너뜀이 통과로 둔갑하지 않는다",
+      "guard_scope": "GOTENBERG_MISSING('GOTENBERG_URL 미설정') **한 문구일 때만** 건너뛴다. 넓히면 진짜 결함이 환경 탓으로 삼켜진다 — 업로드 실패·503·조회 실패는 종전대로 빨강임을 반대 축으로 단언했다",
+      "verified": { "date": "2026-09-08", "method": "_probe-41-f2-guard.mts 21/0 + tsc 0 + test-defect-fold 33/0(회귀 무손상)",
+        "evidence": [
+          "scripts/_probe-41-f2-guard.mts — 상수·선택자를 **제품 소스에서 뽑아** 대조(픽스처에 손으로 박지 않는다: S1-1 결함이 정확히 그 실수였다). pdf.ts의 throw 4곳 전부 상수 포함 확인 · 두 패널(inspection-timeline-client.tsx:877 · annex-compose-panel.tsx:344)의 실제 className을 렌더해 Playwright 선택자가 집어내는지 실행 확인",
+          "반대 축 4건 — 업로드 실패·Gotenberg 503·조회 실패·성공 메시지는 **건너뛰지 않는다**(조건부 단언은 양방향으로)",
+          "scripts/test-doc-generation.mts:38(skip 카운터) · :46 skipped() · :53 GOTENBERG_MISSING · :57 panelMsg · :97-109(clickAndWait 폴링 조기 이탈) · :277(즉석 PDF 라우트 축) · :335-340(요약·건너뜀 명시)"
+        ] },
+      "residual": "⚠ **가드가 실환경에서 발화하는 것까지는 미검증** — GOTENBERG_URL 없는 서버를 상대로 본 E2E를 1회 돌려야 판정이 선다. 이번엔 못 돌렸다: dev 서버 정지·여유 RAM 1.6GB·.next 6.4GB로 [[risk_dev_css_cache_stale]]·[[risk_dev_postcss_worker_leak]]의 wedge 구성 그대로라, 빨강이 나와도 환경 탓인지 못 가른다(F-2가 막으려는 혼동과 같은 축). 알려진 한계: 두 <p>가 공존하면 .first()가 ✅를 집어 건너뛰지 않는다 — 안전한 쪽으로 틀린다(삼키지 않는다)" },
     { "id": "F-3", "what": "수기 불량행(코드 없음) 이름의 .trim() 부재 — 공백만 있는 이름이 사람 입력으로 판정돼 공백 1행이 인쇄된다(LOW). 2026-09-08 사용자 판단으로 이번 범위 밖", "status": "deferred" },
     { "id": "F-4", "what": "Q-2 후속 — 문구 빨강+자간(목업 image-61) 적용 여부", "status": "deferred" }
   ]
