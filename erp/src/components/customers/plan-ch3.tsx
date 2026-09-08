@@ -10,6 +10,7 @@ import { LibraryTextButton, type AppliedMeta } from '@/components/customers/libr
 import { PLAN_TEXT_SECTIONS } from '@/lib/plan-text-sections'
 import { goPlanNode } from '@/components/customers/plan-form13'
 import type { EvacFireSection } from '@/components/customers/plan-form15'
+import { compartmentLabel } from '@/lib/evac-compartment'
 
 /** 3장 피난계획 — 서식 3.1~3.7 (소방계획서_4.md §6)
  *  3.1은 1.5 입력(evacFire) 자동 표시(재사용 — 수정은 1.5에서), 3.4 evacPlan은 생성 어댑터(§7-3)로 문서에 반영.
@@ -129,7 +130,7 @@ export function PlanCh3({ customerId, canManage, evacFire, headcount, initialDet
               <p className="text-form-sm text-ink-sub">계단: {Object.entries(evacFire.stairs ?? {}).map(([k, n]) => `${k}${n ? ` ${n}개소` : ''}`).join(' · ') || '—'}</p>
               <p className="text-form-sm text-ink-sub">기타: {[...(evacFire.etc ?? []), evacFire.etcNote].filter(Boolean).join(' · ') || '—'}</p>
               <p className="text-form-sm text-ink-sub">피난층: {evacFire.evacFloor?.location || '—'}{evacFire.evacFloor?.exits ? ` · 출입구 ${evacFire.evacFloor.exits}개소` : ''}{evacFire.evacFloor?.openMethod ? ` · ${evacFire.evacFloor.openMethod}` : ''}</p>
-              <p className="text-form-sm text-ink-sub">방화구획: {evacFire.compartment === 'none' ? '해당없음' : evacFire.compartment === 'area' ? '면적별' : evacFire.compartment === 'floor' ? '층별' : '—'}</p>
+              <p className="text-form-sm text-ink-sub">방화구획: {compartmentLabel(evacFire.compartment) || '—'}</p>
             </>
           ) : (
             <p className="text-form-xs text-ink-meta">1장 &gt; 1.5 피난·방화를 먼저 입력하세요.</p>

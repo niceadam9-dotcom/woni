@@ -23,6 +23,7 @@ export const FP_SHEET = {
   F1_1: '1.1 건축물 일반현황',
   F1_2_1: '1.2.1 구역별 세부현황',
   F1_3_ROUTE: '1.3 소방차 진입경로',
+  F1_5_1: '1.5.1 피난·방화시설 현황',
   F1_7_1: '1.7.1 소방안전관리자 선임현황',
   F1_8: '1.8 업무대행 현황',
 } as const
@@ -49,6 +50,16 @@ type Seed = { field: string; sheet: string; cell: string; labelCell: string }
  *       빈 상자 글자는 manifest가 이미 셀별로 들고 있으니(F-6) 2단계는 값 축만 얹으면 된다.
  *     · 1.15 피해 복구의 관할소방서·인근병원 칸은 스크럽으로 비워 두었다(표본 지역값).
  *       `fire_station`은 1.3에만 배선돼 있다.
+ *
+ *  ══════════════════════ §상자칸 (2026-09-08, 방화구획) ══════════════════════
+ *
+ *  앵커에는 갈래가 둘이다. **값칸**은 템플릿에서 공란이고 우리가 값을 채운다. **상자칸**은
+ *  법정 자구를 이고 있고(`□ 면적별` · `□유 □무`) 우리는 **상자 글자만** `■`로 갈아 끼운다.
+ *  라벨을 코드에 베껴 `'■ 면적별'`을 만들지 않는 이유는 값칸과 같다 — 양식이 개정되면
+ *  코드가 옛 문구를 들고 있는다. 값 축의 `stampBoxes`가 manifest 원문을 읽어 조립한다.
+ *
+ *  🚨 상자칸은 **백지 불변식의 예외**다. `isBoxLabelAnchor`로 자기정의하고 손목록을 두지 않는다 —
+ *    목록으로 봐주기 시작하면 진짜 오염이 그 목록에 숨는다.
  */
 
 const FIXED_SEEDS: Seed[] = [
@@ -86,6 +97,13 @@ const FIXED_SEEDS: Seed[] = [
   // ── 서식 1.3 소방차 진입경로 ── 서식이 수신기 위치를 두 곳에 반복한다(같은 값·같은 필드)
   { field: 'receiver_location', sheet: FP_SHEET.F1_3_ROUTE, cell: 'H3', labelCell: 'F3' },
   { field: 'fire_station', sheet: FP_SHEET.F1_3_ROUTE, cell: 'C5', labelCell: 'B5' },
+
+  // ── 서식 1.5.1 방화구획 ── **라벨동반 상자칸**(§상자칸 참조). 다른 앵커와 달리 템플릿에서
+  //   공란이 아니라 법정 자구(`□ 면적별`)를 이고 있다 — 값 축이 상자 글자만 갈아 끼운다.
+  //   ⚠ `J14 □ 용도별`은 배선하지 않는다: ERP 입력에 그 갈래가 없으므로 늘 미체크가 맞다.
+  { field: 'compartment_applies', sheet: FP_SHEET.F1_5_1, cell: 'B15', labelCell: 'B14' },
+  { field: 'compartment_area', sheet: FP_SHEET.F1_5_1, cell: 'C14', labelCell: 'A14' },
+  { field: 'compartment_floor', sheet: FP_SHEET.F1_5_1, cell: 'F14', labelCell: 'A14' },
 
   // ── 서식 1.7.1 선임현황 ── 왼쪽 칸(B4)은 공백 한 칸뿐이라 **열 머리**를 라벨로 쓴다
   { field: 'manager_name', sheet: FP_SHEET.F1_7_1, cell: 'C4', labelCell: 'C3' },
@@ -153,6 +171,17 @@ function assemble(seeds: Seed[]): Anchor[] {
 }
 
 export const FIRE_PLAN_ANCHORS: Anchor[] = assemble([...FIXED_SEEDS, ...ZONE_SEEDS])
+
+/**
+ * **라벨동반 상자칸인가**(§상자칸) — 그 칸의 manifest 라벨이 빈 상자를 품고 있는가.
+ *
+ * 백지 불변식('앵커 칸은 템플릿에서 공란')이 이 갈래만 예외로 둔다. 예외를 좌표 목록으로 적으면
+ * 나중에 진짜 오염이 그 목록 뒤에 숨으므로, **'상자를 가진 라벨 칸인가'** 로 자기정의한다.
+ */
+export function isBoxLabelAnchor(a: { sheet: string; cell: string }): boolean {
+  const lbl = sheetManifest(a.sheet).labels[a.cell]
+  return !!lbl && /[□☐]/.test(lbl)
+}
 
 /** 값 맵이 반드시 채워야 하는 필드 전수(중복 제거) — S7-2 완결성 검사와 S5가 같은 목록을 본다 */
 export const FIRE_PLAN_FIELDS: string[] = [...new Set(FIRE_PLAN_ANCHORS.map(a => a.field))]

@@ -14,10 +14,11 @@ import * as XLSX from 'xlsx'
 import { validateAnchors } from '../src/lib/xlsx-anchors.ts'
 import { toInjectTargets } from '../src/lib/xlsx-workbook.ts'
 import { injectWorkbook } from '../src/lib/xlsx-inject.ts'
-import { FIRE_PLAN_ANCHORS, FIRE_PLAN_FIELDS, ZONE_ROWS, ZONE_SHEET, ZONE_FIRST_ROW } from '../src/lib/fire-plan-anchors.ts'
+import { FIRE_PLAN_ANCHORS, FIRE_PLAN_FIELDS, FP_SHEET, ZONE_ROWS, ZONE_SHEET, ZONE_FIRST_ROW, isBoxLabelAnchor } from '../src/lib/fire-plan-anchors.ts'
 import { buildFirePlanValues, missingValueFields, planDate, zoneRowOverflow } from '../src/lib/fire-plan-xlsx-values.ts'
 import { FIRE_PLAN_MANIFEST, labelAt, boxGlyphAt } from '../src/lib/fire-plan-xlsx-manifest.ts'
 import { FIRE_PLAN_SCRUB_NEEDLES, FIRE_PLAN_MARK_CHECKED_RE } from '../src/lib/fire-plan-scrub.ts'
+import { COMPARTMENT_KINDS } from '../src/lib/evac-compartment.ts'
 import type { FirePlanGenData } from '../src/lib/fire-plan-template.ts'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
@@ -93,16 +94,28 @@ console.log('\n[3] 백지 불변식 — 템플릿에 표본의 답이 남아 있
   // 빈 상자 글자 하나만 남은 칸(표지 용도)은 답을 담고 있지 않은 **서식 골격**이고, 오히려
   // 그걸 지우면 용도 미입력 시 원본에 있던 상자가 사라진다. 그 한 갈래만 허용하고 나머지는
   // 여전히 공란을 요구한다 — 느슨하게 푸는 게 아니라 허용 범위를 글자 수준으로 좁힌다.
+  //
+  // 두 번째 갈래는 **상자칸**(앵커 §상자칸): `□ 면적별` 처럼 법정 자구를 이고 있고 값 축이
+  // 상자 글자만 갈아 끼운다. 지우면 서식이 사라지므로 공란을 요구할 수 없다. 예외를 좌표
+  // 목록으로 적으면 진짜 오염이 그 뒤에 숨으니 `isBoxLabelAnchor`로 **자기정의**하고,
+  // 자산의 그 칸이 manifest 라벨과 **글자 그대로 같은지**를 함께 요구한다(표본 답 방지).
   const cellText = (a: { sheet: string; cell: string }) =>
     String((wb.Sheets[a.sheet]?.[a.cell] as XLSX.CellObject | undefined)?.v ?? '').trim()
+  const boxLabelOk = (a: { sheet: string; cell: string }) =>
+    isBoxLabelAnchor(a) && cellText(a) === labelAt(a.sheet, a.cell).trim()
   const dirty = FIRE_PLAN_ANCHORS.filter(a => {
     const t = cellText(a)
-    return t && !/^[□☐]$/.test(t)
+    return t && !/^[□☐]$/.test(t) && !boxLabelOk(a)
   })
-  check('앵커 셀 공란(빈 상자 하나만 예외)', dirty.length === 0,
+  check('앵커 셀 공란(빈 상자·상자칸만 예외)', dirty.length === 0,
     dirty.slice(0, 5).map(a => `${a.sheet}!${a.cell}='${cellText(a)}'`).join(' · '))
   const boxOnly = FIRE_PLAN_ANCHORS.filter(a => /^[□☐]$/.test(cellText(a)))
   check('빈 상자만 남은 앵커는 소수', boxOnly.length <= 3, boxOnly.map(a => `${a.sheet}!${a.cell}`).join(','))
+  const boxLabel = FIRE_PLAN_ANCHORS.filter(isBoxLabelAnchor)
+  check('상자칸 예외가 소수(1.5.1 방화구획 3칸)', boxLabel.length <= 4 && boxLabel.length >= 1,
+    boxLabel.map(a => `${a.sheet}!${a.cell}`).join(','))
+  check('상자칸은 템플릿에서 전부 미체크', boxLabel.every(a => !/■/.test(cellText(a))),
+    boxLabel.filter(a => /■/.test(cellText(a))).map(a => a.cell).join(','))
 }
 {
   // 원시 바이트 축 — 셀 값 스캔은 파트 안에 남은 원문을 못 본다(.xlsx는 zip이다)
@@ -278,6 +291,9 @@ console.log('\n[7] 값 맵 완결성 · 표기 규약')
       insuranceAmountPerson: '1000', insuranceAmountProperty: '2000',
       opHoursWeekday: '', opHoursHoliday: '', headcountWorker: '', headcountResident: '', headcountMax: '',
     },
+    // 방화구획은 **네 갈래 중 가장 어려운 것**을 픽스처로 잡는다 — '면적별·층별'은 상자 둘을
+    // 함께 체크해야 하므로, 한 상자만 찍는 구현도 초록으로 통과하는 'area'로는 판별이 안 된다.
+    forms: { evacFire: { compartment: 'area_floor' } },
     zones: Array.from({ length: ZONE_ROWS + 2 }, (_, i) => ({
       zone: `${i + 1}층`, name: `구역${i + 1}`, area: `${100 + i}`,
       weekday: '', holiday: '', managerCo: '', contact: `010-1111-00${i}`,
@@ -335,6 +351,33 @@ console.log('\n[7] 값 맵 완결성 · 표기 규약')
   check('1.2.1 구역 첫 행 착지', at(ZONE_SHEET, `B${ZONE_FIRST_ROW}`) === '1층', at(ZONE_SHEET, `B${ZONE_FIRST_ROW}`))
   check('1.2.1 구역 마지막 행 착지', at(ZONE_SHEET, `B${ZONE_FIRST_ROW + ZONE_ROWS - 1}`) === `${ZONE_ROWS}층`)
   check('1.3 관할소방서 착지', at('1.3 소방차 진입경로', 'C5') === '어딘가소방서')
+
+  /* ── 1.5.1 방화구획(상자칸) ── 값칸과 달리 **라벨은 남고 상자만 바뀐다**. 라벨까지 덮어쓰면
+   *  법정 자구가 사라지는데, 상자 하나만 보는 검사는 그걸 못 본다 — 자구 보존을 따로 요구한다. */
+  const F151 = FP_SHEET.F1_5_1
+  check('1.5.1 면적별 체크 착지', at(F151, 'C14').includes('■'), at(F151, 'C14'))
+  // 🎯 '면적별·층별'은 새 상자가 아니라 **둘 다** 체크다 — 한 상자만 찍는 구현을 여기가 잡는다
+  check('1.5.1 층별도 함께 체크(면적별·층별)', at(F151, 'F14').includes('■'), at(F151, 'F14'))
+  check('1.5.1 법정 자구 보존 — 상자만 갈아 끼웠다',
+    at(F151, 'C14').replace('■', '□').trim() === labelAt(F151, 'C14').trim(), at(F151, 'C14'))
+  check('1.5.1 해당유무 = 유', at(F151, 'B15').startsWith('■유') && at(F151, 'B15').includes('□무'), at(F151, 'B15'))
+  // ⚠ ERP 입력에 없는 갈래는 배선하지 않았다 — 늘 미체크로 남아야 한다
+  check('1.5.1 용도별은 손대지 않는다', !at(F151, 'J14').includes('■'), at(F151, 'J14'))
+
+  {
+    // 네 갈래 전수 + 미입력. 두 상태가 같은 상자 조합을 내면 **화면의 선택이 인쇄물에서 사라진다**.
+    const boxesOf = (c: string) => {
+      const m = buildFirePlanValues({ ...fixture, forms: { evacFire: { compartment: c } } } as unknown as FirePlanGenData)
+      const on = (f: string) => String(m.get(f) ?? '').includes('■')
+      return `${on('compartment_area') ? 'A' : '-'}${on('compartment_floor') ? 'F' : '-'}|${String(m.get('compartment_applies'))}`
+    }
+    const sig = ['area', 'floor', 'area_floor', 'none', ''].map(boxesOf)
+    check('방화구획 4갈래 + 미입력이 전부 다른 인쇄를 낸다', new Set(sig).size === 5, sig.join('  '))
+    // 미입력과 '해당없음'은 다르다 — 안 물어본 칸에 '무'를 찍으면 없는 답이 인쇄된다
+    check('미입력은 유·무를 둘 다 비운다', !boxesOf('').includes('■'), boxesOf(''))
+    check('해당없음은 무를 찍는다', boxesOf('none').includes('■무'), boxesOf('none'))
+    check('화면 갈래도 넷(단일 원천)', COMPARTMENT_KINDS.length === 4, COMPARTMENT_KINDS.map(k => k.label).join('·'))
+  }
 
   // 주입 후에도 니들·수식·공유문자열이 생기지 않았는가(산출물 축)
   const z2 = await JSZip.loadAsync(inj.bytes)

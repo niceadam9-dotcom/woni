@@ -9,6 +9,7 @@ import 'server-only'
 
 import type { LocationSection, FireAccessSection } from '@/components/customers/plan-form13'
 import type { EvacFireSection, EvacMapRow } from '@/components/customers/plan-form15'
+import { compartmentHasArea, compartmentHasFloor } from '@/lib/evac-compartment'
 import type { EtcFacilitySection } from '@/components/customers/plan-form16'
 import type { ManagerRow } from '@/components/customers/plan-form17'
 import type { InspectionPlanSection, MultiUseSection, FireHistoryRow, DutyLogRow } from '@/components/customers/plan-form110'
@@ -297,8 +298,10 @@ export function buildFirePlanHtml(
   const ef = f.evacFire
   const stairKinds = ['직통계단', '피난계단', '특별피난계단', '옥외계단']
   const etcEvacKinds = ['대피공간', '경량칸막이', '피난안전구역', '옥상광장']
-  const compartmentLabel = (c: EvacFireSection['compartment'] | undefined) =>
-    `${ck(c === 'none', '해당없음')} ${ck(c === 'area', '면적별')} ${ck(c === 'floor', '층별')}`
+  // 방화구획 — 법정 서식과 **같은 상자 축**으로 편다. '면적별·층별'은 새 상자가 아니라
+  // 면적별·층별 두 상자를 함께 체크한 것이다(엑셀 1.5.1!C14·F14와 같은 규약).
+  const compartmentBoxes = (c: EvacFireSection['compartment'] | undefined) =>
+    `${ck(compartmentHasArea(c), '면적별')} ${ck(compartmentHasFloor(c), '층별')} ${ck(c === 'none', '해당없음')}`
   const evacMaps = f.evacMaps ?? []
 
   // ── 1.6 기타시설 ──
@@ -543,7 +546,7 @@ ${(d.autoFilled?.length ?? 0) > 0
     <tr><th>피난층</th><td class="l">위치: ${v(ef?.evacFloor?.location)}</td>
         <td class="l">출입구 수: ${v(ef?.evacFloor?.exits)}</td>
         <td class="l">개방 방식: ${v(ef?.evacFloor?.openMethod)}</td></tr>
-    <tr><th>방화구획</th><td class="l" colspan="3">${compartmentLabel(ef?.compartment)}</td></tr>
+    <tr><th>방화구획</th><td class="l" colspan="3">${compartmentBoxes(ef?.compartment)}</td></tr>
     <tr><th>방화문</th><td class="l" colspan="3">${ck(!!ef?.fireDoor?.has, '설치')} ${ck(!!ef && !ef.fireDoor?.has, '미설치')}${ef?.fireDoor?.note?.trim() ? ` — ${esc(ef.fireDoor.note)}` : ''}</td></tr>
     <tr><th>제연설비</th><td class="l" colspan="3">${ck(!!ef?.smokeControl?.has, '설치')} ${ck(!!ef && !ef.smokeControl?.has, '미설치')}${ef?.smokeControl?.note?.trim() ? ` — ${esc(ef.smokeControl.note)}` : ''}</td></tr>
     <tr><th>방염</th><td class="l" colspan="3">${ck(!!ef?.flameRetardant?.has, '해당')} ${ck(!!ef && !ef.flameRetardant?.has, '해당없음')}${ef?.flameRetardant?.note?.trim() ? ` — ${esc(ef.flameRetardant.note)}` : ''}</td></tr>

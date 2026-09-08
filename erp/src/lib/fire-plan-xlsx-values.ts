@@ -19,8 +19,9 @@
  */
 import type { CellValue } from '@/lib/xlsx-inject'
 import type { FirePlanGenData } from '@/lib/fire-plan-template'
-import { FIRE_PLAN_ANCHORS, ZONE_ROWS, ZONE_SHEET } from '@/lib/fire-plan-anchors'
-import { boxGlyphAt, tokenTemplateAt } from '@/lib/fire-plan-xlsx-manifest'
+import { FIRE_PLAN_ANCHORS, FP_SHEET, ZONE_ROWS, ZONE_SHEET } from '@/lib/fire-plan-anchors'
+import { boxGlyphAt, labelAt, tokenTemplateAt } from '@/lib/fire-plan-xlsx-manifest'
+import { compartmentApplies, compartmentHasArea, compartmentHasFloor } from '@/lib/evac-compartment'
 
 /* ────────────────────────── 표기 ────────────────────────── */
 
@@ -49,6 +50,32 @@ export function planDate(v: string | null | undefined): string {
 export function checkCell(sheet: string, cell: string, on: boolean, label: string): string {
   const box = on ? '■' : boxGlyphAt(sheet, cell)
   return label ? `${box}${label.startsWith(' ') ? '' : ' '}${label}` : box
+}
+
+/**
+ * **상자칸** — 법정 자구를 이고 있는 칸의 상자 글자만 갈아 끼운다(앵커 §상자칸).
+ *
+ * `checkCell`은 '빈 칸 + 라벨'을 조립하지만, 1.5.1의 체크칸은 템플릿에 이미 `□ 면적별`이
+ * 찍혀 있다. 손으로 `'■ 면적별'`을 만들면 양식이 개정돼도 코드가 옛 문구를 들고 있으므로
+ * manifest 원문을 읽어 **n번째 상자**만 바꾼다. 미체크 상자는 원본 글자를 그대로 둔다(F-6).
+ *
+ * 🚨 상자가 하나도 없으면 throw — 좌표가 밀렸는데 조용히 라벨만 되쓰면 영영 미체크로 나간다.
+ */
+function stampBoxes(sheet: string, cell: string, on: (i: number) => boolean): string {
+  const tpl = labelAt(sheet, cell)
+  if (!/[□☐]/.test(tpl)) throw new Error(`fire-plan-xlsx-values: ${sheet}!${cell} 에 빈 상자가 없다 — 체크칸이 아니다`)
+  let i = 0
+  return tpl.replace(/[□☐]/g, g => (on(i++) ? '■' : g))
+}
+
+/** 상자 하나 + 라벨이 한 칸인 칸(`□ 면적별`) */
+export function boxLabelCell(sheet: string, cell: string, on: boolean): string {
+  return stampBoxes(sheet, cell, i => i === 0 && on)
+}
+
+/** 유·무가 한 칸인 칸(`□유 □무`). `null`(미입력)이면 **둘 다** 비운다 — 미입력과 '무'는 다르다 */
+export function yesNoCell(sheet: string, cell: string, yes: boolean | null): string {
+  return stampBoxes(sheet, cell, i => (i === 0 ? yes === true : i === 1 ? yes === false : false))
 }
 
 /* ────────────────────────── 값 조립 ────────────────────────── */
@@ -98,6 +125,15 @@ export function buildFirePlanValues(d: FirePlanGenData): Map<string, CellValue> 
 
   // ── 서식 1.3 소방차 진입경로 ──
   v.set('fire_station', txt(d.fireStation))
+
+  // ── 서식 1.5.1 방화구획 ── 화면의 네 갈래(면적별·층별·면적별·층별·해당없음)를 법정 상자 축으로 편다.
+  // ⭐ '면적별·층별'은 **새 상자가 아니다** — 양식엔 상자가 둘뿐이고 둘을 함께 체크하는 것이 그 표기다.
+  //    그래서 키를 그대로 찍지 않고 `hasArea/hasFloor`로 푼다(PDF의 `compartmentBoxes`와 같은 규약).
+  // ⚠ 미입력(`''`)이면 유·무를 **둘 다** 비운다. '무'를 찍으면 안 물어본 칸이 '해당없음'으로 나간다.
+  const comp = d.forms?.evacFire?.compartment
+  v.set('compartment_applies', yesNoCell(FP_SHEET.F1_5_1, 'B15', compartmentApplies(comp)))
+  v.set('compartment_area', boxLabelCell(FP_SHEET.F1_5_1, 'C14', compartmentHasArea(comp)))
+  v.set('compartment_floor', boxLabelCell(FP_SHEET.F1_5_1, 'F14', compartmentHasFloor(comp)))
 
   // ── 서식 1.7.1 선임현황 ──
   v.set('manager_selected_date', planDate(d.managerSelectedAt))

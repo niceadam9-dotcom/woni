@@ -6,6 +6,7 @@ import { Loader2, Save, Plus, Trash2 } from 'lucide-react'
 import { saveFirePlanSectionsAction } from '@/app/(dashboard)/customers/fire-plan-form-actions'
 import { useUnsavedWarning, NumStepper } from '@/components/ui/fields'
 import { ImageSlot } from '@/components/customers/plan-form13'
+import { COMPARTMENT_KINDS, type CompartmentValue } from '@/lib/evac-compartment'
 
 /** 서식 1.5 피난·방화시설 및 제연, 방염 관련 현황 — 섹션 카드 2개 (소방계획서_4.md §3)
  *  1.5.1 일반현황(sections.evacFire) + 1.5.2 방화·제연구획 현황도(sections.evacMaps + plan-assets) */
@@ -18,7 +19,7 @@ export type EvacFireSection = {
   etc: string[]                             // 기타 피난시설 체크
   etcNote: string
   evacFloor: { location: string; exits: string; openMethod: string }
-  compartment: 'none' | 'area' | 'floor' | ''  // 방화구획 — 해당없음/면적별/층별
+  compartment: CompartmentValue             // 방화구획 4갈래 — 종류·표기는 `lib/evac-compartment`가 단일 원천
   fireDoor: { has: boolean; note: string }
   smokeControl: { has: boolean; note: string }
   flameRetardant: { has: boolean; note: string }
@@ -176,9 +177,9 @@ export function PlanForm15({ customerId, canManage, initialEvacFire, initialMaps
         {/* 방화구획 — 해당없음 원클릭 (§11-3) */}
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-form-xs font-medium text-ink-sub w-14">방화구획</span>
-          {([['area', '면적별'], ['floor', '층별'], ['none', '해당없음']] as Array<[EvacFireSection['compartment'], string]>).map(([v, label]) => (
-            <button key={v} disabled={!canManage} className={chip(ef.compartment === v)}
-              onClick={() => patch({ compartment: ef.compartment === v ? '' : v })}>
+          {COMPARTMENT_KINDS.map(({ key, label }) => (
+            <button key={key} disabled={!canManage} className={chip(ef.compartment === key)}
+              onClick={() => patch({ compartment: ef.compartment === key ? '' : key })}>
               {label}
             </button>
           ))}
