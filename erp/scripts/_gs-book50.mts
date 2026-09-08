@@ -1,4 +1,4 @@
-/** 강순기 소방계획서 → **50시트·시트당 1인쇄쪽** 엑셀 (미세 격자).
+﻿/** 강순기 소방계획서 → **50시트·시트당 1인쇄쪽** 엑셀 (미세 격자).
  *
  *  · 95표 → 50시트 묶음은 `fire-plan-xlsx-manifest.json`의 검증된 지도를 **읽어 쓴다**(다시 정하지 않는다).
  *    머리띠 표(1행)는 따로 두지 않고 본문 시트의 **제목 행**으로 올린다 — 사용자 확정.
@@ -13,7 +13,7 @@ import { readFileSync, writeFileSync, mkdirSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, resolve } from 'node:path'
 import JSZip from 'jszip'
-import { parseTables, columnEdges, rowHeights, hwpToPt, type HwpxTable } from '../src/lib/hwpx-table.ts'
+import { parseTables, parseBorderFills, columnEdges, rowHeights, hwpToPt, type HwpxTable } from '../src/lib/hwpx-table.ts'
 import { readSectionStream, walkRecords, extractTables, calibrateCellOffset, type Hwp5Table } from './hwp5-read.mts'
 import { scanCellColors } from './_gs-cellcolor.mts'
 
@@ -151,10 +151,37 @@ const PALETTE = ['000000', ...usedColors]                 // 0번은 기본 검�
 const colorIdxOf = new Map(PALETTE.map((c, i) => [c, i]))
 console.log(`글자색 ${usedColors.length}종 적용 (${usedColors.map(c => '#' + c).join(' ')}) · 흰색 ${[...cellColor.values()].filter(c => DROP_COLORS.has(c)).length}칸은 제외`)
 
-/* 정렬 5종 × 색 N종 → cellXfs. 색 0(검정)의 인덱스는 1~5로 종전과 같다(점검 스크립트 호환) */
+/* ── 테두리 (소방계획서_47 S10) ──
+ *  🚨종전에는 **전 칸에 일률적으로 실선**을 그었다 — 원본 hwp에 선이 없는 자리에도 선이 생겨
+ *  「엑셀엔 선이 있고 hwp엔 없다」는 지적을 받았다. 양식이 셀마다 `borderFillIDRef`를 갖고 있으므로
+ *  그대로 옮긴다. 없는 선은 **긋지 않는다**. */
+/* ⚠ `fills`는 배열이 아니라 **Map<id, fill>**이다 — 반환 모양을 추측했다가 `BF.map is not a function`으로
+ *   섰다(오늘 스키마 추측으로 세 번째다). 타입을 읽고 쓸 것. */
+const BFR = parseBorderFills(headerXml)
+const bfById = BFR.fills
+if (BFR.unknownBorderTypes.length) console.log(`⚠ 매핑 못 한 테두리 종류 ${BFR.unknownBorderTypes.length}종: ${BFR.unknownBorderTypes.slice(0, 5).join(', ')}`)
+const XL_BORDER: Record<string, string> = {
+  none: '', thin: 'thin', medium: 'medium', thick: 'thick', double: 'double', dashed: 'dashed',
+}
+/** 셀의 테두리 조합 키 — 같은 조합은 한 스타일을 나눠 쓴다 */
+function borderKeyOf(bfId: number): string {
+  const f = bfById.get(bfId)
+  if (!f) return 'thin|thin|thin|thin'          // 모르면 종전대로(선을 잃는 쪽보다 안전)
+  return [f.left, f.right, f.top, f.bottom].map(k => XL_BORDER[k] ?? 'thin').join('|')
+}
+const borderKeys: string[] = []
+const borderIdxOf = new Map<string, number>()
+for (const t of form) for (const c of t.cells) {
+  const k = borderKeyOf(c.borderFillId)
+  if (!borderIdxOf.has(k)) { borderIdxOf.set(k, borderKeys.length); borderKeys.push(k) }
+}
+console.log(`테두리 조합 ${borderKeys.length}종 (borderFill ${bfById.size}개) — 원본에 선이 없는 자리는 긋지 않는다`)
+
+/* 정렬 5종 × 색 N종 × 테두리 M종 → cellXfs */
 const A_CENTER = 0, A_BANNER = 1, A_CHECK = 2, A_RIGHT = 3, A_LEFT = 4
-const styleAt = (align: number, color: string | undefined) =>
-  1 + (colorIdxOf.get(color ?? '000000') ?? 0) * 5 + align
+const NA = 5
+const styleAt = (align: number, color: string | undefined, borderKey = 'thin|thin|thin|thin') =>
+  1 + ((borderIdxOf.get(borderKey) ?? 0) * PALETTE.length + (colorIdxOf.get(color ?? '000000') ?? 0)) * NA + align
 const STYLE_BODY = styleAt(A_CENTER, undefined), STYLE_BANNER = styleAt(A_BANNER, undefined)
 const STYLE_CHECK = styleAt(A_CHECK, undefined), STYLE_RIGHT = styleAt(A_RIGHT, undefined)
 const STYLE_LEFT = styleAt(A_LEFT, undefined)
@@ -234,9 +261,10 @@ function buildSheet(ms: MSheet) {
             : TOKEN_CELLS.has(`${ti},${c.row},${c.col}`) ? A_LEFT
               : isProse(v) ? A_LEFT
                 : A_CENTER
-      /* 색은 **양식**이 정한다(고객 값과 무관) — 흰색은 위에서 걸러 기본 검정으로 떨어진다 */
+      /* 색·테두리는 **양식**이 정한다(고객 값과 무관) — 흰색은 위에서 걸러 기본 검정으로 떨어진다 */
       const col = cellColor.get(`${ti},${c.row},${c.col}`)
-      const st = styleAt(align, col && !DROP_COLORS.has(col) ? col : undefined)
+      const bk = borderKeyOf(c.borderFillId)
+      const st = styleAt(align, col && !DROP_COLORS.has(col) ? col : undefined, bk)
       if (c1 > c0 || r1 > r0) merges.push(`<mergeCell ref="${addr(r0, c0)}:${addr(r1, c1)}"/>`)
       put(r0, c0, `<c r="${addr(r0, c0)}" s="${st}"${v ? ` t="inlineStr"><is><t xml:space="preserve">${esc(v)}</t></is></c>` : '/>'}`)
       for (let r = r0; r <= r1; r++) for (let cc = c0; cc <= c1; cc++) {
@@ -322,7 +350,9 @@ if (built.length !== manifest.sheets.length) { console.log('전건이 아니면 
  *  색 0(검정)의 xf 인덱스가 1~5로 종전과 같아 점검 스크립트(`_47-inspect.mts` s="3")가 그대로 산다. */
 const ALIGN_XML = [
   '<alignment horizontal="center" vertical="center" wrapText="1"/>',           // A_CENTER
-  '<alignment horizontal="center" vertical="center" wrapText="1"/>',           // A_BANNER
+  /* 머리띠도 **좌정렬** — 원본은 「서식 1.6」 배지 바로 뒤에서 왼쪽으로 흐른다(image-7/12 지적).
+     가운데로 몰면 배지와 제목 사이가 벌어져 원본과 다른 인상이 된다. */
+  '<alignment horizontal="left" vertical="center" wrapText="1" indent="1"/>',  // A_BANNER
   '<alignment horizontal="left" vertical="center" wrapText="1" indent="1"/>',  // A_CHECK
   '<alignment horizontal="right" vertical="center" wrapText="1" indent="1"/>', // A_RIGHT
   '<alignment horizontal="left" vertical="center" wrapText="1" indent="1"/>',  // A_LEFT
@@ -331,20 +361,25 @@ const fontsXml = PALETTE.flatMap(c => [
   `<font><sz val="${BODY_PT}"/><color rgb="FF${c}"/><name val="맑은 고딕"/></font>`,
   `<font><sz val="${BANNER_PT}"/><b/><color rgb="FF${c}"/><name val="맑은 고딕"/></font>`,
 ]).join('')
-const xfsXml = PALETTE.flatMap((_, ci) => ALIGN_XML.map((al, ai) => {
+/* 테두리 — 조합마다 하나. 「none」은 요소를 비워 **선을 긋지 않는다** */
+const side = (k: string, tag: string) => (k ? `<${tag} style="${k}"><color rgb="FF000000"/></${tag}>` : `<${tag}/>`)
+const bordersXml = borderKeys.map(key => {
+  const [l, r, t, b] = key.split('|')
+  return `<border>${side(l, 'left')}${side(r, 'right')}${side(t, 'top')}${side(b, 'bottom')}<diagonal/></border>`
+}).join('')
+const xfsXml = borderKeys.flatMap((_, bi) => PALETTE.flatMap((_, ci) => ALIGN_XML.map((al, ai) => {
   const fontId = ci * 2 + (ai === A_BANNER ? 1 : 0)
   const fill = ai === A_BANNER ? ' fillId="2" applyFill="1"' : ' fillId="0"'
-  return `<xf numFmtId="0" fontId="${fontId}"${fill} borderId="1" xfId="0" applyFont="1" applyBorder="1" applyAlignment="1">${al}</xf>`
-})).join('')
+  return `<xf numFmtId="0" fontId="${fontId}"${fill} borderId="${bi}" xfId="0" applyFont="1" applyBorder="1" applyAlignment="1">${al}</xf>`
+}))).join('')
 
 const STYLES = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
 <fonts count="${PALETTE.length * 2}">${fontsXml}</fonts>
 <fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FFF2F2F2"/><bgColor indexed="64"/></patternFill></fill></fills>
-<borders count="2"><border><left/><right/><top/><bottom/><diagonal/></border>
-<border><left style="thin"><color rgb="FF000000"/></left><right style="thin"><color rgb="FF000000"/></right><top style="thin"><color rgb="FF000000"/></top><bottom style="thin"><color rgb="FF000000"/></bottom><diagonal/></border></borders>
+<borders count="${borderKeys.length}">${bordersXml}</borders>
 <cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
-<cellXfs count="${1 + PALETTE.length * 5}">
+<cellXfs count="${1 + borderKeys.length * PALETTE.length * NA}">
 <xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>
 ${xfsXml}
 </cellXfs><cellStyles count="1"><cellStyle name="표준" xfId="0" builtinId="0"/></cellStyles></styleSheet>`

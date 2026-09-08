@@ -16,12 +16,21 @@ const CH_PER_COL = COL_W / 1.6       // 한 열에 들어가는 한글 글자 �
 const wb = XLSX.read(readFileSync(SRC), { sheetStubs: true })
 const zip = await JSZip.loadAsync(readFileSync(SRC))
 
-/* 좌정렬 서식(s="3")을 받은 칸을 XML에서 직접 센다 — 시트 객체로는 서식을 못 본다 */
+/* 좌정렬 칸을 센다.
+ * ⚠ **스타일 번호를 박지 말 것.** 1차엔 `s="3"`을 좌정렬로 하드코딩했는데, 테두리 축이 늘어
+ *   번호 체계가 바뀌자 멀쩡한 산출물을 「좌정렬 아님 645건」으로 오보했다.
+ *   styles.xml에서 xf → horizontal을 **읽어서** 판정한다(자기정의). */
+const styles = await zip.file('xl/styles.xml')!.async('string')
+const xfBlock = styles.match(/<cellXfs[^>]*>[\s\S]*?<\/cellXfs>/)?.[0] ?? ''
+const xfAlign = [...xfBlock.matchAll(/<xf[\s\S]*?(?:\/>|<\/xf>)/g)]
+  .map(m => /horizontal="([a-z]+)"/.exec(m[0])?.[1] ?? '')
 const styleOf = new Map<string, Set<string>>()
 for (const [i, name] of wb.SheetNames.entries()) {
   const xml = await zip.file(`xl/worksheets/sheet${i + 1}.xml`)!.async('string')
   const set = new Set<string>()
-  for (const m of xml.matchAll(/<c r="([A-Z]+\d+)"[^>]*s="3"/g)) set.add(m[1])
+  for (const m of xml.matchAll(/<c r="([A-Z]+\d+)"[^>]*s="(\d+)"/g)) {
+    if (xfAlign[Number(m[2])] === 'left') set.add(m[1])
+  }
   styleOf.set(name, set)
 }
 
