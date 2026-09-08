@@ -117,7 +117,7 @@
   "followups": [
     { "id": "F-1", "what": "Gotenberg 육안 1회 — 8쪽·갑지 현5·계획서!H를 나란히(대조군: fold 전 산출물)", "status": "open", "blocked_by": "로컬 GOTENBERG_URL 미설정" },
     { "id": "F-2", "what": "test-doc-generation에 GOTENBERG_URL 건너뛰기 가드 추가(test-annex-compose.mts:155 패턴) — 환경 결핍이 코드 결함으로 보이는 것을 막는다", "status": "code_present",
-      "done": "2026-09-08 (미커밋)",
+      "done": "2026-09-08 — `7c1dfce`(가드 3파일) + `a79d824`(NUL 바이트 수리) **푸시완료**(origin/main `ff27e77`→`a79d824`, 6커밋 동반). 판정은 조상 rc=0 **+ 원격 blob 내용 확인**(푸시 메시지만 보지 않는다) · 게이트 통과 · INV 19/19 그린",
       "how": "①clickAndWait의 폴링에 UI 오류 문구를 함께 태워 조기 이탈(Gotenberg가 없으면 **잡 행 자체가 안 생긴다** — report9-actions.ts:542 insert는 성공 경로에서만 돈다. 그래서 DB 축만 보면 60초를 헛기다린 끝에 코드 결함과 똑같은 모양으로 실패했다) ②계획서 즉석 PDF 라우트는 500 JSON 본문(pdf/route.ts:44)으로 판정 ③skip 카운터를 pass와 분리하고 요약에 「회귀를 확인한 것이 아니다」를 명시 — 건너뜀이 통과로 둔갑하지 않는다",
       "guard_scope": "GOTENBERG_MISSING('GOTENBERG_URL 미설정') **한 문구일 때만** 건너뛴다. 넓히면 진짜 결함이 환경 탓으로 삼켜진다 — 업로드 실패·503·조회 실패는 종전대로 빨강임을 반대 축으로 단언했다",
       "verified": { "date": "2026-09-08", "method": "_probe-41-f2-guard.mts 21/0 + tsc 0 + test-defect-fold 33/0(회귀 무손상)",
