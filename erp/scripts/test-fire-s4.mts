@@ -59,7 +59,11 @@ type ItemRow = { id: string; status: string; notes: string | null; scheduled_dat
 async function getItems(): Promise<ItemRow[]> {
   const { data } = await raw.from('inspection_plan_items')
     .select('id, status, notes, scheduled_date, plan_type')
-    .eq('customer_id', customerId).order('created_at')
+    // ③[수리] created_at 하나로는 정렬이 불안정하다 — 계획은 **일괄 생성**이라 같은 타임스탬프가
+    //   여러 행에 붙고, 그러면 재조회마다 순서가 바뀐다. 그 위에서 items[0..2]로 행을 지목하면
+    //   셋업이 상태를 넣은 행과 단언이 읽는 행이 달라져, 제품이 멀쩡해도 빨개진다.
+    //   동률 없는 키(id)를 2차 정렬로 둔다.
+    .eq('customer_id', customerId).order('created_at').order('id')
   return (data ?? []) as ItemRow[]
 }
 
@@ -110,16 +114,28 @@ try {
 
   let items = await getItems()
   if (items.length < 4) throw new Error(`계획 항목 부족: ${items.length}건 (4건 이상 필요)`)
-  // 상태 구성: [0] confirmed, [1] completed, [2] 수동 취소, 나머지 planned
+  // 상태 구성: [0] confirmed, [1] completed, [2] 수동 취소, [3] planned
+  //
+  // ②[수리] 종전 주석은 '나머지 planned'였는데 그 전제가 깨져 있었다 — 정기(monthly)는
+  //   **생성 즉시 자동 확정**된다(inspection-plan-generator:71). 그래서 생성 직후 planned가
+  //   0건이고, 셋업이 '나머지'에 기대는 순간 검사 전체가 무너진다.
+  //   기대는 생성기의 부산물이 아니라 **셋업이 직접 만든다** — 한 건을 명시적으로 planned로 둔다.
+  //   (②만 고치고 ③을 두면 이 지정이 다른 행으로 흘러가 엉뚱한 것을 단언한다 — 함께 고쳐야 한다.)
   await raw.from('inspection_plan_items').update({ status: 'confirmed', scheduled_date: `${YEAR}-07-15` }).eq('id', items[0].id)
   await raw.from('inspection_plan_items').update({ status: 'completed' }).eq('id', items[1].id)
   await raw.from('inspection_plan_items').update({ status: 'cancelled', notes: '수동 취소' }).eq('id', items[2].id)
+  await raw.from('inspection_plan_items').update({ status: 'planned', notes: null }).eq('id', items[3].id)
+  /** planned 축으로 단언할 행 — '나머지'가 아니라 **지목한 그 행**이다 */
+  const plannedId = items[3].id
   items = await getItems()
   const plannedCount = items.filter(i => i.status === 'planned').length
-  check(`셋업: planned ${plannedCount} + confirmed 1 + completed 1 + 수동취소 1`, plannedCount >= 1
-    && items.filter(i => i.status === 'confirmed').length === 1
+  check(`셋업: planned ${plannedCount}(지정 1건 포함) + confirmed 1 + completed 1 + 수동취소 1`,
+    plannedCount >= 1
+    && items.find(i => i.id === plannedId)?.status === 'planned'
+    && items.filter(i => i.status === 'confirmed').length >= 1
     && items.filter(i => i.status === 'completed').length === 1
-    && items.filter(i => i.status === 'cancelled').length === 1)
+    && items.filter(i => i.status === 'cancelled').length === 1,
+    JSON.stringify(items.map(i => [i.plan_type, i.status])))
 
   // ── 브라우저: 로그인 → 고객 목록 ─────────────────────────────
   console.log('\n[FIRE-S4] 브라우저 구동')
@@ -148,9 +164,11 @@ try {
   const c0 = afterCancel.find(i => i.id === items[0].id)! // confirmed였던 것
   const c1 = afterCancel.find(i => i.id === items[1].id)! // completed
   const c2 = afterCancel.find(i => i.id === items[2].id)! // 수동취소
-  const cPlanned = afterCancel.filter(i => ![items[0].id, items[1].id, items[2].id].includes(i.id))
+  // ③[수리] '나머지'가 아니라 셋업이 planned로 지목한 그 행만 본다 — 나머지 정기는 confirmed라
+  //   마커도 ⟦자동취소:confirmed⟧다. 뭉뚱그리면 서로 다른 두 마커를 한 단언이 요구하게 된다.
+  const cPlanned = afterCancel.filter(i => i.id === plannedId)
   check('비활성: planned → cancelled + ⟦자동취소:planned⟧ 마커',
-    cPlanned.every(i => i.status === 'cancelled' && (i.notes ?? '').includes('⟦자동취소:planned⟧')),
+    cPlanned.length === 1 && cPlanned.every(i => i.status === 'cancelled' && (i.notes ?? '').includes('⟦자동취소:planned⟧')),
     JSON.stringify(cPlanned.map(i => [i.status, i.notes])))
   check('비활성: confirmed → cancelled + ⟦자동취소:confirmed⟧ 마커',
     c0.status === 'cancelled' && (c0.notes ?? '').includes('⟦자동취소:confirmed⟧'), JSON.stringify(c0))
@@ -182,9 +200,9 @@ try {
   const r0 = afterRestore.find(i => i.id === items[0].id)!
   const r1 = afterRestore.find(i => i.id === items[1].id)!
   const r2 = afterRestore.find(i => i.id === items[2].id)!
-  const rPlanned = afterRestore.filter(i => ![items[0].id, items[1].id, items[2].id].includes(i.id))
+  const rPlanned = afterRestore.filter(i => i.id === plannedId)
   check('재활성: planned 복원 + 마커 제거',
-    rPlanned.every(i => i.status === 'planned' && !(i.notes ?? '').includes('자동취소')),
+    rPlanned.length === 1 && rPlanned.every(i => i.status === 'planned' && !(i.notes ?? '').includes('자동취소')),
     JSON.stringify(rPlanned.map(i => [i.status, i.notes])))
   check('재활성: confirmed 복원 (scheduled_date 유지) + 마커 제거',
     r0.status === 'confirmed' && r0.scheduled_date === `${YEAR}-07-15` && !(r0.notes ?? '').includes('자동취소'),
