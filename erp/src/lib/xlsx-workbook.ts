@@ -89,6 +89,10 @@ export type WorkbookSource = {
      *  규칙은 `annexDoneRows()`(조립본이 계산), 4행 접기는 여기서 `doneCells()`가 한다.
      *  미공급이면 8칸이 종전처럼 공란 — 대조군·하위 호환 보호. */
     done?: AnnexDone
+    /** 별지 11호 보고일 ISO — `완료보고서!G25`의 원천이자 PDF 11호 `reportDate`와 **같은 값**(D-7).
+     *  규칙은 `annexReportDateISO()`(수기값 우선, 없으면 오늘 KST). 미공급이면 서식 수식을
+     *  건드리지 않은 종전 동작으로 남는다 — 대조군·하위 호환 보호. */
+    reportDateISO?: string
     main: { name: string; grade: string; licenseNo: string } | null
     assistants: Array<{ name: string; grade: string; licenseNo: string; period: string }>
     // ── 정보 시트 12칸(별지 9호 2쪽) — 필수/옵션 구분은 **Report9Data와 정확히 같게** 둔다.
@@ -881,6 +885,9 @@ export function buildWorkbookValues(src: WorkbookSource): Map<string, CellValue>
       [`doneDate${row}`, c?.doneISO ? (isoToSerial(c.doneISO) ?? ' ') : ' '],
     )
   })
+  // 보고일 G25 — PDF 11호 `reportDate`와 같은 `annexReportDateISO()`에서 온다(43 S4).
+  // 미공급이면 null → 앵커의 keepFormulaWhenEmpty가 서식 수식을 살린다(종전 동작 보존).
+  entries.push(['doneReportSerial', p.reportDateISO ? (isoToSerial(p.reportDateISO) ?? null) : null])
   // ── 현5(별지 9호 8쪽) 불량 세부 7행 — 그룹당 1칸으로 접는다 ──
   // PDF는 그룹당 N행을 rowspan으로 펼치지만 엑셀 서식은 그룹당 1행 고정이라 접기가 불가피하다.
   // 서식이 접기를 전제한다: r4~r10이 ht="77.25"(헤더의 2배)로 한 칸에 5줄 안팎이 들어간다.

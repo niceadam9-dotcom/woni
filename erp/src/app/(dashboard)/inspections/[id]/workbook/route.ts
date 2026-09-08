@@ -5,7 +5,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { getProfile, can } from '@/lib/auth'
 import type { UserRole } from '@/types'
 import { assembleOfficial, assembleDelegation } from '@/lib/annex-cover-official'
-import { assembleReport9 } from '@/lib/report9-assemble'
+import { assembleReport9, loadAnnexInputs, annexReportDateISO } from '@/lib/report9-assemble'
 import { validateAnchors, SCRUB_NEEDLES, DEFECT_SHEET } from '@/lib/xlsx-anchors'
 import { injectWorkbook, type InjectTarget } from '@/lib/xlsx-inject'
 import { buildWorkbookValues, toInjectTargets, defectOverflow, doneOverflow, s31RowOverflow } from '@/lib/xlsx-workbook'
@@ -138,16 +138,19 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
 
   // 값의 원천은 PDF와 동일한 조립 함수 — annex_inputs 수동 오버레이까지 그대로 따라온다.
   // r9(별지 9호 조립, S7-0 추출본)는 점검 구분·점검자·동의·등급·교육이수일·점검인력 명단의 원천
-  const [official, delegation, r9] = await Promise.all([
+  // 별지 11호 보고일 — 작성 패널 수기값(annex_inputs.report11)이 있으면 그것, 없으면 오늘(KST).
+  // 판정은 `annexReportDateISO` 단일 원천이라 PDF 11호와 갈라질 수 없다(43 S4 / D-4 수리).
+  const [official, delegation, r9, done11Fields] = await Promise.all([
     assembleOfficial(admin, row.customer_id, id),
     assembleDelegation(admin, row.customer_id, id),
     assembleReport9(admin, row.customer_id, id),
+    loadAnnexInputs(admin, id, 'report11'),
   ])
 
   const values = buildWorkbookValues({
     official: official.data,
     delegation: delegation.data,
-    report9: r9.data,
+    report9: { ...r9.data, reportDateISO: annexReportDateISO(done11Fields) },
     customerAddress: (cust as { address: string | null } | null)?.address ?? '',
     startISO: row.inspection_start_date,
     endISO: row.inspection_end_date,

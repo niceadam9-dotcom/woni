@@ -34,7 +34,7 @@ const R9_BLANK = {
   pkIn: false, pkMech: false, pkRoof: false, pkOut: false,
   resultMarks: {}, defectRows: [],
 }
-const build = (done: AnnexDone) => buildWorkbookValues({
+const build = (done: AnnexDone, reportDateISO?: string) => buildWorkbookValues({
   official: {
     company: { name: 'X', address: 'X', phone: 'X', fax: 'X' },
     docNo: 'X', sendDate: 'X', recipient: 'X', reference: 'X', sender: 'X',
@@ -47,7 +47,7 @@ const build = (done: AnnexDone) => buildWorkbookValues({
   },
   customerAddress: 'X', startISO: '2026-07-23', endISO: '2026-07-23', useApprovalISO: null,
   installedCodes: [], evacTypes: [], building: null,
-  report9: { ...R9_BLANK, done } as never,
+  report9: { ...R9_BLANK, done, reportDateISO } as never,
 })
 
 /** 주입 결과에서 완료보고서 시트 XML을 꺼내 셀을 읽는다(수식 존치 여부까지 본다) */
@@ -79,10 +79,10 @@ async function readDoneSheet(out: Uint8Array) {
   return cells
 }
 
-const inject = async (done: AnnexDone) => {
+const inject = async (done: AnnexDone, reportDateISO?: string) => {
   const vres = validateAnchors(bytes, ANCHORS)
   if (!vres.ok) { console.error('앵커 검증 실패:', vres.failures.join(' · ')); process.exit(1) }
-  const { targets, unmapped } = toInjectTargets(build(done), vres.anchors)
+  const { targets, unmapped } = toInjectTargets(build(done, reportDateISO), vres.anchors)
   if (unmapped.length) { console.error('값 누락:', unmapped.map(a => a.field).join(',')); process.exit(1) }
   const res = await injectWorkbook(bytes, targets)
   return { cells: await readDoneSheet(res.bytes), targets }
@@ -93,7 +93,9 @@ const d = (name: string, taken: string, at: string) =>
 
 console.log('── A. 앵커 8칸이 존재하고 서식 라벨을 통과한다 ──')
 const doneAnchors = ANCHORS.filter(a => a.sheet === '완료보고서')
-check(`완료보고서 앵커 수 = ${doneAnchors.length}`, doneAnchors.length === 8, '개수 하한 선단언(공허 통과 방지)')
+// 8칸(이행완료 사항 내용 4 + 일자 4) + 1칸(보고일 G25, S4) = 9
+check(`완료보고서 앵커 수 = ${doneAnchors.length}`, doneAnchors.length === 9, '개수 하한 선단언(공허 통과 방지)')
+check('그중 이행완료 사항 8칸', doneAnchors.filter(a => /^done(Content|Date)\d+$/.test(a.field)).length === 8)
 check('내용 4칸 = B19~B22', DONE_ROWS.every(r => doneAnchors.some(a => a.cell === `B${r}` && a.field === `doneContent${r}`)))
 check('일자 4칸 = I19~I22', DONE_ROWS.every(r => doneAnchors.some(a => a.cell === `I${r}` && a.field === `doneDate${r}`)))
 check('8칸 전부 dropFormula', doneAnchors.every(a => a.dropFormula === true), 'I20의 =개요!G10을 끊기 위한 필수 조건')
@@ -147,6 +149,34 @@ console.log('── D. 문구 상태(해당없음) ──')
     [20, 21, 22].every(r => cells.get(`B${r}`)?.v === ' '))
   check('일자 4칸 전부 공백 1칸(문구 옆 날짜 자리표 금지)',
     DONE_ROWS.every(r => cells.get(`I${r}`)?.v === ' '))
+}
+
+console.log('── E2. 보고일 G25 (43 S4 / D-4) ──')
+{
+  // 서식은 `=개요!G10+5`(이행조치 종료일 + 5일)라는 근거 없는 추정이었다. PDF 11호는
+  // `annexReportDateISO()`(수기값 또는 오늘 KST)를 찍으므로 두 표면이 다른 날짜를 인쇄했다.
+  const g25 = ANCHORS.filter(a => a.sheet === '완료보고서' && a.cell === 'G25')
+  check(`G25 앵커 = ${g25.length}개`, g25.length === 1, '개수 하한 선단언')
+  check('G25 labelCell = A24(법정 문구 — 이 칸엔 인접 라벨이 없다)', g25[0]?.labelCell === 'A24')
+  check('G25 dropFormula + keepFormulaWhenEmpty',
+    g25[0]?.dropFormula === true && g25[0]?.keepFormulaWhenEmpty === true)
+
+  // 수기값 축 — 2026-08-20 = 46254(test-annex-done-rows와 같은 산식)
+  const withDate = await inject(annexDoneRows([d('X', '조치', '2026-08-20')], { hasAnyDefect: true, applicable: true }), '2026-08-20')
+  check('G25 = 보고일 시리얼', withDate.cells.get('G25')?.v === '46254', `실제 "${withDate.cells.get('G25')?.v}"`)
+  check('🚨 G25의 `=개요!G10+5`가 끊겼다', withDate.cells.get('G25')?.f === null,
+    withDate.cells.get('G25')?.f ? `잔존: =${withDate.cells.get('G25')?.f}` : '수식 없음')
+
+  // 미공급(구 호출부·픽스처) — keepFormulaWhenEmpty가 서식 수식을 살린다(대조군 보호)
+  const noDate = await inject(annexDoneRows([d('X', '조치', '2026-08-20')], { hasAnyDefect: true, applicable: true }))
+  check('보고일 미공급이면 서식 수식 `개요!G10+5` 보존',
+    (noDate.cells.get('G25')?.f ?? '').replace(/\s/g, '') === '개요!G10+5',
+    `f=${noDate.cells.get('G25')?.f ?? '(없음)'}`)
+
+  // 라벨이 긴 법정 문구라도 normLabel 대조를 통과하는가 — 여기가 깨지면 생성이 통째로 막힌다
+  const vres = validateAnchors(bytes, ANCHORS)
+  check('A24 법정 문구 라벨 대조 통과(자가치유 0)',
+    vres.ok && !(vres.healed ?? []).some(h => h.includes('doneReportSerial')))
 }
 
 console.log('── E. 표본 고객 흔적이 늘지 않았다 ──')

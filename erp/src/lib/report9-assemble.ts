@@ -73,6 +73,25 @@ export function fstr(fields: Record<string, unknown>, key: string): string {
   return typeof v === 'string' ? v.trim() : ''
 }
 
+/** 오늘(KST) ISO — 서버가 UTC라 그냥 `toISOString()`을 쓰면 00:00~09:00에 **어제 날짜**가 찍힌다
+ *  (소방계획서_36 F-14와 같은 함정). 별지 보고일의 기본값은 전부 이 한 곳을 본다. */
+export function todayKstISO(): string {
+  return new Date(Date.now() + 9 * 3600_000).toISOString().split('T')[0]
+}
+
+/** 별지 10·11호 「보고일」 — **단일 원천**(소방계획서_43 S4 / Q-3 확정).
+ *
+ *  규칙은 하나다: 작성 패널 수기값(annex_inputs.reportDate)이 있으면 그것, 없으면 오늘(KST).
+ *
+ *  왜 함수로 빼는가 — 종전엔 이 규칙이 `report9-actions`에만 있었고 갑지 엑셀
+ *  `완료보고서!G25`는 서식 수식 `=개요!G10+5`(= 이행조치 종료일 + 5일)를 썼다. 그래서 같은
+ *  문서의 두 표면이 **다른 날짜**를 인쇄했다(43 D-4). 여기서 ISO를 주고 표면마다 자기 표기로
+ *  바꾼다 — PDF는 `kdate()`, 엑셀은 `isoToSerial()`. 규칙을 양쪽에 적으면 또 갈라진다(D-7). */
+export function annexReportDateISO(fields: Record<string, unknown>): string {
+  const f = fstr(fields, 'reportDate')
+  return /^\d{4}-\d{2}-\d{2}$/.test(f) ? f : todayKstISO()
+}
+
 /** 별지 9호 데이터 조립 — 워커 process_report9(fireplan-worker.py)와 동일 원본·규칙의 TS 이식 (H-5, 파리티 우선).
  *  개선분(별지9호.MD §4 기승인)만 추가: 8쪽 불량 세부 자동, 다중이용업 업종 체크(fire_plan_forms sections.multiUse),
  *  보조 점검인력 5명 초과 허용. ③ 서식 고유 값(annex_inputs — 보고일 수기·비고)은 말미에 오버레이(H-23) */

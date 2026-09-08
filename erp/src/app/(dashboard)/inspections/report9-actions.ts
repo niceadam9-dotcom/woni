@@ -5,7 +5,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { requirePermission } from '@/lib/auth'
 import { convertHtmlToPdf } from '@/lib/pdf'
 import { renderReport10, renderReport11, type Annex1011Data } from '@/lib/doc-templates/report1011'
-import { renderReport9 } from '@/lib/doc-templates/report9'
+import { renderReport9, DEFECT_FOLD_TEXT } from '@/lib/doc-templates/report9'
 import { renderReport4, type Report4Data, type Report4PumpRow } from '@/lib/doc-templates/report4'
 import { annexDownloadName } from '@/lib/annex-filename'
 import { judgePumpTest, PUMP_TEST_SHEETS, PUMP_SHEET_LABELS, type PumpTestRow } from '@/lib/pump-test'
@@ -21,7 +21,7 @@ import { resolveFireSafetyManager, type ContactLite } from '@/lib/fire-safety-ma
 import { formatBizNo, formatTel } from '@/lib/format-contact'
 import { INSPECTION_DOC_FILE_RE, EXTERIOR_DOC_FILE_RE } from '@/lib/generated-docs'
 import type { ManagerRow } from '@/components/customers/plan-form17'
-import { assembleReport9, annexPlanRows, actionPlanPeriod, kdate, pageAll, loadAnnexInputs, fstr } from '@/lib/report9-assemble'
+import { assembleReport9, annexPlanRows, annexDoneRows, actionPlanPeriod, kdate, pageAll, loadAnnexInputs, fstr, todayKstISO, annexReportDateISO } from '@/lib/report9-assemble'
 
 /** 별지 9호(자체점검 실시결과 보고서) 생성 — P3 MVP (소방계획서_4.md §9-3·§9-6⑦)
  *  입력은 소유하지 않는 준비 화면 원칙: 공통값=고객 탭, 점검값=점검 상세, 여기는 생성·조회만.
@@ -82,7 +82,9 @@ async function assembleAnnex1011(
     mgrName: a1011Mgr.name,
     mgrPhone: formatTel(a1011Mgr.phone),
     rows: [],
-    reportDate: kdate(new Date(Date.now() + 9 * 3600_000).toISOString().split('T')[0]),
+    // 보고일 기본값 — 규칙은 `annexReportDateISO` 단일 원천이다(갑지 엑셀 `완료보고서!G25`가
+    // 같은 값을 받아야 PDF와 갈라지지 않는다, 43 S4). 여기선 그 ISO를 한국어 표기로만 바꾼다.
+    reportDate: kdate(todayKstISO()),
     submitTo: cust.fire_station ? `${cust.fire_station}장` : '관할 소방서장',
   }
 
@@ -115,11 +117,30 @@ async function assembleAnnex1011(
     else if (!data.totalPeriod) missing.push('총 이행기간 — 계획 시작일·종료일이 모두 있는 건이 없어 산출 불가')
   } else {
     const done = defects.filter(d => d.action_completed_at)
+    // ⚠ 완료 축은 **lib의 annexDoneRows 단일 원천**이다(D-7) — 갑지 엑셀 `완료보고서!B19:B22`·
+    //   `I19:I22`가 같은 값을 받아야 PDF와 갈라지지 않는다(소방계획서_43 D-1). 규칙을 여기 다시
+    //   적으면 한쪽만 갱신돼 두 문서가 어긋난다 — actionPlanPeriod·annexPlanRows와 같은 이유.
+    // ③④⑤(결과참조/이상없음/해당없음) 갈림은 별지 9호 조립본의 defectRows·applicableGroups가
+    // 원천이라 10호와 **같은 방식**으로 파생시킨다.
+    // ⚠ 조립 실패로 11호가 통째로 막히면 안 된다 — 실패 시 `applicable: true`로 두어 ①②(완료 건)는
+    //   종전 그대로 나가고, 완료 0건이면 「이상없음」까지만 간다(모르는 것을 '미대상'으로 단정하지
+    //   않는다 — 8쪽 미공급 대조군과 같은 축).
+    let doneCtx = { hasAnyDefect: defects.length > 0, applicable: true }
+    try {
+      const { data: d9 } = await assembleReport9(admin, customerId, inspectionId)
+      doneCtx = {
+        hasAnyDefect: d9.defectRows.length > 0,
+        // applicableGroups 미공급(대장 공란)은 '미대상'이 아니라 '모름' — ⑤로 단정하지 않는다
+        applicable: d9.applicableGroups ? d9.applicableGroups.length > 0 : true,
+      }
+    } catch { /* 폴백 — 위 기본값 유지 */ }
+    const doneFold = annexDoneRows(defects, doneCtx)
     // E11-1(소방계획서_19 B-8 감사): 완료일도 보고일과 같은 한국어 날짜로 통일
-    data.rows = done.map(d => ({
-      content: d.action_taken || d.defect_name || '',
-      period: d.action_completed_at ? kdate(d.action_completed_at.slice(0, 10)) : '',
-    }))
+    // ⚠ PDF는 행 한도가 폐지돼 있다(rowsTable 동적 확장) — 엑셀 4행 접기(doneCells)를 여기 쓰지
+    //   않는다. 접으면 근거 없이 PDF에서 정보를 잃는다(Q-2 확정).
+    data.rows = doneFold.kind === 'rows'
+      ? doneFold.rows.map(r => ({ content: r.content, period: r.doneISO ? kdate(r.doneISO) : '' }))
+      : [{ content: DEFECT_FOLD_TEXT[doneFold.kind], period: '' }]
     const { data: companyRows } = await admin.from('company_profile')
       .select('company_name, business_number, representative, phone, address').limit(1)
     const company = (companyRows?.[0] ?? {}) as {
@@ -130,7 +151,10 @@ async function assembleAnnex1011(
     data.companyRep = company.representative ?? ''
     data.companyPhone = formatTel(company.phone)
     data.companyAddress = company.address ?? ''
-    if (done.length === 0) missing.push('이행완료 항목 없음')
+    // ⚠ '이행완료 항목 없음'은 **조치할 것이 남아 있을 때만** 경고다(2026-09-08, 43 S1-2).
+    //   불량 0건(④ 이상없음)·미대상(⑤ 해당없음)에서는 완료 건이 없는 게 정상이라 경고하지 않는다 —
+    //   경고를 남기면 「모두 합격이면 ⑤⑥ 해당없음」(소방계획서_45)과 화면이 어긋난다.
+    if (doneFold.kind === 'refer') missing.push('이행완료 항목 없음 — 불량은 등록돼 있고 완료 처리된 건이 없습니다')
     // E11-3(B-8 감사): 조치 내용 없이 완료일만 저장하면 불량명이 '이행조치 내용' 칸에 폴백 인쇄된다(오독 소지)
     const takenMissing = done.filter(d => !d.action_taken?.trim()).length
     if (takenMissing > 0) missing.push(`이행조치 내용 미입력 ${takenMissing}건 — 불량명이 대신 인쇄됨`)
@@ -141,8 +165,8 @@ async function assembleAnnex1011(
 
   // ③ 서식 고유 값 오버레이 (H-23, §4-A-0) — 작성 패널 저장분이 자동 계산값보다 우선
   const fields = await loadAnnexInputs(admin, inspectionId, kind)
-  const fDate = fstr(fields, 'reportDate')
-  if (/^\d{4}-\d{2}-\d{2}$/.test(fDate)) data.reportDate = kdate(fDate)
+  // 수기 오버레이 포함한 최종 보고일 — 갑지 엑셀도 **같은 함수**를 부른다(43 S4)
+  data.reportDate = kdate(annexReportDateISO(fields))
   if (kind === 'report10') {
     // 작성 패널 daterange는 "YYYY-MM-DD ~ YYYY-MM-DD"로 저장 — 자동 산출과 같은 한국어 날짜로 변환 (과거 자유 텍스트는 그대로 통과)
     if (fstr(fields, 'totalPeriod')) data.totalPeriod = fstr(fields, 'totalPeriod').replace(/\d{4}-\d{2}-\d{2}/g, m => kdate(m))
