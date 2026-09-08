@@ -76,6 +76,39 @@ export function foldDefectGroups(
   return out
 }
 
+/** 별지 11호 「이행완료 사항」 한 행 — 이행조치 내용 + 이행조치 일자(ISO). */
+export type AnnexDoneRow = { content: string; doneISO: string }
+/** 완료 축 5상태 — `kind` 어휘를 `DEFECT_FOLD_TEXT`의 키와 **정확히 같게** 두어
+ *  문구 매핑이 `DEFECT_FOLD_TEXT[kind]` 한 줄이고 새 어휘가 끼어들 자리가 없다(43 S1-1). */
+export type AnnexDone = { kind: 'rows' | 'refer' | 'ok' | 'na'; rows: AnnexDoneRow[] }
+
+/** 서식 「이행완료 사항」 고정 행 수 — 엑셀 `완료보고서!B19:B22`·`I19:I22` 실측(43 M-1).
+ *  ⚠ 이 상수가 앵커 좌표(`DONE_ROWS`)와 접기(`doneCells`) **양쪽의 분모**다. 두 벌로 두면
+ *  서식이 늘어날 때 한쪽만 따라가 다섯 번째 조치가 조용히 사라진다. */
+export const DONE_CELL_ROWS = 4
+
+/** 엑셀 4행 고정 서식으로 접기 — Q-2 a안(2026-09-08 사용자 확정).
+ *  4건까지는 그대로, 5건 이상이면 **앞 3건 + 4행 「외 N건 (별첨 참조)」**.
+ *
+ *  PDF 11호는 행 한도가 폐지돼 동적 확장하므로(report1011 rowsTable) **여기를 타지 않는다** —
+ *  접기는 엑셀 서식의 제약이지 완료 축의 규칙이 아니다(그래서 `annexDoneRows`는 전건을 준다).
+ *
+ *  ⚠ 내용과 일자를 **같은 인덱스로** 자른다 — 따로 자르면 남의 조치에 남의 날짜가 붙고,
+ *    짝이 어긋난 채로도 인쇄물은 멀쩡해 보인다(현5 B/C열에서 이미 밟은 함정).
+ *  ⚠ 넘친 건을 조용히 버리지 않는다 — `overflow`를 라우트가 missing에 싣는다(defectOverflow 규약).
+ *  ⚠ 문장은 자르지 않는다. 한 칸이 31.5pt(≈2줄)라 긴 조치 내용은 잘려 **보이지만**,
+ *    overflow 판정은 **건수 축**에서만 한다(글자 수로 자르면 원문이 소실된다). */
+export function doneCells(d: AnnexDone): { cells: AnnexDoneRow[]; overflow: number } {
+  if (d.kind !== 'rows') return { cells: [{ content: DEFECT_FOLD_TEXT[d.kind], doneISO: '' }], overflow: 0 }
+  if (d.rows.length <= DONE_CELL_ROWS) return { cells: [...d.rows], overflow: 0 }
+  const keep = DONE_CELL_ROWS - 1
+  const overflow = d.rows.length - keep
+  return {
+    cells: [...d.rows.slice(0, keep), { content: `외 ${overflow}건 (별첨 참조)`, doneISO: '' }],
+    overflow,
+  }
+}
+
 /** 2쪽 다중이용업소현황 업종 배열 — 서식 원문 3열 배치(doc-requirements MULTI_USE_CATEGORIES와 명칭 일치) */
 /** 다중이용업 업종 — 3열 배치 순서까지 서식 그대로. 엑셀 갑지(정보!B14·E14·I14)도 같은 목록·같은
  *  순서를 쓰므로 export한다(어휘가 두 벌이면 한쪽만 갱신돼 조용히 갈라진다 — D-7) */
@@ -193,6 +226,12 @@ export type Report9Data = {
    *  그 그룹에 계획 건이 없으면 키 자체가 없다(= 일자 칸 공란).
    *  종전엔 그룹 축이 없어 **총 기간을 불량 있는 전 행에 복제**했다(2026-09-07 사용자 지적 image-77). */
   actionGroupPeriods?: Record<string, { startISO: string; endISO: string; days: number }>
+  /** 별지 11호 「이행완료 사항」 완료 축 — 별지 9호 렌더에는 쓰이지 않는다. 갑지 엑셀
+   *  `완료보고서!B19:B22`·`I19:I22`가 PDF 11호와 **같은 값**을 받게 하는 단일 원천(D-7).
+   *  규칙은 `annexDoneRows()`, 엑셀 4행 접기는 `doneCells()` — 여기 실리는 것은 **전건**이다.
+   *  미공급(구 호출부·픽스처)이면 엑셀 4칸이 종전처럼 공란 — 대조군·하위 호환 보호.
+   *  타입을 구조형으로 둔 이유: 이 파일은 조회 0의 순수 서식 모듈이라 서버 조립본을 import하지 않는다. */
+  done?: { kind: 'rows' | 'refer' | 'ok' | 'na'; rows: Array<{ content: string; doneISO: string }> }
   // ── ③ 서식 고유 값 (annex_inputs, H-23) — 비고·보완 문구: 1쪽 유의사항 위 1줄, 없으면 미출력 ──
   note?: string
 }

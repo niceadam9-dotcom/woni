@@ -1022,7 +1022,22 @@ console.log('[10] 이행조치 기간 4칸 · 복합 수식 캐시')
   check('계획서!J26 — 종료일 도달', vOf(plan, 'J26') === String(sEnd), vOf(plan, 'J26'))
   check('계획서!P26 — 총 일수 도달', vOf(plan, 'P26') === String(period.days), vOf(plan, 'P26'))
   const done = await rawOf2(r10.bytes, '완료보고서')
-  check('완료보고서!I20 — 이행완료일자 도달', vOf(done, 'I20') === String(sEnd), vOf(done, 'I20'))
+  // ⚠ 2026-09-08(소방계획서_43 D-2) — 여기는 종전에 `I20 === sEnd`를 단언했다. 즉 **결함을
+  //   고정하고 있었다**: `I20{=개요!G10}`은 계획 종료일인데 별지 11호의 그 칸은 「이행조치
+  //   일자」, 곧 **실제 완료일**(action_completed_at)이다. 두 날짜는 축이 다르고, PDF 11호는
+  //   내내 실제 완료일을 찍고 있었다 — 엑셀만 그럴듯한 오답을 인쇄했다.
+  //   이제 `doneDate20` 앵커가 수식을 끊고(dropFormula) 완료 축의 값을 넣는다.
+  //   이 픽스처는 `done`을 안 준다(= 완료 건 미공급) → **공백 1칸**이 옳다. 계획 종료일이
+  //   되돌아오면 D-2 재발이므로 그것부터 막는다.
+  check('완료보고서!I20 — 계획 종료일이 아니다(D-2 수리)', vOf(done, 'I20') !== String(sEnd),
+    `${vOf(done, 'I20')} (계획 종료일 ${sEnd}이면 재발)`)
+  // ⚠ `vOf`는 `<v>`만 읽는다 — 공백 1칸은 **inlineStr**(`<is><t xml:space="preserve">`)로 실리므로
+  //   vOf로 재면 빈 문자열이 나온다. 표현 축이 다른 값을 같은 추출기로 재면 멀쩡한 제품이 붉어진다.
+  check('완료보고서!I20 — done 미공급이면 공백 1칸(빈 셀 금지)',
+    /<is><t xml:space="preserve"> <\/t><\/is>/.test(cellXml2(done, 'I20')), cellXml2(done, 'I20'))
+  check('완료보고서!I20 — =개요!G10 수식이 끊겼다(Excel 재계산 되돌림 차단)',
+    !/<f[^>]*>/.test(cellXml2(done, 'I20')), cellXml2(done, 'I20'))
+  // 완료 건이 실제로 실릴 때의 값·짝은 scripts/test-done-sheet-inject.mts가 서식 실물로 고정한다
 }
 
 console.log(`\n결과: ${pass} 통과 / ${fail} 실패`)

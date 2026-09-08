@@ -12,6 +12,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import {
   DEFECT_GROUPS, DEFECT_FOLD_TEXT, FORM3_ITEMS, foldDefectGroups, form3Group, parseParkingSummary,
   type Report9Data, type Report9DefectRow, type Report9Person,
+  type AnnexDone,
 } from '@/lib/doc-templates/report9'
 import type { AnnexPlanRow } from '@/lib/doc-templates/report1011'
 import { form3ItemsForSheet, rollUpForm3Results, sheetMatchesFacilities, foldSheetGroupStats } from '@/lib/sheet-facility-map'
@@ -118,6 +119,52 @@ export function isUserEnteredDefectName(
   return !(itemName && nm === itemName)          // 항목명 폴백(질문문) — 사람 입력 아님
 }
 
+/** 별지 11호 「이행완료 사항」 — **완료 축의 단일 원천**(소방계획서_43 S1).
+ *
+ *  `actionPlanPeriod`(계획 축)·`annexPlanRows`(10호 7행)와 같은 자리에 완료 축을 둔다.
+ *  종전엔 규칙이 `report9-actions`의 report11 분기 안에만 있었고 **갑지 엑셀 `완료보고서`는
+ *  통째로 미배선**이었다 — PDF는 건별로 찍는데 엑셀은 4행이 공란이었다(43 D-1).
+ *
+ *  5상태(2026-09-08 사용자 확정) — 문구는 8쪽·10호와 **같은 `DEFECT_FOLD_TEXT`**를 쓴다.
+ *  새 어휘를 만들지 않으므로 `kind`를 그 키와 **정확히 같은 이름**으로 둔다:
+ *   ①② 완료 건 있음      → `rows`  (내용은 `action_taken` → `defect_name` 폴백)
+ *   ③  불량 있음·완료 0  → `refer` 「결과참조」
+ *   ④  불량 0건          → `ok`    「이상없음」
+ *   ⑤  소방시설 대상 아님 → `na`    「해당없음」
+ *
+ *  ⚠ 4행 접기는 여기서 **하지 않는다**. 그건 엑셀 서식(4행 고정)의 제약이고 PDF 11호는 행 한도가
+ *    폐지돼 동적 확장한다(report1011.ts rowsTable). 접기는 `doneCells()`가 따로 한다.
+ *  ⚠ 타입·엑셀 접기(`AnnexDone`·`DONE_CELL_ROWS`·`doneCells`)는 **순수 서식 모듈**
+ *    `doc-templates/report9`에 둔다 — 8쪽 형제 `foldDefectGroups`가 사는 자리이고, 앵커 맵
+ *    (`xlsx-anchors`)이 조회 코드를 딸려오지 않고 같은 분모를 읽을 수 있는 유일한 자리다.
+ *    여기서 되보낸다(re-export) — 호출부는 이 파일에서 가져다 쓴다. */
+export type { AnnexDone, AnnexDoneRow } from '@/lib/doc-templates/report9'
+export { DONE_CELL_ROWS, doneCells } from '@/lib/doc-templates/report9'
+
+export function annexDoneRows(
+  defects: ReadonlyArray<{
+    defect_name?: string | null; action_taken?: string | null; action_completed_at?: string | null
+  }>,
+  ctx: { hasAnyDefect: boolean; applicable: boolean },
+): AnnexDone {
+  // 완료 판정은 PDF와 **같은 필터**(action_completed_at ≠ null)
+  const done = defects.filter(d => d.action_completed_at)
+  if (done.length) {
+    return {
+      kind: 'rows',
+      // ⚠ 폴백을 `||`로 둔다(`?.trim() ||`가 아니라) — 종전 PDF 동작을 바이트 그대로 보존하기
+      //   위해서다(S5-3 대조군). 공백만 든 action_taken이 그대로 인쇄되는 어긋남은 알고 있고
+      //   Q-4로 등재했다 — 고칠 때 대조군 기준을 함께 옮긴다.
+      rows: done.map(d => ({
+        content: d.action_taken || d.defect_name || '',
+        doneISO: (d.action_completed_at ?? '').slice(0, 10),
+      })),
+    }
+  }
+  if (ctx.hasAnyDefect) return { kind: 'refer', rows: [] }
+  return { kind: ctx.applicable ? 'ok' : 'na', rows: [] }
+}
+
 /** 별지 10호 「이행조치 계획사항」 7행 — 별지 9호 조립본 하나에서 파생시킨다.
  *
  *  ⚠ 문구도 일자도 **여기서 새로 만들지 않는다**: 문구는 8쪽·갑지 현5와 같은 `foldDefectGroups`,
@@ -187,8 +234,10 @@ export async function assembleReport9(
     admin.from('fire_plan_forms').select('sections').eq('customer_id', customerId).limit(1),
     // action_* 3열은 별지 10호(이행계획서)의 총 이행기간 축 — 갑지 엑셀 `개요!G9·I9·J9`가 같은 값을
     // 받아야 PDF와 갈라지지 않는다(D-7). 계산은 actionPlanPeriod() 단일 원천이 한다
+    // action_taken·action_completed_at은 별지 11호(이행완료 보고서) 축 — 갑지 엑셀
+    // `완료보고서!B19:B22`·`I19:I22`가 PDF 11호와 같은 값을 받게 한다(소방계획서_43 D-1).
     admin.from('inspection_defects')
-      .select('defect_code, defect_name, action_plan, action_start, action_end')
+      .select('defect_code, defect_name, action_plan, action_start, action_end, action_taken, action_completed_at')
       .eq('inspection_id', inspectionId).order('created_at'),
   ])
   type InspRow = {
@@ -465,10 +514,12 @@ export async function assembleReport9(
   const rfEtc = !!rf && !rfSlab && !rfTile && !rfSlate
 
   // 8쪽 불량 세부 — 시트 X 응답의 점검번호 + defects 불량명 조인, 설비 구분 그룹핑 (MD §4-2)
-  // action_* 3열은 8쪽 렌더에는 안 쓰이고 **별지 10호 총 이행기간**(actionPlanPeriod)에만 쓰인다
+  // action_* 3열은 8쪽 렌더에는 안 쓰이고 **별지 10호 총 이행기간**(actionPlanPeriod)에만 쓰인다.
+  // action_taken·action_completed_at도 8쪽엔 안 쓰인다 — **별지 11호 완료 축**(annexDoneRows)뿐이다
   type DefectDbRow = {
     defect_code: string | null; defect_name: string
     action_plan: string | null; action_start: string | null; action_end: string | null
+    action_taken: string | null; action_completed_at: string | null
   }
   const defects = (defectsRes.data ?? []) as DefectDbRow[]
   const defectByCode = new Map(defects.filter(d => d.defect_code).map(d => [d.defect_code as string, d]))
@@ -621,6 +672,15 @@ export async function assembleReport9(
         defects.filter(d => (d.defect_code ? groupOfCode(d.defect_code) : '기타') === g),
       )]).filter(([, p]) => p !== null) as Array<[string, { startISO: string; endISO: string; days: number }]>,
     ),
+    // 별지 11호 축 — 별지 9호 렌더는 쓰지 않는다. 갑지 엑셀 `완료보고서!B19:B22`·`I19:I22`가
+    // PDF 11호와 **같은 값**을 받게 하려고 같은 조립본에 싣는다(D-7, actionPeriod와 같은 자리).
+    // ⚠ 4행 접기는 여기서 하지 않는다 — 전건을 싣고 엑셀 서식 제약은 `doneCells()`가 처리한다.
+    // ⚠ `applicable`은 applicableGroups **미공급을 '미대상'으로 단정하지 않는다**(대장 공란은
+    //   '모름'이다) — report9-actions의 11호 분기와 같은 축이라 두 표면이 갈라질 수 없다.
+    done: annexDoneRows(defects, {
+      hasAnyDefect: defectRows.length > 0,
+      applicable: applicableGroups ? applicableGroups.length > 0 : true,
+    }),
   }
 
   // ③ 서식 고유 값 오버레이 (H-23, §4-A-0) — 보고일 수기 지정·비고 (작성 패널 저장분)

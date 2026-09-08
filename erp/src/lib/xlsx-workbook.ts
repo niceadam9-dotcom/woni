@@ -5,9 +5,11 @@
  *  PDF와 엑셀이 같은 값을 쓴다는 것이 구조적으로 보장된다. */
 import type { OfficialData } from '@/lib/doc-templates/official'
 import type { DelegationData } from '@/lib/doc-templates/delegation'
-import { DEFECT_FOLD_TEXT, MULTI_USE_COLS, foldDefectGroups } from '@/lib/doc-templates/report9'
+import {
+  DEFECT_FOLD_TEXT, MULTI_USE_COLS, foldDefectGroups, doneCells, type AnnexDone,
+} from '@/lib/doc-templates/report9'
 import { resultMark } from '@/lib/doc-templates/base'
-import { ANCHORS, DEFECT_GROUP_ROWS, PLAN_DATE_ROWS, S31_QTY_COLS, S31_DETAIL_ROWS, type Anchor } from '@/lib/xlsx-anchors'
+import { ANCHORS, DEFECT_GROUP_ROWS, PLAN_DATE_ROWS, DONE_ROWS, S31_QTY_COLS, S31_DETAIL_ROWS, type Anchor } from '@/lib/xlsx-anchors'
 import { s31DongRows } from '@/lib/doc-templates/spec-sections'
 import { columnTotal } from '@/lib/facility-spec-schema'
 import {
@@ -83,6 +85,10 @@ export type WorkbookSource = {
     /** 설비 구분별 이행조치 기간 — `계획서!K·P·O` 21칸의 원천이자 PDF 10호 7행과 **같은 값**(D-7).
      *  키가 없는 구분 = 계획 건 없음 = 일자 칸 공란. 미공급이면 종전 동작(총 기간 복제)으로 폴백. */
     actionGroupPeriods?: Record<string, { startISO: string; endISO: string; days: number }>
+    /** 별지 11호 완료 축 — `완료보고서!B19:B22`·`I19:I22`의 원천이자 PDF 11호와 **같은 값**(D-7).
+     *  규칙은 `annexDoneRows()`(조립본이 계산), 4행 접기는 여기서 `doneCells()`가 한다.
+     *  미공급이면 8칸이 종전처럼 공란 — 대조군·하위 호환 보호. */
+    done?: AnnexDone
     main: { name: string; grade: string; licenseNo: string } | null
     assistants: Array<{ name: string; grade: string; licenseNo: string; period: string }>
     // ── 정보 시트 12칸(별지 9호 2쪽) — 필수/옵션 구분은 **Report9Data와 정확히 같게** 둔다.
@@ -858,6 +864,23 @@ export function buildWorkbookValues(src: WorkbookSource): Map<string, CellValue>
       [`planDays${row}`, gp ? gp.days : ' '],
     )
   }
+  // ── 완료보고서(별지 11호) 「이행완료 사항」 8칸 — 내용 4행 + 일자 4행 (2026-09-08, 43 S3) ──
+  // 종전엔 통째로 미배선이라 PDF는 건별로 찍는데 엑셀은 4행이 공란이었다(D-1). 값은 PDF와 같은
+  // `annexDoneRows()` 단일 원천이고, 4행 접기만 엑셀 서식 제약으로 `doneCells()`가 한다.
+  // ⚠ 내용·일자를 **같은 cells 배열**에서 같은 인덱스로 꺼낸다 — 따로 자르면 남의 조치에 남의
+  //   날짜가 붙고, 짝이 어긋난 채로도 인쇄물은 멀쩡해 보인다(현5 B/C열에서 이미 밟은 함정).
+  // ⚠ ③④⑤ 문구 행(결과참조·이상없음·해당없음)은 **일자 칸을 공란**으로 둔다 — 「해당없음」 옆에
+  //   날짜가 서면 '기간이 정해진 이행조치'로 읽힌다(doneCells가 doneISO ''로 준다).
+  // ⚠ 빈 행·빈 일자는 공백 1칸 — 빈 셀은 표시 서식에 따라 0으로 읽힌다(assist E열 규약).
+  // 미공급(구 호출부·픽스처)이면 8칸 전부 공백 1칸 = 종전 빈 서식과 같다(대조군 보호).
+  const doneFolded = p.done ? doneCells(p.done) : null
+  DONE_ROWS.forEach((row, i) => {
+    const c = doneFolded?.cells[i]
+    entries.push(
+      [`doneContent${row}`, c ? c.content : ' '],
+      [`doneDate${row}`, c?.doneISO ? (isoToSerial(c.doneISO) ?? ' ') : ' '],
+    )
+  })
   // ── 현5(별지 9호 8쪽) 불량 세부 7행 — 그룹당 1칸으로 접는다 ──
   // PDF는 그룹당 N행을 rowspan으로 펼치지만 엑셀 서식은 그룹당 1행 고정이라 접기가 불가피하다.
   // 서식이 접기를 전제한다: r4~r10이 ht="77.25"(헤더의 2배)로 한 칸에 5줄 안팎이 들어간다.
@@ -906,6 +929,14 @@ export function defectOverflow(
     if (n > DEFECT_ROWS_PER_GROUP) out.push({ group, dropped: n - DEFECT_ROWS_PER_GROUP })
   }
   return out
+}
+
+/** 「이행완료 사항」 4행 접기로 4행에 못 실린 완료 건수 — 라우트가 missing에 싣는 축
+ *  (defectOverflow와 같은 S8-2 규약: 자르되 조용히 버리지 않는다). 0이면 손실 없음.
+ *  ⚠ 4행째 「외 N건 (별첨 참조)」가 **인쇄물에도** 남으므로 사용자는 두 경로로 알게 된다 —
+ *  그래도 missing에 싣는 이유는 엑셀을 열지 않고 화면에서 판단하는 동선이 있기 때문이다. */
+export function doneOverflow(done?: AnnexDone): number {
+  return done ? doneCells(done).overflow : 0
 }
 
 /** 3-1 동별 행 넘침 — 서식 8행 상한을 넘는 동 수(잘린 채로도 인쇄물은 멀쩡해 보인다).

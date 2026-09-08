@@ -1,0 +1,342 @@
+{
+  "doc": "소방계획서_43",
+  "title": "갑지 엑셀 「완료보고서」 이행완료사항 배선 (이행조치 내용 4행·행별 완료일) + 그룹 해당 축 정정",
+  "created": "2026-09-07",
+  "updated": "2026-09-08",
+  "source_md": "erp_goal/소방계획서_43.md",
+  "principle": "별지 11호는 PDF와 갑지 엑셀 두 표면이 만든다. 완료 축의 단일 원천 annexDoneRows()를 하나 두고 둘이 같이 읽는다 — 규칙을 두 곳에 적으면 갈라진다(D-7 규약, actionPlanPeriod·annexPlanRows와 같은 자리).",
+  "numbering_note": "사용자는 '소방계획서_42'를 요청했으나 2026-09-07 17:34에 타 세션이 42(엑셀 정본화)를 선점해 43으로 채번했다.",
+
+  "status": "code_present",
+  "status_note": "2026-09-08 16:00~ 재개. 착수 전 점검 결과 **타 세션은 13:09 이후 무활동**(약 3시간)이고 그 세션이 S1(annexDoneRows·doneCells)·S6-1·S6-2·S6-3을 **이미 구현해 두었다** — 이번 재개분은 **엑셀 축 S2·S3 + 검증 S5**다. 구현·검증 완료·**미커밋**. tsc 0 · 신규 73/0(49+24) · 회귀 409/0. 잔여: S4(보고일 G25)·D-8·Q-4·Q-5·독립 판정.",
+
+  "resume_findings_2026_09_08_pm": [
+    "① 타 세션 종료 판정 — 마지막 파일 쓰기 13:09(report9-actions.ts·_split-mine.mjs), 재개 시각 16:03. HEAD는 cf7319f(13:07). 편집 충돌 0",
+    "② S1 전건이 **이미 구현돼 있었다** — annexDoneRows·doneCells·report9-actions 11호 분기 교체까지. 다시 짜지 않았다(중복 구현 회피 — [[feedback_check_concurrent_session]])",
+    "③ S6-1도 이미 수리돼 있었다 — `etcInstalled = ETC_CODES.some(c => codes.includes(c))`. 문서엔 '타 세션 미수리(:528 여전히 false)'라 적혀 있었으나 **낡은 기록이었다**. S6-2 muApplicable·S6-3 가드도 확정 상태",
+    "④ 인덱스 스테이징 삭제 11건은 **여전히 유령이다** — prev-year-duty.ts·test-defect-fold.mts·_probe-44-*·소방계획서_41/44.json|md가 전부 디스크에 실재. pathspec 없는 커밋은 빌드를 깬다([[risk_shared_index_commit]])",
+    "⑤ 좌표 재실측 — M-1·M-2·M-7·M-8 **4건 전부 유효**(42 정본화 커밋들은 이 시트를 건드리지 않았다)"
+  ],
+
+  "related": [
+    { "doc": "소방계획서_41", "why": "8쪽 불량내용 자동 문구 — DEFECT_FOLD_TEXT(결과참조·이상없음·해당없음) 어휘를 §3이 그대로 재사용한다. 새 어휘 발명 없음. 41의 Q-1(기타는 설치 축 없음)은 이 문서 S6-1이 번복" },
+    { "doc": "소방계획서_27", "why": "갑지 엑셀 앵커·주입 규약(dropFormula·keepFormulaWhenEmpty·빈 값 공백 1칸)" },
+    { "doc": "소방계획서_19", "why": "E11-1·E11-3 감사 — 완료일 한국어 날짜 통일, action_taken 공란 시 defect_name 폴백 경고" },
+    { "doc": "소방계획서_42", "why": "타 세션이 같은 시각 작업 중 — 2026-09-08 fire-plan-xlsx-* 계열을 거쳐 report9-assemble.ts까지 들어왔다(§8 위험이 실현됐다)" },
+    { "doc": "소방계획서_45", "why": "'모두 합격이면 ⑤⑥ 해당없음' 축 — 11호가 '해당없음'인 판정과 같은 방향(submission-board·doc-requirements)" }
+  ],
+
+  "status_legend": {
+    "pending_order": "미구현·지시 대기",
+    "code_present": "코드 존재(구현자 자기 신고) — 검증 전",
+    "partial": "부분 구현 — criteria 참조",
+    "implemented": "독립 검증 통과 + verified 증거 동반",
+    "confirmed": "결정 확정 — 코드 변경이 필요 없다는 판단",
+    "done_by_other": "타 세션이 구현 — 내 검증 전"
+  },
+
+  "measured_facts": [
+    {
+      "id": "M-1",
+      "fact": "완료보고서 시트 「이행완료 사항」 = 헤더 1행(18) + 데이터 4행(19~22). 이행조치 내용 B19:H19·B20:H20·B21:H21·B22:H22, 이행조치 일자 I19:L19·I20:L20·I21:L21·I22:L22",
+      "method": "scripts/_probe-42-done-sheet.mts — templates/report-workbook-full.xlsx mergeCell·cell 덤프",
+      "reconfirmed": "2026-09-08 재실행 — 병합 12건 전부 일치"
+    },
+    {
+      "id": "M-2",
+      "fact": "이행조치 내용 4칸은 셀 자체가 존재하지 않는다(전부 미배선). 이행조치 일자는 I20 한 칸만 f=개요!G10, 나머지 3행 공란",
+      "method": "같은 프로브 — 행 15~30 전 셀 열거 결과 B19~B22 부재",
+      "reconfirmed": "2026-09-08 재실행 — 행 15~30에서 값·수식이 있는 셀은 B15·B16·A18·B18·I18·I20·A24·G25·F27·H27·K27·A29·B29뿐"
+    },
+    { "id": "M-3", "fact": "행 높이 r19~r22 = 31.5pt (헤더 r18 = 28.5pt) — 한 칸 약 2줄", "method": "같은 프로브 — <row ht=> 덤프" },
+    {
+      "id": "M-4",
+      "fact": "개요!G10 = actionDoneSerial = actionPlanPeriod().endISO = 계획 종료일. PDF 11호는 action_completed_at(실제 완료일)을 찍는다 — 두 표면의 날짜 축이 다르다",
+      "method": "코드 대조 — xlsx-workbook.ts:836 · report9-actions.ts:112 · report9-assemble.ts:84-95"
+    },
+    { "id": "M-5", "fact": "완료보고서!G25 = 개요!G10+5 (보고일). PDF reportDate는 오늘 또는 annex_inputs 수기값 — 보고일도 갈라져 있다", "method": "같은 프로브 f=개요!G10+5 · report9-actions.ts:85·136" },
+    { "id": "M-6", "fact": "내용 칸이 빈 유래 — 템플릿 빌더가 표본 고객의 '별첨참조'를 null로 비웠고 그 뒤 아무도 채우지 않았다", "method": "scripts/build-workbook-template.mts:103" },
+
+    {
+      "id": "M-7",
+      "fact": "앵커 라벨칸 확정 — 완료보고서!B18 = '이행조치 내용 '(끝 공백), I18 = '이행조치 일자 '. validateAnchors의 normLabel이 공백·콜론을 지우므로(xlsx-anchors.ts:560) label은 '이행조치 내용'·'이행조치 일자'로 쓰면 된다. 두 라벨 모두 이 시트에서 유일해 자가치유 재탐색도 성립한다",
+      "method": "2026-09-08 _probe-42-done-sheet.mts 재실행 + xlsx-anchors.ts:559-601 정독"
+    },
+    {
+      "id": "M-8",
+      "fact": "완료보고서!G25(보고일)에는 **인접 라벨칸이 없다**. 같은 시트의 고정 리터럴 중 쓸 수 있는 것은 A24(법정 문구 「…제23조제4항 및 같은 법 시행규칙 제23조제6항에 따라 위와 같이 … 이행완료 보고서를 제출합니다.」)뿐이다 — S4 앵커의 labelCell 후보. A24→G25 오프셋은 (열 +6, 행 +1)",
+      "method": "같은 프로브 — 행 23~29 전 셀 열거"
+    },
+    {
+      "id": "M-9",
+      "fact": "SAMPLE_OPINION_NEEDLES(['이상없음','별첨참조','직원실'], xlsx-anchors.ts:551)는 **템플릿 빌드 사후검증 전용**이다(build-workbook-template.mts:681). 런타임 injectWorkbook의 forbidden은 SCRUB_NEEDLES(실고객 PII)뿐이라(:222) 「이상없음」·「외 N건 (별첨 참조)」를 주입해도 생성이 막히지 않는다 — 41이 이미 현5!C4~C10에 같은 문구를 주입하고 있다",
+      "method": "2026-09-08 전수 grep + build-workbook-template.mts:220-224·595-612·674-683 정독",
+      "why_recorded": "착수 전 '주입값이 스크럽 니들에 걸린다'는 가설을 세웠고 실측으로 기각했다. 다시 의심하지 않기 위해 남긴다"
+    },
+    {
+      "id": "M-10",
+      "fact": "facilityChecks는 **FORM3_ITEMS로 걸러진 목록**이다(report9.ts:169·173, sheet-facility-map). 따라서 form3Group(it)은 그 원소에 대해 항상 인덱스 ≥ 0을 얻어 '기타'를 **반환할 수 없다** — `facilityChecks.some(it => form3Group(it) === '기타')`는 항진명제로 항상 거짓이다",
+      "method": "report9.ts:36-44(form3Group) + :169-174 주석 + sheet-facility-map rollUpForm3Results 대조",
+      "why_recorded": "조사 에이전트가 이 식을 '옵션 B'로 제안했다. 채택했으면 기타 축이 고쳐진 것처럼 보이면서 실제로는 종전과 똑같이 늘 「해당없음」이 인쇄됐을 것이다 — 자기모순 보고를 실측으로 가른 자리"
+    },
+    {
+      "id": "M-11",
+      "fact": "1.4 「기타」 7종 = ETC_ITEMS(facility-codes.ts:46-54) = 방화문 및 방화셔터 · 비상구 및 피난통로 · 방염 · 위험물 저장·취급시설 · 화기시설 · 가연성 가스시설 · 전기시설. ETC_CODES(:57)가 코드 배열. 저장은 표준 42종과 **같은 표** fire_facilities(facility_code·installed)이고, report9-assemble.ts:241-244의 `codes`(installed=true)에 **이미 실려 있다**",
+      "method": "facility-codes.ts:41-57 · report9-assemble.ts:241-244 · plan-form14.tsx"
+    },
+    {
+      "id": "M-12",
+      "fact": "hasMultiUse(report9-assemble.ts:340) = Object.keys(multiUseCounts).length > 0 이고, multiUseCounts는 isMultiUseApplicable AND 개소수 문자열이 비지 않은 업종만 담는다(:319-324). 즉 **'해당' 토글 + 개소수 입력** 두 조건의 곱이다. 같은 값이 :344에서 STD-32 시트 편입 판정에도 쓰이는데 거기서는 개소 요구가 의도된 것이다(multi-use.ts:14-18 사용처 목록)",
+      "method": "report9-assemble.ts:317-324·340-346 + multi-use.ts:1-36 정독"
+    },
+    {
+      "id": "M-13",
+      "fact": "1.4(소방시설)와 1.10.3(다중이용업소 현황)은 **저장소가 다르다** — 1.4는 fire_facilities 표(건물별 행), 1.10.3은 fire_plan_forms.sections.multiUse JSONB(고객별 1행). 화면 배치를 옮겨도 데이터 이관은 필요 없다",
+      "method": "조사 에이전트 보고 + fire-plan-form-actions.ts FORM_SECTION_KEYS · report9-assemble.ts:241-244 교차 확인",
+      "confidence": "에이전트 실측 — S7 착수 시 직접 재확인 필요"
+    },
+    {
+      "id": "M-14",
+      "fact": "완료보고서 시트 **전 셀** = 리터럴 41칸 + 수식 11칸. 종전 프로브는 행 15~30만 봤다. 전 셀 덤프로 새로 드러난 것: ①B5{=계획서!B5}·I5{=계획서!K5}·C7{=계획서!C7}·F7{=계획서!H7}·J7{=개요!B17}·J8{=개요!B19}·B10{=계획서!B9}·H27{=C7}·A29{=개요!D14} — 대상물·관계인·소방안전관리자·소재지·소방서는 **전부 수식으로 이미 연결돼 있다** ②B12·I12·C14·F14·B16 5칸만 **동결 리터럴**(자사 정보) ③A31~A34 첨부서류·유의사항은 서식 정본",
+      "method": "2026-09-08 scripts/_probe-43-done-sheet-full.mts (신규 — 전 셀 덤프)",
+      "why_recorded": "종전 프로브의 '행 15~30' 창이 **자사 5칸을 시야 밖에 두고 있었다**. 축을 좁게 잡은 조사는 '앵커 후보 없음'과 '안 봤음'을 구별하지 못한다"
+    },
+    {
+      "id": "M-15",
+      "fact": "완료보고서 「소방공사업체」 5칸(B12 업체명·I12 사업자번호·C14 대표이사·F14 전화·B16 소재지)이 **동결 리터럴**이다. 같은 값의 정본은 DB `company_profile`(마이그레이션 032, 화면에서 편집 가능)이고 **PDF 11호는 그 DB 값을 인쇄한다**(report9-actions가 companyName·companyBizno·companyRep·companyPhone·companyAddress를 싣는다). 회사 정보가 바뀌면 PDF는 따라가고 엑셀은 안 따라간다 — D-7 갈라짐의 잠복",
+      "method": "M-14 덤프 + 032_company_profile.sql + report9-actions.ts:142-151 대조",
+      "why_recorded": "⚠ **내가 이 5칸을 처음에 '표본 고객 PII 유출'로 오판했다**(27 S7-7 재발이라 보고할 뻔했다). 실제로는 A11 「소방공사업체」 블록에 속한 **자사 정보**다 — 승진소방ENG 주소는 fire-plan-scrub.ts:14에 자사 값으로 등재돼 있다. 행 15~30 창으로는 B15/B16만 보여 '소재지'가 고객 것으로 읽혔고, **블록 머리글 A11을 봐야 주인이 드러났다**. 좁은 창이 값을 보여주고도 소속을 숨긴다"
+    }
+  ],
+
+  "defects_found": [
+    { "id": "D-1", "sev": "HIGH", "desc": "이행조치 내용 4행 전부 미배선 — PDF는 건별로 찍는데 엑셀은 공란(D-7 규약 위반)", "evidence": "M-1·M-2 · report1011.ts:215 rowsTable('이행완료 사항','이행조치 내용', d.rows)", "status": "fixed — 2026-09-08 S2·S3. 앵커 doneContent19~22 + buildWorkbookValues 8칸. 서식 실물 왕복 24/0(test-done-sheet-inject B절)" },
+    { "id": "D-2", "sev": "HIGH", "desc": "이행조치 일자가 실제 완료일이 아니라 계획 종료일이다", "evidence": "M-4 — 실데이터 확증은 S5-5", "status": "fixed — 2026-09-08. doneDate19~22 앵커가 `=개요!G10`을 dropFormula로 끊고 action_completed_at을 시리얼로 넣는다. ⭐**이 결함을 `test-xlsx-inject`가 단언으로 고정하고 있었다**(아래 lessons 참조) — 수리하니 그 검사가 붉어졌다. S5-5 실 DB 왕복은 미실시" },
+    { "id": "D-3", "sev": "MED", "desc": "일자가 4행 중 둘째 행(I20)에만 있어, 내용을 1행부터 채우면 짝이 어긋난다", "evidence": "M-2", "status": "fixed — 4행 전부 배선. 내용·일자를 같은 cells 배열에서 같은 인덱스로 꺼낸다(doneCells). 짝 유지 단언 test-annex-done-rows D절·test-done-sheet-inject B절" },
+    { "id": "D-4", "sev": "LOW", "desc": "엑셀 보고일(완료일+5)과 PDF 보고일(오늘·수기값)이 갈라져 있다", "evidence": "M-5 — Q-3이 '통일'로 확정, S4 착수", "status": "open — S4 미착수. G25{=개요!G10+5} 그대로. ⚠ 값의 원천이 annex_inputs(report11 수기 reportDate)라 규칙을 라우트에 다시 적으면 D-7 위반이 된다 — 착수 시 원천 배치부터 정할 것" },
+
+    {
+      "id": "D-5", "sev": "HIGH",
+      "desc": "'기타' 그룹이 항상 미해당이다 — report9-assemble.ts `g === '기타' ? false` 하드코딩. 1.4에서 방화문·전기시설 등을 체크해도 8쪽·별지10호 7행·갑지 현5의 기타 행이 늘 「해당없음」으로 인쇄된다. 체크값(ETC_CODES)은 이미 `codes`에 실려 있는데 아무도 읽지 않는다",
+      "evidence": "M-10·M-11 · report9-assemble.ts:656-659",
+      "status": "done_by_other — 2026-09-08 재개 시 실측하니 **이미 수리돼 있었다**(`etcInstalled = ETC_CODES.some(c => codes.includes(c))`, :656). 문서의 '타 세션 미수리' 기록이 낡았던 것. **내 독립 검증은 아직**",
+      "found": "2026-09-08 사용자 지시(「기타는 1.4 기타 항목이 선택되지 않으면 해당없음」)를 코드와 대조하다 발견"
+    },
+    {
+      "id": "D-6", "sev": "MED",
+      "desc": "'안전시설등' 그룹이 개소수 미입력만으로 「해당없음」이 된다 — 판정에 hasMultiUse(해당 토글 AND 개소수)를 써서, 1.10.3에서 「해당」만 켜고 개소수를 아직 안 적은 고객이 2쪽=해당·3쪽=MU 실결과인데 8쪽만 「해당없음」으로 갈렸다",
+      "evidence": "M-12 · report9-assemble.ts:489(종전)",
+      "status": "done_by_other — 2026-09-08 10:41 타 세션이 `muApplicable = isMultiUseApplicable(muSection)`로 수리(:517-521). 내 결론·근거와 동일. **내 검증은 아직**",
+      "found": "2026-09-08 사용자 지시(「안전시설등은 1.10.3 해당없음이면 해당없음」)를 코드와 대조하다 발견 — 두 세션이 독립적으로 같은 결함에 도달했다"
+    },
+    {
+      "id": "D-8", "sev": "MED",
+      "desc": "완료보고서 「소방공사업체」 5칸(B12·I12·C14·F14·B16)이 **동결 리터럴**이라 DB `company_profile`과 갈라질 수 있다. 같은 시트의 대상물·관계인·소재지·소방서는 전부 수식으로 연결돼 있는데(M-14) 자사 정보만 서식에 박혀 있다. 회사 주소·전화·대표가 바뀌면 **PDF 11호는 새 값, 엑셀 완료보고서는 옛 값**을 인쇄한다 — 이 문서가 세운 D-7 원칙이 깨지는 자리",
+      "evidence": "M-14·M-15",
+      "status": "open — 미수리. 이번 범위(이행완료 사항 8칸) 밖이라 손대지 않았다. 수리는 앵커 5칸 추가로 끝나지만 값의 원천(company_profile)이 현재 WorkbookSource에 안 실려 있어 배선이 필요하다",
+      "found": "2026-09-08 S2 착수 전 전 셀 덤프 중 발견. ⚠ 처음엔 '표본 고객 PII 유출'로 오판했다 — M-15 참조"
+    },
+    {
+      "id": "D-7-note", "sev": "INFO",
+      "desc": "이 문서 안에서 「D-7」이라는 말은 두 가지로 쓰인다: (1) 전역 규약 'PDF와 엑셀이 갈라지면 안 된다'(다른 설계 문서 유래, 코드 주석 다수) (2) 이 문서의 국소 결함 번호. 혼동을 피하려고 이 문서는 국소 결함을 D-5·D-6에서 멈추고, 공백 문자열 축 쟁점은 결함이 아니라 **Q-4**로 등재했다",
+      "status": "confirmed"
+    }
+  ],
+
+  "open_questions": [
+    {
+      "id": "Q-1",
+      "q": "완료 건이 없을 때의 자동 문구 채택 여부와 전파 범위",
+      "status": "resolved",
+      "resolution": "**확정(2026-09-08 사용자)** — 41의 DEFECT_FOLD_TEXT 3분 어휘를 그대로 재사용하고 **엑셀·PDF 양쪽**에 적용한다(엑셀이 주 산출물, PDF는 보조). 새 어휘를 만들지 않는다. ⚠ 종전 설계 §3의 ④(불량 0건 → 「해당없음」)는 **오기**였다 — 41의 어휘로는 불량 0건이 「이상없음」이고 「해당없음」은 **소방시설 대상이 아닐 때**다. 4상태를 5상태로 정정했다(§3)"
+    },
+    {
+      "id": "Q-2",
+      "q": "완료 5건 이상일 때 4행 초과분 처리",
+      "status": "resolved",
+      "resolution": "**a안 확정(2026-09-08 사용자)** — 앞 3건 + 4행 「외 N건 (별첨 참조)」 + overflow를 missing 경고에. ⚠ 접기는 **엑셀 서식(4행 고정)의 제약**이므로 엑셀에서만 한다 — PDF 11호는 이미 행 한도가 폐지돼 동적 확장한다(report1011.ts:94-96). 접기를 PDF에도 걸면 근거 없이 정보를 잃는다. 그래서 annexDoneRows()는 전건을 반환하고, 4행 접기는 doneCells()가 따로 한다(S1-4)"
+    },
+    {
+      "id": "Q-3",
+      "q": "엑셀 보고일 G25(=개요!G10+5) 처리",
+      "status": "resolved",
+      "resolution": "**a안 확정(2026-09-08 사용자)** — PDF reportDate와 통일한다. S4 착수. 라벨칸 후보는 M-8(A24)"
+    },
+    {
+      "id": "Q-4",
+      "q": "PDF 11호의 action_taken 폴백이 **공백 문자열을 통과시킨다** — `d.action_taken || d.defect_name`(report9-actions.ts:120)은 '   '(공백만)을 그대로 인쇄하는데, 바로 아래 경고는 `!d.action_taken?.trim()`으로 세어(:135) 「불량명이 대신 인쇄됨」이라 말한다. 경고와 인쇄물이 어긋나 있다. (a안) 폴백도 .trim() 축으로 정정 — 경고가 참이 된다, 다만 대조군 바이트 동일이 이 한 경우에서 깨진다 (b안) 현행 보존 — 대조군 완전 동일 우선, 어긋남은 별건으로",
+      "status": "pending",
+      "resolution": "미결정 — 사용자 결정 대기. 착수 전까지는 **b안(보존)** 으로 구현해 S5-3 대조군을 먼저 그린으로 만든다"
+    },
+    {
+      "id": "Q-5",
+      "q": "③④⑤(결과참조·이상없음·해당없음) 행의 **일자 칸**을 PDF에서 어떻게 찍는가. rowsTable은 period가 비면 자리표 `.  .  .  ~  .  .  .`를 찍는다(report1011.ts:108). 「해당없음」 옆에 날짜 자리표가 서면 '기간 미정인 이행조치'로 읽힐 소지가 있다. (a안) 자리표 유지 — 서식 기본값, 새 렌더 축 0 (b안) 문구 행에서는 일자 칸을 완전 공란으로 — rowsTable에 축 하나 추가",
+      "status": "pending",
+      "resolution": "미결정 — 착수 시 a안(자리표 유지)으로 시작하고 육안에서 재판단. 같은 함정을 10호가 isSummary '—'로 이미 한 번 처리했다(E10-5)"
+    }
+  ],
+
+  "sections": [
+    {
+      "id": "S1",
+      "title": "완료 축 단일 원천 annexDoneRows() (report9-assemble.ts 신규)",
+      "status": "pending_order",
+      "criteria": [
+        {
+          "id": "S1-1",
+          "desc": "annexDoneRows(defects, { hasAnyDefect, applicable }) → { kind: 'rows'|'refer'|'ok'|'na', rows: {content, doneISO}[] }. kind 어휘는 **DEFECT_FOLD_TEXT의 키와 정확히 같게** 둔다(refer·ok·na) — 그래야 문구 매핑이 DEFECT_FOLD_TEXT[kind] 한 줄이고 새 어휘가 끼어들 자리가 없다. 규칙은 §3 5상태",
+          "status": "code_present",
+          "evidence": "doc-templates/report9.ts AnnexDone·report9-assemble.ts annexDoneRows. 검증 test-annex-done-rows A절 8/0(어휘 ≡ DEFECT_FOLD_TEXT 키 단언 포함)"
+        },
+        {
+          "id": "S1-2",
+          "desc": "report9-actions.ts의 report11 분기(:116-137)를 이 함수 호출로 교체. ①② 케이스에서 PDF 산출이 **바이트 동일**해야 한다(대조군 S5-3). ③④⑤는 의도된 변경(종전 빈 4행 → 문구 1행)",
+          "status": "pending_order",
+          "evidence": "설계만 — 구현 전"
+        },
+        {
+          "id": "S1-3",
+          "desc": "규칙을 엑셀 쪽에 다시 적지 않는다 — actionPlanPeriod 주석(report9-assemble.ts:78-85)·annexPlanRows(:99-103)가 못박은 것과 같은 이유",
+          "status": "pending_order",
+          "evidence": "설계만 — 구현 전"
+        },
+        {
+          "id": "S1-4",
+          "desc": "4행 접기는 **별도 함수 doneCells()** 로 분리한다(Q-2 확정). annexDoneRows는 전건 반환 — PDF는 전건, 엑셀만 접는다. 내용·일자를 같은 인덱스로 자른다(현5 B/C열과 같은 함정)",
+          "status": "pending_order",
+          "evidence": "설계만 — 구현 전. PDF 한도 폐지 근거 report1011.ts:94-96"
+        },
+        {
+          "id": "S1-5",
+          "desc": "③④⑤ 판정에 필요한 hasAnyDefect·applicable은 별지 9호 조립본(defectRows·applicableGroups)에서 파생시킨다 — 10호가 이미 쓰는 방식(report9-actions.ts:96-105 try/catch). ⚠ 조립 실패로 11호가 통째로 막히면 안 된다 — 실패 시 ①②만으로 종전 렌더 폴백",
+          "status": "pending_order",
+          "evidence": "설계만 — 구현 전"
+        }
+      ]
+    },
+    {
+      "id": "S2",
+      "title": "엑셀 앵커 8칸 (xlsx-anchors.ts)",
+      "status": "code_present",
+      "criteria": [
+        { "id": "S2-1", "desc": "doneContent19~22 → 완료보고서!B19~B22(labelCell B18, label '이행조치 내용'), doneDate19~22 → 완료보고서!I19~I22(labelCell I18, label '이행조치 일자'). 행 목록은 손으로 베끼지 않고 상수 DONE_ROWS에서 파생(DEFECT_GROUP_ROWS와 같은 규약)", "status": "code_present", "evidence": "xlsx-anchors.ts DONE_ROWS(= DONE_CELL_ROWS 파생) + 8 앵커. test-done-sheet-inject A절 5/0 — **앵커 수 8 하한 선단언**으로 공허 통과 차단" },
+        { "id": "S2-2", "desc": "I20의 기존 =개요!G10은 dropFormula로 끊는다 — 살려 두면 Excel 재계산이 계획 종료일로 되돌린다", "status": "code_present", "evidence": "8칸 전부 dropFormula. **서식 실물 왕복으로 확인** — test-done-sheet-inject B절 「I20의 수식 =개요!G10 이 끊겼다」 + test-xlsx-inject [10]절 재작성분" },
+        { "id": "S2-3", "desc": "빈 행은 null이 아니라 공백 1칸(' ') — 빈 셀은 표시 서식에 따라 0으로 읽힐 수 있다", "status": "code_present", "evidence": "test-done-sheet-inject D절. 실 XML `<is><t xml:space=\"preserve\"> </t></is>` 확인" },
+        { "id": "S2-4", "desc": "완료보고서!B19~B22는 참조자 0건이라 값을 넣어도 타 시트로 새지 않는다", "status": "code_present", "evidence": "M-14 전 셀 덤프 — 이 시트의 수식 11칸 중 B19~B22·I19~I22를 읽는 것은 0건. test-done-sheet-inject E절이 자사칸·법정문구 무손상까지 단언" }
+      ]
+    },
+    {
+      "id": "S3",
+      "title": "값 생성 (xlsx-workbook.ts buildWorkbookValues)",
+      "status": "code_present",
+      "criteria": [
+        { "id": "S3-1", "desc": "doneCells() 결과로 8칸 entries push — 위치는 이행조치 기간 4칸 바로 뒤", "status": "code_present", "evidence": "xlsx-workbook.ts — WorkbookSource.report9.done + DONE_ROWS.forEach. test-annex-done-rows F절 9/0(미공급 하위 호환 포함)" },
+        { "id": "S3-2", "desc": "날짜는 isoToSerial()로 시리얼 주입 — I열은 원래 날짜 서식 칸", "status": "code_present", "evidence": "test-done-sheet-inject B절 — I19=46254·I20=46255·I21=46256 실측. ⚠ 기대값을 손계산으로 46264라 적었다가 4건 붉어짐 → **검사가 틀렸다**(산식 주석으로 재검산 가능하게 남김)" },
+        { "id": "S3-3", "desc": "doneOverflow를 라우트가 missing에 싣는다 — defectOverflow와 같은 경로", "status": "code_present", "evidence": "xlsx-workbook.ts doneOverflow() + workbook/route.ts missing 헤더. ⚠ **단언 없음** — 라우트 헤더 축은 미검증(잔여)" }
+      ]
+    },
+    {
+      "id": "S4",
+      "title": "보고일 정렬 (Q-3 확정 — 착수 대상)",
+      "status": "pending_order",
+      "criteria": [
+        { "id": "S4-1", "desc": "완료보고서!G25(=개요!G10+5)를 앵커화해 PDF reportDate와 통일. dropFormula 필수(수식을 살리면 재계산이 계획 종료일+5로 되돌린다). labelCell은 A24(M-8) — 인접 라벨이 없어 이 시트의 법정 문구를 라벨로 쓴다", "status": "pending_order", "evidence": "M-5·M-8" }
+      ]
+    },
+    {
+      "id": "S5",
+      "title": "검증",
+      "status": "pending_order",
+      "criteria": [
+        { "id": "S5-1", "desc": "신규 scripts/test-annex-done-rows.mts — ①②③④⑤ 5상태 + 5건 초과 접기 + 내용·일자 짝 유지(같은 인덱스로 자름)", "status": "code_present", "evidence": "**49/0**. A 5상태 8건 · B 문구행 일자공란 6건 · C 접기 15건(분모 하한 선단언 포함) · D 짝유지 2건 · E PDF 전건 1건 · F 엑셀 8칸 9건 · G 대조군 7건. 게이트 등재 완료(test-all.mts)" },
+        { "id": "S5-2", "desc": "주입 프로브 — 완료보고서!B19~B22·I19~I22 8칸 전수 대조. **개수 하한을 먼저 단언**해 공허 통과를 막는다", "status": "code_present", "evidence": "신규 scripts/test-done-sheet-inject.mts **24/0** — 서식 실물(report-workbook-full.xlsx)에 실제 주입 후 XML을 되읽는다. 앵커 수 8 하한 선단언 · dropFormula 실효 · 짝 유지 · 자사칸 무손상. 게이트 등재 완료" },
+        { "id": "S5-3", "desc": "대조군 — S1 이식 전/후 PDF 별지 11호 HTML이 ①② 케이스에서 바이트 동일. 기준 sha를 상수로 박는다(HEAD: 기준은 커밋 순간 깨진다)", "status": "code_present", "evidence": "test-annex-done-rows G절 7/0. 기준선은 `cf7319f`의 report9-actions.ts:117-122를 **축자 복사**해 상수로 박았다(BASELINE_SHA). 6케이스 바이트 동일 + **③은 의도적으로 갈라진다는 반대 단언**으로 대조군이 항진명제가 아님을 증명" },
+        { "id": "S5-4", "desc": "회귀 — test-defect-fold · 갑지 엑셀 주입 게이트 · tsc --noEmit 0. ⚠ 검사는 파일 리다이렉트+종료코드로 판정(2>&1 파이프는 출력을 삼킨다)", "status": "code_present", "evidence": "tsc rc=0 · test-defect-fold rc=0 · test-xlsx-inject 191/0 · test-xlsx-anchors 64/0 · test-report10-plan-rows 32/0 · test-multi-building-form9 97/0 · test-annex-compose 25/0. ⭐ **test-xlsx-inject가 1건 붉어졌고 그게 D-2 결함을 고정한 단언이었다**(아래 lessons)" },
+        { "id": "S5-5", "desc": "실 DB 1건 왕복 — image-78의 2026-8-20이 계획 종료일인지 완료일인지 실측 확정(D-2 확증)", "status": "pending_order", "evidence": "**미실시** — 잔여. D-2 수리 자체는 서식 실물 왕복으로 고정했으나 실데이터 확증은 아직" },
+        { "id": "S5-6", "desc": "S6 회귀 — 기타·안전시설등 축 정정이 8쪽·별지10호 7행·갑지 현5 **세 표면 모두**에 같은 값으로 나타나는지", "status": "pending_order", "evidence": "**미실시** — S6은 타 세션 구현분이라 내 독립 검증이 아직이다. test-defect-fold·test-report10-plan-rows가 그린이지만 그것이 S6 전용 축은 아니다 — [[feedback_fix_the_sibling_too]]" }
+      ]
+    },
+    {
+      "id": "S6",
+      "title": "그룹 해당 축 정정 (applicableGroups — D-5·D-6)",
+      "status": "partial",
+      "note": "2026-09-08 사용자 지시에서 파생. 원천은 report9-assemble.ts 한 곳이고 표면은 셋(PDF 8쪽·별지10호 7행·갑지 현5) — 원천을 고치면 셋이 함께 움직인다",
+      "criteria": [
+        {
+          "id": "S6-1",
+          "desc": "'기타' 그룹 = 1.4 「기타」 7종 중 **하나라도 설치 체크**되면 해당 — `ETC_CODES.some(c => codes.includes(c))`. 41 Q-1(2026-09-06 '기타는 설치 축이 없다')을 **번복**한다. ⚠ facilityChecks로는 판정할 수 없다(M-10 항진명제)",
+          "status": "pending_order",
+          "evidence": "M-10·M-11 — 사용자 확정 2026-09-08, 타 세션 미수리(:528 여전히 false)"
+        },
+        {
+          "id": "S6-2",
+          "desc": "'안전시설등' 그룹 = 1.10.3 '해당' 토글 하나(isMultiUseApplicable). ⚠ :340 hasMultiUse는 STD-32 시트 편입 축이라 **건드리지 않는다** — 목적이 다르다(multi-use.ts:14-18 사용처 목록)",
+          "status": "done_by_other",
+          "evidence": "타 세션이 2026-09-08 10:41 수리 — report9-assemble.ts:517-521 `muApplicable`. 내 독립 결론과 동일. **내 검증 미실시**"
+        },
+        {
+          "id": "S6-3",
+          "desc": "타 세션이 함께 넣은 가드 `facilityChecks.length === 0 ? undefined`(대장이 통째로 비면 판정하지 않음, :522-526)를 검토한다. 근거는 '설치 코드는 활성 건물 첫 1동만 읽으므로 별관 설치·대장 미체크가 곧 미해당이 아니다'. ⚠ 이 가드가 켜지면 S6-1의 기타 축도 함께 죽는다(applicableGroups 자체가 undefined) — 두 수리의 상호작용을 반드시 같이 본다",
+          "status": "pending_order",
+          "evidence": "report9-assemble.ts:522-526(타 세션 편집본) — 미검증"
+        }
+      ]
+    },
+    {
+      "id": "S7",
+      "title": "1.10.3 다중이용업소 현황 배치 이동 (제안 — 사용자 요청)",
+      "status": "pending_order",
+      "note": "사용자 요청 원문(2026-09-08): 「1.10.3 다중이용업소현황 위치를 1.4 소방시설 > 기타 아래로 이동하는 것을 제안해줘, 안전시설등 항목을 다중이용업소현황(으로)」. 구현 지시가 아니라 **제안 요청**이라 설계만 적는다 — 제안 본문은 소방계획서_43.md §10",
+      "criteria": [
+        { "id": "S7-1", "desc": "제안서 작성 — 근거·영향 범위·이관 필요 여부·위험", "status": "pending_order", "evidence": "43.md §10" }
+      ]
+    }
+  ],
+
+  "invariants_to_keep": [
+    "개요!G9·I9·J9·G10 허브 4칸은 건드리지 않는다 — 계획서(별지 10호)가 같은 축을 쓴다(xlsx-anchors.ts:183-197)",
+    "PDF 별지 11호의 ①② 동작은 무손상 — S5-3 대조군이 그린이기 전에는 S2로 넘어가지 않는다",
+    "xlsx(SheetJS) 쓰기 금지 — 읽기·검증 전용(xlsx-inject.ts 머리주석)",
+    "action_taken 공란 시 defect_name 폴백과 그에 따른 missing 경고(report9-actions.ts:135-136)는 유지",
+    "report9-assemble.ts:340 hasMultiUse(STD-32 시트 편입 축)는 건드리지 않는다 — S6-2는 applicableGroups 판정에서만 정정한다",
+    "DEFECT_FOLD_TEXT에 새 어휘를 더하지 않는다 — 3분(결과참조·이상없음·해당없음)이 8쪽·10호·11호·현5의 공통 어휘다"
+  ],
+
+  "verification_plan": [
+    "tsc --noEmit 0 (파일 리다이렉트+종료코드로 판정)",
+    "test-annex-done-rows.mts (신규) — 5상태 + 초과 접기 + 짝 유지",
+    "주입 프로브 8칸 전수 (개수 하한 선단언)",
+    "PDF 대조군 바이트 동일 (S1 이식 전/후, 기준 sha 상수 고정)",
+    "회귀 test-defect-fold · 갑지 주입 게이트",
+    "S6 3표면 회귀 (8쪽·10호 7행·현5)",
+    "실 DB 1건 왕복 — D-2 확증"
+  ],
+
+  "risks": [
+    "🚨 **동시 세션 — 실현된 위험**. 2026-09-08 10:41~10:43 타 세션이 report9-assemble.ts·test-defect-fold.mts·test-all.mts를 실시간 편집했고, 내 Edit이 '파일이 읽은 뒤 변경됨'으로 거부됐다. 사용자 지시로 **대기 중**. 재개 전 §11 점검 필수",
+    "🚨 **인덱스에 살아 있는 파일의 삭제가 스테이징돼 있다** — `erp/src/lib/prev-year-duty.ts`(디스크에 존재하고 report9-assemble.ts가 import 중), `_probe-44-*.mts` 3종, `erp_goal/소방계획서_44.json`·`.md`. pathspec 없이 커밋하면 빌드가 깨진다([[risk_shared_index_commit]])",
+    "D-2를 수리하면 기존 인쇄물과 이행조치 일자가 달라진다 — 사용자 고지 완료(Q-3 질문에 명시)",
+    "한 칸 ≈ 2줄(31.5pt) — 긴 action_taken은 엑셀에서 잘려 보인다. 문장은 자르지 말고 overflow 판정은 건수 축으로만",
+    "S6-1과 S6-3(타 세션 가드)이 상호작용한다 — facilityChecks가 비면 applicableGroups가 undefined가 되어 기타 축 수리가 무력화된다. 둘을 같이 검증할 것",
+    "_probe-42-done-sheet.mts는 1회성 조사 프로브 — 회귀에 남길 것은 S5-1·S5-2뿐",
+    "타 세션이 LibreOffice 프로브(_probe-42-lo-open.mts)를 돌리고 있다 — soffice는 단일 프로필이라 겹치면 ETIMEDOUT([[risk_soffice_profile_lock]]). 재개 시 육안·LO 검증은 그쪽 종료 후에"
+  ],
+
+  "lessons_2026_09_08_pm": [
+    "⭐⭐ **검사가 결함을 고정하고 있었다.** D-2(엑셀이 계획 종료일을 '이행조치 일자'로 인쇄)를 수리하자 `test-xlsx-inject`의 `완료보고서!I20 — 이행완료일자 도달`이 붉어졌다. 그 단언은 `I20 === sEnd`, 곧 **틀린 값이 오는 것을 옳다고 못박고 있었다**. 191칸짜리 초록 스위트 안에서 한 칸이 결함을 지키고 있었던 것 — 붉어진 검사를 '내 회귀'로 지레짐작하고 되돌렸으면 D-2가 살아남았다. **오래된 초록은 옳다는 증거가 아니다**",
+    "⭐ **좁은 창은 값을 보여주고도 소속을 숨긴다.** 종전 프로브가 완료보고서 '행 15~30'만 떠서 B15 '소재지'·B16 주소가 **고객 것으로 읽혔고**, 나는 27 S7-7(표본 PII 유출) 재발이라 보고할 뻔했다. 전 셀 덤프로 A11 「소방공사업체」 블록 머리글이 나오자 그 5칸이 **자사 정보**임이 드러났다. 부재·소속 판정은 창을 넓혀 다시 볼 것",
+    "⭐ **대조군에는 반대 단언을 함께 둔다.** ①② 바이트 동일 6건만 있으면 '아무것도 안 바뀌게 짰다'와 구별되지 않는다. ③(완료 0건)이 **갈라진다**는 단언을 붙여야 대조군이 항진명제가 아님이 증명된다",
+    "⭐ **표현 축이 다르면 추출기도 다르다.** 공백 1칸은 `<v>`가 아니라 `<is><t xml:space=\"preserve\">`로 실린다 — `vOf`(=`<v>` 전용)로 재니 멀쩡한 제품이 빈 문자열로 보여 붉어졌다. 값이 없는 것과 표현이 다른 것을 같은 자로 재지 말 것",
+    "⭐ **기대값 손계산이 제품보다 먼저 틀린다.** 시리얼 46264라 적었다가 4건 실패 — 검산하니 46254(2026-01-01=46023 + 231)가 옳았다. 상수로 박되 **산식을 주석으로 남겨** 다음 사람이 재검산할 수 있게 했다",
+    "⭐ **순수 모듈은 서버 모듈을 import할 수 없다.** 앵커 맵(xlsx-anchors)이 접기 분모 `DONE_CELL_ROWS`를 공유하려면 그 상수가 조회 코드를 딸려오면 안 된다 → 타입·상수·`doneCells`를 8쪽 형제 `foldDefectGroups`가 사는 `doc-templates/report9`(순수)로 옮기고 `report9-assemble`이 되보낸다. ⚠ `export type {...} from`은 **지역 스코프에 이름을 들이지 않는다** — 같은 파일에서 쓰려면 `import type`도 따로 필요(tsc가 잡았다)",
+    "⚠ 스위트는 `--conditions=react-server` 없이 돌리면 `server-only`에서 죽는다 — 멀쩡한 검사가 '깨진 것'으로 보인다([[feedback_test_suite_run_flags]]). 한 번 밟았다"
+  ],
+
+  "resume_checklist": [
+    "① 착수 전 `git log` + 작업트리 mtime으로 타 세션 활동 확인 — 이번엔 3시간 무활동이라 재개했다",
+    "② **문서의 '미수리' 기록을 믿지 말고 코드를 다시 읽을 것** — S6-1이 이미 고쳐져 있었다(기록이 낡았다)",
+    "③ 인덱스 유령 삭제 11건 — 커밋은 **반드시 pathspec 명시**([[risk_shared_index_commit]])",
+    "④ 남은 일: S4(보고일 G25) · D-8(자사 5칸) · Q-4 · Q-5 · S5-5 실 DB 왕복 · S5-6 S6 3표면 회귀 · S6 독립 검증 · S7 제안서",
+    "⑤ 커밋 시 내 파일: report9-assemble.ts · doc-templates/report9.ts · xlsx-anchors.ts · xlsx-workbook.ts · workbook/route.ts · test-annex-done-rows.mts · test-done-sheet-inject.mts · test-xlsx-inject.mts · test-all.mts · 소방계획서_43.json. ⚠ 이 중 report9-assemble.ts·test-all.mts에는 **타 세션 미커밋 변경이 섞여 있다** — 헌크 분리 필요"
+  ]
+}

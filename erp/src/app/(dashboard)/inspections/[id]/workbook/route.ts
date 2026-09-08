@@ -8,7 +8,7 @@ import { assembleOfficial, assembleDelegation } from '@/lib/annex-cover-official
 import { assembleReport9 } from '@/lib/report9-assemble'
 import { validateAnchors, SCRUB_NEEDLES, DEFECT_SHEET } from '@/lib/xlsx-anchors'
 import { injectWorkbook, type InjectTarget } from '@/lib/xlsx-inject'
-import { buildWorkbookValues, toInjectTargets, defectOverflow, s31RowOverflow } from '@/lib/xlsx-workbook'
+import { buildWorkbookValues, toInjectTargets, defectOverflow, doneOverflow, s31RowOverflow } from '@/lib/xlsx-workbook'
 import { donorGroupsToKeep, donorGapsForFacilities, allDonorSheets, DONOR_TOC_SHEET, BASE_TOC_SHEET, DONOR_TOC_BODY_CELLS } from '@/lib/xlsx-donors'
 import { removeSheets, insertSheetAfter } from '@/lib/xlsx-sheet-surgery'
 import { buildDefectPhotoSheet, type DefectPhotoRow } from '@/lib/defect-photo-embed'
@@ -285,6 +285,9 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
           // 않는다**(S8-2 규약과 같은 축) — 잘린 채로도 인쇄물은 멀쩡해 보이기 때문이다.
           // 41: 분모는 buildWorkbookValues와 같은 fold(인쇄 대상 행) — applicableGroups를 함께 넘긴다
           ...defectOverflow(r9.data.defectRows, r9.data.applicableGroups).map(o => `불량 세부 ${o.group} ${o.dropped}건 미표기(엑셀 1행 상한)`),
+          // 완료보고서 「이행완료 사항」 — 서식 4행 고정이라 5건째부터 「외 N건 (별첨 참조)」로 접힌다.
+          // 인쇄물에도 그 문구가 남지만, 엑셀을 열지 않고 화면에서 판단하는 동선을 위해 함께 싣는다(43 S3-3)
+          ...(doneOverflow(r9.data.done) ? [`이행완료 사항 ${doneOverflow(r9.data.done)}건 접힘 — 「외 N건 (별첨 참조)」(엑셀 4행 상한)`] : []),
           // 3-1 동별 수량 — 서식 8행 상한을 넘는 동은 잘리므로 알린다(위와 같은 S8-2 축)
           ...(s31RowOverflow(r9.data.specs) ? [`3-1 동별 수량 ${s31RowOverflow(r9.data.specs)}개 동 미표기(현1 8행 상한)`] : []),
           ...(donorGaps.length ? [`점검표 서식 미동봉(자산 없음): ${donorGaps.join(', ')}`] : []),

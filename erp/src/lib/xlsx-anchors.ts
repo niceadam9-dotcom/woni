@@ -8,7 +8,7 @@
  *  서식이 갱신되면 validateAnchors가 먼저 붉어진다 — 그때 재실측해 재승인한다(Q-4: 재변환). */
 import * as XLSX from 'xlsx'
 import { FORM4_ROWS, FORM4_ETC_ROWS, FORM4_SHEET, form4InstallField, form4VerdictField } from '@/lib/xlsx-form4'
-import { DEFECT_GROUPS } from '@/lib/doc-templates/report9'
+import { DEFECT_GROUPS, DONE_CELL_ROWS } from '@/lib/doc-templates/report9'
 import { S31_COLUMNS } from '@/lib/facility-spec-schema'
 
 export type Anchor = {
@@ -53,6 +53,15 @@ export const DEFECT_GROUP_ROWS: ReadonlyArray<{ group: string; row: number }> =
 /** 계획서(별지 10호) 그룹행 — C12{=현5!A4}부터 2행 간격(실측). DEFECT_GROUPS 순서 파생(단일 원천). */
 export const PLAN_DATE_ROWS: ReadonlyArray<{ group: string; row: number }> =
   DEFECT_GROUPS.map((group, i) => ({ group, row: 12 + 2 * i }))
+
+/** 완료보고서(별지 11호) 「이행완료 사항」 4행 — 헤더 r18 아래 r19~r22(실측 2026-09-08,
+ *  `scripts/_probe-43-done-sheet-full.mts`: 병합 B19:H19·I19:L19 … B22:H22·I22:L22).
+ *  ⚠ 개수를 여기 손으로 적지 않는다 — 엑셀 접기(`doneCells`)가 쓰는 `DONE_CELL_ROWS`에서
+ *  파생시킨다. 두 벌로 두면 서식이 5행으로 늘어날 때 앵커만 4칸에 남아 **다섯 번째 조치가
+ *  조용히 사라진다**(DEFECT_GROUP_ROWS를 DEFECT_GROUPS에서 파생시킨 것과 같은 이유). */
+export const DONE_ROW_FIRST = 19
+export const DONE_ROWS: ReadonlyArray<number> =
+  Array.from({ length: DONE_CELL_ROWS }, (_, i) => DONE_ROW_FIRST + i)
 
 /** 현1 3-1 수량 열 ↔ 엑셀 열머리 — 키 목록은 손으로 베끼지 않고 **S31_COLUMNS(total 열)에서
  *  파생**시킨다(DEFECT_GROUP_ROWS와 같은 이유). 열 문자만 이쪽 실측이다
@@ -206,6 +215,21 @@ export const ANCHORS: Anchor[] = [
     { field: `planStart${row}`, sheet: '계획서', cell: `K${row}`,     labelCell: 'K11', label: '이행조치일자', dropFormula: true },
     { field: `planEnd${row}`,   sheet: '계획서', cell: `P${row}`,     labelCell: 'K11', label: '이행조치일자', dropFormula: true },
     { field: `planDays${row}`,  sheet: '계획서', cell: `O${row + 1}`, labelCell: 'K11', label: '이행조치일자', dropFormula: true },
+  ]),
+  // ── 완료보고서(별지 11호) 「이행완료 사항」 8칸 (소방계획서_43 S2) ──
+  // 여태 **통째로 미배선**이었다: 서식에 B19~B22 셀 자체가 없고 일자는 I20 한 칸만 `=개요!G10`
+  // (= 계획 종료일)이었다. PDF 11호는 건별로 내용·완료일을 찍는데 엑셀은 4행이 공란이라
+  // 두 표면이 갈라져 있었다(D-1). 값은 PDF와 같은 `annexDoneRows()` 단일 원천에서 온다(D-7).
+  // ⚠ I20의 `=개요!G10`은 **끊는다**(dropFormula). 살려 두면 Excel이 열면서 재계산해 실제
+  //   완료일(action_completed_at)을 **계획 종료일로 되돌린다** — 두 날짜는 축이 다르다(D-2).
+  //   같은 함정을 계획서 행별 일자 21칸과 현1 s31ExtAny에서 이미 밟았다.
+  // ⚠ 라벨은 B18 '이행조치 내용 '·I18 '이행조치 일자 '(끝 공백은 normLabel이 지운다). 둘 다
+  //   이 시트에서 유일해 서식이 밀려도 자가치유 재탐색이 성립한다(2026-09-08 전 셀 덤프 실측).
+  // ⚠ 빈 행은 `null`이 아니라 **공백 1칸**을 넣는다 — 빈 셀은 표시 서식에 따라 `0`으로 읽힌다
+  //   (2026-08-25 5종 표현 왕복 실측, assist E열·계획서 K/P/O와 같은 규약). 값은 workbook이 준다.
+  ...DONE_ROWS.flatMap<Anchor>(row => [
+    { field: `doneContent${row}`, sheet: '완료보고서', cell: `B${row}`, labelCell: 'B18', label: '이행조치 내용', dropFormula: true },
+    { field: `doneDate${row}`,    sheet: '완료보고서', cell: `I${row}`, labelCell: 'I18', label: '이행조치 일자', dropFormula: true },
   ]),
   // ── 현5(별지 9호 8쪽 '4. 소방시설등 불량 세부 사항') — 점검번호·불량내용 7행 ──
   // 계획서!C12~C24{=현5!A4..A10}·H12~H24{=현5!C4..C10}가 이 시트를 읽으므로 **Phase 3의 선행 조건**이다

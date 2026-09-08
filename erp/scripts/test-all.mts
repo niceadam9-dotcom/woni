@@ -194,6 +194,15 @@ const steps: Step[] = [
   // 셌고, 「결과참조」가 사실상 발화하지 않았다 — 픽스처에 userEntered를 손으로 박은 검사는
   // 조립 규칙을 안 타므로 초록이었다. 지금은 [5]가 isUserEnteredDefectName을 직접 부른다.
   { name: '8쪽 불량내용 4상태 접기',    cmd: 'npx tsx --conditions=react-server scripts/test-defect-fold.mts' },
+  // 별지 11호 완료 축(소방계획서_43) — PDF 11호와 갑지 엑셀 `완료보고서`가 같은 `annexDoneRows()`를
+  // 탄다. 갑지 4행은 2026-09-08까지 **통째로 미배선**이었다: PDF는 건별로 찍는데 엑셀은 공란이라
+  // 두 표면이 갈라져 있었다(D-1). 등재 이유는 그 재발이 **인쇄물만 보면 안 보이기** 때문이다 —
+  // 엑셀 4칸이 비어도 서식은 멀쩡해 보이고, 일자는 틀린 값(계획 종료일)이 그럴듯하게 찍힌다.
+  { name: '별지 11호 완료 축',         cmd: 'npx tsx --conditions=react-server scripts/test-annex-done-rows.mts' },
+  // 같은 축의 **서식 실물** 왕복 — 앵커 라벨 대조 + I20의 `=개요!G10` 절단을 실제 xlsx에서 본다.
+  // 수식이 살아 있으면 Excel이 열면서 실제 완료일을 계획 종료일로 되돌린다(D-2) — 값맵 검사로는
+  // 절대 안 잡히는 축이라 별도 스위트로 둔다.
+  { name: '완료보고서 8칸 주입 왕복',   cmd: 'npx tsx --conditions=react-server scripts/test-done-sheet-inject.mts' },
   // 3쪽 1절 두 축(설치 √ / 점검결과 ○×)의 귀속 — 양방향으로 조용히 틀릴 수 있는 자리다.
   // 번짐을 안 막으면 설치도 안 한 설비에 ○가 찍히고(위조), 과하게 막으면 대장에 체크를
   // 빠뜨렸을 뿐인 실점검이 해당없음 ／로 지워진다. 두 실패 모두 인쇄물만 보면 멀쩡하다.
