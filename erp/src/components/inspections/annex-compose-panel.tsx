@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useTransition } from 'react'
+import { useEffect, useRef, useState, useTransition } from 'react'
 import { X, Eye, FileText, Loader2, Save, ExternalLink } from 'lucide-react'
 import { AnnexMissingList } from '@/components/inspections/annex-missing-list'
 import { getAnnexInputsAction, saveAnnexInputsAction, getPrevAnnexInputsAction, getAnnexAutoDefaultsAction, getAnnexDutySummaryAction } from '@/app/(dashboard)/customers/facility-spec-actions'
@@ -78,6 +78,11 @@ export function AnnexComposePanel({ inspectionId, annexNo, customerId, from, onC
   const [prevOffer, setPrevOffer] = useState<{ fields: Record<string, string>; fromLabel: string } | null>(null)
   // 소방계획서_44 — 2쪽 3행 읽기 전용 요약(확정 자리는 소방계획서 1.10)
   const [dutySummary, setDutySummary] = useState<{ year: number; lines: Array<{ label: string; text: string }>; confirmed: boolean } | null>(null)
+  /** 이 패널이 **안 그리는** 키까지 포함한 저장본 — saveAnnexInputsAction의 upsert는 fields를 통째로
+   *  교체하므로, FIELD_DEFS만 보내면 남는 키가 지워진다. 44가 별지 9호 6칸을 걷어낸 뒤로는
+   *  **레거시 읽기 폴백(D-3)이 보고일 한 번 고치는 것만으로 사라지는** 자리였다(독립 판정 2026-09-08 적발).
+   *  작업대 인라인(inspection-workbench AnnexFields)이 쓰는 allRef 병합과 같은 규약. */
+  const allRef = useRef<Record<string, unknown>>({})
 
   useEffect(() => {
     if (annexNo !== 'report9') { setDutySummary(null); return }
@@ -108,6 +113,7 @@ export function AnnexComposePanel({ inspectionId, annexNo, customerId, from, onC
         const v = inp.fields[d.key]
         if (typeof v === 'string') f[d.key] = v
       }
+      allRef.current = inp.fields ?? {}
       setFields(f)
       setAuto(def.defaults ?? {})
       setMissing(prev.missing ?? [])
@@ -138,8 +144,11 @@ export function AnnexComposePanel({ inspectionId, annexNo, customerId, from, onC
   }
 
   async function doSave(): Promise<boolean> {
-    const res = await saveAnnexInputsAction(inspectionId, annexNo, fields)
+    // 이 패널이 그리는 키만 덮고 나머지는 불러온 그대로 되돌려 보낸다 — 서버 upsert는 통째 교체다
+    const merged = { ...allRef.current, ...fields }
+    const res = await saveAnnexInputsAction(inspectionId, annexNo, merged)
     if (res.error) { setMsg(`❌ ${res.error}`); return false }
+    allRef.current = merged
     setDirty(false)
     return true
   }

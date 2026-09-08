@@ -7,7 +7,7 @@ import { buildFirePlanHtml, type FirePlanGenData } from '@/lib/fire-plan-templat
 import { assembleFirePlan } from '@/lib/fire-plan-generate'
 import { extractRoadName, type RoadTier } from '@/lib/address-parser'
 import { buildSurroundingsDraft } from '@/lib/fire-plan-suggest'
-import { judgePrevYearDutyAuto, annexStatusOtherYears, type AnnexStatusSection } from '@/lib/prev-year-duty'
+import { judgePrevYearDutyAuto, type AnnexStatusSection } from '@/lib/prev-year-duty'
 
 /** 소방계획서 탭(4-1 골격) 전용 액션 — 소방계획서_4.md §2·§7
  *  서식 입력 저장소 = fire_plan_forms(096, 고객당 1행·섹션 JSONB). */
@@ -107,15 +107,14 @@ export async function saveFirePlanSectionsAction(
 
 /** 1.10 「전년도 업무 실시사항」 블록 로드 (소방계획서_44 S2) — 자동 판정 + 저장된 확정값.
  *
- *  실적 연도는 **가장 최근 점검 회차의 연도 - 1**이다. 그냥 '올해-1'로 잡으면 2026년 회차를
- *  2027년에 인쇄할 때 화면(2026년)과 서식(insp.year-1 = 2025년)이 서로 다른 해를 가리킨다.
- *  회차가 아직 없으면 올해 기준으로 떨어뜨린다. 다른 해의 확정값은 otherYears로 함께 알린다 —
- *  화면이 한 해만 편집하므로 나머지가 안 보이면 조용히 인쇄되는 값이 생긴다. */
+ *  확정값에는 연도가 없다(D-6) — 한 벌만 유지하고 어느 회차를 찍든 그대로 적용된다.
+ *  year는 **저장 키가 아니라 자동 판정의 기준 연도**다(= 가장 최근 점검 회차의 연도 - 1).
+ *  '올해-1'로 잡으면 2026년 회차를 2027년에 인쇄할 때 화면과 서식(insp.year-1)이 다른 해를
+ *  근거로 삼는다. 회차가 아직 없으면 올해 기준으로 떨어뜨린다. */
 export async function getPrevYearDutyAction(customerId: string): Promise<{
   year: number
   auto: { year: number; hasPlan: boolean; opDone: boolean; compDone: boolean; eduDone: boolean; drillDone: boolean }
-  status: { prevYear?: Record<string, { edu?: string; drill?: string; op?: string; comp?: string }>; plan?: { written?: string; stored?: string } }
-  otherYears: string[]
+  status: AnnexStatusSection
   error?: string
 }> {
   await requirePermission('customer_manage')
@@ -128,7 +127,7 @@ export async function getPrevYearDutyAction(customerId: string): Promise<{
     admin.from('inspections').select('year').eq('customer_id', customerId)
       .order('year', { ascending: false }).limit(1),
   ])
-  if (formRes.error) return { year: 0, auto: empty, status: {}, otherYears: [], error: `조회 실패: ${formRes.error.message}` }
+  if (formRes.error) return { year: 0, auto: empty, status: {}, error: `조회 실패: ${formRes.error.message}` }
 
   const sections = ((formRes.data as { sections?: Record<string, unknown> } | null)?.sections) ?? {}
   const latestYear = ((latestRes.data ?? []) as Array<{ year: number | null }>)[0]?.year ?? new Date().getFullYear()
@@ -138,7 +137,7 @@ export async function getPrevYearDutyAction(customerId: string): Promise<{
     customerId, year, sections,
     inspectionSubType: (custRes.data as { inspection_sub_type?: string | null } | null)?.inspection_sub_type ?? null,
   })
-  return { year, auto, status, otherYears: annexStatusOtherYears(status, year) }
+  return { year, auto, status }
 }
 
 /** 서식 1.3 주변 현황 자동 초안 (소방계획서_11.md §8 D-2 — "자동차 도로 기반으로 작성")

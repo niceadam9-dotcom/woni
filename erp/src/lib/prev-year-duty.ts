@@ -6,9 +6,14 @@
  *
  *  왜 옮겼나(44 §3):
  *   · 세 행은 **(고객, 연도) 사실**인데 `annex_inputs`는 점검 건 단위였다.
- *   · 값에 **연도가 새겨져 있지 않아** 「전년도」의 뜻을 읽는 시점(insp.year-1)이 정했고,
- *     전 회차 이어받기가 6칸을 통째로 복사해 **작년 확정이 올해 실적으로 인쇄**될 수 있었다.
- *  → 저장 키를 실적 연도로 잡는 것(`prevYear['2025']`)이 그 경로를 데이터 모양에서 없앤다.
+ *   · 전 회차 이어받기가 6칸을 통째로 복사해 **작년 확정이 올해 실적으로 인쇄**될 수 있었다.
+ *  → 확정 자리를 소방계획서로 옮기면서 이어받기 대상(FIELD_DEFS)에서 빠져 그 경로가 없어졌다.
+ *
+ *  ⚠ 연도축 없음(D-6, 2026-09-08 사용자 결정):
+ *   최초 구현은 실적 연도를 키로 저장했으나(`prevYear['2025']`), 소방계획서는 **살아 있는 한 벌**이고
+ *   표지 연도는 사람이 고른다 — ERP는 연도를 고르지도 저장하지도 않고 **최신 확정 한 벌만** 유지한다.
+ *   그래서 확정값은 연도 없는 단일 객체이고, 어느 회차의 별지 9호를 찍든 같은 값이 나간다.
+ *   구본(연도 맵)으로 저장된 데이터는 읽을 때 **가장 최근 연도 한 벌**로 흡수한다.
  *
  *  판정 규칙은 여기 한 곳에만 적는다. 조립기(report9-assemble)·입력 화면(plan-form110)·
  *  작성 패널 요약이 같은 함수를 쓰므로 "화면은 실시라는데 서식은 공란"이 생길 수 없다.
@@ -24,10 +29,13 @@ export type DutyMark = '' | '실시' | '미실시'
 export type PlanWrittenMark = '' | '작성' | '미작성'
 export type PlanStoredMark = '' | '보관' | '미보관'
 
-/** sections.annexStatus — 연도 키는 **실적 연도**(= 점검연도 - 1)다. 점검연도가 아니다. */
+export type DutyMarks = { edu?: string; drill?: string; op?: string; comp?: string }
+
+/** sections.annexStatus — 확정 한 벌. 쓸 때는 **연도 없는 평평한 객체**다(D-6).
+ *  `Record<string, DutyMarks>`는 구본(연도 맵)을 **읽기 위한** 호환 가지일 뿐 새로 쓰지 않는다. */
 export type AnnexStatusSection = {
-  prevYear?: Record<string, { edu?: string; drill?: string; op?: string; comp?: string }>
-  /** 작성·보관은 '현재 상태'라 연도축이 없다 */
+  prevYear?: DutyMarks | Record<string, DutyMarks>
+  /** 작성·보관도 '현재 상태'라 연도축이 없다 */
   plan?: { written?: string; stored?: string }
 }
 
@@ -60,21 +68,32 @@ export type LegacyAnnexMarks = {
 
 export const EMPTY_ANNEX_STATUS: AnnexStatusSection = { prevYear: {}, plan: { written: '', stored: '' } }
 
-/** 실적 연도의 확정값 한 벌 꺼내기 (없으면 전부 '') */
-export function annexStatusForYear(st: AnnexStatusSection | null | undefined, year: number): {
+const YEAR_KEY = /^\d{4}$/
+
+/** 확정값 한 벌 꺼내기 (없으면 전부 '').
+ *  구본이 연도 맵으로 저장돼 있으면 **가장 최근 연도**를 골라 흡수한다 — 최신자료만 유지(D-6). */
+export function annexStatusMarks(st: AnnexStatusSection | null | undefined): {
   edu: DutyMark; drill: DutyMark; op: DutyMark; comp: DutyMark
 } {
-  const r = st?.prevYear?.[String(year)] ?? {}
+  const raw = (st?.prevYear ?? {}) as Record<string, unknown>
+  const keys = Object.keys(raw)
+  const legacyYears = keys.length > 0 && keys.every(k => YEAR_KEY.test(k))
+  const src = (legacyYears
+    ? ((raw as Record<string, DutyMarks>)[[...keys].sort().at(-1)!] ?? {})
+    : raw) as DutyMarks
   const m = (v: unknown): DutyMark => (v === '실시' || v === '미실시' ? v : '')
-  return { edu: m(r.edu), drill: m(r.drill), op: m(r.op), comp: m(r.comp) }
+  return { edu: m(src.edu), drill: m(src.drill), op: m(src.op), comp: m(src.comp) }
 }
 
-/** 확정값이 들어 있는 다른 연도들 — 화면이 '올해-1'만 편집하므로, 나머지가 안 보이면 안 된다 */
-export function annexStatusOtherYears(st: AnnexStatusSection | null | undefined, year: number): string[] {
-  return Object.entries(st?.prevYear ?? {})
-    .filter(([y, v]) => y !== String(year) && Object.values(v ?? {}).some(x => String(x ?? '').trim()))
-    .map(([y]) => y)
-    .sort()
+/** 값에 사람이 넣은 내용이 있는가 — 빈 문자열·빈 배열·전부 빈 객체는 '없다' */
+function hasContent(v: unknown): boolean {
+  if (v === null || v === undefined) return false
+  if (typeof v === 'string') return v.trim() !== ''
+  if (typeof v === 'number') return true
+  if (typeof v === 'boolean') return v
+  if (Array.isArray(v)) return v.some(hasContent)
+  if (typeof v === 'object') return Object.values(v as Record<string, unknown>).some(hasContent)
+  return false
 }
 
 /** ── 자동 판정 (종전 report9-assemble.ts:294-324의 규칙 그대로 이관) ──────────────
@@ -96,10 +115,15 @@ export async function judgePrevYearDutyAuto(
 ): Promise<PrevYearDutyAuto> {
   const { customerId, year, sections, inspectionSubType } = args
 
-  // 작성 여부 = 서식 입력 존재(빈 껍데기 {} 제외).
+  // 작성 여부 = 서식 입력 존재.
   // ⚠ annexStatus 자신은 근거에서 뺀다 — 이 확정 블록만 저장하고 계획서를 한 줄도 안 썼는데
   //   「작성 √」가 나가면 자기 자신을 근거로 삼는 꼴이 된다(44에서 새로 생긴 자리라 종전엔 없던 함정).
-  const hasPlan = Object.keys(sections ?? {}).filter(k => k !== 'annexStatus').length > 0
+  // ⚠ **키 개수가 아니라 내용으로 센다**(D-5, 2026-09-08). 1.10 저장은 손대지 않은 블록까지
+  //   (inspection·multiUse·fireHistory·dutyLog) 항상 함께 보내므로, 키만 세면 전년도 칸을 확정하는
+  //   행위 자체가 「작성 √」를 켜서 위 가드가 실경로에서 무력화됐다(독립 판정 2026-09-08 적발).
+  //   실측 영향 0건 — 스테이징 fire_plan_forms 6행 전부 실내용 보유라 뒤집히지 않는다.
+  const hasPlan = Object.entries(sections ?? {})
+    .some(([k, v]) => k !== 'annexStatus' && hasContent(v))
 
   const { data: prevRows } = await admin.from('inspections')
     .select('inspection_type').eq('customer_id', customerId).eq('year', year).eq('status', 'completed')
@@ -133,7 +157,7 @@ export function resolvePrevYearDuty(
     const v = p || String(legacyVal ?? '').trim()
     return v === yes ? 'yes' : v === no ? 'no' : ''
   }
-  const y = annexStatusForYear(status, auto.year)
+  const y = annexStatusMarks(status)
 
   const mEdu = pick(y.edu, legacy.eduDone, '실시', '미실시')
   const mDrill = pick(y.drill, legacy.drillDone, '실시', '미실시')

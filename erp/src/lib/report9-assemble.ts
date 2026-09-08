@@ -630,10 +630,11 @@ export async function assembleReport9(
   const fNote = fstr(annexFields, 'note')
   if (fNote) data.note = fNote
   // 2쪽 3행(소방계획서·자체점검·교육훈련)의 확정 — **소방계획서 서식 1.10이 정본**이다(소방계획서_44).
-  //  사슬: ① sections.annexStatus[전년도] → ② annex_inputs 레거시(입력구는 걷고 읽기만 유지, Q-3)
+  //  사슬: ① sections.annexStatus → ② annex_inputs 레거시(입력구는 걷고 읽기만 유지, Q-3)
   //        → ③ 자동 판정(부정 단정 없음, A9-6)
-  //  종전엔 ②가 유일한 확정 창구였다. 값에 연도가 없어 전 회차 이어받기가 작년 실적을 올해 칸에
-  //  실을 수 있었고(44 §3 D-3), 같은 사실을 점검 건마다 다시 확정해야 했다.
+  //  종전엔 ②가 유일한 확정 창구였고, 전 회차 이어받기가 작년 실적을 올해 칸에 실을 수 있었다.
+  //  ①에는 연도축이 없다(D-6) — 확정 한 벌이 어느 회차에나 적용된다. 반면 ③ 자동 판정은
+  //  이 점검의 insp.year - 1을 근거로 계산한다(dutyAuto). 축이 다른 것은 의도다.
   const duty = resolvePrevYearDuty(
     dutyAuto,
     (sections['annexStatus'] ?? null) as AnnexStatusSection | null,
@@ -709,20 +710,22 @@ export async function assembleReport9(
   else if (!data.mgrPhone) missing.push('소방안전관리자 전화번호 없음 — 지정한 관계인에 번호가 비어 2쪽 공란')
   if (!data.mgrEduDate) missing.push('소방안전관리자 최근 교육이수일 미입력 — 2쪽 공란')
   // B: 2쪽 «소방계획서»·«자체점검(전년도)»·«교육훈련» 공란 사유 표면화. 이 세 줄은 자동 판정이라
-  // 아무도 입력을 요구받지 않고, 왜 비었는지 모른 채 그대로 인쇄돼 나갔다. 실시/미실시를 ③에서
-  // 확정하면(A) 사라진다 — 즉 "확정되지 않은 칸"만 남는다.
+  // 아무도 입력을 요구받지 않고, 왜 비었는지 모른 채 그대로 인쇄돼 나갔다. 실시/미실시를
+  // 확정하면 사라진다 — 즉 "확정되지 않은 칸"만 남는다.
+  // ⚠ 안내가 가리키는 자리는 **소방계획서 1.10**이다. 44가 별지 9호 작성 패널 ③의 6칸을 걷어냈으므로
+  //   「작성 패널 ③에서 확정」은 이제 없는 창구다 — F-8과 같은 죽은 안내(독립 판정 2026-09-08 적발).
   const prevYear = insp.year - 1
   if (!data.hasFirePlan && !data.firePlanNone) {
     missing.push('소방계획서 서식 입력 없음(고객 > 소방계획서 탭) — 2쪽 작성·보관 칸 공란')
   }
   if (!data.prevOpDone && !data.prevCompDone && !data.prevOpNone && !data.prevCompNone) {
-    missing.push(`전년도(${prevYear}) 완료된 자체점검 이력 없음 — 2쪽 자체점검 칸 공란(작성 패널 ③에서 실시·미실시 확정 가능)`)
+    missing.push(`전년도(${prevYear}) 완료된 자체점검 이력 없음 — 2쪽 자체점검 칸 공란(소방계획서 1.10 「전년도 업무 실시사항」에서 실시·미실시 확정 가능)`)
   }
   if (!data.eduDone && !data.eduNone) {
-    missing.push(`전년도(${prevYear}) 소방안전교육 실적 없음 — 2쪽 교육훈련 칸 공란(서식 1.11.4 기록부 입력 또는 작성 패널 ③ 보정)`)
+    missing.push(`전년도(${prevYear}) 소방안전교육 실적 없음 — 2쪽 교육훈련 칸 공란(서식 1.11.4 기록부 입력 또는 1.10 「전년도 업무 실시사항」 확정)`)
   }
   if (!data.drillDone && !data.drillNone) {
-    missing.push(`전년도(${prevYear}) 소방훈련 실적 없음 — 2쪽 교육훈련 칸 공란(서식 1.11.4 기록부 입력 또는 작성 패널 ③ 보정)`)
+    missing.push(`전년도(${prevYear}) 소방훈련 실적 없음 — 2쪽 교육훈련 칸 공란(서식 1.11.4 기록부 입력 또는 1.10 「전년도 업무 실시사항」 확정)`)
   }
   return { data, missing, annex4: { companyRegNo: company.management_reg_no ?? '', sheetSections }, sheetResponses: responses }
 }

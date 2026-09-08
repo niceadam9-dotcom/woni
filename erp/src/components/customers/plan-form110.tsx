@@ -4,7 +4,7 @@ import { useEffect, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Loader2, Save, Plus, Trash2, ExternalLink } from 'lucide-react'
 import { saveFirePlanSectionsAction, getPrevYearDutyAction } from '@/app/(dashboard)/customers/fire-plan-form-actions'
-import type { AnnexStatusSection, DutyMark, PlanStoredMark, PlanWrittenMark, PrevYearDutyAuto } from '@/lib/prev-year-duty'
+import { annexStatusMarks, type AnnexStatusSection, type DutyMark, type PlanStoredMark, type PlanWrittenMark, type PrevYearDutyAuto } from '@/lib/prev-year-duty'
 import { MULTI_USE_CATEGORIES } from '@/lib/doc-requirements'
 import { CardAnchorBar, MonthField, NumStepper, formatPhoneKR, useUnsavedWarning } from '@/components/ui/fields'
 import { DateInput } from '@/components/ui/date-input'
@@ -80,7 +80,6 @@ export function PlanForm110({ customerId, canManage, isComprehensive, autoOpMont
   // 빈 값을 실으면 아직 못 읽은 기존 확정을 덮어쓴다.
   const [annex, setAnnex] = useState<AnnexStatusSection | null>(null)
   const [dutyAuto, setDutyAuto] = useState<PrevYearDutyAuto | null>(null)
-  const [dutyOtherYears, setDutyOtherYears] = useState<string[]>([])
   const [dirty, setDirty] = useState(false)
   useUnsavedWarning(dirty, save) // §11-4 이탈 경고 + 이동 확인창 [저장하고 이동]
   const [msg, setMsg] = useState('')
@@ -92,22 +91,18 @@ export function PlanForm110({ customerId, canManage, isComprehensive, autoOpMont
       if (!alive || r.error) return
       setAnnex(r.status ?? {})
       setDutyAuto(r.auto)
-      setDutyOtherYears(r.otherYears)
     })
     return () => { alive = false }
   }, [customerId])
 
   function pi(p: Partial<InspectionPlanSection>) { setInsp(v => ({ ...v, ...p })); setDirty(true) }
   function pm(p: Partial<MultiUseSection>) { setMu(v => ({ ...v, ...p })); setDirty(true) }
-  /** 전년도 실적 확정 — 같은 칩을 다시 누르면 ''(자동 판정에 맡김)으로 돌아간다 */
+  /** 전년도 실적 확정 — 같은 칩을 다시 누르면 ''(자동 판정에 맡김)으로 돌아간다.
+   *  ⚠ 연도 키 없음(D-6): 확정은 **한 벌**이고 어느 회차를 찍든 그대로 적용된다.
+   *    구본이 연도 맵으로 저장돼 있으면 annexStatusMarks가 최신 연도를 흡수해 오므로,
+   *    여기서 평평한 객체로 덮어쓰는 순간 구조도 함께 정리된다. */
   function pd(key: 'edu' | 'drill' | 'op' | 'comp', v: DutyMark) {
-    if (!dutyAuto) return
-    const y = String(dutyAuto.year)
-    setAnnex(prev => {
-      const base = prev ?? {}
-      const row = { ...(base.prevYear?.[y] ?? {}), [key]: v }
-      return { ...base, prevYear: { ...(base.prevYear ?? {}), [y]: row } }
-    })
+    setAnnex(prev => ({ ...(prev ?? {}), prevYear: { ...annexStatusMarks(prev), [key]: v } }))
     setDirty(true)
   }
   function pp(p: { written?: PlanWrittenMark; stored?: PlanStoredMark }) {
@@ -170,7 +165,7 @@ export function PlanForm110({ customerId, canManage, isComprehensive, autoOpMont
   /** 자동 판정은 부정을 단정하지 않는다 — 실적이 없으면 「미실시」가 아니라 양쪽 공란이다 */
   const autoText = (on: boolean, yes: string, src: string) =>
     on ? `자동 판정: ${yes} (${src})` : `자동 판정 없음 — 고르지 않으면 양쪽 공란으로 인쇄`
-  const dy = annex?.prevYear?.[String(dutyAuto?.year ?? '')] ?? {}
+  const dy = annexStatusMarks(annex)
 
   return (
     <div className="space-y-4">
@@ -216,10 +211,13 @@ export function PlanForm110({ customerId, canManage, isComprehensive, autoOpMont
           서식 9쪽 작성방법 8호가 「소방계획서·자체점검(전년도)·교육훈련(전년도)」을 한 묶음
           ('소방안전관리업무 실시사항')으로 규정하므로 한 블록에 둔다. 종전 자리는 점검 건의
           별지 9호 작성 패널이었다 — 값에 연도가 없어 전 회차 이어받기가 작년 실적을 올해 칸에
-          실을 수 있었다. 확정값은 **실적 연도를 키로** 저장한다. */}
+          실을 수 있었다(그 이어받기는 44에서 소멸).
+          ⚠ 확정값에는 연도가 없다(D-6) — 소방계획서는 살아 있는 한 벌이고 표지 연도는 사람이 고른다.
+            ERP는 연도를 고르지도 저장하지도 않고 최신 확정만 유지한다. dutyAuto.year는 **자동 판정의
+            기준 연도**일 뿐 저장 축이 아니다. */}
       <div id="c-1.10-prev" className="scroll-mt-4 rounded-xl border border-brand-line-soft bg-brand-tint p-4 space-y-2">
         <p className="text-form-sm font-semibold text-ink-sub">
-          전년도{dutyAuto ? `(${dutyAuto.year}년)` : ''} 업무 실시사항
+          전년도 업무 실시사항
           <span className="font-normal text-ink-meta ml-2">
             별지 9호 2쪽·갑지 「정보」 시트에 그대로 인쇄됩니다 — 자동 판정과 다를 때만 고르세요
           </span>
@@ -262,11 +260,12 @@ export function PlanForm110({ customerId, canManage, isComprehensive, autoOpMont
                 </a>
               </p>
             </div>
-            {dutyOtherYears.length > 0 && (
-              <p className="text-form-2xs text-ink-meta">
-                다른 연도 확정값 있음: {dutyOtherYears.join(' · ')}년 — 이 화면은 {dutyAuto.year}년만 편집합니다.
-              </p>
-            )}
+            {/* 확정값에 연도가 없다는 사실을 화면이 말한다 — 연도를 안 밝히면 사용자가 "올해분만
+                고쳤다"고 오해하고, 밝히기만 하고 편집 축이 없으면 그것대로 거짓말이 된다(D-6). */}
+            <p className="text-form-2xs text-ink-meta">
+              자동 판정 기준은 가장 최근 점검({dutyAuto.year + 1}년)의 전년도인 {dutyAuto.year}년 실적입니다.
+              고른 값에는 연도가 없어 모든 회차의 별지 9호에 그대로 인쇄됩니다.
+            </p>
           </div>
         )}
       </div>

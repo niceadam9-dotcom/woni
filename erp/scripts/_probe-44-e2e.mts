@@ -1,7 +1,7 @@
 /** 소방계획서_44 E2E (S5-2) — 확정 자리를 옮긴 뒤 **두 화면이 같은 값을 말하는가**.
  *
  *  ① 소방계획서 1.10 「전년도 업무 실시사항」에서 확정 → 저장
- *  ② DB: fire_plan_forms.sections.annexStatus 에 **실적 연도 키**로 남는가 (annex_inputs 아님)
+ *  ② DB: fire_plan_forms.sections.annexStatus 에 **연도축 없이 한 벌로** 남는가 (annex_inputs 아님, D-6)
  *  ③ 재로드 복원 (aria-pressed)
  *  ④ 별지 9호 작성 패널 1단 요약이 그 값을 그대로 비추는가 — 화면 두 개가 갈라지지 않는다
  *  ⑤ 별지 9호 ③계층에는 그 6칸이 **없다**(되살아나면 확정 창구가 둘이 된다)
@@ -49,7 +49,11 @@ try {
   const writtenGroup = block.locator('[role="group"][aria-label="소방계획서 작성"]')
   await opGroup.waitFor({ timeout: 30000 })   // 자동 판정 로드 완료 신호
 
-  check('① 블록 제목에 실적 연도가 박혀 있다', (await block.innerText()).includes(`${prevYear}년`))
+  // D-6 — 확정에는 연도가 없다. 다만 **자동 판정의 기준 연도**는 밝혀야 한다
+  // (안 밝히면 무엇과 비교해 고르는지 알 수 없고, 연도를 저장한다고 오해할 여지도 남는다).
+  const blockText = await block.innerText()
+  check('① 자동 판정 기준 연도를 밝힌다', blockText.includes(`${prevYear}년 실적`), blockText.slice(0, 200))
+  check('① 확정에 연도축이 없음을 화면이 말한다', blockText.includes('연도가 없어'), blockText.slice(0, 200))
   check('① 초기 상태는 자동 판정(둘 다 해제)',
     (await opGroup.locator('button', { hasText: '실시' }).first().getAttribute('aria-pressed')) === 'false')
 
@@ -67,10 +71,12 @@ try {
     if (sec.annexStatus) break
     await new Promise(r => setTimeout(r, 500))
   }
-  const st = (sec.annexStatus ?? {}) as { prevYear?: Record<string, Record<string, string>>; plan?: Record<string, string> }
+  const st = (sec.annexStatus ?? {}) as { prevYear?: Record<string, string>; plan?: Record<string, string> }
   check('② 소방계획서 서식에 저장된다 (annexStatus)', !!sec.annexStatus, JSON.stringify(st))
-  check('② 실적 연도를 키로 남는다', st.prevYear?.[prevYear]?.op === '미실시', JSON.stringify(st.prevYear))
-  check('② 교육 실시도 같은 연도 키에', st.prevYear?.[prevYear]?.edu === '실시')
+  check('② 연도 키 없이 한 벌로 남는다 (D-6)', st.prevYear?.op === '미실시', JSON.stringify(st.prevYear))
+  check('② 교육 실시도 같은 한 벌에', st.prevYear?.edu === '실시')
+  check('② 연도(4자리)를 키로 쓰지 않는다',
+    !Object.keys(st.prevYear ?? {}).some(k => /^\d{4}$/.test(k)), JSON.stringify(st.prevYear))
   check('② 작성 여부는 연도축 없이 plan에', st.plan?.written === '작성')
   const { data: ai } = await raw.from('annex_inputs')
     .select('fields').eq('inspection_id', inspectionId).eq('annex_no', 'report9').maybeSingle()
@@ -79,7 +85,7 @@ try {
   // ── ③ 재로드 복원 ──
   await page.goto(`${BASE}/customers/${customerId}?tab=plan&form=1.10`)
   await opGroup.waitFor({ timeout: 60000 })
-  check('③ 재로드 후 [√]미실시 유지',
+  check('③ 재로드 후 aria-pressed 유지 (미실시)',
     (await opGroup.locator('button', { hasText: '미실시' }).getAttribute('aria-pressed')) === 'true')
 
   // ── ④·⑤ 별지 9호 패널 ──
