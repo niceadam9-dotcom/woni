@@ -31,6 +31,18 @@ const SUMMARY = 'E2E계획요약-감지기 교체 일괄 시공'
 try {
   userId = await mkUser({ email: EMAIL, name: '별지작성E2E', employeeId: 'E2E-ANNEX' })
   customerId = await mkCustomer({ customer_name: '별지작성E2E고객', address: '경기 양평군 테스트로 23', created_by: userId })
+  // 설비 대장 1건(2026-09-08 추가) — 「이행조치 계획사항」의 자동 문구는 **대장이 정본**이다.
+  // 대장이 통째로 비면 조립이 그룹 판정을 포기하고(applicableGroups 미공급) 자동 문구를 쓰지 않는다
+  // — 모르는 것을 「해당없음」으로 단정하지 않기 위해서다(소방계획서_41, 2026-09-08 사용자 확정).
+  // 종전 픽스처는 대장이 없어 `?? []`의 '전 구분 미해당' 오독에 기대 초록이었다.
+  const { data: bld, error: bErr } = await raw.from('buildings')
+    .insert({ customer_id: customerId, building_name: '본관', is_active: true, created_by: userId })
+    .select('id').single()
+  if (bErr) throw new Error(`건물 생성 실패: ${bErr.message}`)
+  const { error: fErr } = await raw.from('fire_facilities').insert({
+    building_id: bld!.id, category: '소화설비', facility_code: '소화기구 및 자동소화장치', installed: true,
+  })
+  if (fErr) throw new Error(`시설 생성 실패: ${fErr.message}`)
   // 자체점검 건 (plan_type null = special) + 불량 1건(이행계획 보유)
   const { data: insp, error: iErr } = await raw.from('inspections').insert({
     customer_id: customerId, inspection_type: '작동', sequence_num: 1,
@@ -141,10 +153,15 @@ try {
   check('미리보기 — ③ 요약 = 표 첫 행', srcDoc.includes(SUMMARY))
   // 2026-09-07 — 「이행조치 계획사항」은 설비 구분 7행 고정이고, 칸의 문구는 8쪽 불량내용과 같은
   // fold다(action_plan이 아니라 **불량명**). 코드 없는 수기 불량이라 '기타' 구분에 실린다.
+  // ⚠ 구분 라벨은 **별도 셀**이다 — 2026-09-07 육안 후속(6011144)이 `<span class="grp-label">`을
+  //   `<td class="grp-label">`로 바꿨는데 이 단언이 따라오지 않아 그날부터 빨강이었다(2026-09-08 교정).
   check('미리보기 — 설비 구분 7행', ['소화설비', '경보설비', '피난구조설비', '소화용수설비', '소화활동설비', '기타', '안전시설등']
-    .every(g => srcDoc.includes(`>${g}</span>`)))
+    .every(g => srcDoc.includes(`<td class="grp-label">${g}</td>`)))
   check('미리보기 — ② 불량 자동 행 유지(기타 구분)', srcDoc.includes('E2E불량-감지기 미작동'))
-  check('미리보기 — 불량 없는 구분은 자동 문구', srcDoc.includes('이상없음') || srcDoc.includes('해당없음'))
+  // 대장에 소화기구만 설치 → 소화설비=불량 없음이라 「이상없음」, 나머지 5구분은 「해당없음」.
+  // 두 문구를 **함께** 요구한다(or로 느슨하게 두면 한쪽 축이 죽어도 초록이다).
+  check('미리보기 — 불량 없는 구분은 자동 문구', srcDoc.includes('이상없음') && srcDoc.includes('해당없음'),
+    `이상없음=${srcDoc.includes('이상없음')} 해당없음=${srcDoc.includes('해당없음')}`)
   check('미리보기 — 법정 문구 보존', srcDoc.includes('소방시설등의 자체점검 결과 이행계획서'))
 
   // ── 5) [PDF 생성] → 잡 done + storage 파일 + ③ 값 포함 ──

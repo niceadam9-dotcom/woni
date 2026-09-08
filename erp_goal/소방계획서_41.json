@@ -1,0 +1,123 @@
+{
+  "doc": "소방계획서_41",
+  "title": "별지 9호 8쪽 「불량내용」 자동 문구 (결과참조·이상없음·해당없음)",
+  "created": "2026-09-05",
+  "source_md": "erp_goal/소방계획서_41.md",
+  "principle": "그룹당 4상태 규칙(①사용자 입력 행 / ②결과참조 / ③이상없음 / ④해당없음)을 foldDefectGroups() 한 곳에 두고 PDF 8쪽·갑지 엑셀 현5·별지 10호 7행이 같은 함수를 부른다. defectRows 데이터는 불변 — 인쇄 접기만 바꾼다 (md §2·§4)",
+  "related": [
+    { "doc": "project_fireplan_archive_retire", "why": "불량내용 치유(자리표시자 항목명 폴백, report9-assemble.ts) — 41의 「결과참조」가 인쇄 표면에서 이 폴백을 대체. ⚠ 단, 2026-09-02부터 항목명 폴백은 **쓰기 단계**(sheet-actions.ts nameOf)에서 DB에 굳으므로 조립의 렌더용 폴백만 대체된다 — 이 어긋남이 아래 S1-1 결함의 원인이었다" },
+    { "doc": "소방계획서_27", "why": "갑지 엑셀 현5 배선·DEFECT_ROWS_PER_GROUP 접기·defectOverflow(S8-2 규약) — S3이 이 위에서 문구 분기 추가" },
+    { "doc": "project_form3_axis", "why": "그룹 해당 판정 축 = 대장(fire_facilities.installed) 정본 · rollUpForm3Results().facilityChecks 파생 — 새 축 발명 없음" },
+    { "doc": "소방계획서_45", "why": "별지 10호 「이행조치 계획사항」 7행이 같은 fold를 탄다(annexPlanRows) — 41의 문구 규칙이 그대로 전파된다" }
+  ],
+  "status_legend": {
+    "pending_order": "미구현·지시 대기",
+    "code_present": "코드 존재(구현자 자기 신고) — 검증 전",
+    "partial": "부분 구현 — criteria 참조",
+    "implemented": "독립 검증 통과 + verified 증거 동반"
+  },
+  "open_questions": [
+    { "id": "Q-1", "q": "기타란 처리 — 설치 축 없음. (a안·추천) 불량 없으면 공란 유지(작성방법 ※가 수기 자리로 지정) / (b안) 해당없음", "status": "resolved", "resolution": "b안 — 불량 없으면 「해당없음」 (2026-09-06 사용자 확정, 추천 a안 아님에 유의: 점검 못한 설비 사유 수기 기재가 필요하면 불량 등록 경로로 남긴다)" },
+    { "id": "Q-2", "q": "문구 스타일 — 목업은 빨강+자간. (추천) 서식 기본 검정으로 시작, 빨강은 후속(엑셀은 값 주입만이라 스타일 축 별도)", "status": "resolved", "resolution": "서식 기본 검정 (2026-09-06 사용자 확정) — 빨강은 후속 과제로 미착수" },
+    { "id": "Q-3", "q": "계획서!H(별지 10호 엑셀) 수식 전파 허용 여부 — (추천) 허용(구조 변경 0)", "status": "resolved", "resolution": "허용 (2026-09-06 사용자 확정) — 계획서!H12~H24가 현5 문구를 수식으로 읽는다, H열 앵커 신설 없음" },
+    { "id": "Q-4", "q": "메모 없이 [불량 등록]만 누른 X행(쓰기 경로가 카탈로그 문구·항목명을 이름으로 굳힌다) — 「불량내용」에 무엇이 찍혀야 하나", "status": "resolved", "resolution": "항목명 폴백(질문문)·이름=코드 유물만 자동으로 보아 「결과참조」로 접고, **카탈로그 문구는 사람 입력으로 인정**해 그대로 인쇄 (2026-09-08 사용자 확정). 「주경종 불량」까지 지우지는 않는다" },
+    { "id": "Q-5", "q": "설비 대장이 통째로 빈 고객(건물 미등록·대장 미체크)의 8쪽", "status": "resolved", "resolution": "공란으로 되돌린다 — applicableGroups 미공급 = fold 미발동 (2026-09-08 사용자 확정). 「해당없음」은 **확인된 미해당**에만 쓴다: 모르는 것을 단정해 인쇄하지 않는다" }
+  ],
+  "judgement": {
+    "date": "2026-09-08",
+    "method": "독립 판정 2인(축 분할: S1·S2 / S3·S4) + 주 세션 재확인(코드 대조·실DB 실측)",
+    "result": "제품 결함 3건(HIGH 1·MED 2)·회귀 그물 결함 1건·표기 결함 5건 적발. 전건 수리·정정 후 승격",
+    "defects_found": [
+      { "sev": "HIGH", "what": "userEntered 스탬프가 자동 등록분을 사람 입력으로 셌다 — 「이름≠코드」 축이 쓰기 경로(sheet-actions.ts nameOf: 메모 → 카탈로그 → 항목명 → 코드)와 어긋나, 사람이 한 글자도 안 적어도 true가 됐다. 41이 없애려던 질문문 인쇄가 살아남고 「결과참조」는 구 유물에서만 발화했다", "fix": "isUserEnteredDefectName() 단일 규칙 신설(report9-assemble.ts:110) — Q-4 확정 반영", "why_missed": "검사가 userEntered를 픽스처에 손으로 박아 **조립 규칙을 한 번도 타지 않았다**(23/23 초록인 채 배포)" },
+      { "sev": "MED", "what": "「안전시설등」이 2쪽과 다른 축 — 8쪽은 multiUseCounts 키 존재, 2·3쪽은 applicable===true. 「해당」만 켜고 개소수 미입력이면 한 문서 안에서 2쪽=해당·8쪽=해당없음으로 갈렸다", "fix": "isMultiUseApplicable로 통일(report9-assemble.ts:521). STD-32 시트 편입 축의 hasMultiUse는 목적이 달라 존치" },
+      { "sev": "MED", "what": "대장이 비면 7행 전부 「해당없음」 — 설치 코드는 활성 건물 첫 1동만 읽으므로(report9-assemble.ts:241-244) 건물 미등록·별관 설치·대장 미체크가 적극적 부정 진술로 인쇄됐다", "fix": "facilityChecks 공집합이면 applicableGroups 미공급(report9-assemble.ts:526) — Q-5 확정. annexPlanRows의 `?? []`도 같은 오독이라 함께 교정(report9-assemble.ts:126-134)" },
+      { "sev": "MED", "what": "test-defect-fold.mts가 미추적(??)·test-all 미등록 — 41의 유일한 전용 검사가 회귀 그물 밖이었다", "fix": "test-all.mts에 등록(「8쪽 불량내용 4상태 접기」) + 커밋" }
+    ],
+    "not_defects": [
+      "applicableGroups를 안 넘기는 실운영 경로 없음 — renderReport9는 report9-actions.ts 2곳, buildWorkbookValues·defectOverflow·injectWorkbook은 workbook/route.ts 1곳뿐이고 전부 assembleReport9의 data를 그대로 넘긴다(전수 grep)",
+      "keepFormulaWhenEmpty와 문구 주입은 충돌하지 않는다 — 문구는 항상 비어 있지 않아 dropFormula가 발동한다",
+      "이행일자(PLAN_DATE_ROWS·actionGroupPeriods)는 fold를 참조하지 않는다"
+    ]
+  },
+  "sections": [
+    {
+      "id": "S1", "title": "접기 단일 원천 foldDefectGroups()", "status": "implemented",
+      "criteria": [
+        { "id": "S1-1", "desc": "Report9DefectRow에 userEntered 불리언 — 조립이 새긴다. 판정 규칙은 isUserEnteredDefectName() 한 곳: 항목명 폴백(질문문)·이름=코드 유물·공백은 자동, 카탈로그 문구와 메모는 사람 입력(Q-4). content 항목명 폴백은 값 그대로 둔다(접기만 바꾼다)", "status": "implemented",
+          "verified": { "date": "2026-09-08", "commit": "b3c7e1a + 2026-09-08 수리(미커밋)", "method": "코드 대조 + 단위 검사 + 실DB 실측",
+            "evidence": [
+              "report9-assemble.ts:110-124 isUserEnteredDefectName — 쓰기 경로 폴백 사슬(sheet-actions.ts:721-724)과 짝을 이루는 주석 동반",
+              "report9-assemble.ts:496-502 X행 스탬프 · :505-512 수기 불량행 스탬프",
+              "report9.ts:92 Report9DefectRow(userEntered?)",
+              "test-defect-fold.mts [5] 7단언 — 픽스처가 아니라 **함수를 직접 호출**해 4갈래(메모/카탈로그/항목명/코드)를 가른다",
+              "_probe-41-userentered-audit.mts — 실DB 10행의 이름 출처 분류(catalog 1·code 7·manual 2), 구 규칙 대비 델타 0건(이 DB엔 항목명 폴백 행이 아직 없다 — 수리는 예방적)"
+            ] } },
+        { "id": "S1-2", "desc": "foldDefectGroups(defectRows, applicableGroups) → 그룹별 {kind: rows|refer|ok|na, rows}. 규칙: 사용자 입력 행 있으면 그 행들만(rows) / 불량 있는데 입력 전무면 refer(결과참조, 점검번호 공란 1행) / 불량 없음+해당이면 ok(이상없음) / 미해당이면 na(해당없음)", "status": "implemented",
+          "verified": { "date": "2026-09-08", "commit": "b3c7e1a", "method": "코드 대조 + 단위 검사",
+            "evidence": [
+              "report9.ts:60 DEFECT_FOLD_TEXT · :62-89 foldDefectGroups",
+              "소비처 3곳이 같은 함수를 부른다: report9.ts:617 page8() · xlsx-workbook.ts:870 · report9-assemble.ts:129 annexPlanRows",
+              "test-defect-fold.mts [1] 7단언(혼재→사용자 행만·userEntered 미표기 구 데이터→refer)"
+            ] } },
+        { "id": "S1-3", "desc": "조립이 applicableGroups 산출 — 설치 축은 대장 정본(facilityChecks→form3Group), 안전시설등은 2쪽과 같은 isMultiUseApplicable, 기타는 항상 미해당(Q-1 b안). **대장이 통째로 비면 미공급**(Q-5) = fold 미발동 = 종전 렌더", "status": "implemented",
+          "verified": { "date": "2026-09-08", "commit": "b3c7e1a + 2026-09-08 수리(미커밋)", "method": "코드 대조 + 실DB 실측",
+            "evidence": [
+              "report9-assemble.ts:521 muApplicable(2쪽 축) · :526-530 applicableGroups(대장 공집합 가드 포함)",
+              "report9.ts:186 Report9Data.applicableGroups? · WorkbookSource.report9.applicableGroups?",
+              "_probe-41-live.mts 20/20 — 대장 유무별 공급/미공급 대조 + 안전시설등을 **2쪽이 인쇄하는 multiUseNone과** 대조(종전 항진 검사 교체) + 양성 표본 0건이면 실패로 알리는 공허 가드"
+            ] } }
+      ]
+    },
+    {
+      "id": "S2", "title": "PDF 별지 9호 8쪽 적용", "status": "implemented",
+      "criteria": [
+        { "id": "S2-1", "desc": "page8() 빈 행 분기를 fold 결과로 교체 — refer/ok/na는 점검번호 공란+불량내용 중앙 문구, rows는 종전 rowspan(단 fold가 준 행만). applicableGroups 미공급이면 종전 렌더", "status": "implemented",
+          "verified": { "date": "2026-09-08", "commit": "b3c7e1a", "method": "코드 대조 + HTML 단언",
+            "evidence": ["report9.ts:617-641 page8()", "test-defect-fold.mts [2] 5단언 + [4] 대조군 4단언(8쪽 구간 한정 — 2쪽 다중이용업 「해당없음」 라벨 오탐 교정)"] } },
+        { "id": "S2-2", "desc": "문구 스타일 서식 기본(검정·보통) — Q-2 확정 반영", "status": "implemented",
+          "verified": { "date": "2026-09-08", "commit": "b3c7e1a", "method": "코드 대조",
+            "evidence": ["report9.ts:626 class=\"center\"만 부여", "base.ts:36 .center는 text-align뿐 — 색·자간 스타일 없음"] } }
+      ]
+    },
+    {
+      "id": "S3", "title": "갑지 엑셀 현5 적용", "status": "implemented",
+      "criteria": [
+        { "id": "S3-1", "desc": "buildWorkbookValues DEFECT_GROUP_ROWS 루프를 fold 결과로 교체 — rows는 종전 줄바꿈 접기(defectOverflow 분모를 fold 행 수로), refer/ok/na는 defectContent에 문구·defectCode null", "status": "implemented",
+          "verified": { "date": "2026-09-08", "commit": "b3c7e1a", "method": "코드 대조 + 값맵 단언 + 호출부 전수 grep",
+            "evidence": ["xlsx-workbook.ts:870-884 fold 분기 · :896-909 defectOverflow(applicableGroups?)", "workbook/route.ts:147·287 — 유일한 생산 호출부, 둘 다 r9.data 배선", "test-defect-fold.mts [3] 7단언(overflow 3방향 포함)"] } },
+        { "id": "S3-2", "desc": "keepFormulaWhenEmpty 존치 — 문구가 실리면 미발동. 발동 경로는 fold 미공급(구 호출부·픽스처·대장 공란) 전용으로 남는다(계획서!H의 0 인쇄 차단 유지)", "status": "implemented",
+          "verified": { "date": "2026-09-08", "commit": "b3c7e1a", "method": "코드 대조 + 대조군 검사",
+            "evidence": ["xlsx-anchors.ts:220-226 무변경 · xlsx-workbook.ts:929-933 isEmpty 판정", "test-defect-fold.mts [4] 대조군(미공급 시 전 행 null) + test-xlsx-inject [4b](=\"\" 잔존) 189/0"] } },
+        { "id": "S3-3", "desc": "계획서!H12~H24{=현5!C4..C10} 전파 — Q-3 허용 확정. 이행일자 3칸은 fold와 무관(원천이 actionGroupPeriods·action_* 컬럼이다)", "status": "implemented",
+          "verified": { "date": "2026-09-08", "commit": "b3c7e1a", "method": "코드 대조 + 폐포 검사",
+            "evidence": [
+              "xlsx-workbook.ts:851-859 PLAN_DATE_ROWS 루프 — defectFolds를 참조하지 않는다(⚠ 종전 표기 「무변경」은 사실이 아니었다: 2026-09-07 별지10호 작업이 actionGroupPeriods 분기를 넣었다. fold 무관이라는 실질만 참)",
+              "xlsx-inject.ts:222·236-243 단일참조 이행폐포 — test-xlsx-inject [9]가 임의 문자열로 실증(값의 종류를 가리지 않는 간선)"
+            ] } }
+      ]
+    },
+    {
+      "id": "S4", "title": "검증", "status": "partial",
+      "criteria": [
+        { "id": "S4-1", "desc": "fold 단위 프로브 — 4상태 × (사용자입력/자동/혼재) + **조립 스탬프 규칙 직접 호출** + 별지 10호 7행 미공급 대조", "status": "implemented",
+          "verified": { "date": "2026-09-08", "commit": "2026-09-08 수리(미커밋)", "method": "실행 실측",
+            "evidence": [
+              "scripts/test-defect-fold.mts 33/33 — [1]7 [2]5 [3]7 [4]4 [5]7 [6]3, 실계수 = 주장 수치",
+              "test-all.mts에 「8쪽 불량내용 4상태 접기」로 등록(종전 미등록 — 이 공백 동안 S1-1 결함이 배포됐다)",
+              "every()·some() 단언은 전부 리터럴 4원소 또는 DEFECT_GROUPS/DEFECT_GROUP_ROWS(7원소) 위 — 공허 통과 없음(판정자 확인)"
+            ] } },
+        { "id": "S4-2", "desc": "PDF page8 HTML·엑셀 buildWorkbookValues 맵 단언 + defectOverflow 분모 변경 확인 + ①경로(사용자 입력 행) 변경 전후 무변경 대조", "status": "implemented",
+          "verified": { "date": "2026-09-08", "commit": "b3c7e1a + 2026-09-08 수리(미커밋)", "method": "실행 실측",
+            "evidence": ["test-defect-fold.mts [2][3][4]", "test-annex-compose.mts 25/0 — E2E 픽스처에 설비 대장 1건을 심어 **실제 조립 경로로** 자동 문구를 확인(종전엔 대장이 없어 `?? []`의 오독에 기대 초록이었다)"] } },
+        { "id": "S4-3", "desc": "tsc 0 + report9·workbook 계열 회귀 + Gotenberg 육안 1회(8쪽·현5·계획서 나란히)", "status": "partial",
+          "evidence": "2026-09-08 재측정 전건 그린: tsc 0 · test-defect-fold 33/0 · test-annex-compose 25/0(E2E) · test-report10-plan-rows 32/0 · test-xlsx-inject 189/0 · test-xlsx-anchors 61/0 · test-form3-axis 66/0 · test-annex-overrides 57/57 · _probe-41-live 20/20. **잔여: Gotenberg 육안 1회**(로컬 GOTENBERG_URL 미설정 — 운영/스테이징 축). ⚠ test-doc-generation은 이 환경에서 판정 불가: 8건 실패가 전부 「PDF 생성물 존재」로 GOTENBERG_URL 부재 탓이다(annex-compose와 달리 건너뛰기 가드가 없어 환경 결핍이 코드 결함처럼 보인다 — 별건 후속)" }
+      ]
+    }
+  ],
+  "followups": [
+    { "id": "F-1", "what": "Gotenberg 육안 1회 — 8쪽·갑지 현5·계획서!H를 나란히(대조군: fold 전 산출물)", "status": "open", "blocked_by": "로컬 GOTENBERG_URL 미설정" },
+    { "id": "F-2", "what": "test-doc-generation에 GOTENBERG_URL 건너뛰기 가드 추가(test-annex-compose.mts:155 패턴) — 환경 결핍이 코드 결함으로 보이는 것을 막는다", "status": "open" },
+    { "id": "F-3", "what": "수기 불량행(코드 없음) 이름의 .trim() 부재 — 공백만 있는 이름이 사람 입력으로 판정돼 공백 1행이 인쇄된다(LOW). 2026-09-08 사용자 판단으로 이번 범위 밖", "status": "deferred" },
+    { "id": "F-4", "what": "Q-2 후속 — 문구 빨강+자간(목업 image-61) 적용 여부", "status": "deferred" }
+  ]
+}

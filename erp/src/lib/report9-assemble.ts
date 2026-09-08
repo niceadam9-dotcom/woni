@@ -96,19 +96,45 @@ export function actionPlanPeriod(
   return { startISO, endISO, days }
 }
 
+/** 41 S1-1 — 「이 불량내용을 **사람이 적었는가**」 단일 판정(2026-09-08 정정).
+ *
+ *  ⚠ 종전 규칙은 「이름 ≠ 코드」였다. 그런데 쓰기 경로(sheet-actions.ts `nameOf`)가 메모 없는 X행에도
+ *  `카탈로그 문구 → 점검표 항목명 → 코드` 순으로 이름을 **DB에 굳힌다**. 그래서 사람이 한 글자도
+ *  안 적어도 이름이 코드와 달라져 userEntered=true가 됐고, 41이 없애려던 바로 그 표면(항목명 =
+ *  「수신기 도통시험 회로 정상 여부」 같은 **질문문**)이 8쪽·현5·별지10호에 그대로 인쇄됐다.
+ *  → 항목명 폴백과 코드 유물만 자동으로 본다. **카탈로그 문구는 실제 불량 서술이므로 인정한다**
+ *  (2026-09-08 사용자 확정 — 「주경종 불량」까지 「결과참조」로 지우지는 않는다).
+ *
+ *  이 규칙이 함수인 이유: 픽스처에 userEntered를 손으로 박은 검사는 조립 규칙을 한 번도 타지 않아
+ *  위 결함을 통과시켰다(test-defect-fold 23/23이 초록인 채로 배포됐다). 검사는 이 함수를 부른다. */
+export function isUserEnteredDefectName(
+  name: string | null | undefined,
+  code: string,
+  itemName?: string,
+): boolean {
+  const nm = (name ?? '').trim()
+  if (!nm) return false
+  if (code && nm === code) return false          // 이름=코드 유물(2026-09-02 이전 자동 등록)
+  return !(itemName && nm === itemName)          // 항목명 폴백(질문문) — 사람 입력 아님
+}
+
 /** 별지 10호 「이행조치 계획사항」 7행 — 별지 9호 조립본 하나에서 파생시킨다.
  *
  *  ⚠ 문구도 일자도 **여기서 새로 만들지 않는다**: 문구는 8쪽·갑지 현5와 같은 `foldDefectGroups`,
  *  일자는 갑지 `계획서!K·P·O`와 같은 `actionGroupPeriods`다. 규칙을 다시 적으면 PDF와 엑셀이
  *  조용히 갈라진다(D-7 — 이 파일이 존재하는 이유). */
 export function annexPlanRows(d: Report9Data): AnnexPlanRow[] {
-  const folds = foldDefectGroups(d.defectRows, d.applicableGroups ?? [])
+  // ⚠ 미공급(구 호출부·픽스처·대장 공란)이면 **자동 문구를 쓰지 않는다** — 종전처럼 그 구분의 불량
+  //   내용을 그대로 싣는다. 종전 `?? []`는 미공급을 '전 구분 미해당'으로 읽어 7행을 전부
+  //   「해당없음」으로 단정했다(2026-09-08 정정 — 8쪽·현5의 미공급 대조군과 축을 맞춘다).
+  const folds = d.applicableGroups ? foldDefectGroups(d.defectRows, d.applicableGroups) : null
   return DEFECT_GROUPS.map(group => {
-    const f = folds.get(group)
+    const f = folds?.get(group)
     const gp = d.actionGroupPeriods?.[group] ?? null
     return {
       group,
-      content: !f ? '' : f.kind === 'rows' ? f.rows.map(r => r.content).join('\n') : DEFECT_FOLD_TEXT[f.kind],
+      content: !folds ? d.defectRows.filter(r => r.group === group).map(r => r.content).join('\n')
+        : !f ? '' : f.kind === 'rows' ? f.rows.map(r => r.content).join('\n') : DEFECT_FOLD_TEXT[f.kind],
       period: gp ? `${kdate(gp.startISO)} ~ ${kdate(gp.endISO)}` : '',
       days: gp ? String(gp.days) : '',
     }
@@ -465,13 +491,13 @@ export async function assembleReport9(
     const nm = defectByCode.get(code)?.defect_name
     return nm && nm !== code ? nm : undefined
   }
-  // 41: userEntered — 이름≠코드(defectName 적중)만 사람 입력. 항목명 폴백 content는 화면
-  // 소비처 보호를 위해 그대로 두고, 인쇄는 foldDefectGroups가 이 축으로 접는다(폴백 행 개별 미인쇄).
+  // 41: userEntered — 사람이 실제로 적었는가. 인쇄는 foldDefectGroups가 이 축으로 접고,
+  // content(항목명 폴백)는 값 자체를 바꾸지 않는다(접기만 바꾼다 — md §2).
   const defectRows: Report9DefectRow[] = xCodes.map(code => ({
     group: groupOfCode(code),
     code,
     content: defectName(code) ?? itemNameByCode.get(code) ?? '',
-    userEntered: defectName(code) !== undefined,
+    userEntered: isUserEnteredDefectName(defectByCode.get(code)?.defect_name, code, itemNameByCode.get(code)),
   }))
   for (const d of defects) {
     if (d.defect_code && xCodes.includes(d.defect_code)) continue // X 응답과 조인된 건은 위에서 렌더
@@ -480,13 +506,25 @@ export async function assembleReport9(
       code: d.defect_code ?? '',
       content: (d.defect_code ? (defectName(d.defect_code) ?? itemNameByCode.get(d.defect_code)) : undefined) ?? d.defect_name,
       // 코드 없는 수기 불량행의 이름은 그 자체가 사람 입력이다(등록 폼 필수값)
-      userEntered: d.defect_code ? defectName(d.defect_code) !== undefined : d.defect_name !== '',
+      userEntered: d.defect_code
+        ? isUserEnteredDefectName(defectByCode.get(d.defect_code)?.defect_name, d.defect_code, itemNameByCode.get(d.defect_code))
+        : d.defect_name !== '',
     })
   }
   // 41 §3: 그룹 해당 집합 — 설치 축은 3쪽과 같은 원천(facilityChecks→form3Group), 안전시설등은
   // 2쪽 다중이용업 축. 기타는 설치 축이 없다 — 불량 없으면 「해당없음」(Q-1 확정, 2026-09-06).
-  const applicableGroups = DEFECT_GROUPS.filter(g =>
-    g === '안전시설등' ? hasMultiUse
+  //
+  // ⚠ 안전시설등은 **isMultiUseApplicable**로 판정한다(2026-09-08 정정). 종전 hasMultiUse는
+  // '개소수가 한 칸이라도 입력됐는가'(multiUseCounts 키 존재)라, 1.10.3에서 「해당」만 켜고 개소수를
+  // 아직 안 적은 고객은 2쪽=해당·3쪽=MU 실결과인데 **8쪽만 「해당없음」**으로 갈렸다. :340의
+  // hasMultiUse는 STD-32 시트 편입 축이라 그대로 둔다(목적이 다르다 — 여기서만 정정).
+  const muApplicable = !!muSection && isMultiUseApplicable(muSection)
+  // ⚠ 대장이 통째로 비면(건물 미등록·설치 미체크) **판정하지 않는다** — 미공급이면 fold가 발동하지
+  // 않아 종전 공란 렌더로 돌아간다(2026-09-08 사용자 확정). 「해당없음」은 확인된 미해당에만 쓴다:
+  // 설치 코드는 활성 건물 첫 1동만 읽으므로(:241) 별관에만 설치·대장 미체크가 곧 '미해당'이 아니고,
+  // 모르는 것을 단정해 인쇄하면 3쪽(무응답=공란)과도 어긋난다.
+  const applicableGroups = facilityChecks.length === 0 ? undefined : DEFECT_GROUPS.filter(g =>
+    g === '안전시설등' ? muApplicable
       : g === '기타' ? false
         : facilityChecks.some(it => form3Group(it) === g))
 
