@@ -101,8 +101,15 @@ function headTable(d: Annex1011Data, h: boolean, mgrSplit: boolean): string {
 
 function rowsTable(title: string, colTitle: string, rows: AnnexRow[], extraRow?: string): string {
   // 서식 기본 4행 유지 — 부족분 빈 행 패딩, 초과분 동적 확장(한도 폐지)
+  //
+  // ⚠ 표 전체가 **자동 문구 상태**(해당없음/이상없음/결과참조)면 패딩 행도 자리표를 찍지 않는다
+  //   (2026-09-08 육안에서 잡았다 — Q-5를 문구 행만 고쳤더니 「해당없음」 **아래 3행**에 날짜
+  //   자리표가 그대로 서서 '해당없음인데 날짜를 적으라'는 모순이 한 줄 밑으로 옮겨갔을 뿐이었다).
+  //   완료 건이 하나라도 있는 표(①②)에서는 패딩 자리표가 **옳다** — 조치를 더 적을 칸이니까.
+  //   그래서 판정은 '빈 행인가'가 아니라 **'이 표가 선언문인가'**다.
+  const isNoteTable = rows.length > 0 && rows.every(r => r.isNote)
   const padded: AnnexRow[] = [...rows]
-  while (padded.length < 4) padded.push({ content: '', period: '' })
+  while (padded.length < 4) padded.push({ content: '', period: '', isNote: isNoteTable })
   return `<table class="form" style="margin-top:6px">
   <tr>
     <th rowspan="${padded.length + 1 + (extraRow ? 1 : 0)}" style="width:22mm">${esc(title)}</th>
@@ -115,8 +122,12 @@ function rowsTable(title: string, colTitle: string, rows: AnnexRow[], extraRow?:
       // 요약 줄·자동 문구 줄은 개별 이행조치가 아니라 기간칸이 비는 게 정상 — 빈 날짜 자리표를
       // 찍으면 '기간 미정인 이행조치'로 읽힌다(E10-5 / Q-5). 「해당없음」 옆의 자리표는
       // 미대상 설비에 날짜를 적어 넣으라는 말이 된다.
-      // ⚠ 빈 **패딩 행**은 자리표를 그대로 둔다 — 그건 손으로 채우라고 비워 둔 서식 칸이다.
-      r.isSummary || r.isNote ? '—' : r.period ? esc(r.period) : '.  .  .  ~  .  .  .'}</td>
+      // ⚠ 선언문 표의 **패딩 행**은 `—`도 아니고 공란이다 — 가리킬 조치 자체가 없는 자리에
+      //   `—`를 찍으면 '해당없음이 네 건'처럼 보인다. 반대로 완료 건이 있는 표(①②)의 패딩은
+      //   자리표를 유지한다(손으로 더 적을 칸).
+      r.isSummary ? '—'
+        : r.isNote ? (r.content ? '—' : '')
+          : r.period ? esc(r.period) : '.  .  .  ~  .  .  .'}</td>
   </tr>`).join('\n')}
   ${extraRow ?? ''}
 </table>`

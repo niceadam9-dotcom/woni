@@ -197,10 +197,26 @@ console.log('── I. Q-5 — 문구 행의 일자 칸 (b안 확정: 자리표 
     ok(!cell.includes(PLACEHOLDER), `「${DEFECT_FOLD_TEXT[kind]}」 옆에 날짜 자리표가 없다`)
     ok(cell.includes('—'), `「${DEFECT_FOLD_TEXT[kind]}」 일자 칸은 —`)
   }
-  // ⚠ 빈 **패딩 행**은 자리표를 유지해야 한다 — 손으로 채우라고 비워 둔 서식 칸이다
+  // ⚠ 완료 건이 **있는** 표의 빈 패딩 행은 자리표를 유지한다 — 조치를 더 적을 칸이다
   const padded = renderReport11({ ...base11, rows: [{ content: '조치', period: '2026년 8월 20일' }] })
   ok(padded.split(PLACEHOLDER).length - 1 === 3,
-    '빈 패딩 3행은 자리표 유지(서식 기본값)', `자리표 ${padded.split(PLACEHOLDER).length - 1}개`)
+    '완료 건 있는 표: 빈 패딩 3행은 자리표 유지(더 적을 칸)', `자리표 ${padded.split(PLACEHOLDER).length - 1}개`)
+  // 🚨 표 전체가 **선언문**이면 패딩 행에도 자리표를 찍지 않는다.
+  //    2026-09-08 육안이 잡은 자리 — 문구 행만 고쳤더니 「해당없음」 **아래 3행**에 날짜 자리표가
+  //    그대로 서서 '해당없음인데 날짜를 적으라'는 모순이 한 줄 밑으로 옮겨갔을 뿐이었다.
+  //    이 절의 단언은 전부 초록이었고 **인쇄물을 봐야만 보였다**.
+  for (const kind of ['refer', 'ok', 'na'] as const) {
+    const noteOnly = renderReport11({
+      ...base11, rows: [{ content: DEFECT_FOLD_TEXT[kind], period: '', isNote: true }],
+    })
+    ok(!noteOnly.includes(PLACEHOLDER),
+      `선언문 표(${DEFECT_FOLD_TEXT[kind]})는 패딩 행에도 자리표가 없다`,
+      `자리표 ${noteOnly.split(PLACEHOLDER).length - 1}개`)
+    // 패딩 행에 `—`도 찍지 않는다 — 가리킬 조치가 없는데 `—`면 '해당없음이 네 건'으로 보인다
+    ok((noteOnly.match(/<td class="row-period">—<\/td>/g) ?? []).length === 1,
+      `선언문 표(${DEFECT_FOLD_TEXT[kind]})의 — 는 정확히 1행`,
+      `— ${(noteOnly.match(/<td class="row-period">—<\/td>/g) ?? []).length}개`)
+  }
   // isNote 없는 실이행조치는 종전 그대로 — 축이 과하게 넓어지지 않았는가
   const real = renderReport11({ ...base11, rows: [{ content: '조치', period: '' }] })
   ok(real.split(PLACEHOLDER).length - 1 === 4, 'isNote 없는 행은 자리표 유지(축이 넓어지지 않았다)')
