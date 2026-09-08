@@ -142,7 +142,7 @@
       "scope_caveat": "⚠ 이 프로브는 현5 B/C만 주입한다 — 산출물의 다른 칸에 보이는 `0`·「1899년 12월 30일」은 **미주입 산물**이지 제품 결함이 아니다(라우트는 그 칸들도 채운다). 판정 범위를 넘겨 읽지 말 것.",
       "engine_caveat": "PDF 엔진이 운영은 Gotenberg, 이번은 Playwright — **둘 다 Chromium**이라 근접 대리이지 동일 보장은 아니다. 조판이 의심스러우면 운영 Gotenberg 1회로 확정할 것.",
       "evidence": ["scripts/_probe-41-f1-candidates.mjs — 운영 후보 탐색(읽기 전용). ⚠ 운영 업무데이터 0건 기록은 낡았다: 고객 4·점검 3·불량 8·대장 18 실측", "scripts/_probe-41-f1-visual.mts — 조립·렌더·촬영. 산출물은 운영 실데이터라 커밋 금지·확인 후 삭제"] },
-    { "id": "F-2", "what": "test-doc-generation에 GOTENBERG_URL 건너뛰기 가드 추가(test-annex-compose.mts:155 패턴) — 환경 결핍이 코드 결함으로 보이는 것을 막는다", "status": "code_present",
+    { "id": "F-2", "what": "test-doc-generation에 GOTENBERG_URL 건너뛰기 가드 추가(test-annex-compose.mts:155 패턴) — 환경 결핍이 코드 결함으로 보이는 것을 막는다", "status": "implemented",
       "done": "2026-09-08 — `7c1dfce`(가드 3파일) + `a79d824`(NUL 바이트 수리) **푸시완료**(origin/main `ff27e77`→`a79d824`, 6커밋 동반). 판정은 조상 rc=0 **+ 원격 blob 내용 확인**(푸시 메시지만 보지 않는다) · 게이트 통과 · INV 19/19 그린",
       "how": "①clickAndWait의 폴링에 UI 오류 문구를 함께 태워 조기 이탈(Gotenberg가 없으면 **잡 행 자체가 안 생긴다** — report9-actions.ts:542 insert는 성공 경로에서만 돈다. 그래서 DB 축만 보면 60초를 헛기다린 끝에 코드 결함과 똑같은 모양으로 실패했다) ②계획서 즉석 PDF 라우트는 500 JSON 본문(pdf/route.ts:44)으로 판정 ③skip 카운터를 pass와 분리하고 요약에 「회귀를 확인한 것이 아니다」를 명시 — 건너뜀이 통과로 둔갑하지 않는다",
       "guard_scope": "GOTENBERG_MISSING('GOTENBERG_URL 미설정') **한 문구일 때만** 건너뛴다. 넓히면 진짜 결함이 환경 탓으로 삼켜진다 — 업로드 실패·503·조회 실패는 종전대로 빨강임을 반대 축으로 단언했다",
@@ -152,7 +152,9 @@
           "반대 축 4건 — 업로드 실패·Gotenberg 503·조회 실패·성공 메시지는 **건너뛰지 않는다**(조건부 단언은 양방향으로)",
           "scripts/test-doc-generation.mts:38(skip 카운터) · :46 skipped() · :53 GOTENBERG_MISSING · :57 panelMsg · :97-109(clickAndWait 폴링 조기 이탈) · :277(즉석 PDF 라우트 축) · :335-340(요약·건너뜀 명시)"
         ] },
-      "residual": "⚠ **가드가 실환경에서 발화하는 것까지는 미검증** — GOTENBERG_URL 없는 서버를 상대로 본 E2E를 1회 돌려야 판정이 선다. 이번엔 못 돌렸다: dev 서버 정지·여유 RAM 1.6GB·.next 6.4GB로 [[risk_dev_css_cache_stale]]·[[risk_dev_postcss_worker_leak]]의 wedge 구성 그대로라, 빨강이 나와도 환경 탓인지 못 가른다(F-2가 막으려는 혼동과 같은 축). 알려진 한계: 두 <p>가 공존하면 .first()가 ✅를 집어 건너뛰지 않는다 — 안전한 쪽으로 틀린다(삼키지 않는다)" },
+      "live_verified": "🟢 **2026-09-08 실환경 발화 확인 완료** — GOTENBERG_URL 없는 로컬 dev(.env.local에 그 줄이 없다 = 겨냥한 조건)로 test-doc-generation 실행: **8건이 정확한 문구와 함께 「건너뜀」으로 분리**되고 요약이 「이 실행은 PDF 생성 회귀를 확인한 것이 아니다」를 찍었다. 최종 **6 통과 / 0 실패 / 11 건너뜀 · rc=0**.",
+      "uncovered_a_real_defect": "⭐⭐ **가드가 잡음을 걷어내자 그 아래 실패가 드러났다.** 「외관점검표 생성」 클릭이 30초 타임아웃으로 **스위트를 통째로 중단**시키고 있었고, 그 뒤 계획서 구간은 **한 번도 실행된 적이 없었다**. 원인은 제품 라벨이 `72e7ecf`(소방계획서_7 S2)부터 「외관점검표 생성 **(PDF)**」인데 단언은 최초본(`83bea99`)의 「외관점검표 생성」 그대로였고 **`:text-is`는 완전일치**라 영영 안 맞았다는 것(inspection-report9-client.tsx:115). 내 커밋이 그 줄을 안 건드렸음을 `git show 7c1dfce`로 확인한 뒤 교정했다. 🚨 **이로써 종전 기록 「8건 실패는 전부 GOTENBERG_URL 부재」는 불완전한 판정으로 정정된다 — 「전부 X 탓」은 X를 제거해 보기 전엔 할 수 없는 말이다.**",
+      "residual": "알려진 한계: 두 <p>가 공존하면 .first()가 ✅를 집어 건너뛰지 않는다 — 안전한 쪽으로 틀린다(삼키지 않는다)" },
     { "id": "F-3", "what": "수기 불량행(코드 없음) 이름의 .trim() 부재 — 공백만 있는 이름이 사람 입력으로 판정돼 공백 1행이 인쇄된다(LOW). 2026-09-08 사용자 판단으로 이번 범위 밖", "status": "deferred" },
     { "id": "F-4", "what": "Q-2 후속 — 문구 빨강+자간(목업 image-61) 적용 여부", "status": "deferred",
       "new_evidence": "2026-09-08 F-1 육안이 재료를 하나 더 얹었다 — **엑셀 현5는 이미 빨강으로 인쇄된다**(템플릿 fontId=57 `FFFF0000`, 41이 만든 것이 아님). 즉 한 납품 묶음 안에서 같은 문장이 현5=빨강 / PDF 8쪽·계획서!H=검정으로 갈린다. 목업(image-61)이 빨강이었으므로, F-4의 실제 선택지는 「빨강을 넣을까」가 아니라 **「갈린 것을 어느 쪽으로 맞출까」**다." }

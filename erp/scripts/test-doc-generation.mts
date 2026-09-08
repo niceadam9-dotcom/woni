@@ -257,7 +257,12 @@ try {
   await page.goto(`${BASE}/inspections/${inspBid}`)
   await page.waitForSelector('text=외관점검표 (일반용)')
   check('B: 외관점검표 섹션 렌더', true)
-  await clickAndWait(page, '외관점검표', '외관점검표 생성', inspBid, 'exterior', prefB, /^exterior_\d+\.pdf$/)
+  // ⚠ 2026-09-08 교정 — 제품 라벨은 `72e7ecf`(소방계획서_7 S2)부터 **「외관점검표 생성 (PDF)」**인데
+  //   이 단언은 최초 작성본(`83bea99`)의 「외관점검표 생성」 그대로였다. :text-is는 **완전일치**라
+  //   영영 안 맞아 30초 뒤 클릭 타임아웃으로 **스위트가 통째로 중단**됐다(이 줄 뒤 계획서 구간이
+  //   한 번도 안 돌았다). GOTENBERG 실패 8건에 가려 「환경 탓」으로 뭉뚱그려져 있었다 —
+  //   F-2 가드가 그 잡음을 걷어내자 드러났다. 라벨 원천: inspection-report9-client.tsx:115
+  await clickAndWait(page, '외관점검표', '외관점검표 생성 (PDF)', inspBid, 'exterior', prefB, /^exterior_\d+\.pdf$/)
 
   // ── 3) 소방계획서 — 즉석 PDF 라우트 (2026-09-02 보관함 폐지) ──
   //  종전 [개정 발행](fire_plans 행 + generated_web_*.pdf 업로드)은 폐지됐다 — ERP는 계획서
