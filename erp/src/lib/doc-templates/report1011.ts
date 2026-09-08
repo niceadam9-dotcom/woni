@@ -8,16 +8,25 @@
 import { renderDocument, pageHeader, pageFooter, esc, val } from './base'
 
 /** isSummary=true면 개별 이행조치가 아니라 '계획 요약' 줄 — 기간칸이 비는 게 정상이라
- *  계획 항목처럼 읽히지 않도록 표에서 구분해 인쇄한다(E10-5) */
-export type AnnexRow = { content: string; period: string; isSummary?: boolean }
+ *  계획 항목처럼 읽히지 않도록 표에서 구분해 인쇄한다(E10-5)
+ *
+ *  isNote=true면 내용이 **개별 이행조치가 아니라 자동 문구**(결과참조/이상없음/해당없음)라는 뜻이다.
+ *  같은 이유로 일자 칸에 빈 날짜 자리표를 찍지 않는다(Q-5 b안 확정, 2026-09-08) — 「해당없음」 옆에
+ *  `.  .  .  ~  .  .  .`가 서면 '기간이 아직 안 정해진 이행조치'로 읽히고, 미대상 설비에 날짜를
+ *  적어 넣으라는 말이 된다.
+ *  ⚠ 문구를 **글자로 알아보지 않는다**(`content === '해당없음'` 같은 판정 금지) — 사용자가 조치
+ *  내용에 그 말을 그대로 적을 수 있고, 그러면 진짜 이행조치의 날짜 칸이 조용히 사라진다. 생산자가 표시한다. */
+export type AnnexRow = { content: string; period: string; isSummary?: boolean; isNote?: boolean }
 
 /** 별지 10호 「이행조치 계획사항」 — 서식 원문은 **설비 구분 7행 고정**이다(소화설비·경보설비·
  *  피난구조설비·소화용수설비·소화활동설비·기타·안전시설등, DEFECT_GROUPS 순서).
  *  종전 렌더는 불량 1건 = 1행이라 갑지 엑셀 `계획서` 시트와 구조가 갈라져 있었다
  *  (2026-09-07 사용자 지적 image-77). 이제 두 산출물이 같은 7행·같은 문구·같은 일자를 쓴다(D-7).
  *  - content: 8쪽 불량내용과 같은 fold(사용자 입력 행 / 결과참조 / 이상없음 / 해당없음)
- *  - period·days: 그 구분의 불량만으로 산출한 이행기간(없으면 빈 칸 — 자리표만 인쇄) */
-export type AnnexPlanRow = { group: string; content: string; period: string; days: string }
+ *  - period·days: 그 구분의 불량만으로 산출한 이행기간(없으면 빈 칸 — 자리표만 인쇄)
+ *  - isNote: content가 자동 문구(결과참조/이상없음/해당없음)라는 표시. AnnexRow와 같은 뜻이고
+ *    같은 이유로 일자 칸을 자리표 대신 `—`로 찍는다(Q-5 b안) */
+export type AnnexPlanRow = { group: string; content: string; period: string; days: string; isNote?: boolean }
 
 export type Annex1011Data = {
   customerName: string
@@ -103,9 +112,11 @@ function rowsTable(title: string, colTitle: string, rows: AnnexRow[], extraRow?:
   ${padded.map(r => `<tr>
     <td class="row-content${r.isSummary ? ' row-summary' : ''}">${r.isSummary ? '<span class="row-tag">계획 요약</span> ' : ''}${esc(r.content)}&nbsp;</td>
     <td class="row-period${r.isSummary ? ' row-summary' : ''}">${
-      // 요약 줄은 개별 이행조치가 아니라 기간칸이 비는 게 정상 — 빈 날짜 자리표를 찍으면
-      // '기간 미정인 이행조치'로 읽힌다(E10-5)
-      r.isSummary ? '—' : r.period ? esc(r.period) : '.  .  .  ~  .  .  .'}</td>
+      // 요약 줄·자동 문구 줄은 개별 이행조치가 아니라 기간칸이 비는 게 정상 — 빈 날짜 자리표를
+      // 찍으면 '기간 미정인 이행조치'로 읽힌다(E10-5 / Q-5). 「해당없음」 옆의 자리표는
+      // 미대상 설비에 날짜를 적어 넣으라는 말이 된다.
+      // ⚠ 빈 **패딩 행**은 자리표를 그대로 둔다 — 그건 손으로 채우라고 비워 둔 서식 칸이다.
+      r.isSummary || r.isNote ? '—' : r.period ? esc(r.period) : '.  .  .  ~  .  .  .'}</td>
   </tr>`).join('\n')}
   ${extraRow ?? ''}
 </table>`
@@ -134,9 +145,14 @@ function planTable(rows: AnnexPlanRow[], summary: AnnexRow | undefined, extraRow
     body.push(`<tr>
     <td class="grp-label">${esc(r.group)}</td>
     <td class="grp-body">: ${esc(r.content).replace(/\n/g, '<br>')}&nbsp;</td>
-    <td class="row-period">${r.period
-      ? `${esc(r.period)}<span class="row-days">(총 ${esc(daysText(r.days))} 일)</span>`
-      : '~<span class="row-days">(총&nbsp;&nbsp;&nbsp;&nbsp;일)</span>'}</td>
+    <td class="row-period">${r.isNote
+      // 자동 문구 줄(결과참조/이상없음/해당없음)은 개별 이행조치가 아니다 — 11호 rowsTable과
+      // 같은 판단으로 자리표 대신 `—`(Q-5 b안). 「해당없음」 옆에 `~(총  일)`이 서면 미대상
+      // 설비에 기간을 적으라는 말이 된다. 형제 표를 한쪽만 고치면 두 서식이 갈라진다.
+      ? '—'
+      : r.period
+        ? `${esc(r.period)}<span class="row-days">(총 ${esc(daysText(r.days))} 일)</span>`
+        : '~<span class="row-days">(총&nbsp;&nbsp;&nbsp;&nbsp;일)</span>'}</td>
   </tr>`)
   }
   return `<table class="form" style="margin-top:6px">

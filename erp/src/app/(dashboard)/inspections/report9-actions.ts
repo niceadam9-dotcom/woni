@@ -140,7 +140,9 @@ async function assembleAnnex1011(
     //   않는다. 접으면 근거 없이 PDF에서 정보를 잃는다(Q-2 확정).
     data.rows = doneFold.kind === 'rows'
       ? doneFold.rows.map(r => ({ content: r.content, period: r.doneISO ? kdate(r.doneISO) : '' }))
-      : [{ content: DEFECT_FOLD_TEXT[doneFold.kind], period: '' }]
+      // isNote — 자동 문구 줄은 개별 이행조치가 아니라 일자 칸에 자리표를 찍지 않는다(Q-5 b안).
+      //   「해당없음」 옆의 `.  .  .  ~  .  .  .`는 미대상 설비에 날짜를 적으라는 말이 된다.
+      : [{ content: DEFECT_FOLD_TEXT[doneFold.kind], period: '', isNote: true }]
     const { data: companyRows } = await admin.from('company_profile')
       .select('company_name, business_number, representative, phone, address').limit(1)
     const company = (companyRows?.[0] ?? {}) as {
