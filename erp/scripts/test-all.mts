@@ -358,6 +358,12 @@ const steps: Step[] = [
   { name: '별지 상호작용(E2E)',         cmd: 'npx tsx scripts/test-annex-interaction.mts',    needServer: true },
   { name: '별지 탭 승격(프로브)',        cmd: 'npx tsx scripts/_probe-annex-tab.mts',          needServer: true },
   { name: '별지 같은경로 이동(프로브)',   cmd: 'npx tsx scripts/_probe-annex-samepath-nav.mts', needServer: true },
+  // 별지서식 직행 3동선(달력 데이 패널 · 최근 본 고객 칩 · 고객 상세 헤더) — 30 S4-4.
+  // 종전 판정: "9/9는 **커버리지 구멍 위의 초록**이었다 — 목적지를 변조해도 초록이었다."
+  // 지금은 세 동선 모두 href와 **클릭 후 활성 탭**을 함께 단언한다(변이 검증: 기대값을 뒤틀면
+  // 정확히 3건이 빨개진다 — _mut-s44.mjs). 링크는 조용히 끊긴다: 눌러도 다른 탭이 열리면
+  // 사용자는 '기능이 없다'고 읽지 오류로 읽지 않는다.
+  { name: '별지 직행 3동선(프로브)',     cmd: 'npx tsx scripts/_probe-plan-access-paths.mts',  needServer: true },
   // S4-4 폴백 — [⑨ 9호로 돌아가기]는 history.length<=1이면 back 대신 goTab을 탄다. 그 분기는
   // 실사용의 ctrl-click 새 탭에서만 열리는데, 오래 '재현 불가'로 미검증이었다(2026-08-30 오판 정정:
   // window.open으로 연 팝업은 초기 about:blank가 **교체**돼 length===1이다). 여기가 끊기면 새 탭으로
