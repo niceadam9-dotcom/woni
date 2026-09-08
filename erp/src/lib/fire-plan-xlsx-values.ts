@@ -55,16 +55,26 @@ export function planDate(v: string | null | undefined): string {
  *   건축법 분류에 실재하므로 들어올 수 있다.
  * ⚠ `문화및집회시설`(7자)은 **줄이지 않는다** — 통용되는 약어가 없어 우리가 지어내는 것이
  *   되고, 법정 기재사항을 임의로 축약하는 셈이다. 넘치면 그때 별도로 판단한다.
- * ⚠ **표지에는 쓰지 않는다** — 강순기 표지는 `근생`이 아니라 `근린생활시설`이다(F-14 대조).
- *   한 문서가 같은 값을 자리마다 다르게 적는 것이고, 그건 원본이 그렇다.
+ * ⚠ **표지는 `근생`이 아니다** — 강순기 표지는 `근린생활시설`이다(F-14 대조). 한 문서가 같은
+ *   값을 자리마다 다르게 적는 것이고, 그건 원본이 그렇다. 그래서 `purposeCover`가 따로 있다.
+ *
+ * 🚨 2026-09-08 실측으로 드러난 것: 위 주석은 「표지는 근린생활시설」이라 적어 두었는데 정작
+ *    코드는 `txt(d.purpose)`를 그대로 넘겨 **`제2종근린생활시설`**을 찍고 있었다. 주석이 목표값을
+ *    말하면서 그 값을 만드는 함수가 없었던 것 — **의도와 산출이 갈라져 있었다.** 그래서
+ *    갈래 목록을 하나로 두고 **표기 두 가지를 거기서 파생**시킨다. 종류가 늘어도 한 곳만 고친다.
  */
-const PURPOSE_SHORT: Record<string, string> = {
-  '제1종근린생활시설': '근생',
-  '제2종근린생활시설': '근생',
-}
+const NEIGHBORHOOD_FACILITY = new Set(['제1종근린생활시설', '제2종근린생활시설'])
+
+/** 좁은 칸(서식 1.1 주용도·1.2.1 구역 용도)용 표기 — 근린생활시설 갈래는 `근생`으로 줄인다. */
 export function purposeShort(v: string | null | undefined): string {
   const s = txt(v)
-  return PURPOSE_SHORT[s] ?? s
+  return NEIGHBORHOOD_FACILITY.has(s) ? '근생' : s
+}
+
+/** 표지용 표기 — 갈래는 밝히되 `제N종`은 떼어낸다(강순기 표지가 그렇다). 칸이 넓어 줄일 이유가 없다. */
+export function purposeCover(v: string | null | undefined): string {
+  const s = txt(v)
+  return NEIGHBORHOOD_FACILITY.has(s) ? '근린생활시설' : s
 }
 
 /**
@@ -140,7 +150,7 @@ export function buildFirePlanValues(d: FirePlanGenData): Map<string, CellValue> 
   v.set('cover_title', fillTemplate('표지', 'A3', { customer_name: txt(d.buildingName) }))
   // 용도 — 상자는 **체크하지 않는다**. 양식도 강순기도 이 칸의 상자는 비어 있고 라벨만 바뀐다
   // (선택지 목록이 아니라 '용도를 적는 칸'이라 체크할 대상이 없다).
-  v.set('cover_purpose', checkCell('표지', 'M1', false, txt(d.purpose)))
+  v.set('cover_purpose', checkCell('표지', 'M1', false, purposeCover(d.purpose)))
 
   // ── 서식 1.1 ──
   v.set('customer_name', txt(d.buildingName))
@@ -152,7 +162,7 @@ export function buildFirePlanValues(d: FirePlanGenData): Map<string, CellValue> 
   v.set('manager_phone', txt(d.managerPhone))
   v.set('receiver_location', txt(d.receiverLocation))
   // 표기 축 — 칸이 좁아 `제2종근린생활시설`이 두 줄로 접히며 옆 칸을 밀었다(사용자 지시 2026-09-08).
-  // ⚠ 표지(`cover_purpose`)는 줄이지 않는다 — 위 주석의 강순기 대조 참조.
+  // ⚠ 표지는 `근생`이 아니라 `근린생활시설`이다 — `purposeCover`를 쓴다(같은 값, 다른 표기).
   v.set('purpose', purposeShort(d.purpose))
   v.set('use_approval_date', planDate(d.useApprovalDate))
   v.set('total_area', txt(d.totalArea))
@@ -253,7 +263,10 @@ export function buildFirePlanValues(d: FirePlanGenData): Map<string, CellValue> 
   for (let i = 0; i < ZONE_ROWS; i++) {
     const z = zones[i]
     v.set(`zone_${i}_floor`, txt(z?.zone))
-    v.set(`zone_${i}_usage`, txt(z?.name))
+    // 1.1 주용도와 **같은 성격의 칸**이라 같은 표기를 쓴다(사용자 승인 2026-09-08).
+    // ⚠ `d.purpose`가 아니라 구역 레코드의 `name`이다 — 구역마다 다를 수 있고, 근린생활시설
+    //   갈래가 아니면 `purposeShort`가 그대로 통과시킨다(사무실·창고 등은 손대지 않는다).
+    v.set(`zone_${i}_usage`, purposeShort(z?.name))
     v.set(`zone_${i}_area`, txt(z?.area))
     v.set(`zone_${i}_company`, txt(z?.managerCo))
     v.set(`zone_${i}_contact`, txt(z?.contact))
