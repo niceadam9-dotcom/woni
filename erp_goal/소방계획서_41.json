@@ -168,6 +168,9 @@
       "why_it_surfaced": "F-1 육안이 재료를 얹었다 — **엑셀 현5는 이미 빨강이었다**(템플릿 fontId=57 `FFFF0000`, 41이 만든 것이 아님). 한 납품 묶음 안에서 같은 문장이 현5=빨강 / PDF 8쪽=검정으로 갈려 있었고, F-4의 실제 선택지는 「빨강을 넣을까」가 아니라 **「갈린 것을 어느 쪽으로 맞출까」**였다.",
       "scope": "**PDF 별지 9호 8쪽만** 바꿨다. 별지 10호(report1011.ts)에는 일부러 넣지 않았다 — 그 서식의 엑셀 쌍(계획서!H)이 검정이라 PDF만 빨갛게 하면 **한 문서의 두 출력이 갈린다**. 지금 배치는 문서별로 짝이 맞는다: 별지9호 = PDF 8쪽 빨강 + 엑셀 현5 빨강 / 별지10호 = PDF 검정 + 엑셀 계획서 검정.",
       "caveat": "⚠ **목업 원본을 대조하지 못했다** — `erp_goal/image-61.png`는 `.gitignore`의 `erp_goal/*.png`에 걸려 커밋된 적이 없고 작업트리에도 없다. 설계 문서에 남은 서술(41.md:97 「빨강+자간 벌림」)을 명세로 삼았다. 픽셀 대조가 필요하면 목업을 다시 받아야 한다.",
-      "verified": "tsc 0 · test-defect-fold 36/36(F-4 3단언 신설) · test-report10-plan-rows 43/0 · test-xlsx-inject 193/0 · test-annex-compose 25/0(E2E) · 운영 실데이터 육안(8쪽이 빨강+자간으로 엑셀 현5와 같은 모양)" }
+      "verified": "tsc 0 · **격리 워크트리 tsc 0**(제품 코드라 별도) · test-defect-fold 36/36(F-4 3단언 신설) · test-report10-plan-rows 43/0 · test-xlsx-inject 193/0 · test-annex-compose 25/0(E2E) · 운영 실데이터 육안(8쪽이 빨강+자간으로 엑셀 현5와 같은 모양)",
+      "commit": "`82a60b5` 푸시완료(게이트·INV 그린)",
+      "hunk_split": "🚨 커밋 직전 `report9.ts` 스테이징 diff가 **102줄 추가**로 나왔다 — 내 변경은 13줄인데 타 세션의 「다수동일때」 기능 전체(`renderMultiBuildingPage`·`Report9MultiBuilding`·`buildingInfoTable`)가 딸려 있었다. `git show HEAD:`에서 출발해 **내 훅만 얹은 blob**을 만들어 갈랐다(작업트리에서 남의 것을 빼는 방향은 그 사이 상대가 커밋하면 revert가 된다). 커밋 후 원격 `renderMultiBuildingPage`=0건 · 작업트리엔 살아 있음을 양쪽으로 확인. 푸시 후 공유 인덱스가 **낡은 blob**(내 F-4도 남의 기능도 없는 중간판)을 들고 있어 HEAD로 재정합했다 — 안 했으면 남이 커밋할 때 F-4가 되돌아간다.",
+      "deployed": "🟢 **운영 배포 17회차 완결(2026-09-08)** — `7c1dc90`→`5767be7`(6커밋 동반·마이그레이션 0) · 새 이미지 `dcfbec7d2365` · 롤백 `rollback-7c1dc90`=`fa80dd251f97`, 다음 복귀점 `rollback-5767be7` 즉시 확보 · 삼측 정상 · `/login` 200(14,736B)·`/` 307·**컨테이너 내부 200** · 운영 INV **19/19** · 마커 3분법 신규 `defect-auto`=3·`afterprint`=6 / 양성 `data-defect-card`=2 / 음성 0. ⭐**마커를 이름이 아니라 값까지 봤다** — 산출물에서 `defect-auto { color: #FF0000; letter-spacing: 0.15em; }`를 그대로 꺼냈다(클래스명만 세면 '이름은 있는데 규칙이 빈' 경우를 못 잡는다)." }
   ]
 }
