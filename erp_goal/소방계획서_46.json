@@ -35,7 +35,9 @@
     { "id": "M-10", "fact": "실 스테이징 DB에 사진 달린 불량은 4건 / 점검 2건뿐 — 표본이 작다. 표본 점검(불량 3건)은 사진 6장·2쪽", "method": "scripts/_probe-46-realdb.mts .env.local 재실행" },
     { "id": "M-13", "fact": "라우트 무인증 호출은 **401이 아니라 307 → `/login`**이다 — 미들웨어가 라우트 본문(`getProfile()` 401)보다 먼저 가로챈다. 그래서 인증 축을 상태코드 401로 재면 제품이 옳은데도 붉어진다", "method": "2026-09-08 무쿠키 Invoke-WebRequest -MaximumRedirection 0 실측 · D-4" },
     { "id": "M-14", "fact": "자산 `report-workbook-full.xlsx`의 미디어 기준선은 `xl/media/image1.png` **1개**(로고)다. 사진 대지가 넣는 파트는 `defect{n}-before/after-{k}.jpeg` — 「전부 .jpeg」 축은 이 기준선을 뺀 **차분**에만 성립한다", "method": "JSZip으로 자산 xl/media/ 전수 열거 · D-5" },
-    { "id": "M-15", "fact": "실 라우트 왕복 산출물은 **3.69MB**(불량 3건·사진 6장). 「불량사진」은 「현5」 바로 뒤이고 시트 본문 9행(3건×3행) — 신 규격대로 1쪽", "method": "scripts/_probe-46-http.mts 19/0, dev 서버 실호출" }
+    { "id": "M-15", "fact": "실 라우트 왕복 산출물은 **3.69MB**(불량 3건·사진 6장). 「불량사진」은 「현5」 바로 뒤이고 시트 본문 9행(3건×3행) — 신 규격대로 1쪽", "method": "scripts/_probe-46-http.mts 19/0, dev 서버 실호출" },
+    { "id": "M-16", "fact": "⭐ **실데이터는 `defect_code == defect_name`인 행이 다수다** — 스테이징 10행 중 **7행**, 사진 달린 4행 중 **3행**. 픽스처는 정반대로 늘 둘이 다르다. 이 어긋남이 D-8을 초록 뒤에 숨겼다", "method": "2026-09-08 inspection_defects 전수 조회 후 code/name 대조" },
+    { "id": "M-17", "fact": "`inspection_defects` 실컬럼 14개 — 사진 대지가 쓰는 6개(code·name·detail·action_taken·photo_url·after_photo_url) 외에 `severity`·`action_plan`·`action_start`·`action_end`·`action_completed_at`가 있으나 **대지에는 싣지 않는다**(Q-2에서 severity 표기를 검토했으나 미채택)", "method": "select('*').limit(1) 실컬럼 판독 — 목록을 추측하지 않는다" }
   ],
 
   "defects_found": [
@@ -45,7 +47,9 @@
     { "id": "D-4", "sev": "MED", "kind": "검사", "desc": "S4-7 HTTP 프로브의 「인증 없으면 401」 단언이 붉었다 — **제품은 옳았다**. 라우트 본문은 401을 내지만 거기까지 가지 못하고 **미들웨어가 먼저 307 → /login**을 낸다. 상태코드 숫자를 축으로 삼은 것이 잘못", "fix": "축을 「실고객 사진이 든 xlsx가 새어나가지 않는다」로 바꿨다 — 200 아님 + 307/302/401/403 + Location `/login` + 본문에 zip 매직 없음. ⚠ maxRedirects:0이 필수(따라가면 /login 200이 되어 **통과처럼 보인다**)", "evidence": "_probe-46-http.mts [3] · Invoke-WebRequest 무쿠키 실측 307 Location=/login", "date": "2026-09-08" },
     { "id": "D-5", "sev": "MED", "kind": "검사", "desc": "「미디어 확장자가 전부 .jpeg」를 zip **전체**에 걸어 자산 로고 `xl/media/image1.png`가 걸렸다 — 이것도 제품이 옳은데 붉은 경우다. 불변식은 '**이번에 늘어난** 미디어'에 대한 것이지 자산 기존 파트에 대한 것이 아니다", "fix": "자산 미디어 기준선을 빼고 차분만 판정 + 「기존 미디어는 그대로 남아 있다」를 별도 축으로 신설(검사가 더 세졌다)", "evidence": "자산 실측 기준선 = ['xl/media/image1.png'] 1개", "date": "2026-09-08" },
     { "id": "D-6", "sev": "HIGH", "kind": "검사", "desc": "⭐ D-5 수리가 **공허 통과**를 낳았다 — 기준선을 `Object.keys(await JSZip.loadAsync(...))`로 지어 JSZip **인스턴스의 속성명**을 받았고 미디어 기준선이 **빈 집합**이 됐다. 그 결과 신설한 「기존 미디어는 그대로 남아 있다」가 `every()`의 공허 통과로 초록이 되어 **아무것도 지키지 않았다**", "fix": "`zip.files`로 정정 + `baseMedia.size === 0`이면 즉시 exit 1(정체 판정 — 0에서 통과하는 축을 남기지 않는다)", "evidence": "1차 재실행에서 image1.png가 여전히 added에 남아 드러남", "date": "2026-09-08" },
-    { "id": "D-7", "sev": "LOW", "kind": "검사", "desc": "_probe-46-realdb.mts:63의 쪽수 예측이 `Math.ceil(blocks / 2)`로 남아 3건/장 전환 뒤에도 **구 규격으로 과대 예측**하고 있었다", "fix": "/3으로 정정 + 규격 정본은 defect-photo-embed의 DEFECTS_PER_PAGE임을 주석으로 명시", "evidence": "859a8da가 test-photo-sheet.mts는 고쳤으나 이 프로브는 놓쳤다", "date": "2026-09-08" }
+    { "id": "D-7", "sev": "LOW", "kind": "검사", "desc": "_probe-46-realdb.mts:63의 쪽수 예측이 `Math.ceil(blocks / 2)`로 남아 3건/장 전환 뒤에도 **구 규격으로 과대 예측**하고 있었다", "fix": "/3으로 정정 + 규격 정본은 defect-photo-embed의 DEFECTS_PER_PAGE임을 주석으로 명시", "evidence": "859a8da가 test-photo-sheet.mts는 고쳤으나 이 프로브는 놓쳤다", "date": "2026-09-08" },
+    { "id": "D-8", "sev": "HIGH", "kind": "제품", "desc": "⭐⭐ **캡션이 「1-A-001 1-A-001」로 중복 인쇄되고 있었다.** 캡션은 `[defect_code, defect_name].join(' ')`인데 **실데이터는 둘이 같은 값인 행이 다수다**(불량명을 따로 적지 않으면 코드가 그대로 이름 칸에 들어간다). 2026-09-08 스테이징 실측 10행 중 **7행**, 그리고 **사진 달린 4행 중 3행**이 그랬다 — 즉 지금 인쇄되는 대지 대부분이 중복 캡션이었다", "fix": "captionOf() — code와 name이 같으면 코드만. 정상 부류(둘이 다른 행)는 무변경(대조군으로 같은 실행에서 단언)", "evidence": "_probe-46-http.mts 실데이터 캡션 「1-A-001」「1-B-011」「2-C-002」 · test-photo-sheet [13b] 6축 · 돌연변이 판정(수리 되돌리면 그 축만 빨강, 대조군 초록)", "date": "2026-09-08",
+      "why_it_survived": "🚨 **검사가 66/0·62/0·19/0으로 전부 초록인 채 이 결함을 통과시켰다.** 픽스처가 언제나 코드와 이름을 다르게(`3-A-001` / `소화기 압력계 불량 1`) 지어냈기 때문에 실데이터의 모양을 **한 번도 밟지 못했다**. 판정 세션의 육안 확인조차 그 픽스처 산출물을 본 것이라 같은 눈멀음을 공유했다. **초록의 분모는 픽스처가 가진 모양뿐이다** — soban41의 '픽스처에 판정값을 손으로 박은 검사' 교훈이 다른 형태로 재발했다" }
   ],
 
   "independent_verification": {
@@ -90,8 +94,10 @@
         "신 규격(2026-09-08)": "3건/장 — 1~3건=1쪽 · 4~6건=2쪽 · 7~9건=3쪽 · 10~12건=4쪽",
         "대가": "3건 × 381pt = 1143pt라 A4 가용 791.5pt에 못 담는다. 사진 행 높이를 **180pt → 117pt**, 캡션 21 → 20으로 줄여 254pt/건 · 3건 762pt로 맞췄다(여유 29.5pt, 구 규격과 같은 3.7%). **사진이 그만큼 작아진다** — 가로 사진은 이제 높이에 걸려 축소돼 좌우 여백이 생긴다(왜곡 아님)"
       } },
-    { "id": "Q-2", "q": "캡션·우측 칸 어휘 — 지금은 캡션 '점검번호 불량명', 우측 칸에 defect_detail(전)·action_taken(후)", "status": "pending", "resolution": "미결정" },
-    { "id": "Q-3", "q": "PDF 별지에도 사진을 실을지 — 법정 서식엔 사진 칸이 없어 이번 범위 밖", "status": "pending", "resolution": "미결정" },
+    { "id": "Q-2", "q": "캡션·우측 칸 어휘 — 지금은 캡션 '점검번호 불량명', 우측 칸에 defect_detail(전)·action_taken(후)", "status": "confirmed",
+      "resolution": "**2026-09-08 사용자 확정: 코드와 이름이 같으면 한 번만 찍는다.** 우측 칸(defect_detail/action_taken)과 어휘는 현행 유지. severity 표기는 채택하지 않았다(인쇄물에 새 축을 늘리지 않는다).",
+      "why_it_mattered": "선택지를 고르는 문제가 아니라 **제품 결함이었다**(D-8). 실데이터는 `defect_code == defect_name`인 행이 다수라 캡션이 「1-A-001 1-A-001」로 중복 인쇄되고 있었다" },
+    { "id": "Q-3", "q": "PDF 별지에도 사진을 실을지 — 법정 서식엔 사진 칸이 없어 이번 범위 밖", "status": "confirmed", "resolution": "**2026-09-08 사용자 확정: 범위 밖.** 법정 서식(별지 9~11호)에 사진 칸이 없다. 코드 변경 0 — 이 결정은 `invariants_to_keep`의 「PDF 별지 9~11호 경로 무변경」과 같은 방향이다" },
     { "id": "Q-4", "q": "실 DB 왕복·커밋·배포 승인", "status": "partial", "resolution": "실 DB 왕복·HTTP 200 재현 **완료**(2026-09-08 `_probe-46-http.mts` 19/0 — S4-7 implemented 승격). 코드는 `859a8da`(3건/장)·`337b168`(판정)·`58c4997`(주석) 커밋. ⚠ `859a8da`·`337b168`은 **이미 원격 반영됐다**(타 세션 푸시에 실려 `ff27e77`의 조상 — 종전 기록의 '미푸시 2'는 낡았다). 남은 것은 하나뿐: 🔴 **운영이 아직 구 2건/장(`f9efe72`)이라 재배포해야 3건/장이 반영된다**" }
   ],
 
@@ -141,6 +147,15 @@
         { "id": "S2-7", "desc": "두 슬롯이 다 빈 건은 싣지 않는다(빈 상자 페이지 금지). 한쪽만 빈 건은 「사진 없음」으로 남겨 결손을 드러낸다", "status": "implemented", "evidence": "D-2 · 프로브 [13] 4건 12행·brk [6]·X-5 존치",
           "verified": { "date": "2026-09-08", "commit": "f9efe72", "method": "코드 대조 + 프로브 재실행",
             "evidence": ["defect-photo-embed.ts:298-299 usable = imgOf에 before 또는 after가 있는 건만", "defect-photo-embed.ts:180 한쪽만 빈 슬롯은 '사진 없음' 텍스트로 남는다", "프로브 '빈 상자 건이 캡션에도 없다' / '한쪽만 있는 건은 남는다(X-5)' 둘 다 초록"] } },
+        { "id": "S2-9", "desc": "캡션은 「점검번호 불량명」이되 **둘이 같은 값이면 한 번만** 찍는다(Q-2 사용자 확정). 공백뿐인 이름은 없는 것으로 본다", "status": "implemented",
+          "evidence": "defect-photo-embed.ts captionOf · test-photo-sheet [13b] 6축 · _probe-46-http 실데이터 캡션",
+          "verified": { "date": "2026-09-08", "commit": "작업트리(미커밋 시점 기록 — 커밋 후 sha 갱신할 것)", "method": "코드 대조 + 돌연변이 판정 + 실데이터 왕복",
+            "evidence": [
+              "defect-photo-embed.ts captionOf — code·name을 trim 후 동일하면 code만 반환",
+              "test-photo-sheet [13b] 6축 초록: 동일→한 번 · **상이→둘 다(대조군)** · code만 · name만 · 둘 다 없음→'(불량명 없음)' · 이름이 공백뿐→코드만",
+              "돌연변이: 동일값 분기를 되돌리면 그 축만 빨강(「1-A-001 1-A-001」), 대조군은 초록 — 공허 통과가 아니다",
+              "_probe-46-http 실데이터 20/0 — 「1-A-001」「1-B-011」「2-C-002」로 중복 소멸"
+            ] } },
         { "id": "S2-8", "desc": "사진 0장이면 null — 시트를 만들지 않는다", "status": "implemented", "evidence": "프로브 [13] 마지막 축",
           "verified": { "date": "2026-09-08", "commit": "f9efe72", "method": "코드 대조 + 프로브 재실행",
             "evidence": ["defect-photo-embed.ts:264 사진 경로 0건이면 null", "defect-photo-embed.ts:292 실린 사진 0장이면 사유 남기고 null", "프로브 '사진 0장이면 시트를 만들지 않는다(null)' 초록"] } }
@@ -263,6 +278,13 @@
       "tsc --noEmit": "rc=0 · 0줄",
       "제품 결함": "0 — 붉었던 2건은 전부 **내 검사의 축이 틀린 것**(D-4 401 vs 미들웨어 307 · D-5 자산 로고 png)",
       "검사 결함": "4건 수리(D-4·D-5·D-6·D-7). ⭐ D-6은 **D-5 수리가 만든 공허 통과**였다 — 고치다 만든 초록을 다음 실행이 잡았다"
+    },
+    "Q-2 캡션 중복 수리 2026-09-08": {
+      "test-photo-sheet.mts": "68 통과 / 0 실패 (62 + [13b] 캡션 6축)",
+      "_probe-46-http.mts": "20 통과 / 0 실패 — 실데이터 캡션 「1-A-001」「1-B-011」「2-C-002」(수리 전 「1-A-001 1-A-001」)",
+      "돌연변이 판정": "captionOf의 동일값 분기를 되돌리면 **그 한 축만** 빨강(「1-A-001 1-A-001」)이고 대조군 「15-B-006 주경종 불량」은 초록 — 검사에 판별력이 있고 수리가 정상 부류를 뭉개지 않았다",
+      "회귀": "_judge 6/0 · test-xlsx-anchors 64/0 · test-xlsx-inject 191/0 · test-xlsx-donors 32/0 · tsc rc=0·0줄",
+      "주의": "anchors 61→64 · inject 189→191은 **타 세션의 다수동일때 앵커 확장** 때문이지 내 변경 탓이 아니다"
     }
   },
 

@@ -111,6 +111,18 @@ try {
   const baseMedia = new Set(Object.keys(baseZip.files)
     .filter(p => p.startsWith('xl/media/') && !baseZip.files[p].dir))
   if (baseMedia.size === 0) { console.log('  ❌ 기준선 미디어가 0 — 자산 판독 실패'); process.exit(1) }
+  // ⭐ 캡션 중복(Q-2) — **실데이터에서만** 드러나는 부류다. 픽스처는 늘 코드≠이름이라
+  //   합성 검사 68/0이 이 모양을 밟지 못한다. 스테이징 실측으로는 사진 달린 4행 중 3행이
+  //   `defect_code == defect_name`이었고 「1-A-001 1-A-001」로 찍히고 있었다.
+  const caps = [...sheetXml.matchAll(/<c r="B\d+"[^>]*><is><t[^>]*>([^<]*)<\/t>/g)].map(m => m[1])
+    .filter(c => c !== '사진 없음')
+  console.log(`     캡션: ${caps.map(c => `「${c}」`).join(' ')}`)
+  const dupCap = caps.filter(c => {
+    const p = c.split(' ')
+    return p.length === 2 && p[0] === p[1]
+  })
+  check('캡션에 「코드 코드」 중복이 없다', dupCap.length === 0, dupCap.join(' | '))
+
   const media = Object.keys(zip.files).filter(p => p.startsWith('xl/media/') && !zip.files[p].dir)
   const added = media.filter(p => !baseMedia.has(p))
   check('media에 사진이 실렸다', added.length > 0, `늘어난 ${added.length}장 / 전체 ${media.length}`)

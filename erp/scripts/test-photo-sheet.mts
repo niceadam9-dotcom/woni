@@ -310,6 +310,43 @@ console.log('\n[13] 사유 고지 — 조용히 버리지 않는가')
   check('사진 0장이면 시트를 만들지 않는다(null)', none === null)
 }
 
+// ── [13b] 캡션 조립 — 코드와 이름이 **같은 값**인 실데이터 부류 ────────────────────
+// 🚨 이 축이 없던 동안 66/0·62/0·19/0이 전부 초록이었지만 **아무것도 지키지 않았다.**
+// 위 픽스처가 언제나 코드(`3-A-001`)와 이름(`소화기 압력계 불량 1`)을 다르게 지어냈기 때문이다.
+// 실데이터는 반대다 — 2026-09-08 스테이징 실측 10행 중 7행, **사진 달린 4행 중 3행**이
+// `defect_code == defect_name`이고, 그 행들이 「1-A-001 1-A-001」로 중복 인쇄되고 있었다.
+// 사용자 확정(Q-2): 같으면 한 번만. 정상 부류를 **대조군으로 나란히** 둬서 이 수리가
+// 「둘이 다른 행」까지 뭉개지 않았음을 같은 실행에서 보인다.
+{
+  console.log('\n[13b] 캡션 — code == name이면 한 번만')
+  const capOf = async (code: string | null, name: string | null) => {
+    const p = `insp/cap/${code ?? 'null'}-${name ?? 'null'}.jpg`
+    await putJpeg(p, 800, 600)
+    const b = await buildDefectPhotoSheet(store, [
+      { defect_code: code, defect_name: name, defect_detail: null, action_taken: null,
+        photo_url: p, after_photo_url: null },
+    ], base)
+    const x = await text(await JSZip.loadAsync((await insertSheetAfter(base, DEFECT_SHEET, b!.part)).bytes),
+      'xl/worksheets/sheetPhoto.xml')
+    // 캡션은 B1(병합 B1:C1)에 inlineStr로 들어간다
+    return /<c r="B1"[^>]*><is><t[^>]*>([^<]*)<\/t>/.exec(x)?.[1] ?? '(캡션 셀 없음)'
+  }
+  const same = await capOf('1-A-001', '1-A-001')
+  check('code == name → 한 번만', same === '1-A-001', `실제 「${same}」`)
+  // 대조군 — 이 수리가 정상 부류를 뭉개면 여기가 붉어진다
+  const diff = await capOf('15-B-006', '주경종 불량')
+  check('code != name → 둘 다(대조군)', diff === '15-B-006 주경종 불량', `실제 「${diff}」`)
+  const onlyName = await capOf(null, '주경종 불량')
+  check('code 없음 → 이름만', onlyName === '주경종 불량', `실제 「${onlyName}」`)
+  const onlyCode = await capOf('15-B-006', null)
+  check('name 없음 → 코드만', onlyCode === '15-B-006', `실제 「${onlyCode}」`)
+  const neither = await capOf(null, null)
+  check('둘 다 없음 → 「(불량명 없음)」', neither === '(불량명 없음)', `실제 「${neither}」`)
+  // 공백만 든 이름도 '있는 값'으로 세면 「코드 + 공백」이 찍힌다
+  const blank = await capOf('15-B-006', '   ')
+  check('이름이 공백뿐 → 코드만', blank === '15-B-006', `실제 「${blank}」`)
+}
+
 // ── [14] LibreOffice 페이지 수 **차분** (옵션) ────────────────────────────────
 // 절대 페이지 수는 도너 구성에 따라 변하므로 차분으로만 판정한다.
 if (process.argv.includes('--lo')) {

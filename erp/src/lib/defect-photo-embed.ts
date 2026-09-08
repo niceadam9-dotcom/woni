@@ -168,6 +168,22 @@ function patchStyles(xml: string): { xml: string; xfCaption: number; xfBox: numb
   return { xml: out, xfCaption: xfBase, xfBox: xfBase + 1, xfText: xfBase + 2 }
 }
 
+/** 캡션 — 「점검번호 불량명」. 단 **둘이 같은 값인 행이 실재한다**: 2026-09-08 스테이징 실측
+ *  10행 중 7행, 그리고 **사진 달린 4행 중 3행**이 `defect_code == defect_name`이었다
+ *  (불량명을 따로 적지 않으면 코드가 그대로 이름 칸에 들어간다). 그대로 이으면 인쇄물에
+ *  「1-A-001 1-A-001」이 찍힌다 — 사용자 확정(Q-2): 같으면 한 번만 찍는다.
+ *
+ *  ⚠ 이 부류를 66/0·62/0·19/0 초록이 **한 번도 밟지 못했다.** 픽스처가 언제나 코드와 이름을
+ *  다르게(`3-A-001` / `소화기 압력계 불량 1`) 지어냈기 때문이다. 육안 확인조차 그 픽스처
+ *  산출물을 본 것이라 같은 눈멀음을 공유했다. 그래서 픽스처에 code==name 표본(D-1)을 심었다 —
+ *  **실데이터의 모양을 픽스처가 갖고 있지 않으면 초록은 그 모양에 대해 아무 말도 하지 않는다.** */
+function captionOf(d: DefectPhotoRow): string {
+  const code = (d.defect_code ?? '').trim()
+  const name = (d.defect_name ?? '').trim()
+  if (code && name && code === name) return code
+  return [code, name].filter(Boolean).join(' ') || '(불량명 없음)'
+}
+
 const cell = (ref: string, s: number, text?: string | null) =>
   text ? `<c r="${ref}" s="${s}" t="inlineStr"><is><t xml:space="preserve">${escXml(text)}</t></is></c>`
     : `<c r="${ref}" s="${s}"/>`
@@ -310,7 +326,7 @@ export async function buildDefectPhotoSheet(
     .filter(({ di }) => imgOf.has(`${di}:before`) || imgOf.has(`${di}:after`))
   const blocks: Block[] = usable.map(({ d, di }, i) => ({
     no: i + 1,
-    caption: [d.defect_code, d.defect_name].filter(Boolean).join(' ') || '(불량명 없음)',
+    caption: captionOf(d),
     slots: [
       { kind: 'before', img: imgOf.get(`${di}:before`) ?? null },
       { kind: 'after', img: imgOf.get(`${di}:after`) ?? null },
