@@ -76,29 +76,29 @@ const FIXED_SEEDS: Seed[] = [
   // 🎯 강순기 대조가 찾아낸 칸 — 양식엔 `☐ 복합건축물`, 강순기엔 `☐ 근린생활시설`이라
   //   **용도는 고객별 값**임이 드러났다. 토큰이 없어 씨앗에는 안 잡히던 자리다(S4-2 §구멍).
   //   빌드가 라벨을 비워 상자만 남겼고, 값 축이 `☐ {용도}`로 다시 조립한다.
-  { field: 'cover_purpose', sheet: FP_SHEET.COVER, cell: 'B1', labelCell: 'A1' },
+  { field: 'cover_purpose', sheet: FP_SHEET.COVER, cell: 'M1', labelCell: 'A1' },
 
   // ── 서식 1.1 건축물 일반현황 ──
-  { field: 'customer_name', sheet: FP_SHEET.F1_1, cell: 'C4', labelCell: 'A4' },
-  { field: 'address', sheet: FP_SHEET.F1_1, cell: 'C5', labelCell: 'A5' },
-  { field: 'owner_name', sheet: FP_SHEET.F1_1, cell: 'E6', labelCell: 'C6' },
-  { field: 'manager_name', sheet: FP_SHEET.F1_1, cell: 'I6', labelCell: 'G6' },
-  { field: 'owner_phone', sheet: FP_SHEET.F1_1, cell: 'E7', labelCell: 'C7' },
+  { field: 'customer_name', sheet: FP_SHEET.F1_1, cell: 'L4', labelCell: 'A4' },
+  { field: 'address', sheet: FP_SHEET.F1_1, cell: 'L5', labelCell: 'A5' },
+  { field: 'owner_name', sheet: FP_SHEET.F1_1, cell: 'X6', labelCell: 'L6' },
+  { field: 'manager_name', sheet: FP_SHEET.F1_1, cell: 'AW6', labelCell: 'AJ6' },
+  { field: 'owner_phone', sheet: FP_SHEET.F1_1, cell: 'X7', labelCell: 'L7' },
   // 🚨 씨앗은 `{{owner_phone}}`이었다 — §검토 기록 참조
-  { field: 'manager_phone', sheet: FP_SHEET.F1_1, cell: 'I7', labelCell: 'G7' },
-  { field: 'receiver_location', sheet: FP_SHEET.F1_1, cell: 'C8', labelCell: 'B8' },
-  { field: 'purpose', sheet: FP_SHEET.F1_1, cell: 'G9', labelCell: 'F9' },
-  { field: 'use_approval_date', sheet: FP_SHEET.F1_1, cell: 'J9', labelCell: 'H9' },
-  { field: 'total_area', sheet: FP_SHEET.F1_1, cell: 'D10', labelCell: 'C10' },
-  { field: 'floors', sheet: FP_SHEET.F1_1, cell: 'J10', labelCell: 'H10' },
-  { field: 'height', sheet: FP_SHEET.F1_1, cell: 'D11', labelCell: 'C11' },
-  { field: 'main_structure', sheet: FP_SHEET.F1_1, cell: 'G11', labelCell: 'F11' },
-  { field: 'roof_structure', sheet: FP_SHEET.F1_1, cell: 'J11', labelCell: 'H11' },
+  { field: 'manager_phone', sheet: FP_SHEET.F1_1, cell: 'AW7', labelCell: 'AJ7' },
+  { field: 'receiver_location', sheet: FP_SHEET.F1_1, cell: 'L8', labelCell: 'D8' },
+  { field: 'purpose', sheet: FP_SHEET.F1_1, cell: 'AJ9', labelCell: 'AB9' },
+  { field: 'use_approval_date', sheet: FP_SHEET.F1_1, cell: 'BA9', labelCell: 'AS9' },
+  { field: 'total_area', sheet: FP_SHEET.F1_1, cell: 'T10', labelCell: 'L10' },
+  { field: 'floors', sheet: FP_SHEET.F1_1, cell: 'BA10', labelCell: 'AS10' },
+  { field: 'height', sheet: FP_SHEET.F1_1, cell: 'T11', labelCell: 'L11' },
+  { field: 'main_structure', sheet: FP_SHEET.F1_1, cell: 'AJ11', labelCell: 'AB11' },
+  { field: 'roof_structure', sheet: FP_SHEET.F1_1, cell: 'BA11', labelCell: 'AS11' },
   // 보험 4칸은 왼쪽이 병합이라 라벨이 **위**에 있다
-  { field: 'insurance_company', sheet: FP_SHEET.F1_1, cell: 'C26', labelCell: 'C25' },
-  { field: 'insurance_period', sheet: FP_SHEET.F1_1, cell: 'F26', labelCell: 'F25' },
-  { field: 'insurance_amount_person', sheet: FP_SHEET.F1_1, cell: 'I26', labelCell: 'H26' },
-  { field: 'insurance_amount_property', sheet: FP_SHEET.F1_1, cell: 'I27', labelCell: 'H27' },
+  { field: 'insurance_company', sheet: FP_SHEET.F1_1, cell: 'L26', labelCell: 'L25' },
+  { field: 'insurance_period', sheet: FP_SHEET.F1_1, cell: 'AB26', labelCell: 'AB25' },
+  { field: 'insurance_amount_person', sheet: FP_SHEET.F1_1, cell: 'AW26', labelCell: 'AS26' },
+  { field: 'insurance_amount_property', sheet: FP_SHEET.F1_1, cell: 'AW27', labelCell: 'AS27' },
 
   /* ── 서식 1.1 §시설현황·운영현황 (2026-09-08, S4-2 §구멍 메우기) ──────────────────
    *
@@ -113,73 +113,73 @@ const FIXED_SEEDS: Seed[] = [
    *      (PDF는 HTML이라 `(3대)`를 덧붙이지만, 법정 서식 칸에 없는 글자를 넣지 않는다).
    */
   // 규모/구조 — `대상물 급수` 뒤의 `급`, `건축면적` 뒤의 `㎡`가 그 칸의 자구다
-  { field: 'grade', sheet: FP_SHEET.F1_1, cell: 'D9', labelCell: 'C9' },
-  { field: 'building_area', sheet: FP_SHEET.F1_1, cell: 'G10', labelCell: 'F10' },
+  { field: 'grade', sheet: FP_SHEET.F1_1, cell: 'T9', labelCell: 'L9' },
+  { field: 'building_area', sheet: FP_SHEET.F1_1, cell: 'AJ10', labelCell: 'AB10' },
   // 승강기 3종 · 계단 4종 — 상자칸
-  { field: 'elevator_passenger', sheet: FP_SHEET.F1_1, cell: 'C12', labelCell: 'B12' },
-  { field: 'elevator_emergency', sheet: FP_SHEET.F1_1, cell: 'F12', labelCell: 'B12' },
-  { field: 'elevator_evac', sheet: FP_SHEET.F1_1, cell: 'H12', labelCell: 'B12' },
-  { field: 'stair_special', sheet: FP_SHEET.F1_1, cell: 'C15', labelCell: 'B15' },
-  { field: 'stair_direct', sheet: FP_SHEET.F1_1, cell: 'G15', labelCell: 'B15' },
-  { field: 'stair_escape', sheet: FP_SHEET.F1_1, cell: 'C16', labelCell: 'B15' },
-  { field: 'stair_outdoor', sheet: FP_SHEET.F1_1, cell: 'G16', labelCell: 'B15' },
+  { field: 'elevator_passenger', sheet: FP_SHEET.F1_1, cell: 'L12', labelCell: 'D12' },
+  { field: 'elevator_emergency', sheet: FP_SHEET.F1_1, cell: 'AB12', labelCell: 'D12' },
+  { field: 'elevator_evac', sheet: FP_SHEET.F1_1, cell: 'AS12', labelCell: 'D12' },
+  { field: 'stair_special', sheet: FP_SHEET.F1_1, cell: 'L15', labelCell: 'D15' },
+  { field: 'stair_direct', sheet: FP_SHEET.F1_1, cell: 'AJ15', labelCell: 'D15' },
+  { field: 'stair_escape', sheet: FP_SHEET.F1_1, cell: 'L16', labelCell: 'D15' },
+  { field: 'stair_outdoor', sheet: FP_SHEET.F1_1, cell: 'AJ16', labelCell: 'D15' },
   // 운영시간 — 상자는 평일·휴일만 켠다. ⚠ 주간/야간은 켜지 않는다: ERP는 평일·휴일에 각
   //   **한 값**만 저장해 어느 쪽 시간인지 모른다. 시간 글자는 주간 줄의 빈칸에 싣는다
   //   (미입력과 '야간 아님'은 다르다 — 모르는 것을 단정하지 않는 S5 규약).
-  { field: 'ophours_weekday', sheet: FP_SHEET.F1_1, cell: 'C17', labelCell: 'B17' },
-  { field: 'ophours_weekday_time', sheet: FP_SHEET.F1_1, cell: 'F17', labelCell: 'B17' },
-  { field: 'ophours_holiday', sheet: FP_SHEET.F1_1, cell: 'G17', labelCell: 'B17' },
-  { field: 'ophours_holiday_time', sheet: FP_SHEET.F1_1, cell: 'J17', labelCell: 'B17' },
+  { field: 'ophours_weekday', sheet: FP_SHEET.F1_1, cell: 'L17', labelCell: 'D17' },
+  { field: 'ophours_weekday_time', sheet: FP_SHEET.F1_1, cell: 'AB17', labelCell: 'D17' },
+  { field: 'ophours_holiday', sheet: FP_SHEET.F1_1, cell: 'AJ17', labelCell: 'D17' },
+  { field: 'ophours_holiday_time', sheet: FP_SHEET.F1_1, cell: 'BA17', labelCell: 'D17' },
   // 인원현황 — 상자 3 + 단위칸 3. 🎯 J19는 표본 고객의 답 `100명`을 이고 있던 자리다
   //   (형제 칸 D19·G19는 ` 명`인데 이 칸만 값이 있었다 — 빌드의 규칙 축이 걷어냈다)
-  { field: 'headcount_worker_on', sheet: FP_SHEET.F1_1, cell: 'C19', labelCell: 'B19' },
-  { field: 'headcount_worker', sheet: FP_SHEET.F1_1, cell: 'D19', labelCell: 'B19' },
-  { field: 'headcount_resident_on', sheet: FP_SHEET.F1_1, cell: 'F19', labelCell: 'B19' },
-  { field: 'headcount_resident', sheet: FP_SHEET.F1_1, cell: 'G19', labelCell: 'B19' },
-  { field: 'headcount_max_on', sheet: FP_SHEET.F1_1, cell: 'H19', labelCell: 'B19' },
-  { field: 'headcount_max', sheet: FP_SHEET.F1_1, cell: 'J19', labelCell: 'B19' },
+  { field: 'headcount_worker_on', sheet: FP_SHEET.F1_1, cell: 'L19', labelCell: 'D19' },
+  { field: 'headcount_worker', sheet: FP_SHEET.F1_1, cell: 'T19', labelCell: 'D19' },
+  { field: 'headcount_resident_on', sheet: FP_SHEET.F1_1, cell: 'AB19', labelCell: 'D19' },
+  { field: 'headcount_resident', sheet: FP_SHEET.F1_1, cell: 'AJ19', labelCell: 'D19' },
+  { field: 'headcount_max_on', sheet: FP_SHEET.F1_1, cell: 'AS19', labelCell: 'D19' },
+  { field: 'headcount_max', sheet: FP_SHEET.F1_1, cell: 'BA19', labelCell: 'D19' },
   // 업무대행 · 다중이용업 · 화재보험 — 「해당 / 해당없음」이 **두 칸**이라 각각 앵커를 문다
-  { field: 'agency_yes', sheet: FP_SHEET.F1_1, cell: 'C21', labelCell: 'B21' },
-  { field: 'agency_no', sheet: FP_SHEET.F1_1, cell: 'G21', labelCell: 'B21' },
-  { field: 'multiuse_yes', sheet: FP_SHEET.F1_1, cell: 'C23', labelCell: 'B23' },
-  { field: 'multiuse_no', sheet: FP_SHEET.F1_1, cell: 'G23', labelCell: 'B23' },
-  { field: 'insurance_yes', sheet: FP_SHEET.F1_1, cell: 'C24', labelCell: 'A24' },
-  { field: 'insurance_no', sheet: FP_SHEET.F1_1, cell: 'G24', labelCell: 'A24' },
+  { field: 'agency_yes', sheet: FP_SHEET.F1_1, cell: 'L21', labelCell: 'D21' },
+  { field: 'agency_no', sheet: FP_SHEET.F1_1, cell: 'AJ21', labelCell: 'D21' },
+  { field: 'multiuse_yes', sheet: FP_SHEET.F1_1, cell: 'L23', labelCell: 'D23' },
+  { field: 'multiuse_no', sheet: FP_SHEET.F1_1, cell: 'AJ23', labelCell: 'D23' },
+  { field: 'insurance_yes', sheet: FP_SHEET.F1_1, cell: 'L24', labelCell: 'A24' },
+  { field: 'insurance_no', sheet: FP_SHEET.F1_1, cell: 'AJ24', labelCell: 'A24' },
 
   // ── 서식 1.3 소방차 진입경로 ── 서식이 수신기 위치를 두 곳에 반복한다(같은 값·같은 필드)
-  { field: 'receiver_location', sheet: FP_SHEET.F1_3_ROUTE, cell: 'H3', labelCell: 'F3' },
-  { field: 'fire_station', sheet: FP_SHEET.F1_3_ROUTE, cell: 'C5', labelCell: 'B5' },
+  { field: 'receiver_location', sheet: FP_SHEET.F1_3_ROUTE, cell: 'AW3', labelCell: 'AK3' },
+  { field: 'fire_station', sheet: FP_SHEET.F1_3_ROUTE, cell: 'P5', labelCell: 'G5' },
 
   // ── 서식 1.5.1 방화구획 ── **라벨동반 상자칸**(§상자칸 참조). 다른 앵커와 달리 템플릿에서
   //   공란이 아니라 법정 자구(`□ 면적별`)를 이고 있다 — 값 축이 상자 글자만 갈아 끼운다.
   //   ⚠ `J14 □ 용도별`은 배선하지 않는다: ERP 입력에 그 갈래가 없으므로 늘 미체크가 맞다.
-  { field: 'compartment_applies', sheet: FP_SHEET.F1_5_1, cell: 'B15', labelCell: 'B14' },
-  { field: 'compartment_area', sheet: FP_SHEET.F1_5_1, cell: 'C14', labelCell: 'A14' },
-  { field: 'compartment_floor', sheet: FP_SHEET.F1_5_1, cell: 'F14', labelCell: 'A14' },
+  { field: 'compartment_applies', sheet: FP_SHEET.F1_5_1, cell: 'H15', labelCell: 'H14' },
+  { field: 'compartment_area', sheet: FP_SHEET.F1_5_1, cell: 'P14', labelCell: 'A14' },
+  { field: 'compartment_floor', sheet: FP_SHEET.F1_5_1, cell: 'AE14', labelCell: 'A14' },
 
   // ── 서식 1.7.1 선임현황 ── 왼쪽 칸(B4)은 공백 한 칸뿐이라 **열 머리**를 라벨로 쓴다
-  { field: 'manager_name', sheet: FP_SHEET.F1_7_1, cell: 'C4', labelCell: 'C3' },
-  { field: 'manager_selected_date', sheet: FP_SHEET.F1_7_1, cell: 'D4', labelCell: 'D3' },
+  { field: 'manager_name', sheet: FP_SHEET.F1_7_1, cell: 'V4', labelCell: 'V3' },
+  { field: 'manager_selected_date', sheet: FP_SHEET.F1_7_1, cell: 'AE4', labelCell: 'AE3' },
 
   // ── 서식 1.8 업무대행 ── 원문이 `{{contract_date}} ~ ` 라 값 함수가 물결표까지 조립한다
-  { field: 'agency_contract_period', sheet: FP_SHEET.F1_8, cell: 'C10', labelCell: 'B10' },
+  { field: 'agency_contract_period', sheet: FP_SHEET.F1_8, cell: 'U10', labelCell: 'K10' },
 
   /* ── 서식 2.2 자위소방대 편성표 · 지휘통제팀 (2단계 · Q-1 자동 채움) ─────────────
    *  양식 씨앗이 이 두 줄에만 토큰을 두었다(`{{brig_l_*}}`·`{{brig_d_*}}`).
    *  ⚠ 소속 칸을 `customer_name` 필드로 잇지 않는다 — 그러면 대원이 없는 줄에도 건물명이
    *    찍혀 **이름 없는 소속**이 인쇄된다. 대원이 있을 때만 채우도록 별도 필드로 둔다.
    */
-  { field: 'brig_lead_org', sheet: FP_SHEET.F2_2, cell: 'C5', labelCell: 'B5' },
-  { field: 'brig_lead_name', sheet: FP_SHEET.F2_2, cell: 'D5', labelCell: 'B5' },
-  { field: 'brig_lead_duty', sheet: FP_SHEET.F2_2, cell: 'F5', labelCell: 'B5' },
-  { field: 'brig_lead_phone', sheet: FP_SHEET.F2_2, cell: 'H5', labelCell: 'B5' },
-  { field: 'brig_dep_org', sheet: FP_SHEET.F2_2, cell: 'C6', labelCell: 'B6' },
-  { field: 'brig_dep_name', sheet: FP_SHEET.F2_2, cell: 'D6', labelCell: 'B6' },
-  { field: 'brig_dep_duty', sheet: FP_SHEET.F2_2, cell: 'F6', labelCell: 'B6' },
-  { field: 'brig_dep_phone', sheet: FP_SHEET.F2_2, cell: 'H6', labelCell: 'B6' },
+  { field: 'brig_lead_org', sheet: FP_SHEET.F2_2, cell: 'N5', labelCell: 'F5' },
+  { field: 'brig_lead_name', sheet: FP_SHEET.F2_2, cell: 'X5', labelCell: 'F5' },
+  { field: 'brig_lead_duty', sheet: FP_SHEET.F2_2, cell: 'AG5', labelCell: 'F5' },
+  { field: 'brig_lead_phone', sheet: FP_SHEET.F2_2, cell: 'AZ5', labelCell: 'F5' },
+  { field: 'brig_dep_org', sheet: FP_SHEET.F2_2, cell: 'N6', labelCell: 'F6' },
+  { field: 'brig_dep_name', sheet: FP_SHEET.F2_2, cell: 'X6', labelCell: 'F6' },
+  { field: 'brig_dep_duty', sheet: FP_SHEET.F2_2, cell: 'AG6', labelCell: 'F6' },
+  { field: 'brig_dep_phone', sheet: FP_SHEET.F2_2, cell: 'AZ6', labelCell: 'F6' },
 
   // ── 서식 2.14 결과기록부 ── 별지 제13호서식의 「대상명」. 씨앗이 여기에도 고객명을 둔다
-  { field: 'customer_name', sheet: FP_SHEET.F2_14, cell: 'C6', labelCell: 'B6' },
+  { field: 'customer_name', sheet: FP_SHEET.F2_14, cell: 'R6', labelCell: 'J6' },
 ]
 
 /* ══════════════════ 2.2 편성표 「현장대응팀」 — 반복 행 ══════════════════
@@ -195,11 +195,14 @@ export const BRIG_FIRST_ROW = 9
 export const BRIG_ROWS = labelBlockRows(BRIG_SHEET, `A${BRIG_FIRST_ROW}`)
 
 /** 현장대응팀 행에서 배선한 열 — [엑셀 열, 필드 접미사] (라벨은 블록 머리 A9 하나를 함께 문다) */
+/* ⚠ 미세 격자 전환(소방계획서_47 Q-9)으로 열 문자가 옮겨졌다. 계산형 앵커는 행 번호와
+ *   조합해 주소를 만들므로 좌표 치환기가 못 옮긴다 — 사상표(`_47-colmap.mts`)로 손수 옮겼다.
+ *   옛 격자: C·D·F·H (8열) → 새 격자: N·X·AG·AZ (60열) */
 const BRIG_COLS: ReadonlyArray<readonly [string, string]> = [
-  ['C', 'org'],    // 소속
-  ['D', 'name'],   // 성명
-  ['F', 'duty'],   // 개별임무
-  ['H', 'phone'],  // 비상연락체계(개인)
+  ['N', 'org'],    // 소속        (옛 C)
+  ['X', 'name'],   // 성명        (옛 D)
+  ['AG', 'duty'],  // 개별임무     (옛 F)
+  ['AZ', 'phone'], // 비상연락체계(개인) (옛 H)
 ]
 
 const BRIG_SEEDS: Seed[] = Array.from({ length: BRIG_ROWS }, (_, i) =>
@@ -232,12 +235,14 @@ export const ZONE_FIRST_ROW = (() => {
 })()
 
 /** 구역 표에서 배선된 열 — [엑셀 열, 필드 접미사, 열 머리 라벨 셀] */
+/* ⚠ 미세 격자 전환(Q-9)으로 열 문자가 옮겨졌다 — 옛 B·C·D·J·K(12열) → 새 D·H·O·AL·AR(60열).
+ *   라벨 셀은 좌표 치환기가 이미 옮겼으므로 여기서도 같은 사상을 쓴다. */
 const ZONE_COLS: ReadonlyArray<readonly [string, string, string]> = [
-  ['B', 'floor', 'B6'],   // 층
-  ['C', 'usage', 'C4'],   // 명칭/용도
-  ['D', 'area', 'D4'],    // (바닥)면적
-  ['J', 'company', 'J4'], // 관리주체(입주사) — 2026-09-08 배선(씨앗에 토큰이 없던 열)
-  ['K', 'contact', 'K4'], // 담당자 (연락처)
+  ['D', 'floor', 'D6'],    // 층                 (옛 B / B6)
+  ['H', 'usage', 'H4'],    // 명칭/용도           (옛 C / C4)
+  ['O', 'area', 'O4'],     // (바닥)면적          (옛 D / D4)
+  ['AL', 'company', 'AL4'], // 관리주체(입주사)    (옛 J / J4)
+  ['AR', 'contact', 'AR4'], // 담당자 (연락처)     (옛 K / K4)
 ]
 
 /* ⚠ 이 표에서 **일부러 안 세운 열**(S4-2 §구멍의 나머지):

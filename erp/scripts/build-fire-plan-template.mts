@@ -35,6 +35,13 @@ const HWPX = resolve(HERE, '../../erp_goal/_Data/양식-placeholder.hwpx')
 const OUT_XLSX = resolve(HERE, '../templates/fire-plan-workbook.xlsx')
 const OUT_MANIFEST = resolve(HERE, '../src/lib/fire-plan-xlsx-manifest.json')
 
+/* ══════════════════════ §미세 격자 상수 (소방계획서_47 Q-9) ══════════════════════
+ *  모든 표를 같은 N열에 투영한다 — 자세한 근거는 아래 `projectCols` 앞 주석. */
+const FINE_N = 60
+/** 🎯 **인쇄 글자 크기를 정하는 값**. 가로 1쪽에 맞추면 폰트가 약분되고
+ *  `쪽폭 ÷ (열 수 × 열 폭)`만 남는다 — 실측 최적 1.8(2.2는 축소돼 작아지고, 1.1은 줄바꿈). */
+const FINE_COL_W = 1.8
+
 /* ══════════════════════ 제1장 시트 지도 ══════════════════════
  *
  *  S3-1은 **1 표 = 1 시트**다. 엑셀은 시트당 열 격자가 하나인데 이 양식의 colCnt는 1~30으로
@@ -499,7 +506,9 @@ for (const sec of SECTIONS) {
   if (!gridParts.length) { fail(`${sec.name}: 격자 표가 없다`); continue }
   const gridPart = gridParts[0]
   const grid = tables[gridPart.table]
-  const nCols = grid.colCnt
+  /* 미세 격자에서는 시트의 열 수가 표와 무관하게 **항상 FINE_N**이다 — 배너가 시트 폭을
+   *  덮어야 하므로 여기서 갈아 끼운다(Q-9). 표별 열 수는 `projectCols`가 흡수한다. */
+  const nCols = FINE_N
 
   /* 세로 병합(S3-1) — 격자가 둘 이상이면 **열 경계 벡터가 같아야만** 쌓는다.
    * 🚨 열 수만 같은지 보면 안 된다. 폭이 다른 5열 표 둘을 겹치면 아래 표의 칸이 위 표의
@@ -602,10 +611,15 @@ for (const sec of SECTIONS) {
     for (const h of rowHeights(g).map(hwpToPt)) heights.push(h)
     row += g.rowCnt
 
+    /* 미세 격자 투영 — 표마다 독립이라 열 수가 다른 표를 한 시트에 쌓을 수 있다(Q-9) */
+    const proj = projectCols(g)
     for (const c of g.cells) {
       const style = styleOf(fills.get(c.borderFillId))
       const r0 = top + c.row
-      const ref = cellRef(r0, c.col)
+      const c0 = proj[c.col]
+      const c1 = proj[Math.min(c.col + c.colSpan, g.colCnt)] - 1
+      if (c1 < c0) throw new Error(`격자에 자리가 없는 셀: 표#${gp.table} r${c.row}c${c.col} — 열 폭 배분을 확인하라`)
+      const ref = cellRef(r0, c0)
       // 🚨 표본 답 좌표는 **그 격자의 표 번호**로 찾는다 — 쌓인 시트에서 첫 격자 번호로만
       //   찾으면 둘째 이후 카드의 답이 조용히 안 지워진다
       const blank = blankAt.get(`${gp.table}:${c.row}:${c.col}`)
@@ -614,15 +628,16 @@ for (const sec of SECTIONS) {
       if (blank) { m.sampleBlanked[ref] = blank.why; blankHits++ }
       const text = processText(raw, ref, () => oracle.glyphFor(c))
 
-      cells.push({ row: r0, col: c.col, text, style })
+      cells.push({ row: r0, col: c0, text, style })
 
-      if (c.rowSpan > 1 || c.colSpan > 1) {
-        merges.push(`${cellRef(r0, c.col)}:${cellRef(r0 + c.rowSpan - 1, c.col + c.colSpan - 1)}`)
+      /* 미세 격자에서는 colSpan===1인 칸도 여러 열을 먹으므로 **가로도 병합 대상**이다 */
+      if (c.rowSpan > 1 || c1 > c0) {
+        merges.push(`${cellRef(r0, c0)}:${cellRef(r0 + c.rowSpan - 1, c1)}`)
         // ⚠ 덮인 칸도 만든다 — xlsx에서 병합 영역의 테두리는 구성 셀들의 바깥 변에서 나온다.
         //   안 만들면 병합 안쪽 테두리가 통째로 빠진다.
         for (let r = r0; r < r0 + c.rowSpan; r++) {
-          for (let k = c.col; k < c.col + c.colSpan; k++) {
-            if (r === r0 && k === c.col) continue
+          for (let k = c0; k <= c1; k++) {
+            if (r === r0 && k === c0) continue
             cells.push({ row: r, col: k, text: '', style })
           }
         }
@@ -650,7 +665,58 @@ for (const sec of SECTIONS) {
   m.rows = row
   m.merges = merges.length
   manifests.push(m)
-  sheets.push({ name: sec.name, colWidths: colWidthsOf(grid), rowHeights: heights, cells, merges })
+  /* 미세 격자는 열 폭이 **균일**하다 — 비율은 「병합이 몇 칸을 먹는가」가 담는다(Q-9).
+   *  ⚠ 폭 값이 인쇄 글자 크기를 정한다(FINE_COL_W 주석 참조) — 크게 하려면 이 값을 줄인다. */
+  sheets.push({
+    name: sec.name,
+    colWidths: Array.from({ length: FINE_N }, () => FINE_COL_W),
+    rowHeights: heights, cells, merges,
+  })
+}
+
+/* ══════════════════════ 미세 격자 (소방계획서_47 Q-9) ══════════════════════
+ *
+ *  종전에는 **hwp 열 = 엑셀 열**(성긴 격자)이었다. 그러면 열 수가 표마다 1~30으로 요동쳐
+ *  한 시트에 열 수가 다른 표를 못 섞고, 칸 비율이 열 개수만큼만 표현된다.
+ *  미세 격자는 모든 표를 **같은 N열**에 투영한다 — 비율이 1/N까지 표현되고, 열 수가 다른 표를
+ *  한 시트에 쌓을 수 있다.
+ *
+ *  ⚠ `columnEdges`는 `colSpan===1` 셀에서만 폭을 읽어 **병합 셀만 걸치는 열이 폭 0**이 된다.
+ *    그대로 투영하면 그 열만 차지하는 셀이 격자에서 자리를 잃고 **통째로 사라진다**.
+ *    → 병합 셀 폭에서 역산해 미지수 열에 배분한다(`solveWidths`).
+ *  🎯 인쇄 글자 크기를 정하는 것은 폰트가 아니라 **열 폭**이다 — 시트를 가로 1쪽에 맞추면
+ *    폰트가 약분되고 `쪽폭 ÷ (열 수 × 열 폭)`만 남는다. 실측 최적 1.8. */
+/* 상수는 파일 머리에 있다(아래 §미세 격자 상수) — 여기 두면 사용처보다 늦게 초기화돼 TDZ에 걸린다 */
+
+function solveWidths(t: HwpxTable): number[] {
+  const w = new Array<number>(t.colCnt).fill(0)
+  for (const c of t.cells) if (c.colSpan === 1 && c.widthHwp > 0) w[c.col] = Math.max(w[c.col], c.widthHwp)
+  const spans = t.cells.filter(c => c.colSpan > 1 && c.widthHwp > 0).sort((a, b) => a.colSpan - b.colSpan)
+  for (let p = 0; p < 4; p++) {
+    let changed = false
+    for (const c of spans) {
+      const cols = Array.from({ length: c.colSpan }, (_, k) => c.col + k).filter(i => i < t.colCnt)
+      const unknown = cols.filter(i => w[i] === 0)
+      if (!unknown.length) continue
+      const rest = c.widthHwp - cols.reduce((a, i) => a + w[i], 0)
+      if (rest <= 0) continue
+      const each = Math.round(rest / unknown.length)
+      for (const i of unknown) w[i] = each
+      changed = true
+    }
+    if (!changed) break
+  }
+  return w.map(x => (x > 0 ? x : 1))
+}
+/** hwp 열 경계 → 미세 격자 열 인덱스. 어떤 열도 0칸이 되어선 안 된다(셀이 사라진다) */
+function projectCols(t: HwpxTable): number[] {
+  const w = solveWidths(t)
+  const total = w.reduce((a, b) => a + b, 0) || 1
+  const map = [0]
+  let acc = 0
+  for (const x of w) { acc += x; map.push(Math.round((acc / total) * FINE_N)) }
+  for (let i = 1; i < map.length; i++) if (map[i] <= map[i - 1]) map[i] = map[i - 1] + 1
+  return map
 }
 
 function colWidthsOf(t: HwpxTable): number[] {
