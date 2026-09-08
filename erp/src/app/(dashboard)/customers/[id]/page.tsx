@@ -12,6 +12,7 @@ import { FireSafetyManagerPanel } from '@/components/customers/fire-safety-manag
 import { EditInspectionTypeClient } from '@/components/customers/edit-inspection-type-client'
 import { EditCustomerInfoClient } from '@/components/customers/edit-customer-info-client'
 import { FirePlanViewClient } from '@/components/customers/fire-plan-view'
+import { FirePlanXlsxButton } from '@/components/customers/fire-plan-xlsx-button'
 import { FirePlanInfoPanel } from '@/components/customers/fire-plan-info-panel'
 import { PlanTabView, type FormStatusMap } from '@/components/customers/plan-tab-view'
 import type { RevisionYearGroup } from '@/app/(dashboard)/customers/fire-plan-revision-actions'
@@ -807,6 +808,17 @@ export default async function CustomerDetailPage({
     : null
   const annexTab = (
     <div className="bg-surface rounded-xl border border-line shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-5">
+      {/* 소방계획서 엑셀 (소방계획서_47) — 별지서식 탭에서도 바로 받게 한다.
+          별지(9·10·11호)는 회차 문서이고 소방계획서는 고객 단위 문서라 성격이 다르지만,
+          실무 동선이 이 탭에 머무르므로 계획서 탭까지 건너가지 않게 여기에도 둔다.
+          로직은 계획서 탭과 **같은 한 벌**이다(fire-plan-xlsx-button.tsx) — 복제하지 않았다. */}
+      <div className="flex items-center gap-2 flex-wrap pb-3 mb-3 border-b border-brand-line-soft">
+        <FirePlanXlsxButton customerId={customer.id} label="소방계획서 엑셀"
+          title="이 고객의 현재 입력값으로 소방계획서 엑셀을 즉석 생성해 내려받습니다" />
+        <span className="text-form-xs text-ink-meta">
+          아래는 회차별 별지 서식 — 소방계획서는 고객 단위로 항상 현재 입력값에서 생성됩니다
+        </span>
+      </div>
       <PlanAnnexSection customerId={customer.id} initialData={annexInitial}
         canRegister={can(profile.role as UserRole, 'inspection_register')} />
     </div>

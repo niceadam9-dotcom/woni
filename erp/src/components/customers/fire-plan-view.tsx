@@ -1,8 +1,9 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { ChevronDown, ChevronRight, Download, FileSpreadsheet, Loader2, Printer } from 'lucide-react'
+import { ChevronDown, ChevronRight, Download, Loader2, Printer } from 'lucide-react'
 import { previewFirePlanHtmlAction } from '@/app/(dashboard)/customers/fire-plan-form-actions'
+import { FirePlanXlsxButton } from '@/components/customers/fire-plan-xlsx-button'
 
 /** 소방계획서 즉석 조회·인쇄 (2026-09-02 사용자 확정 — 보관함 폐지)
  *
@@ -19,7 +20,6 @@ export function FirePlanViewClient({ customerId }: { customerId: string }) {
     { open: false, html: '', missing: [], loading: false })
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
-  const [xlsxBusy, setXlsxBusy] = useState(false)
   const [isPending, startTransition] = useTransition()
 
   const currentYear = new Date().getFullYear()
@@ -41,43 +41,9 @@ export function FirePlanViewClient({ customerId }: { customerId: string }) {
     window.open(`/customers/${customerId}/fire-plan/pdf${download ? '?download=1' : ''}`, '_blank')
   }
 
-  /** 엑셀 받기 — 소방계획서_42 S6-3.
-   *
-   *  ⚠ **`window.open`으로는 응답 헤더를 못 읽는다.** 라우트가 `X-FirePlan-Missing`으로 보내는
-   *    고지(자가치유·구역 넘침·미입력)를 새 탭으로 열면 그대로 사라진다. 그래서 엑셀만
-   *    `fetch`+`Blob`으로 받아 고지를 화면에 띄운다. PDF 쪽 `openPdf()`는 고지 헤더가 없으므로
-   *    그대로 둔다(회귀 금지).
-   */
-  async function downloadXlsx() {
-    setError(''); setNotice(''); setXlsxBusy(true)
-    try {
-      const res = await fetch(`/customers/${customerId}/fire-plan/xlsx`)
-      if (!res.ok) {
-        // 라우트는 앵커 불일치·미착지를 500으로 끊는다 — 조용한 오적용 대신 사유를 보여 준다
-        const body = await res.json().catch(() => null) as { error?: string } | null
-        setError(body?.error ?? `엑셀 생성 실패 (HTTP ${res.status})`)
-        return
-      }
-      const raw = res.headers.get('X-FirePlan-Missing') ?? ''
-      if (raw) { try { setNotice(decodeURIComponent(raw)) } catch { setNotice(raw) } }
-
-      const blob = await res.blob()
-      // 파일명은 Content-Disposition의 RFC 5987 filename*에서 — 없으면 밋밋한 폴백
-      const cd = res.headers.get('Content-Disposition') ?? ''
-      const star = /filename\*=UTF-8''([^;]+)/i.exec(cd)
-      const name = star ? decodeURIComponent(star[1]) : `소방계획서_${currentYear}.xlsx`
-
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url; a.download = name
-      document.body.appendChild(a); a.click(); a.remove()
-      URL.revokeObjectURL(url)
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
-    } finally {
-      setXlsxBusy(false)
-    }
-  }
+  /* 엑셀 받기 로직은 `fire-plan-xlsx-button.tsx`로 뺐다 (소방계획서_47) — 별지서식 탭에도
+     같은 버튼이 필요해졌는데, 복제하면 한쪽만 고쳐지는 날이 온다. 고지·오류는 이 화면이
+     이미 자리를 갖고 있으므로 콜백으로 받아 아래 기존 자리에 그대로 그린다. */
 
   return (
     <div>
@@ -89,11 +55,7 @@ export function FirePlanViewClient({ customerId }: { customerId: string }) {
           현재 내용
         </button>
         {/* D-1 — 엑셀이 주 버튼. 받은 뒤 엑셀에서 직접 고쳐 최종본을 만드는 것이 실사용 흐름이다 */}
-        <button onClick={downloadXlsx} disabled={xlsxBusy}
-          title="현재 입력값으로 즉석 생성한 엑셀을 내려받습니다 — 받은 뒤 직접 고쳐 쓰실 수 있습니다"
-          className="inline-flex items-center gap-1 h-form-8 px-3 rounded-lg bg-brand hover:bg-brand-strong text-white text-form-sm font-medium transition-colors disabled:opacity-50">
-          {xlsxBusy ? <Loader2 className="size-3.5 animate-spin" /> : <FileSpreadsheet className="size-3.5" />} 엑셀 받기
-        </button>
+        <FirePlanXlsxButton customerId={customerId} onNotice={setNotice} onError={setError} />
         <button onClick={() => openPdf(false)}
           title="현재 입력값으로 즉석 생성해 새 탭에서 엽니다 — 뷰어에서 바로 인쇄하세요"
           className="inline-flex items-center gap-1 h-form-8 px-3 rounded-lg border border-brand-line text-form-sm text-brand hover:bg-brand-tint transition-colors">

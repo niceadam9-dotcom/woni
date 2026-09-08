@@ -15,14 +15,33 @@ import { dirname, resolve } from 'node:path'
 import JSZip from 'jszip'
 import { parseTables, columnEdges, rowHeights, hwpToPt, type HwpxTable } from '../src/lib/hwpx-table.ts'
 import { readSectionStream, walkRecords, extractTables, calibrateCellOffset, type Hwp5Table } from './hwp5-read.mts'
+import { scanCellColors } from './_gs-cellcolor.mts'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
-const OUT = 'F:\\AI\\sjfire\\_강순기_형식비교\\강순기_소방계획서_50쪽.xlsx'
+/* ⚠ 엑셀이 열고 있는 파일은 **쓰기가 막힌다**(node:fs EBUSY) — 그런데 빌드 로그는 앞부분이 초록이라
+ *   성공한 것처럼 보인다. 실패를 확실히 드러내고, 인자로 다른 이름을 줄 수 있게 한다. */
+const OUT = process.argv[2] ?? 'F:\\AI\\sjfire\\_강순기_형식비교\\강순기_소방계획서.xlsx'
 const N = 60                       // 미세 격자 열 수
+/** 본문 글자 크기(pt). **원본 hwp는 10pt가 87.3%**다 — 1차에 9pt로 낮췄던 것은 미세 격자 열이
+ *  좁아 넘칠까 봐였고, 원본보다 작게 만들 이유가 없었다. 인자로 바꿔 쪽수·모양을 잴 수 있다. */
+const BODY_PT = Number(process.argv[3] ?? 10)
+const BANNER_PT = Math.round(BODY_PT * 1.3)
+/** 격자 한 열의 폭(엑셀 '글자 수' 단위).
+ *
+ *  🎯**인쇄물의 글자 크기를 정하는 것은 폰트가 아니라 이 값이다.** 시트가 가로 1쪽에 맞춰
+ *  축소되므로  실제 글자 = 폰트pt × min(1, 쪽폭 ÷ 내용폭)  인데, 엑셀의 열 폭 단위가 **글자 수**라
+ *  내용폭도 폰트에 비례한다 → 폰트가 약분되고 **실제 글자 = 쪽폭 ÷ (열 수 × 열 폭)** 만 남는다.
+ *  실측으로도 14pt가 10pt보다 **작게** 인쇄됐다. 크게 하려면 이 값(또는 N)을 줄여야 한다.
+ *
+ *  실측 최적: **1.8** — 2.2는 내용이 쪽보다 넓어 축소되고(글자 작아짐), 1.1은 너무 좁아 표가
+ *  쪽 폭의 60%만 쓰고 칸마다 줄바꿈이 난다. 1.8이 쪽을 꽉 채우면서 축소가 없어 글자가 가장 크다. */
+const COL_W = Number(process.argv[4] ?? 1.8)
 
 /* ── 원본 ── */
 const zf = await JSZip.loadAsync(readFileSync(resolve(HERE, '../../erp_goal/_Data/양식-placeholder.hwpx')))
-const form = parseTables(await zf.file('Contents/section0.xml')!.async('string'))
+const sectionXml = await zf.file('Contents/section0.xml')!.async('string')
+const headerXml = await zf.file('Contents/header.xml')!.async('string')
+const form = parseTables(sectionXml)
 const { bytes } = readSectionStream(readFileSync(resolve(HERE, '../../erp_goal/_doc01/강순기건물 소방계획서 - 25. 01. 15 주윤종.hwp')))
 const rec = walkRecords(bytes)
 const cal = calibrateCellOffset(rec, form.map(t => t.cells.map(c => ({ row: c.row, col: c.col }))))
@@ -64,19 +83,91 @@ function projectCols(t: HwpxTable): number[] {
   for (let i = 1; i < map.length; i++) if (map[i] <= map[i - 1]) map[i] = map[i - 1] + 1
   return map
 }
-/** ⚠ 공백을 지우지 않는다 — 대조용 정규화를 출력에 쓰면 건물명·주소의 띄어쓰기가 통째로 사라진다 */
+/** 표기 정규화 — 납품 문서의 **줄임말**을 ERP의 정식 명칭으로 편다 (2026-09-08 사용자 지시).
+ *
+ *  강순기 문서는 용도를 「근생」으로 줄여 적었는데 ERP는 「제2종근린생활시설」로 갖고 있다.
+ *  같은 뜻이지만 문서에 찍히는 글자가 달라지므로, **ERP 표기를 정본으로** 삼아 편다.
+ *  ⚠ 「근린생활시설」이다 — 「그린생활시설」이라는 말은 없다(近隣: 가까운 이웃).
+ *  ⚠ 값이 아니라 **표기**만 바꾼다. 뜻이 달라지는 치환은 여기 넣지 말 것. */
+const TERM_MAP: Record<string, string> = {
+  '근생': '제2종근린생활시설',
+}
+const normTerm = (v: string) => TERM_MAP[v] ?? v
+
+/** 글자 다듬기.
+ *
+ *  ⚠ 공백을 지우지 않는다 — 대조용 정규화를 출력에 쓰면 건물명·주소의 띄어쓰기가 통째로 사라진다.
+ *  ⚠⚠ **연속 공백도 접지 않는다.** 서식 1.10.1의 「      년      월」처럼 **공백이 곧 입력 칸**인
+ *     자리가 있다. `\s+ → ' '`로 접었더니 「년 월」이 되어 적을 자리가 사라졌다(사용자 지적).
+ *     줄바꿈·탭만 공백으로 바꾸고 연속 공백은 **그대로 둔다**. */
+const tidy = (s: string) => s.replace(/[\t\r\n]+/g, ' ').replace(/ /g, ' ').replace(/^ +| +$/g, '')
 const textOf = (t: Hwp5Table) => {
   const m = new Map<string, string>()
-  for (const c of t.cells) if (c.row !== null && c.col !== null) m.set(`${c.row},${c.col}`, c.text.replace(/\s+/g, ' ').trim())
+  for (const c of t.cells) if (c.row !== null && c.col !== null) m.set(`${c.row},${c.col}`, normTerm(tidy(c.text)))
   return m
 }
+
+/** 단위 칸인가 — 「kW」「kVA」「대」「명」이나 「  년   월」처럼 **값을 왼쪽에 적는** 자리.
+ *  원본(서식 1.6)은 이런 칸을 **우측정렬**해 단위를 오른쪽 끝에 붙인다(사용자 지시). */
+const UNIT = '(?:kW|kVA|kva|㎡|㎥|m|대|명|원|회|개|일|년|월|층|人)'
+/** ⚠ **단위만 있는 빈 칸**이어야 한다. 「<숫자>㎡」처럼 **값이 이미 든 칸은 ERP 데이터**라
+ *  좌측정렬 규칙(아래 TOKEN_CELLS)으로 넘긴다 — 두 지시가 겹치는 자리라 여기서 갈라 둔다.
+ *  1차에 `\d[\d.,]*\s*단위`까지 우정렬로 잡아 연면적·건축면적이 오른쪽에 붙었다. */
+const isUnitCell = (v: string) => new RegExp(`^\\s*${UNIT}(?:\\s+(?:이상|이하))?\\s*$`).test(v)
+  || new RegExp(`^\\s{2,}${UNIT}`).test(v)            // 「   년   월」류 — 앞이 입력 공백
+  || /^\s*(매월|매년)\s{2,}/.test(v)                   // 「매월    일」·「매월  회 이상」
+/** 긴 문장은 가운데로 몰면 읽기 나쁘다 — 좌측정렬(사용자 지시: 「글자입력은 칸 안에서 좌측정렬」) */
+const isProse = (v: string) => v.replace(/\s/g, '').length >= 12
+
+/** ERP가 채우는 칸인가 — 양식 hwpx가 그 자리에 `{{토큰}}`을 둔 셀.
+ *
+ *  사용자 지시(2026-09-08): **「ERP에서 나온 데이터는 입력 시 좌측정렬」**.
+ *  값 길이가 제각각이라 가운데로 몰면 줄마다 시작점이 달라져 읽기 나쁘다.
+ *  ⚠ 강순기 문서의 **값**을 보고 판정하면 안 된다 — 값은 고객마다 달라진다.
+ *    자리는 **양식**이 정하므로 form 쪽 셀에서 토큰을 찾는다. */
+function tokenSlots(forms: HwpxTable[]): Set<string> {
+  const s = new Set<string>()
+  for (const [ti, t] of forms.entries()) {
+    for (const c of t.cells) if (/\{\{[^}]+\}\}/.test(c.text)) s.add(`${ti},${c.row},${c.col}`)
+  }
+  return s
+}
+const TOKEN_CELLS = tokenSlots(form)
+console.log(`ERP가 채우는 칸(토큰 자리) ${TOKEN_CELLS.size}개 → 좌측정렬`)
 
 /* ── OOXML ── */
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 const colName = (i: number) => { let s = '', n = i; do { s = String.fromCharCode(65 + (n % 26)) + s; n = Math.floor(n / 26) - 1 } while (n >= 0); return s }
 const addr = (r: number, c: number) => `${colName(c)}${r + 1}`
 
-const STYLE_BODY = 1, STYLE_BANNER = 2
+/* ── 글자색 (소방계획서_47 S6) ─────────────────────────────────────────────
+ *  「hwp에서 빨강 글씨는 엑셀에서도 빨강」(사용자 지시). 색은 양식 hwpx가 원천이다.
+ *  ⚠ **흰색(#FFFFFF)은 쓰지 않는다.** 원본에선 어두운 바탕 위 글자인데 우리는 그 바탕을
+ *    재현하지 않으므로, 그대로 넣으면 흰 종이에 흰 글씨가 되어 **사라진다**(40칸). */
+const cellColor = scanCellColors(headerXml, sectionXml).colors
+const DROP_COLORS = new Set(['FFFFFF'])
+const usedColors = [...new Set([...cellColor.values()])].filter(c => !DROP_COLORS.has(c))
+const PALETTE = ['000000', ...usedColors]                 // 0번은 기본 검정
+const colorIdxOf = new Map(PALETTE.map((c, i) => [c, i]))
+console.log(`글자색 ${usedColors.length}종 적용 (${usedColors.map(c => '#' + c).join(' ')}) · 흰색 ${[...cellColor.values()].filter(c => DROP_COLORS.has(c)).length}칸은 제외`)
+
+/* 정렬 5종 × 색 N종 → cellXfs. 색 0(검정)의 인덱스는 1~5로 종전과 같다(점검 스크립트 호환) */
+const A_CENTER = 0, A_BANNER = 1, A_CHECK = 2, A_RIGHT = 3, A_LEFT = 4
+const styleAt = (align: number, color: string | undefined) =>
+  1 + (colorIdxOf.get(color ?? '000000') ?? 0) * 5 + align
+const STYLE_BODY = styleAt(A_CENTER, undefined), STYLE_BANNER = styleAt(A_BANNER, undefined)
+const STYLE_CHECK = styleAt(A_CHECK, undefined), STYLE_RIGHT = styleAt(A_RIGHT, undefined)
+const STYLE_LEFT = styleAt(A_LEFT, undefined)
+
+/** 체크 칸인가 — 원본 서식(서식 1.4)은 이런 칸을 **좌정렬**한다. 가운데 정렬하면 상자가 글자
+ *  덩어리와 함께 떠서 목록을 눈으로 훑기 어렵다.
+ *
+ *  ⚠ 글리프가 **세 종류**다(실측): `□` U+25A1 406개 · `☐` U+2610 174개 · `■` U+25A0 66개.
+ *  눈으로는 구별되지 않아서, `[☐■]`만 쓴 1차 정규식이 646개 중 **240개만** 잡았다 —
+ *  좌정렬이 절반만 걸려 있었고 화면으로는 "왜 얘만 안 움직이지"로 보였다.
+ *  글리프 목록을 손으로 적을 땐 **실측으로 세고 적을 것**. */
+const CHECK_GLYPHS = '□☐■▣☑☒✓✔'   // □ ☐ ■ ▣ ☑ ☒ ✓ ✔
+const isCheckText = (v: string) => new RegExp(`^\\s*[${CHECK_GLYPHS}]`).test(v)
 
 function buildSheet(ms: MSheet) {
   /* 표별 시작 행.
@@ -133,7 +224,19 @@ function buildSheet(ms: MSheet) {
       if (c1 < c0) { dropped.push(`표#${ti} r${c.row}c${c.col}="${(txt.get(`${c.row},${c.col}`) ?? '').slice(0, 12)}"`); continue }
       const v = txt.get(`${c.row},${c.col}`) ?? ''
       if (v) wroteText.add(v)
-      const st = isBanner ? STYLE_BANNER : STYLE_BODY
+      /* 정렬 판정 순서가 중요하다.
+       *  ① 머리띠 ② 체크(「□ 1대」처럼 단위로도 읽히는 글자가 있어 단위보다 먼저)
+       *  ③ 단위 칸(「  년   월」 — 값을 왼쪽에 적으므로 우정렬, 사용자 지시)
+       *  ④ **ERP가 채우는 칸 → 좌정렬**(사용자 지시) ⑤ 긴 문장 → 좌 ⑥ 나머지 라벨 → 가운데 */
+      const align = isBanner ? A_BANNER
+        : isCheckText(v) ? A_CHECK
+          : isUnitCell(v) ? A_RIGHT
+            : TOKEN_CELLS.has(`${ti},${c.row},${c.col}`) ? A_LEFT
+              : isProse(v) ? A_LEFT
+                : A_CENTER
+      /* 색은 **양식**이 정한다(고객 값과 무관) — 흰색은 위에서 걸러 기본 검정으로 떨어진다 */
+      const col = cellColor.get(`${ti},${c.row},${c.col}`)
+      const st = styleAt(align, col && !DROP_COLORS.has(col) ? col : undefined)
       if (c1 > c0 || r1 > r0) merges.push(`<mergeCell ref="${addr(r0, c0)}:${addr(r1, c1)}"/>`)
       put(r0, c0, `<c r="${addr(r0, c0)}" s="${st}"${v ? ` t="inlineStr"><is><t xml:space="preserve">${esc(v)}</t></is></c>` : '/>'}`)
       for (let r = r0; r <= r1; r++) for (let cc = c0; cc <= c1; cc++) {
@@ -157,20 +260,36 @@ function buildSheet(ms: MSheet) {
 
   /* 넓은 표는 가로로 — 세로로 1쪽에 욱여넣으면 글자가 읽을 수 없이 작아진다 */
   const wide = ms.cols >= 14
+  /* ⭐ 세로 압축은 **행이 많을 때만** 푼다 (2026-09-08 사용자 확정: "글자가 깨지면 50쪽을 넘어도
+   *  된다 · 1~5장 넘겨도 된다"). 가로 폭은 언제나 1쪽에 맞추되(fitToWidth=1), 긴 시트는
+   *  fitToHeight=0으로 **자연 크기로 흘려보낸다** — 억지로 한 쪽에 넣으면 글자가 뭉갠다.
+   *  임계는 세로 A4에 무리 없이 들어가는 행 수에서 잡았다(가로는 더 낮다). */
+  /* ⭐ 「글자가 뭉개지면 안 된다」(2026-09-08 사용자 확정)가 쪽수보다 앞선다.
+   *  행 수로 어림잡지 않고 **실제 축소율을 계산**한다 — 행 높이 합과 A4 인쇄 영역을 비교해,
+   *  MIN_SCALE 아래로 줄어들어야만 1쪽 강제를 풀고 자연 크기로 흘린다.
+   *  이렇게 하면 '조금만 줄이면 되는' 시트는 한 쪽에 남아 쪽수가 덜 늘어난다. */
+  const rowCount = maxRow + 1
+  const contentPt = [...heightAt.entries()].reduce((a, [, h]) => a + h, 0)
+    + Math.max(0, rowCount - heightAt.size) * 13.5      // 높이 미지정 행은 기본값
+  const A4_LONG = 842, A4_SHORT = 595, MARGIN_PT = 0.45 * 72 * 2
+  const pagePt = (wide ? A4_SHORT : A4_LONG) - MARGIN_PT
+  const scaleNeeded = contentPt > 0 ? pagePt / contentPt : 1
+  const MIN_SCALE = 0.78                                // 이보다 더 줄면 9pt 글자가 7pt 밑으로 간다
+  const fitHeight = scaleNeeded < MIN_SCALE ? 0 : 1
   const xml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
 <sheetPr><pageSetUpPr fitToPage="1"/></sheetPr>
 <dimension ref="A1:${addr(maxRow, N - 1)}"/>
 <sheetViews><sheetView showGridLines="0" workbookViewId="0"/></sheetViews>
 <sheetFormatPr defaultRowHeight="13.5"/>
-<cols><col min="1" max="${N}" width="2.2" customWidth="1"/></cols>
+<cols><col min="1" max="${N}" width="${COL_W}" customWidth="1"/></cols>
 <sheetData>${rowsXml}</sheetData>
 ${merges.length ? `<mergeCells count="${merges.length}">${merges.join('')}</mergeCells>` : ''}
 <printOptions horizontalCentered="1"/>
 <pageMargins left="0.35" right="0.35" top="0.45" bottom="0.45" header="0.2" footer="0.2"/>
-<pageSetup paperSize="9" orientation="${wide ? 'landscape' : 'portrait'}" scale="100" fitToWidth="1" fitToHeight="1"/>
+<pageSetup paperSize="9" orientation="${wide ? 'landscape' : 'portrait'}" scale="100" fitToWidth="1" fitToHeight="${fitHeight}"/>
 </worksheet>`
-  return { name: ms.name, xml, wide }
+  return { name: ms.name, xml, wide, rowCount, fitHeight }
 }
 
 /* ── 시트 이름: 엑셀 제한(31자·중복·금지문자) ── */
@@ -183,7 +302,7 @@ const safeName = (raw: string) => {
   return n
 }
 
-const built: { name: string; xml: string; wide: boolean }[] = []
+const built: { name: string; xml: string; wide: boolean; rowCount: number; fitHeight: number }[] = []
 const failed: string[] = []
 for (const ms of manifest.sheets) {
   try {
@@ -193,20 +312,41 @@ for (const ms of manifest.sheets) {
 }
 console.log(`\n시트 ${built.length}/${manifest.sheets.length} · 실패 ${failed.length}${failed.length ? '\n  ' + failed.join('\n  ') : ''}`)
 console.log(`가로 방향 ${built.filter(b => b.wide).length}장 · 세로 ${built.filter(b => !b.wide).length}장`)
+const flow = built.filter(b => b.fitHeight === 0)
+console.log(`세로 압축을 푼 시트 ${flow.length}장 (글자 안 뭉개게 자연 크기로 흘린다) — ${flow.map(b => `${b.name}(${b.rowCount}행)`).join(', ') || '없음'}`)
 if (built.length !== manifest.sheets.length) { console.log('전건이 아니면 쓰지 않는다'); process.exit(1) }
 
 /* ── 조립 ── */
+/* ── styles.xml 생성 — 색 × 정렬 조합만큼 ──
+ *  폰트: 색마다 (본문, 머리띠 굵게) 두 벌. 정렬: 가운데·머리띠·체크(좌)·단위(우)·좌 다섯.
+ *  색 0(검정)의 xf 인덱스가 1~5로 종전과 같아 점검 스크립트(`_47-inspect.mts` s="3")가 그대로 산다. */
+const ALIGN_XML = [
+  '<alignment horizontal="center" vertical="center" wrapText="1"/>',           // A_CENTER
+  '<alignment horizontal="center" vertical="center" wrapText="1"/>',           // A_BANNER
+  '<alignment horizontal="left" vertical="center" wrapText="1" indent="1"/>',  // A_CHECK
+  '<alignment horizontal="right" vertical="center" wrapText="1" indent="1"/>', // A_RIGHT
+  '<alignment horizontal="left" vertical="center" wrapText="1" indent="1"/>',  // A_LEFT
+]
+const fontsXml = PALETTE.flatMap(c => [
+  `<font><sz val="${BODY_PT}"/><color rgb="FF${c}"/><name val="맑은 고딕"/></font>`,
+  `<font><sz val="${BANNER_PT}"/><b/><color rgb="FF${c}"/><name val="맑은 고딕"/></font>`,
+]).join('')
+const xfsXml = PALETTE.flatMap((_, ci) => ALIGN_XML.map((al, ai) => {
+  const fontId = ci * 2 + (ai === A_BANNER ? 1 : 0)
+  const fill = ai === A_BANNER ? ' fillId="2" applyFill="1"' : ' fillId="0"'
+  return `<xf numFmtId="0" fontId="${fontId}"${fill} borderId="1" xfId="0" applyFont="1" applyBorder="1" applyAlignment="1">${al}</xf>`
+})).join('')
+
 const STYLES = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
-<fonts count="2"><font><sz val="9"/><name val="맑은 고딕"/></font><font><sz val="12"/><b/><name val="맑은 고딕"/></font></fonts>
+<fonts count="${PALETTE.length * 2}">${fontsXml}</fonts>
 <fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FFF2F2F2"/><bgColor indexed="64"/></patternFill></fill></fills>
 <borders count="2"><border><left/><right/><top/><bottom/><diagonal/></border>
 <border><left style="thin"><color rgb="FF000000"/></left><right style="thin"><color rgb="FF000000"/></right><top style="thin"><color rgb="FF000000"/></top><bottom style="thin"><color rgb="FF000000"/></bottom><diagonal/></border></borders>
 <cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
-<cellXfs count="3">
+<cellXfs count="${1 + PALETTE.length * 5}">
 <xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>
-<xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>
-<xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>
+${xfsXml}
 </cellXfs><cellStyles count="1"><cellStyle name="표준" xfId="0" builtinId="0"/></cellStyles></styleSheet>`
 
 const zip = new JSZip()
