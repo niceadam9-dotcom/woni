@@ -480,7 +480,7 @@ interface SheetManifest {
    *  (2.4 개별임무카드 6장)에서 원본 표 좌표 ↔ 시트 좌표를 잇는 유일한 사실.
    *  🚨 이걸 안 실으면 대조기가 기하를 **추측**한다 — 실제로 강순기 대조가 카드 6장을 전부
    *  첫 장 자리로 읽어 멀쩡한 서식을 '자구 불일치 26건'으로 신고했다(2026-09-08). */
-  gridTops: { table: number; top: number; rows: number }[]
+  gridTops: { table: number; top: number; rows: number; cols: number[] }[]
 }
 
 function styleOf(bf: HwpxBorderFill | undefined): CellStyle {
@@ -606,13 +606,18 @@ for (const sec of SECTIONS) {
   for (const gp of gridParts) {
     const g = tables[gp.table]
     const top = row
-    m.gridTops.push({ table: gp.table, top, rows: g.rowCnt })
     const oracle = makeBoxOracle(g)
     for (const h of rowHeights(g).map(hwpToPt)) heights.push(h)
     row += g.rowCnt
 
     /* 미세 격자 투영 — 표마다 독립이라 열 수가 다른 표를 한 시트에 쌓을 수 있다(Q-9) */
     const proj = projectCols(g)
+    /* 🚨 **행뿐 아니라 열도 발행한다.** 종전엔 `top`만 실어 소비자가 `시트 열 == 표 열`이라고
+     *   추측했고, 미세 격자로 옮긴 뒤 그 추측이 깨져 강순기 대조 일치율이 95.9% → 24.8%로
+     *   무너졌다(멀쩡한 산출물을 '자구 불일치 37건'으로 신고). F-20을 행 축에서 배우고도
+     *   열 축에 같은 구멍을 남겨 둔 것이다 — 좌표를 잇는 사실은 **전부** 여기서 나가야 한다.
+     *   `cols[i]` = 표의 i번째 열이 시작하는 시트 열(0-based), 길이는 colCnt+1(마지막은 끝 경계). */
+    m.gridTops.push({ table: gp.table, top, rows: g.rowCnt, cols: proj })
     for (const c of g.cells) {
       const style = styleOf(fills.get(c.borderFillId))
       const r0 = top + c.row

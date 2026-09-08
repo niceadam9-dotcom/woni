@@ -354,8 +354,23 @@ console.log('\n[7] 값 맵 완결성 · 표기 규약')
   // 상자 글자 — 원본이 두 글자를 섞어 쓰므로 셀마다 다를 수 있다(F-6)
   const glyphs = new Set(FIRE_PLAN_MANIFEST.sheets.flatMap(s => Object.values(s.boxes)))
   check('빈 상자 어휘가 원본대로 둘 다 실재(F-6)', glyphs.has('□') && glyphs.has('☐'), [...glyphs].join(''))
-  check('boxGlyphAt이 셀별 글자를 준다', boxGlyphAt('1.4 소방시설 현황', 'B4') === '□', boxGlyphAt('1.4 소방시설 현황', 'B4'))
-  check('boxGlyphAt이 ☐ 시트도 준다', boxGlyphAt('1.1 건축물 일반현황', 'F12') === '☐', boxGlyphAt('1.1 건축물 일반현황', 'F12'))
+  {
+    /* 원본이 두 어휘를 섞어 쓰므로(F-6) `boxGlyphAt`은 **셀마다** 원본 글자를 돌려줘야 한다.
+     * ⚠ 좌표를 적지 않는다 — 종전엔 `('1.1','F12')`를 박아 두었다가 미세 격자 전환 때 그 칸이
+     *   상자칸이 아니게 되어 붉어졌다. manifest에서 **각 글자를 쓰는 칸을 찾아** 되묻는다. */
+    const sample = (glyph: string) => {
+      for (const s of FIRE_PLAN_MANIFEST.sheets) {
+        for (const [ref, g] of Object.entries(s.boxes)) if (g === glyph) return { sheet: s.name, ref }
+      }
+      return null
+    }
+    for (const glyph of ['□', '☐']) {
+      const hit = sample(glyph)
+      check(`boxGlyphAt이 '${glyph}' 칸의 원본 글자를 준다`,
+        !!hit && boxGlyphAt(hit.sheet, hit.ref) === glyph,
+        hit ? `${hit.sheet}!${hit.ref}` : '그 글자를 쓰는 칸이 없다')
+    }
+  }
 
   // 라벨 접근기는 없는 좌표에 throw 해야 한다 — 조용한 폴백이면 오타가 통과한다
   let threw = false
@@ -373,80 +388,103 @@ console.log('\n[7] 값 맵 완결성 · 표기 규약')
   const wb2 = XLSX.read(inj.bytes, { cellStyles: false })
   const at = (s: string, c: string) => String((wb2.Sheets[s]?.[c] as XLSX.CellObject | undefined)?.v ?? '')
   check('표지에 고객명이 조립돼 들어갔다', at('표지', 'A3').includes('가상건물') && at('표지', 'A3').includes('소방계획서'), at('표지', 'A3'))
-  check('1.1 명칭 착지', at('1.1 건축물 일반현황', 'C4') === '가상건물')
-  check('1.1 사용승인일이 사람이 읽는 날짜', at('1.1 건축물 일반현황', 'J9') === '2019. 3. 7.', at('1.1 건축물 일반현황', 'J9'))
+  /* 🚨 **검사에 좌표를 베껴 적지 않는다.**
+   *
+   *  종전에는 `at(F11,'C4')`처럼 절대 좌표를 적었다. 미세 격자 전환(47 Q-9)으로 앵커가 통째로
+   *  옮겨가자 이 검사들이 **한꺼번에 11건 붉어졌다** — 제품은 멀쩡한데 검사만 낡은 것이었다.
+   *  이제 **필드 이름으로 앵커에게 물어** 그 칸을 본다. 격자가 또 바뀌어도 따라간다.
+   *
+   *  ⚠ 그 대신 이 검사는 **좌표가 옳은지는 못 본다** — 앵커가 정답을 들고 있으니 항진명제다.
+   *    좌표 축은 **S7-3 강순기 대조**가 hwpx 원문과 `gridTops`로 독립 판정한다(자구 불일치 0).
+   *    여기서 보는 것은 '값이 앵커 칸에 **실제로 들어갔는가**'다 — 두 축을 나눠 둔다. */
+  const anchorOf = (field: string, sheet?: string) => {
+    const a = FIRE_PLAN_ANCHORS.find(x => x.field === field && (!sheet || x.sheet === sheet))
+    if (!a) throw new Error(`앵커에 field='${field}'${sheet ? ` (${sheet})` : ''} 가 없다 — 검사가 낡았다`)
+    return a
+  }
+  const atF = (field: string, sheet?: string) => { const a = anchorOf(field, sheet); return at(a.sheet, a.cell) }
+  const labelF = (field: string) => { const a = anchorOf(field); return labelAt(a.sheet, a.cell) }
+
+  const F11 = FP_SHEET.F1_1
+  check('1.1 명칭 착지', atF('customer_name', F11) === '가상건물', atF('customer_name', F11))
+  check('1.1 사용승인일이 사람이 읽는 날짜', atF('use_approval_date') === '2019. 3. 7.', atF('use_approval_date'))
   // 🚨 R-1 — 씨앗대로였다면 여기에 **대표자 전화**가 들어갔다
   check('1.1 소방안전관리자 연락처 = 관리자 전화(대표자 아님)',
-    at('1.1 건축물 일반현황', 'I7') === '010-0000-0002' && at('1.1 건축물 일반현황', 'E7') === '010-0000-0001',
-    `관리자칸='${at('1.1 건축물 일반현황', 'I7')}' 대표칸='${at('1.1 건축물 일반현황', 'E7')}'`)
-  check('1.2.1 구역 첫 행 착지', at(ZONE_SHEET, `B${ZONE_FIRST_ROW}`) === '1층', at(ZONE_SHEET, `B${ZONE_FIRST_ROW}`))
-  check('1.2.1 구역 마지막 행 착지', at(ZONE_SHEET, `B${ZONE_FIRST_ROW + ZONE_ROWS - 1}`) === `${ZONE_ROWS}층`)
-  check('1.3 관할소방서 착지', at('1.3 소방차 진입경로', 'C5') === '어딘가소방서')
-  check('1.2.1 관리주체(입주사) 착지', at(ZONE_SHEET, `J${ZONE_FIRST_ROW}`) === '입주사1',
-    at(ZONE_SHEET, `J${ZONE_FIRST_ROW}`))
+    atF('manager_phone') === '010-0000-0002' && atF('owner_phone') === '010-0000-0001',
+    `관리자칸='${atF('manager_phone')}' 대표칸='${atF('owner_phone')}'`)
+  check('1.2.1 구역 첫 행 착지', atF('zone_0_floor') === '1층', atF('zone_0_floor'))
+  check('1.2.1 구역 마지막 행 착지', atF(`zone_${ZONE_ROWS - 1}_floor`) === `${ZONE_ROWS}층`)
+  check('1.3 관할소방서 착지', atF('fire_station') === '어딘가소방서', atF('fire_station'))
+  check('1.2.1 관리주체(입주사) 착지', atF('zone_0_company') === '입주사1', atF('zone_0_company'))
 
   /* ── 1.1 §시설현황·운영현황(2026-09-08 배선) ────────────────────────────────
    *  🚨 **켜짐만 보면 안 된다.** '전부 체크하는 구현'도 켜짐 검사는 통과한다. 그래서 칸마다
    *    데이터가 있는 짝(켜짐)과 없는 짝(꺼짐)을 나란히 요구한다. 자구 보존도 함께 본다 —
    *    상자만 갈아 끼워야지 법정 문구를 덮어쓰면 안 된다. */
-  const F11 = FP_SHEET.F1_1
-  check('1.1 대상물 급수 = 값+자구', at(F11, 'D9') === '2급', at(F11, 'D9'))
-  check('1.1 건축면적 = 값+단위', at(F11, 'G10') === '567.8㎡', at(F11, 'G10'))
-  check('1.1 승강기 승용·비상용 체크', at(F11, 'C12').includes('■') && at(F11, 'F12').includes('■'),
-    `${at(F11, 'C12')} / ${at(F11, 'F12')}`)
-  check('1.1 승강기 피난용은 미체크(데이터 없음)', !at(F11, 'H12').includes('■'), at(F11, 'H12'))
-  check('1.1 승강기 법정 자구 보존', at(F11, 'C12').replace('■', '☐') === labelAt(F11, 'C12'), at(F11, 'C12'))
-  check('1.1 계단 직통만 체크', at(F11, 'G15').includes('■') && !at(F11, 'C15').includes('■'),
-    `직통='${at(F11, 'G15')}' 특별피난='${at(F11, 'C15')}'`)
+  check('1.1 대상물 급수 = 값+자구', atF('grade') === '2급', atF('grade'))
+  check('1.1 건축면적 = 값+단위', atF('building_area') === '567.8㎡', atF('building_area'))
+  check('1.1 승강기 승용·비상용 체크',
+    atF('elevator_passenger').includes('■') && atF('elevator_emergency').includes('■'),
+    `${atF('elevator_passenger')} / ${atF('elevator_emergency')}`)
+  check('1.1 승강기 피난용은 미체크(데이터 없음)', !atF('elevator_evac').includes('■'), atF('elevator_evac'))
+  check('1.1 승강기 법정 자구 보존',
+    atF('elevator_passenger').replace('■', '☐') === labelF('elevator_passenger'), atF('elevator_passenger'))
+  check('1.1 계단 직통만 체크',
+    atF('stair_direct').includes('■') && !atF('stair_special').includes('■'),
+    `직통='${atF('stair_direct')}' 특별피난='${atF('stair_special')}'`)
   check('1.1 운영시간 평일 체크 + 시각 착지',
-    at(F11, 'C17').includes('■') && at(F11, 'F17') === '09:00~18:00',
-    `${at(F11, 'C17')} / ${at(F11, 'F17')}`)
-  check('1.1 운영시간 휴일은 미체크(데이터 없음)', !at(F11, 'G17').includes('■'), at(F11, 'G17'))
-  // ⚠ 주간/야간은 배선하지 않았다 — ERP가 평일·휴일에 한 값만 저장해 어느 쪽인지 모른다
-  check('1.1 주간/야간 상자는 손대지 않는다', !at(F11, 'D17').includes('■') && !at(F11, 'D18').includes('■'),
-    `${at(F11, 'D17')} / ${at(F11, 'D18')}`)
-  check('1.1 근무인원 체크 + 값', at(F11, 'C19').includes('■') && at(F11, 'D19') === '10 명',
-    `${at(F11, 'C19')} / ${at(F11, 'D19')}`)
+    atF('ophours_weekday').includes('■') && atF('ophours_weekday_time') === '09:00~18:00',
+    `${atF('ophours_weekday')} / ${atF('ophours_weekday_time')}`)
+  check('1.1 운영시간 휴일은 미체크(데이터 없음)', !atF('ophours_holiday').includes('■'), atF('ophours_holiday'))
+  check('1.1 근무인원 체크 + 값',
+    atF('headcount_worker_on').includes('■') && atF('headcount_worker') === '10 명',
+    `${atF('headcount_worker_on')} / ${atF('headcount_worker')}`)
   check('1.1 거주인원은 미체크·빈 단위(데이터 없음)',
-    !at(F11, 'F19').includes('■') && at(F11, 'G19').trim() === '명', `${at(F11, 'F19')} / '${at(F11, 'G19')}'`)
+    !atF('headcount_resident_on').includes('■') && atF('headcount_resident').trim() === '명',
+    `${atF('headcount_resident_on')} / '${atF('headcount_resident')}'`)
   // 🎯 이 칸에 표본 고객의 답 `100명`이 박혀 있었다 — 값이 덮어쓰는지, 잔재가 없는지 둘 다 본다
   check('1.1 최대수용인원 = 우리 값(표본 100명이 아니다)',
-    at(F11, 'J19') === '150명' && !at(F11, 'J19').includes('100'), at(F11, 'J19'))
+    atF('headcount_max') === '150명' && !atF('headcount_max').includes('100'), atF('headcount_max'))
   check('1.1 업무대행 해당(대행업체 있음)',
-    at(F11, 'C21').includes('■') && !at(F11, 'G21').includes('■'), `${at(F11, 'C21')} / ${at(F11, 'G21')}`)
+    atF('agency_yes').includes('■') && !atF('agency_no').includes('■'), `${atF('agency_yes')} / ${atF('agency_no')}`)
   check('1.1 다중이용업 해당',
-    at(F11, 'C23').includes('■') && !at(F11, 'G23').includes('■'), `${at(F11, 'C23')} / ${at(F11, 'G23')}`)
+    atF('multiuse_yes').includes('■') && !atF('multiuse_no').includes('■'), `${atF('multiuse_yes')} / ${atF('multiuse_no')}`)
   check('1.1 화재보험 가입',
-    at(F11, 'C24').includes('■') && !at(F11, 'G24').includes('■'), `${at(F11, 'C24')} / ${at(F11, 'G24')}`)
-  // ⚠ 데이터가 없어 일부러 안 세운 칸 — 주차장·공공기관·권원분리는 늘 빈 상자여야 한다
-  check('1.1 미배선 칸(주차장·공공기관·권원분리)은 손대지 않는다',
-    !at(F11, 'C13').includes('■') && !at(F11, 'C20').includes('■') && !at(F11, 'C22').includes('■'),
-    `${at(F11, 'C13')} / ${at(F11, 'C20')} / ${at(F11, 'C22')}`)
+    atF('insurance_yes').includes('■') && !atF('insurance_no').includes('■'), `${atF('insurance_yes')} / ${atF('insurance_no')}`)
+  {
+    /* ⚠ 데이터가 없어 **일부러 안 세운 칸**(주차장·공공기관·권원분리·주간/야간)은 앵커가 없어
+     *   필드로 물을 수 없다. 좌표를 적는 대신 **시트 전체의 ■ 개수**로 묻는다 — 배선하지 않은
+     *   상자가 하나라도 켜지면 수가 늘어난다. 좌표에 매이지 않으면서 범위는 더 넓다.
+     *   기대값 9 = 승용·비상용·직통계단·평일·근무인원·최대수용인원·업무대행해당·다중이용업해당·가입 */
+    const ws = wb2.Sheets[F11] ?? {}
+    const marks = Object.keys(ws).filter(k => !k.startsWith('!'))
+      .filter(k => String((ws[k] as XLSX.CellObject).v ?? '').includes('■')).length
+    check('1.1 체크된 상자는 우리가 켠 9개뿐(미배선 칸은 손대지 않는다)', marks === 9, `${marks}개`)
+  }
 
   /* ── 제2장 서식 2.2 자위소방대 편성표 (2단계 · Q-1) ────────────────────────────
    *  🚨 이 검사가 없으면 **배선이 통째로 죽어 있어도 초록**이다 — 값 맵 완결성은 `''`도
    *    '있다'로 세기 때문이다(실제로 브리게이드를 배선한 첫 실행이 그랬다). */
-  const F22 = FP_SHEET.F2_2
   const digits = (s: string) => s.replace(/\D/g, '')
   check('2.2 대장 착지(성명·임무·전화)',
-    at(F22, 'D5') === '김대장' && at(F22, 'F5') === '관리구역 상황통제' && digits(at(F22, 'H5')) === '01022223333',
-    `${at(F22, 'D5')} / ${at(F22, 'F5')} / ${at(F22, 'H5')}`)
-  check('2.2 부대장 착지', at(F22, 'D6') === '박부대장' && digits(at(F22, 'H6')) === '01044445555',
-    `${at(F22, 'D6')} / ${at(F22, 'H6')}`)
+    atF('brig_lead_name') === '김대장' && atF('brig_lead_duty') === '관리구역 상황통제'
+    && digits(atF('brig_lead_phone')) === '01022223333',
+    `${atF('brig_lead_name')} / ${atF('brig_lead_duty')} / ${atF('brig_lead_phone')}`)
+  check('2.2 부대장 착지',
+    atF('brig_dep_name') === '박부대장' && digits(atF('brig_dep_phone')) === '01044445555',
+    `${atF('brig_dep_name')} / ${atF('brig_dep_phone')}`)
   // 🎯 대장·부대장이 현장대응팀으로도 새어 들어가면 같은 사람이 두 줄에 인쇄된다
   check('2.2 대장·부대장은 현장대응팀에 중복되지 않는다',
-    at(F22, `D${BRIG_FIRST_ROW}`) === '대원1' && at(F22, `D${BRIG_FIRST_ROW}`) !== '김대장',
-    at(F22, `D${BRIG_FIRST_ROW}`))
+    atF('brig_f0_name') === '대원1' && atF('brig_f0_name') !== '김대장', atF('brig_f0_name'))
   check('2.2 현장대응팀 마지막 행까지 채운다',
-    at(F22, `D${BRIG_FIRST_ROW + BRIG_ROWS - 1}`) === `대원${BRIG_ROWS}`,
-    at(F22, `D${BRIG_FIRST_ROW + BRIG_ROWS - 1}`))
-  check('2.2 소속이 대원 있는 줄에만 찍힌다', at(F22, `C${BRIG_FIRST_ROW}`) === '가상건물',
-    at(F22, `C${BRIG_FIRST_ROW}`))
+    atF(`brig_f${BRIG_ROWS - 1}_name`) === `대원${BRIG_ROWS}`, atF(`brig_f${BRIG_ROWS - 1}_name`))
+  check('2.2 소속이 대원 있는 줄에만 찍힌다', atF('brig_f0_org') === '가상건물', atF('brig_f0_org'))
   check('2.2 넘친 대원을 센다(잘렸다는 사실을 드러낸다)', brigadeRowOverflow(fixture) === 1,
     `${brigadeRowOverflow(fixture)}명`)
   check('2.2 넘친 대원이 표에 새어 들어가지 않는다', !values.has(`brig_f${BRIG_ROWS}_name`))
   check('2.2 행 예산이 manifest 라벨 블록에서 파생됐다', BRIG_ROWS === 14, `${BRIG_ROWS}행`)
-  check('2.14 결과기록부 대상명 착지', at(FP_SHEET.F2_14, 'C6') === '가상건물', at(FP_SHEET.F2_14, 'C6'))
+  check('2.14 결과기록부 대상명 착지',
+    atF('customer_name', FP_SHEET.F2_14) === '가상건물', atF('customer_name', FP_SHEET.F2_14))
 
   {
     // 대원이 칸보다 **적을** 때 — 빈 줄에 소속(건물명)만 찍히면 '이름 없는 소속'이 인쇄된다
@@ -462,14 +500,25 @@ console.log('\n[7] 값 맵 완결성 · 표기 규약')
   /* ── 1.5.1 방화구획(상자칸) ── 값칸과 달리 **라벨은 남고 상자만 바뀐다**. 라벨까지 덮어쓰면
    *  법정 자구가 사라지는데, 상자 하나만 보는 검사는 그걸 못 본다 — 자구 보존을 따로 요구한다. */
   const F151 = FP_SHEET.F1_5_1
-  check('1.5.1 면적별 체크 착지', at(F151, 'C14').includes('■'), at(F151, 'C14'))
+  check('1.5.1 면적별 체크 착지', atF('compartment_area').includes('■'), atF('compartment_area'))
   // 🎯 '면적별·층별'은 새 상자가 아니라 **둘 다** 체크다 — 한 상자만 찍는 구현을 여기가 잡는다
-  check('1.5.1 층별도 함께 체크(면적별·층별)', at(F151, 'F14').includes('■'), at(F151, 'F14'))
+  check('1.5.1 층별도 함께 체크(면적별·층별)', atF('compartment_floor').includes('■'), atF('compartment_floor'))
   check('1.5.1 법정 자구 보존 — 상자만 갈아 끼웠다',
-    at(F151, 'C14').replace('■', '□').trim() === labelAt(F151, 'C14').trim(), at(F151, 'C14'))
-  check('1.5.1 해당유무 = 유', at(F151, 'B15').startsWith('■유') && at(F151, 'B15').includes('□무'), at(F151, 'B15'))
-  // ⚠ ERP 입력에 없는 갈래는 배선하지 않았다 — 늘 미체크로 남아야 한다
-  check('1.5.1 용도별은 손대지 않는다', !at(F151, 'J14').includes('■'), at(F151, 'J14'))
+    atF('compartment_area').replace('■', '□').trim() === labelF('compartment_area').trim(), atF('compartment_area'))
+  check('1.5.1 해당유무 = 유',
+    atF('compartment_applies').startsWith('■유') && atF('compartment_applies').includes('□무'),
+    atF('compartment_applies'))
+  /* ⚠ ERP 입력에 없는 갈래(`용도별`)는 배선하지 않았다 — 늘 미체크로 남아야 한다.
+   *   앵커가 없으니 필드로 못 묻는다. 좌표를 적는 대신 **라벨로 그 칸을 찾는다**(유일성 단언 포함) —
+   *   격자가 바뀌어도 라벨은 따라다니고, 여러 곳에서 찾히면 그 자체가 붉어진다. */
+  {
+    const s151 = FIRE_PLAN_MANIFEST.sheets.find(x => x.name === F151)!
+    const hits = Object.entries(s151.labels).filter(([, v]) => v.replace(/\s/g, '') === '□용도별')
+    check('1.5.1 「용도별」 칸이 유일하다(라벨 축)', hits.length === 1, `${hits.length}곳`)
+    if (hits.length === 1) {
+      check('1.5.1 용도별은 손대지 않는다', !at(F151, hits[0][0]).includes('■'), at(F151, hits[0][0]))
+    }
+  }
 
   {
     // 네 갈래 전수 + 미입력. 두 상태가 같은 상자 조합을 내면 **화면의 선택이 인쇄물에서 사라진다**.

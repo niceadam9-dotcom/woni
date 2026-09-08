@@ -132,10 +132,19 @@ else {
   check('산출 시트 수 = manifest 시트 수', wb.SheetNames.length === FIRE_PLAN_MANIFEST.sheets.length,
     `${wb.SheetNames.length} / ${FIRE_PLAN_MANIFEST.sheets.length}`)
   const at = (s: string, c: string) => String((wb.Sheets[s]?.[c] as XLSX.CellObject | undefined)?.v ?? '')
-  check('실 고객명이 표지에 착지', at('표지', 'A3').includes(sample.name), at('표지', 'A3'))
-  check('1.1 명칭 착지', at('1.1 건축물 일반현황', 'C4') === sample.name, at('1.1 건축물 일반현황', 'C4'))
-  console.log(`       1.1 주소='${at('1.1 건축물 일반현황', 'C5')}' 용도='${at('1.1 건축물 일반현황', 'G9')}' 관할='${at('1.3 소방차 진입경로', 'C5')}'`)
-  console.log(`       대표전화='${at('1.1 건축물 일반현황', 'E7')}' 관리자전화='${at('1.1 건축물 일반현황', 'I7')}'`)
+  /* 🚨 **좌표를 베껴 적지 않는다** — 미세 격자 전환(47 Q-9)으로 앵커가 통째로 옮겨가자
+   *   `('1.1','C4')`를 박아 둔 이 검사가 붉어졌다(제품이 아니라 검사가 낡은 것이었다).
+   *   필드 이름으로 앵커에게 물어 그 칸을 본다. */
+  const atF = (field: string, sheet?: string) => {
+    const a = FIRE_PLAN_ANCHORS.find(x => x.field === field && (!sheet || x.sheet === sheet))
+    if (!a) throw new Error(`앵커에 field='${field}'가 없다 — 프로브가 낡았다`)
+    return at(a.sheet, a.cell)
+  }
+  const F11 = '1.1 건축물 일반현황'
+  check('실 고객명이 표지에 착지', atF('cover_title').includes(sample.name), atF('cover_title'))
+  check('1.1 명칭 착지', atF('customer_name', F11) === sample.name, atF('customer_name', F11))
+  console.log(`       1.1 주소='${atF('address')}' 용도='${atF('purpose')}' 관할='${atF('fire_station')}'`)
+  console.log(`       대표전화='${atF('owner_phone')}' 관리자전화='${atF('manager_phone')}'`)
   console.log(`       ${sample.who}`)
   // R-1 재발 판정 — 이름이 다른데 전화가 같으면 배선이 다시 어긋난 것이다
   const nameE7 = at('1.1 건축물 일반현황', 'E6'), nameI6 = at('1.1 건축물 일반현황', 'I6')

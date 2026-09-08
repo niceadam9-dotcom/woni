@@ -33,9 +33,16 @@ export interface FirePlanSheetManifest {
   fillInStripped: Record<string, string>
   /** 0열이 1,2,3…으로 이어지는 구간 — 반복 행 예산의 파생 원천(S4-3) */
   numberedRuns: { startRow: number; rows: number }[]
-  /** 격자 표가 시트의 몇 번째 행에서 시작하는가(0-based) — 세로로 쌓인 시트의 좌표 대응.
-   *  대조기가 기하를 추측하지 않게 하려고 싣는다(추측은 실제로 오보 26건을 냈다) */
-  gridTops: { table: number; top: number; rows: number }[]
+  /** **원본 표 좌표 ↔ 시트 좌표를 잇는 사실.** 소비자가 기하를 추측하지 않게 하려고 싣는다.
+   *
+   *  · `top`  격자가 시작하는 시트 행(0-based) — 세로로 쌓인 시트(2.4 카드 6장) 대응.
+   *  · `cols` 표의 i번째 열이 시작하는 시트 열(0-based), 길이 colCnt+1(마지막은 끝 경계).
+   *           미세 격자(FINE_N=60)에서 표 열 하나가 여러 시트 열에 걸치므로 반드시 필요하다.
+   *
+   *  🚨 추측은 **두 번 다 오보를 냈다** — `top`이 없을 땐 카드 6장을 첫 장 자리로 읽어
+   *    '자구 불일치 26건', `cols`가 없을 땐 미세 격자 전환 뒤 일치율이 95.9%→24.8%로
+   *    무너지며 '자구 불일치 37건'. 둘 다 제품은 멀쩡했고 읽는 쪽이 틀렸다. */
+  gridTops: { table: number; top: number; rows: number; cols: number[] }[]
 }
 
 export interface FirePlanManifest {

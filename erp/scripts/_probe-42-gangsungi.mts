@@ -104,15 +104,23 @@ for (const s of FIRE_PLAN_MANIFEST.sheets) {
    *   · 서식 2.3의 머리 블록(#50 3x2 · #52 2x1)은 **여러 행짜리 배너**라 격자로 오인된다.
    *   · 2.4 개별임무카드는 한 시트에 격자 6개가 **세로로 쌓여** 시작 행이 저마다 다르다.
    *  실제로 추론판은 카드 6장을 전부 첫 장 자리로 읽어 **멀쩡한 서식을 자구 불일치 26건으로
-   *  신고**했다. 대조기가 틀리면 제품이 옳아도 붉어진다. */
+   *  신고**했다. 대조기가 틀리면 제품이 옳아도 붉어진다.
+   *
+   *  ⚠ **열 축에서 같은 실수를 한 번 더 했다**(2026-09-08). `gt.top`으로 행은 고쳤으면서
+   *    열은 `oc.col`을 그대로 썼는데, 미세 격자(FINE_N=60) 전환 뒤 표의 열 하나가 시트 여러
+   *    열에 걸치게 되어 대응이 통째로 어긋났다 — 일치율 95.9% → **24.8%**, '자구 불일치 37건'.
+   *    이제 `gt.cols`가 그 대응을 들고 있다: 표 열 i → 시트 열 `gt.cols[i]`. */
   for (const gt of s.gridTops) {
     const ti = gt.table
     const ours = formTables[ti]
     const theirs = tables[ti]
     if (!ours || !theirs) continue
+    // 🚨 발행된 열 지도가 없으면 **추측하지 않고 멈춘다** — 옛 manifest로 돌면 조용히 틀린다
+    if (!gt.cols?.length) throw new Error(
+      `${s.name}: manifest에 열 지도(gridTops.cols)가 없다 — 자산을 다시 빌드하라(추측하지 않는다)`)
     for (let k = 0; k < Math.min(ours.cells.length, theirs.cells.length); k++) {
       const oc = ours.cells[k]
-      const ref = XLSX.utils.encode_cell({ r: gt.top + oc.row, c: oc.col })
+      const ref = XLSX.utils.encode_cell({ r: gt.top + oc.row, c: gt.cols[oc.col] })
       const ourText = String((ws[ref] as XLSX.CellObject | undefined)?.v ?? '')
       const theirText = scrubbed(theirs.cells[k].text)
       const a = words(ourText), b = words(theirText)
