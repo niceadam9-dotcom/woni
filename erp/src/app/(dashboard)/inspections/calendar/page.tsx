@@ -141,6 +141,11 @@ export default async function InspectionCalendarPage({
     if (customersRes.error || customersRes.truncated) {
       console.error('[calendar] 고객 조회 불완전 — 비활성 고객이 달력에 남을 수 있습니다', customersRes.error)
     }
+    // ⚠ R-7(4차 판정): 같은 묶음 안에서 **둘 중 하나만** 확인하고 있었다 — 옆의 customers는 보면서
+    // 정작 진행 칩의 원천인 단계 조회는 안 봤다. 부분 행이 완전한 것처럼 그려지면 칩이 조용히 준다.
+    if (stepsRes.error || stepsRes.truncated) {
+      console.error('[calendar] 단계 조회 불완전 — 진행 칩이 일부 점검에서 누락됩니다', stepsRes.error)
+    }
     const customerMap = new Map(customersRes.rows.map(c => [c.id, c]))
 
     // 고객관리에서 삭제(비활성)된 고객의 점검 건은 달력에 싣지 않는다 (2026-08-28)

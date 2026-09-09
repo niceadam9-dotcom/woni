@@ -2,7 +2,9 @@
 // 실주행 단언은 test-inspection-steps-sync.mts(54/54)가 담당하고, 여기서는 '배선이 존재하는가'를 본다.
 import { readFileSync, existsSync } from 'fs'
 
-const read = p => readFileSync(p, 'utf8')
+// ⚠ 4차 판정 N-8: try/catch가 없어 파일 부재 시 「결과」 줄도 없이 크래시했다 — 게이트로는 안전하지만
+//    (rc≠0) **대조군 측정이 불가능**해진다. 부재를 빈 문자열로 낮추면 단언이 정상적으로 붉어진다.
+const read = p => { try { return readFileSync(p, 'utf8') } catch { return '' } }
 const status = read('src/lib/inspection-step-status.ts')
 const sync = read('src/lib/inspection-step-sync.ts')
 const tlActions = read('src/app/(dashboard)/inspections/timeline-actions.ts')
@@ -52,8 +54,12 @@ ok('작업대가 evidenceDone으로 ✓를 계산한다', !!wb && /evidenceDone\
 // 소방계획서_45 — 2번째 인자는 ✕ ∪ 불량내역을 합성한 needsRepairSteps다(hasSheetDefect가 원본).
 ok('작업대가 stepProgress·activeStepNums로 진행률을 낸다',
   !!wb && /stepProgress\(doneByNum, activeNums\)/.test(wb) && /activeStepNums\(isSpecial, needsRepairSteps\)/.test(wb))
-ok('작업대의 ⑤⑥ 활성 축이 점검표 ✕까지 본다 (소방계획서_45)',
-  !!wb && /hasSheetDefect\(\{ defectsTotal: defectStat\.total, sheetX \}\)/.test(wb)
+// ⚠ 4차 판정 후 정정: 인자 목록을 통째로 베낀 단언이라, R-1 수리로 축을 **하나 더 넣자**
+//    제품이 옳은데도 붉어졌다(같은 함정 2회차 — 3차에서 여섯 건을 같은 이유로 고쳤다).
+//    「어떤 축을 넘기는가」만 본다 — 순서·추가 인자에 안 깨진다.
+ok('작업대의 ⑤⑥ 활성 축이 점검표 ✕·조회 불완전까지 본다 (소방계획서_45)',
+  !!wb && /hasSheetDefect\(\{[\s\S]{0,200}defectsTotal: defectStat\.total[\s\S]{0,200}sheetX/.test(wb)
+  && /axisIncomplete: data\.evidence\?\.axisIncomplete/.test(wb)
   && /const na = !needsRepairSteps &&/.test(wb))
 ok('타임라인(미렌더)도 같은 함수를 쓴다 — 되살릴 때 규칙이 갈라지지 않게',
   /const stepDone = evidenceDone\(/.test(tl)
@@ -153,8 +159,10 @@ ok('⑤ 배너 CTA가 권한을 본다 — 없으면 ①에 버튼이 없는 막
 //   「그 함수를 부르는가 · 그 축을 넘기는가」만 보도록 고친다.
 ok('별지 트리 미리보기가 같은 축을 쓴다',
   /hasSheetDefect\(\{[\s\S]{0,200}r\.docs\?\.defects\.total/.test(annexSection))
-ok('회차 카드 ⑩⑪ 칩이 같은 축을 쓴다',
-  /hasSheetDefect\(\{[\s\S]{0,200}r\.docs\.defects\.total/.test(roundCard))
+// ⚠ 4차 판정: 3차 정정에서 이 단언이 **완화**됐다 — `sheetX` 인자를 빼도 통과했고 어느 검사도
+//    안 덮었다(그러면 ✕만 있는 회차에서 ⑩⑪ 칩이 사라진다). 두 축을 다시 못 박는다.
+ok('회차 카드 ⑩⑪ 칩이 같은 축을 쓴다(불량 ∪ ✕)',
+  /hasSheetDefect\(\{[\s\S]{0,200}r\.docs\.defects\.total[\s\S]{0,120}sheetX: r\.docs\.sheetX/.test(roundCard))
 ok('마감 알림 크론이 해당없음 단계를 발송 대상에서 뺀다',
   /activeStepsByInspection\(/.test(cron) && /isStepActive\(activeByInsp, s\.inspection_id, s\.step_num\)/.test(cron))
 ok('그 판정이 **공용 모듈**이다 — 지역 사본으로 되돌아가면 화면이 다시 갈라진다',

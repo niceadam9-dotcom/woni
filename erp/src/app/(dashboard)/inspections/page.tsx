@@ -51,7 +51,11 @@ export default async function InspectionsPage({
   const currentYear = new Date().getFullYear()
 
   const from = pageSize > 0 ? (page - 1) * pageSize : 0
-  const to = pageSize > 0 ? from + pageSize - 1 : 99999
+  // ⚠ 종전에는 `pageSize === 0`일 때 `to = 99999`였다 — Supabase는 1000행이 하드 상한이라
+  // 그 뒤가 **오류 없이 사라졌다**(§S12-1). 이제 「전체」는 아래에서 fetchAllRows로 받으므로
+  // 이 값은 **페이지 보기 전용**이다. 죽은 `: 99999`를 남겨 두면 「상한을 푼 것처럼 보이는」
+  // 오해가 되돌아온다(4차 판정이 이 줄을 근거로 원복 변이를 만들었다).
+  const to = from + pageSize - 1
 
   // 고객명 검색 — 이름으로 고객을 먼저 찾고 그 id로 점검을 거른다.
   // 임베디드 컬럼(customers.customer_name)에 직접 필터를 걸면 count가 조인 전 기준이 되어

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { filterNotifiableRecipients } from '@/lib/notify'
-import { fetchAllRows } from '@/lib/supabase/paginate'
+import { fetchAllRows, fetchAllRowsByIds } from '@/lib/supabase/paginate'
 
 // 불량 이행기한 임박 알림 (소방계획서_4.md §9-7d — 과태료 방어)
 // inspection_defects.action_end(이행 종료 예정일)가 임박/경과했는데 미완료(action_completed_at null)인 건을
@@ -63,11 +63,21 @@ export async function GET(req: NextRequest) {
 
   for (const rule of rules) {
     // 해당 기한의 미완료 불량 (이행계획이 입력된 건만 — action_end 존재)
-    const { data: defectsRaw } = await admin.from('inspection_defects')
+    //
+    // 🎯 4차 독립 판정 R-3: 3차 수리가 같은 파일의 별지 9호 블록만 고치고 **이 조회는 그대로 뒀다** —
+    // 하필 이 크론의 **주 규칙**(D-7/D-3/당일/경과 이행기한, 과태료 방어의 본체)이다.
+    // 미포장·무정렬·오류 무검사라 절단·실패가 아래 `breakdown = 0`으로 떨어져
+    // **「대상 없음」과 구별되지 않는다** — 형제 라우트에서 없앤 바로 그 모호성이다.
+    const defectsRes = await fetchAllRows<Record<string, unknown>>((from, to) => admin
+      .from('inspection_defects')
       .select('id, inspection_id, defect_name, action_end, inspection:inspections(id, customer_id, assigned_employee_id, customer:customers(customer_name))')
       .eq('action_end', rule.endDate)
       .is('action_completed_at', null)
-    const defects = (defectsRaw ?? []) as unknown as DefectRow[]
+      .order('id').range(from, to))
+    if (defectsRes.error || defectsRes.truncated) {
+      console.error('[defect-action-notify] 이행기한 대상 조회 불완전 — 알림이 누락됩니다:', rule.label, defectsRes.error)
+    }
+    const defects = defectsRes.rows as unknown as DefectRow[]
     if (defects.length === 0) { breakdown[rule.label] = 0; continue }
 
     // 점검 건 단위 그룹화 (불량 여러 건 = 알림 1건)
@@ -79,14 +89,23 @@ export async function GET(req: NextRequest) {
       byInspection.set(d.inspection_id, list)
     }
 
-    // 오늘 이미 발송된 점검 건 제외 (멱등)
-    const { data: existingRaw } = await admin.from('notifications')
-      .select('reference_id')
-      .in('reference_id', [...byInspection.keys()])
-      .eq('type', rule.type)
-      .gte('created_at', `${todayStr}T00:00:00+09:00`)
-    const already = new Set(((existingRaw ?? []) as Array<{ reference_id: string | null }>)
-      .map(n => n.reference_id).filter(Boolean) as string[])
+    // 오늘 이미 발송된 점검 건 제외 (멱등) — **중복 발송을 막는 유일한 근거**다.
+    // ⚠ R-4(4차 판정): `notifications`에 유니크 제약이 **없다**(001 이후 전수 확인). 이 조회가
+    // 실패하거나 잘리면 `already`가 비어 같은 날 재실행에서 중복이 그대로 나간다.
+    // 형제 라우트에서 「중대」로 고친 것과 동일한 결함이 여기 남아 있었다.
+    const existingRes = await fetchAllRowsByIds<{ reference_id: string | null }, string>(
+      [...byInspection.keys()], (c, from, to) => admin.from('notifications')
+        .select('reference_id')
+        .in('reference_id', c)
+        .eq('type', rule.type)
+        .gte('created_at', `${todayStr}T00:00:00+09:00`)
+        .order('id').range(from, to))
+    if (existingRes.error || existingRes.truncated) {
+      console.error('[defect-action-notify] 기발송 조회 불완전 — 중복 발송을 막기 위해 이 규칙을 건너뜁니다:', rule.label, existingRes.error)
+      breakdown[rule.label] = 0
+      continue
+    }
+    const already = new Set(existingRes.rows.map(n => n.reference_id).filter(Boolean) as string[])
 
     const assignees = [...byInspection.values()]
       .map(list => list[0].inspection?.assigned_employee_id).filter(Boolean) as string[]
@@ -146,7 +165,13 @@ export async function GET(req: NextRequest) {
     console.error('[defect-action-notify] 별지 9호 대상 조회 불완전 — 기한 알림이 누락됩니다:', inspRes.error, inspRes.truncated)
   }
   const specials = (inspRes.rows as unknown as InspRow[])
-    // 서버측 `.or()`와 **같은 술어**를 남겨 둔다(이중 방어) — 종전에는 이것이 유일한 필터였다(§9-9a)
+    // ⚠ 4차 판정 R-5 정정: 종전 주석은 이 줄을 「서버측 `.or()`와 같은 술어를 남긴 **이중 방어**」라
+    // 적었으나 **거짓이었다.** PostgREST의 `like.special_*`는 `LIKE 'special_%'`로 번역되고 `_`가
+    // **LIKE 단일문자 와일드카드**라 서버 술어는 `'special'`+임의1문자+임의(최소 8자)를 요구한다 —
+    // 즉 서버 집합 ⊊ 클라이언트 집합(`startsWith('special')`)이라 이 filter는 **한 행도 제거할 수
+    // 없는 항진 no-op**이다(방어가 아니라 장식). 차집합은 정확히 값 `'special'` 하나이고 그런 행은
+    // 스테이징·운영 어디에도 없다(실측 25/25·3/3) — 지금은 무해하나 **등가가 아니라는 것**을 적어 둔다.
+    // 줄 자체는 남긴다: 서버 술어가 나중에 넓어지면 그때 비로소 방어가 된다.
     .filter(r => !r.plan_type || r.plan_type.startsWith('special')) // 정기·일반은 보고 의무 없음
     .map(r => ({ ...r, deadline: r.inspection_end_date ?? r.inspection_start_date }))
     .filter(r => r.deadline)
@@ -161,11 +186,18 @@ export async function GET(req: NextRequest) {
   for (const rule of submitRules) {
     const targets = specials.filter(r => r.deadline === rule.deadline)
     if (targets.length === 0) { breakdown[rule.label] = 0; continue }
-    const { data: existingRaw } = await admin.from('notifications')
-      .select('reference_id').in('reference_id', targets.map(t => t.id))
-      .eq('type', rule.type).gte('created_at', `${todayStr}T00:00:00+09:00`)
-    const already = new Set(((existingRaw ?? []) as Array<{ reference_id: string | null }>)
-      .map(n => n.reference_id).filter(Boolean) as string[])
+    // R-4(4차 판정) — 형제 블록과 같은 규약. 불완전하면 중복을 보내지 않고 건너뛴다
+    const existingRes = await fetchAllRowsByIds<{ reference_id: string | null }, string>(
+      targets.map(t => t.id), (c, from, to) => admin.from('notifications')
+        .select('reference_id').in('reference_id', c)
+        .eq('type', rule.type).gte('created_at', `${todayStr}T00:00:00+09:00`)
+        .order('id').range(from, to))
+    if (existingRes.error || existingRes.truncated) {
+      console.error('[defect-action-notify] 별지9호 기발송 조회 불완전 — 중복 발송을 막기 위해 건너뜁니다:', rule.label, existingRes.error)
+      breakdown[rule.label] = 0
+      continue
+    }
+    const already = new Set(existingRes.rows.map(n => n.reference_id).filter(Boolean) as string[])
     const notifiable = await filterNotifiableRecipients(admin,
       [...managerIds, ...targets.map(t => t.assigned_employee_id).filter(Boolean) as string[]], 'deadline')
 

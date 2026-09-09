@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { filterNotifiableRecipients } from '@/lib/notify'
-import { fetchAllRows } from '@/lib/supabase/paginate'
+import { fetchAllRows, fetchAllRowsByIds } from '@/lib/supabase/paginate'
 import { activeStepsByInspection, isStepActive } from '@/lib/active-steps'
 
 // Vercel Cron 또는 외부 스케줄러에서 매일 09:00 호출
@@ -139,13 +139,19 @@ export async function GET(req: NextRequest) {
     // 아니라 **단계 200건 수준**이고(매니저 5인), 잘리면 alreadyNotified가 불완전해져 같은 날
     // 재실행·캐치업에서 **중복 알림이 대량 발송**된다. 상류를 풀었으면 하류도 함께 풀어야 한다.
     // ⚠ 잘렸는데도 그냥 진행하면 중복을 보내므로, 불완전하면 **이 규칙을 건너뛴다**(안 보내는 쪽).
-    const existingRes = await fetchAllRows<{ reference_id: string | null }>((from, to) => admin
-      .from('notifications')
-      .select('reference_id')
-      .in('reference_id', stepIds)
-      .eq('type', rule.type)
-      .gte('created_at', `${todayStr}T00:00:00+09:00`)
-      .order('id').range(from, to))
+    // 🎯 4차 독립 판정 R-2(중대): 3차 수리가 **행수만** 풀고 URL 벽은 그대로 뒀다.
+    // 같은 커밋이 `.in()`은 400건부터 요청 자체가 실패함을 실측해 `fetchAllRowsByIds`를 신설하고
+    // 6곳에 깔았는데 **이 호출부만 빠뜨렸다** — 「셋 중 둘」이 수리 커밋 안에서 또 재생산된 것이다.
+    // 게다가 아래 `continue`가 그 실패를 **「이 규칙 전량 미발송」으로 증폭**한다(방향만 뒤집히고
+    // 벽은 그대로). stepIds는 상류 상한을 20,000으로 올린 그 목록이라 정확히 벽을 지난다.
+    const existingRes = await fetchAllRowsByIds<{ reference_id: string | null }, string>(
+      stepIds, (c, from, to) => admin
+        .from('notifications')
+        .select('reference_id')
+        .in('reference_id', c)
+        .eq('type', rule.type)
+        .gte('created_at', `${todayStr}T00:00:00+09:00`)
+        .order('id').range(from, to))
 
     if (existingRes.error || existingRes.truncated) {
       console.error('[deadline-notify] 기발송 조회 불완전 — 중복 발송을 막기 위해 이 규칙을 건너뜁니다:', rule.dueDate, existingRes.error)

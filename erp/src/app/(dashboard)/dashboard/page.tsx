@@ -15,7 +15,7 @@ import { SubmissionWidget } from '@/components/reports/submission-widget'
 import { countUnsentNotices } from '@/lib/sms'
 import { SmsNoticeWidget } from '@/components/sms/sms-notice-widget'
 import { fetchInputTodo } from '@/lib/customer-list'
-import { fetchAllRowsByIds } from '@/lib/supabase/paginate'
+import { fetchAllRows, fetchAllRowsByIds } from '@/lib/supabase/paginate'
 import { activeStepsByInspection, isStepActive } from '@/lib/active-steps'
 import type { UserRole } from '@/types'
 
@@ -114,15 +114,23 @@ export default async function DashboardPage() {
   // ── 소방 점검 데이터 조회 ────────────────────────────────────────
   // 삭제(비활성) 고객 제외(소방계획서_30 S2-2) — 이 목록이 점검현황·마감임박·기한초과의 뿌리라
   // 여기서 걸러야 사이드바 뱃지(layout.tsx)와 수가 어긋나지 않는다. FK 힌트는 PGRST201 방지
+  // 🎯 4차 독립 판정 R-6: 이 **상류**가 미포장이었다 — 세 줄 아래 주석이 스스로 「myInspIds는
+  // manager/admin이면 전 점검이라 수천이다」라고 적어 놓고 1000행 상한에 안 대비했다.
+  // 하류를 아무리 `fetchAllRowsByIds`로 풀어도 상류에서 없어진 행은 못 살린다 — 이 차수가 크론에서
+  // 「상류를 풀었으면 하류도」라고 쓴 것의 정확한 역상이다. inspStats(예정/진행/완료 카드)·기한초과·
+  // 오늘·마감임박이 **전부** 이 목록에서 나온다.
   const inspCols = 'id, status, customers:customer_id!inner(is_active)'
-  const { data: myInspRaw } = await (
+  const myInspRes = await fetchAllRows<{ id: string; status: string }>((from, to) => (
     isEmployee
-      ? admin.from('inspections').select(inspCols).eq('customers.is_active', true).eq('assigned_employee_id', profile.id)
-      : admin.from('inspections').select(inspCols).eq('customers.is_active', true)
-  )
+      ? admin.from('inspections').select(inspCols).eq('customers.is_active', true).eq('assigned_employee_id', profile.id).order('id').range(from, to)
+      : admin.from('inspections').select(inspCols).eq('customers.is_active', true).order('id').range(from, to)
+  ))
+  if (myInspRes.error || myInspRes.truncated) {
+    console.error('[dashboard] 점검 목록 조회 불완전 — 현황·마감임박·기한초과가 과소 집계됩니다', myInspRes.error)
+  }
 
   type InspRow = { id: string; status: string }
-  const myInspList = (myInspRaw ?? []) as InspRow[]
+  const myInspList = myInspRes.rows as InspRow[]
   const myInspIds = myInspList.map(i => i.id)
 
   const inspStats = { scheduled: 0, in_progress: 0, completed: 0, overdue: 0 }
@@ -182,6 +190,15 @@ export default async function DashboardPage() {
           .neq('status', 'completed')
           .order('id').range(from, to)),
     ])
+
+    // ⚠ R-7(4차 판정): 이 파일이 **이 커밋에서 error/truncated를 한 번도 안 보는 유일한 표면**이었다.
+    // 한 조각만 실패해도 `rows`는 부분인데 화면은 「기한초과 0건」이라는 **거짓 평온**을 그린다.
+    // 나머지 다섯 표면(달력·고객목록·크론·목록·고객상세)이 세운 기울기와 반대였다.
+    if (dueSoonRes.error || dueSoonRes.truncated || overdueRes.error || overdueRes.truncated
+      || todayRes.error || todayRes.truncated) {
+      console.error('[dashboard] 단계 조회 불완전 — 마감임박·기한초과·오늘 수치가 과소 집계됩니다',
+        dueSoonRes.error, overdueRes.error, todayRes.error)
+    }
 
     // 조각마다 id 정렬로 받았으므로(페이징 규약) 마감일 순서는 여기서 세운다 — 조각을 이어 붙인
     // 배열은 날짜 순이 아니다. 정렬 전에 자르면 "가장 임박한 7건"이 아니게 된다.

@@ -76,6 +76,10 @@ export default async function SchedulesPage() {
           .select('id, customer_name')
           .in('id', c).order('id').range(from, to)),
     ])
+    // ⚠ R-7(4차 판정) — 조용한 부분 결과 금지. 못 받은 단계는 개인 달력에서 **그냥 사라진다**
+    if (stepsRes.error || stepsRes.truncated || customersRes.error || customersRes.truncated) {
+      console.error('[my-schedules] 단계·고객 조회 불완전 — 마감 칩이 누락됩니다', stepsRes.error, customersRes.error)
+    }
     const activeSched = await activeStepsByInspection(admin, inspIds, 'my-schedules')
 
     const custMap = new Map(customersRes.rows.map(c => [c.id, c]))

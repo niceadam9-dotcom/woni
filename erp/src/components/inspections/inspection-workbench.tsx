@@ -201,8 +201,16 @@ export function InspectionWorkbench({
   const hasDefects = defectStat.total > 0
   /** 점검표 ✕ 응답 수 — 아직 불량내역으로 등록되지 않은 불량 신호 (소방계획서_45) */
   const sheetX = data.evidence?.sheetX ?? 0
-  /** ⑤⑥이 필요한가 = **점검표 모두 합격이 아닌가**. 두 축을 OR로 본다(hasSheetDefect가 원본) */
-  const needsRepairSteps = hasSheetDefect({ defectsTotal: defectStat.total, sheetX })
+  /** ⑤⑥이 필요한가 = **점검표 모두 합격이 아닌가**. 두 축을 OR로 본다(hasSheetDefect가 원본).
+   *
+   *  🎯 4차 독립 판정 R-1(2인 합치): 종전에는 `axisIncomplete`를 **손에 쥐고도 안 넘겼다**.
+   *  ✕·불량 조회가 실패하면 `sheetX`와 `unregisteredX`가 **둘 다 0으로 접히므로** 그 실패를
+   *  나르는 신호는 `axisIncomplete` 하나뿐인데, 정본 화면인 작업대가 그 하나를 버렸다 —
+   *  서버는 보수 판정해 DB에 completed를 안 쓰는데 **화면만 ⑤⑥을 지우고 4/4 100%**로 그렸다.
+   *  45차수가 닫으려던 「두 화면 갈라짐」이 주 표면에서 재현되던 자리다. */
+  const needsRepairSteps = hasSheetDefect({
+    defectsTotal: defectStat.total, sheetX, axisIncomplete: data.evidence?.axisIncomplete,
+  })
   /** ✕인데 아직 불량내역으로 등록되지 않은 항목 수 — ⑤가 **증거로는 절대 완료될 수 없는** 구간이라
    *  출구를 보여야 한다. ⚠ R-5(2026-09-08 2차 판정): 종전에는 `sheetX > 0 && !hasDefects`로 근사해
    *  불량이 한 건이라도 등록돼 있으면 미등록 ✕가 통째로 안 보였다 — 이제 서버가 **집합 차**를 준다.

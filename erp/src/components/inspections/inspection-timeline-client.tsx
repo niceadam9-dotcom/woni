@@ -360,7 +360,10 @@ export function InspectionTimelineClient({ inspectionId, canManage, canComplete,
   const has = (k: TimelineStepKey) => data.steps.includes(k)
   // 소방계획서_45 — ⑤⑥이 필요한가 = **점검표 모두 합격이 아닌가**(✕ ∪ 등록 불량).
   // 이 컴포넌트는 미렌더지만 되살릴 때 작업대와 규칙이 갈라지지 않게 같은 원본(hasSheetDefect)을 쓴다.
-  const needsRepairSteps = hasSheetDefect({ defectsTotal: data.defects.total, sheetX: data.evidence?.sheetX ?? 0 })
+  const needsRepairSteps = hasSheetDefect({
+    defectsTotal: data.defects.total, sheetX: data.evidence?.sheetX ?? 0,
+    axisIncomplete: data.evidence?.axisIncomplete,
+  })
   // R4-1(독립 검증 D3): ✓는 **서버와 같은 판정 함수**로 계산한다. 종전엔 여기서 리터럴로 다시 계산해
   // 오프라인 보고·사유 완료가 DB에서는 완료인데 화면 ✓는 미완으로 남는 새 괴리가 생겼다.
   // evidence가 오지 않는 옛 호출자를 위해 화면이 가진 값으로 같은 모양을 만들어 넘긴다.
@@ -376,6 +379,9 @@ export function InspectionTimelineClient({ inspectionId, canManage, canComplete,
     // R-5: 미등록 ✕도 알 수 없다. 여기서 0이 아닌 값을 주면 ⑤가 **영구 미완**이 되므로 0으로 둔다 —
     // 이 폴백은 두 축이 **함께** 종전으로 물러나는 자리다(한쪽만 신축이면 갈라진다).
     unregisteredX: 0,
+    // evidence가 없으면 조회의 완전성도 알 수 없다 — undefined는 '완전하다'로 읽히지만, 이 폴백은
+    // 애초에 `sheetX: 0`으로 종전 축까지 함께 물러난 자리라 두 축이 갈라지지 않는다(위 주석과 한 벌)
+    axisIncomplete: undefined,
   })
   const done1 = stepDone[1]
   const done2 = stepDone[2]

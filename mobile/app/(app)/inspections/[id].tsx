@@ -7,6 +7,7 @@ import { useLocalSearchParams, useRouter, Stack } from 'expo-router'
 import { supabase } from '@/lib/supabase'
 import type { PlanItem, Inspection, InspectionStep, InspectionDefect } from '@/lib/types'
 import { DefectFormModal } from '@/components/DefectFormModal'
+import { activeStepNums, hasSheetDefect, isSelfInspection } from '@/lib/inspection-steps'
 
 const SEVERITY_COLORS = {
   '경미': { bg: '#fef9c3', text: '#ca8a04' },
@@ -78,6 +79,10 @@ export default function InspectionDetailScreen() {
   const [inspection, setInspection] = useState<Inspection | null>(null)
   const [steps, setSteps] = useState<InspectionStep[]>([])
   const [defects, setDefects] = useState<InspectionDefect[]>([])
+  /** 점검표 ✕ 응답 수 — 불량내역 등록 **전**의 불량 신호. ⑤⑥ 활성 축의 절반이다(소방계획서_45) */
+  const [sheetX, setSheetX] = useState(0)
+  /** 그 두 축을 잰 조회가 불완전했는가 — 참이면 ⑤⑥을 지우지 않는다(보수 판정) */
+  const [axisIncomplete, setAxisIncomplete] = useState<boolean | undefined>(undefined)
   const [loading, setLoading] = useState(true)
   const [startingInspection, setStartingInspection] = useState(false)
   const [showDefectModal, setShowDefectModal] = useState(false)
@@ -118,14 +123,21 @@ export default function InspectionDetailScreen() {
     setPlanItem(item)
 
     if (item.inspection_id) {
-      const [inspRes, stepsRes, defectsRes] = await Promise.all([
+      // 소방계획서_45 R-8 — ⑤⑥ 활성 축(등록 불량 ∪ 점검표 ✕)을 웹과 **같은 규칙**으로 판정하려면
+      // ✕ 응답 수가 필요하다. `head:true`라 행을 한 줄도 전송하지 않는다.
+      const [inspRes, stepsRes, defectsRes, xRes] = await Promise.all([
         supabase.from('inspections').select('*').eq('id', item.inspection_id).single(),
         supabase.from('inspection_steps').select('*').eq('inspection_id', item.inspection_id).order('step_num'),
         supabase.from('inspection_defects').select('*').eq('inspection_id', item.inspection_id).order('created_at'),
+        supabase.from('inspection_sheet_responses').select('id', { count: 'exact', head: true })
+          .eq('inspection_id', item.inspection_id).eq('result', 'X'),
       ])
       if (inspRes.data) setInspection(inspRes.data as unknown as Inspection)
       setSteps((stepsRes.data ?? []) as unknown as InspectionStep[])
       setDefects((defectsRes.data ?? []) as unknown as InspectionDefect[])
+      setSheetX(xRes.count ?? 0)
+      // 조회가 실패하면 0을 진실로 믿지 않는다 — 못 잰 것은 '조치가 필요하다'로 본다
+      setAxisIncomplete(!!(xRes.error || defectsRes.error))
     }
 
     setLoading(false)
@@ -220,6 +232,15 @@ export default function InspectionDetailScreen() {
     setStartingInspection(false)
   }
 
+  /** 이 회차에서 실제로 유효한 단계 번호 — 화면·완료 판정이 **같은 집합**을 쓴다.
+   *  🎯 소방계획서_45 R-8: 종전에는 이 판정이 아예 없어 ⑤⑥에도 [완료] 버튼이 떴고,
+   *  그것을 누르면 `inspections.status='completed'`가 DB에 기록됐다(D34-2). */
+  const activeNums = new Set<number>(activeStepNums(
+    isSelfInspection(inspection?.plan_type as string | null | undefined),
+    hasSheetDefect({ defectsTotal: defects.length, sheetX, axisIncomplete }),
+  ))
+  const visibleSteps = steps.filter(s => activeNums.has(s.step_num))
+
   async function completeStep(stepId: string) {
     if (!inspection) return
     const now = new Date().toISOString()
@@ -234,7 +255,9 @@ export default function InspectionDetailScreen() {
     if (error) { showAlert('오류', '단계 완료 처리에 실패했습니다.'); return }
 
     const updatedSteps = steps.map(s => s.id === stepId ? { ...s, status: 'completed' as const, completed_at: now } : s)
-    const allDone = updatedSteps.every(s => s.status === 'completed')
+    // ⚠ R-8: **유효 단계만** 센다. 종전에는 6행을 그대로 세어, 해당없음인 ⑤⑥ 때문에 정기 건이
+    // 영원히 미완이거나 반대로 ⑤⑥을 눌러 완료시키면 `completed`가 굳었다.
+    const allDone = updatedSteps.filter(s => activeNums.has(s.step_num)).every(s => s.status === 'completed')
     if (allDone) {
       await supabase.from('inspections').update({ status: 'completed' }).eq('id', inspection.id)
     } else if (inspection.status === 'scheduled') {
@@ -339,11 +362,11 @@ export default function InspectionDetailScreen() {
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>점검 단계</Text>
               <Text style={styles.stepCount}>
-                {steps.filter(s => s.status === 'completed').length}/{steps.length}
+                {visibleSteps.filter(s => s.status === 'completed').length}/{visibleSteps.length}
               </Text>
             </View>
             <View style={styles.section}>
-              {steps.map((step) => (
+              {visibleSteps.map((step) => (
                 <View key={step.id} style={styles.stepRow}>
                   <View style={[styles.stepDot, step.status === 'completed' && styles.stepDotDone]} />
                   <View style={styles.stepInfo}>

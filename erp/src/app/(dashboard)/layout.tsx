@@ -66,6 +66,11 @@ async function getStepBadgeCounts(profileId: string, role: string) {
       naCandidates().gt('due_date', today).lte('due_date', d3).order('id').range(from, to)),
   ])
 
+  // ⚠ R-7(4차 판정): 못 받은 후보는 **빼지 않는다** = 빨강이 유지된다(안전한 쪽). 다만 그 사실이
+  // 조용하면 「고쳤는데 왜 아직 빨갛나」를 아무도 설명할 수 없으므로 표면화한다.
+  if (redNaRes.error || redNaRes.truncated || orangeNaRes.error || orangeNaRes.truncated) {
+    console.error('[sidebar-badge] 해당없음 후보 조회 불완전 — 뱃지가 실제보다 높게 남습니다', redNaRes.error, orangeNaRes.error)
+  }
   const naRows = [...redNaRes.rows, ...orangeNaRes.rows]
   const active = await activeStepsByInspection(
     admin, [...new Set(naRows.map(r => r.inspection_id))], 'sidebar-badge')

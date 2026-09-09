@@ -65,8 +65,11 @@ export type StepEvidence = {
    *  ⑤가 활성 집합에서 빠지는 순간 아무도 읽지 않으므로 무력했다.
    *  개수를 부풀리는 대신 축을 실어, 활성(hasSheetDefect)·완료(evidenceDone ⑤)·사유 완료 무효
    *  (isForced5Void) 세 판정이 **같은 신호 하나**로 함께 보수 판정한다.
-   *  미공급(undefined)은 '완전하다'로 본다 — 순수 단언·화면 리터럴 호출부 호환. */
-  axisIncomplete?: boolean
+   *  ⚠ 4차 독립 판정 R-1: 종전에는 `?:`(선택)였는데 그것이 옆문이었다 — 작업대(정본 화면)가
+   *  이 축을 손에 쥐고도 안 넘겨, 서버는 보수 판정하는데 화면만 4/4 100%로 그렸다.
+   *  **필수 키 + `| undefined`**로 둔다: 값을 모르면 `undefined`라고 **명시**해야 하므로 빠뜨릴 수
+   *  없고, 판정 함수는 여전히 undefined를 '완전하다'로 읽는다(순수 단언 호환). */
+  axisIncomplete: boolean | undefined
   /** ⑥ 별지 11호 제출일 */
   submit11At: string | null
   /** 강제 완료된 단계 번호 — 사유가 남고 **철회되지 않은** 것만 들어온다(R4-3 / resolveForcedSteps) */
@@ -179,7 +182,14 @@ export function activeStepNums(isSpecial: boolean, needsRepairSteps: boolean): S
  *
  *  두 축을 OR로 본다. `defectsTotal`은 등록된 불량내역, `sheetX`는 아직 등록되지 않은 ✕ 응답이다.
  *  어느 한쪽만 보면 화면이 갈라진다 — 목록·작업대·제출 현황판이 전부 이 함수를 거친다. */
-export function hasSheetDefect(e: { defectsTotal: number; sheetX?: number; axisIncomplete?: boolean }): boolean {
+export function hasSheetDefect(
+  // ⚠ `axisIncomplete`는 **선택이 아니라 필수**다(4차 독립 판정 R-1). 종전에는 `?:`였는데,
+  // 이 인자는 `StepEvidence`가 아니라 **구조적 부분타입**이라 `StepEvidence` 쪽을 필수로 바꿔도
+  // 호출부가 새로 만든 리터럴은 tsc가 그냥 통과시킨다 — 실제로 작업대(정본 화면)가 축을 손에
+  // 쥐고도 안 넘겨, 서버는 보수 판정하는데 화면만 4/4 100%로 그리고 있었다.
+  // `boolean | undefined`(필수 키)로 두면 **모르면 모른다고 명시**해야 하므로 빠뜨릴 수 없다.
+  e: { defectsTotal: number; sheetX?: number; axisIncomplete: boolean | undefined },
+): boolean {
   // ⚠ R-1(3차 판정) — **조회가 불완전하면 ⑤⑥을 지우지 않는다.** 0으로 접힌 개수와 '진짜 0건'을
   // 구별할 수 없으므로, 못 잰 것은 '조치가 필요하다'로 본다(목록·크론의 repairAxisIncomplete와 같은 기울기).
   if (e.axisIncomplete) return true
