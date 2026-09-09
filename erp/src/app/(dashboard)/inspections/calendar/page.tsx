@@ -1,7 +1,8 @@
 import { redirect } from 'next/navigation'
 import { getProfile, can } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { fetchAllRows } from '@/lib/supabase/paginate'
+import { fetchAllRows, fetchAllRowsByIds } from '@/lib/supabase/paginate'
+import { activeStepsByInspection, isStepActive } from '@/lib/active-steps'
 import { InspectionCalendarClient } from '@/components/inspections/inspection-calendar-client'
 import type { CalendarInspection, CalendarPlanItem } from '@/components/inspections/inspection-calendar-client'
 import type { InspectionType, InspectionStatus, UserRole } from '@/types'
@@ -93,17 +94,27 @@ export default async function InspectionCalendarPage({
     const custIds = [...new Set(rawInspections.map(i => i.customer_id))]
 
     const [stepsRes, customersRes] = await Promise.all([
-      admin
+      // ⚠ 옆의 customers만 fetchAllRows로 감싸져 있었다 — **같은 조회 묶음 안에서 셋 중 둘**이다.
+      // 단계 행은 점검당 최대 6이라 상한을 가장 먼저 넘는데, 잘리면 뒤쪽 점검의 진행 칩이 통째로
+      // 사라진다(오류 없이). 정렬은 페이징 규약대로 동점 없는 id로 걸고 step_num은 아래서 세운다.
+      fetchAllRowsByIds<{
+        id: string; inspection_id: string; step_num: number; name_ko: string
+        due_date: string | null; status: string; completed_at: string | null
+      }, string>(inspIds, (c, from, to) => admin
         .from('inspection_steps')
         .select('id, inspection_id, step_num, name_ko, due_date, status, completed_at')
-        .in('inspection_id', inspIds)
-        .order('step_num'),
+        .in('inspection_id', c)
+        .order('id').range(from, to)),
       // ⚠fetchAllRows 필수 — 1000행 상한에 걸려 고객이 map에서 빠지면 아래 is_active 필터가
       // `undefined !== false`로 통과해 **비활성 고객이 달력에 되살아난다**(조용한 실패). D-8의 보장이
       // 고객 수에 따라 깨지지 않도록 전량을 싣는다. [[risk_supabase_1000row_cap]]
-      fetchAllRows((from, to) => admin
-        .from('customers').select('id, customer_name, customer_code, is_active, address')
-        .in('id', custIds).order('id').range(from, to)),
+      // ⚠ §S12 실측(2026-09-09): 그 보장이 **상한보다 먼저** 깨질 수 있었다 — id 목록이 URL에 실려
+      // 400건부터 요청 자체가 실패하고, 그러면 map이 통째로 비어 같은 되살아남이 일어난다.
+      // 달력은 한 해치 고객을 싣는 화면이라 정확히 그 규모다. 쪼개 보낸다.
+      fetchAllRowsByIds<{ id: string; customer_name: string; customer_code: string; is_active: boolean; address: string | null }, string>(
+        custIds, (c, from, to) => admin
+          .from('customers').select('id, customer_name, customer_code, is_active, address')
+          .in('id', c).order('id').range(from, to)),
     ])
 
     type StepRow = {
@@ -111,16 +122,26 @@ export default async function InspectionCalendarPage({
       due_date: string | null; status: string; completed_at: string | null
     }
 
+    // 🎯 소방계획서_45 §S11(Q-6 유예분) — **착륙 화면**이 4/6이었다. 점검표 모두 합격이라
+    // 작업대에서 '해당없음'으로 흐려진 ⑤⑥이 여기서는 정상 단계로 그려져, 달력에서 시작한
+    // 사용자는 영원히 끝나지 않는 점검을 본다. 판정은 크론·목록과 같은 한 벌을 쓴다.
+    const activeCal = await activeStepsByInspection(admin, inspIds, 'inspection-calendar')
+
     const stepsMap = new Map<string, StepRow[]>()
-    for (const s of (stepsRes.data ?? []) as StepRow[]) {
+    for (const s of stepsRes.rows as StepRow[]) {
+      if (!isStepActive(activeCal, s.inspection_id, s.step_num)) continue
       if (!stepsMap.has(s.inspection_id)) stepsMap.set(s.inspection_id, [])
       stepsMap.get(s.inspection_id)!.push(s)
     }
+    // 조회는 id 정렬로 받았으므로(페이징 규약) 표시 순서는 여기서 세운다
+    for (const rows of stepsMap.values()) rows.sort((a, b) => a.step_num - b.step_num)
 
-    const customerMap = new Map(
-      ((customersRes.rows ?? []) as Array<{ id: string; customer_name: string; customer_code: string; is_active: boolean; address: string | null }>)
-        .map(c => [c.id, c])
-    )
+    // ⚠ 조회가 실패하면 map이 비어 아래 `is_active !== false` 필터가 통과해 **비활성 고객이 되살아난다**.
+    // 그 조용한 실패를 최소한 로그로 표면화한다(D-8 보장이 깨진 상태임을 운영에서 가려낼 수 있게).
+    if (customersRes.error || customersRes.truncated) {
+      console.error('[calendar] 고객 조회 불완전 — 비활성 고객이 달력에 남을 수 있습니다', customersRes.error)
+    }
+    const customerMap = new Map(customersRes.rows.map(c => [c.id, c]))
 
     // 고객관리에서 삭제(비활성)된 고객의 점검 건은 달력에 싣지 않는다 (2026-08-28)
     calendarData = rawInspections.filter(insp => customerMap.get(insp.customer_id)?.is_active !== false).map(insp => {

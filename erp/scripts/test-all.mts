@@ -74,6 +74,14 @@ const steps: Step[] = [
   { name: '완료 보류 가드 실패방향(39)', cmd: 'npx tsx --conditions=react-server scripts/_probe-39-guards.mts' },
   // 39 S3 보류 왕복(hold→해소→completed·scheduled 강등·completed 소급 없음) — 픽스처 자체 생성·정리.
   { name: '완료 보류 왕복(39)',        cmd: 'npx tsx --conditions=react-server scripts/_probe-39-hold.mts' },
+  // 소방계획서_45 — 6단계 판정(⑤⑥ 해당없음 축)의 순수 단언 + 스테이징 실주행.
+  // ⚠ 3차 독립 판정(2026-09-09)이 **이 스위트가 게이트에 없다**는 것을 잡았다: 76단언이 초록인데
+  // 아무도 안 돌리고 있었다. 이 축은 `inspections.status='completed'`를 DB에 쓰는 데까지 가므로
+  // (applyStepSideEffects) 틀리면 「하지 않은 일이 완료로 남는다」(D34-2). 반드시 등재 상태로 둔다.
+  { name: '6단계 판정·모두합격 축(45)',  cmd: 'npx tsx --conditions=react-server scripts/test-inspection-steps-sync.mts' },
+  // 45 §S10~S12 정적 규약 — 판정 3회가 같은 형태로 반복해서 잡은 것들이 되돌아오지 않게 고정한다
+  // (「셋 중 둘」 포장 · 조용한 폴백 · 화면 쌍둥이 · `.in()` URL 쪼개기).
+  { name: '모두합격 축 이웃 규약(45)',   cmd: 'node scripts/_probe-45-neighbors.mjs' },
   // 소방계획서_33 — 종합 대상의 2차는 작동점검. 생성 3축·가드 3케이스(축은 옮기되 없애지 않는다)·
   // 인쇄물 라벨·점검표 범위·재생성 멱등을 한 번에 고정한다. 2차를 종합으로 되돌리는 경로가
   // 5개(생성기·수동추가·초과해결·고객동기화·수동등록)라 결과 축에서 감시하는 편이 싸다.

@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { CheckCircle2, AlertTriangle, Circle, Upload, FileText, FileType2, Download, Loader2, Pencil, Eye } from 'lucide-react'
 import { type DocGroupRef, type InspectionDocs } from '@/app/(dashboard)/reports/docs-actions'
 import { DOC_TERMS } from '@/lib/doc-requirements'
+import { hasSheetDefect } from '@/lib/inspection-step-status'
 import { openAnnexHwp, openAnnexPdf } from '@/lib/annex-filename'
 import { type ComposeAnnexNo } from '@/components/inspections/annex-compose-panel'
 
@@ -152,8 +153,10 @@ export function InspectionDocRows({ i, customerName, isPending, open, generate, 
               별지 11호 제출 패키지에도 종전대로 자동 첨부된다. 여기서 한 줄 덜어낼 뿐이다. */}
           {/* 10·11호 */}
           {/* 소방계획서_45 — '해당없음'은 **점검표 모두 합격**일 때만이다. 등록 불량만 보면 ✕를 찍고
-              아직 등록하지 않은 회차가 여기서 '해당없음'이라 적히고 작업대 ⑤⑥은 활성인, 갈라진 화면이 된다. */}
-          {i.defects.total === 0 && i.sheetX === 0 ? (
+              아직 등록하지 않은 회차가 여기서 '해당없음'이라 적히고 작업대 ⑤⑥은 활성인, 갈라진 화면이 된다.
+              ⚠ 3차 판정: 종전에는 여기만 `hasSheetDefect`를 **부르지 않은 인라인 사본**이었다(값은 같았다).
+              축을 또 넓힐 때 갈라지는 자리이므로 형제 두 곳과 같은 함수로 모은다 — allPassUnknown도 함께 본다. */}
+          {!hasSheetDefect({ defectsTotal: i.defects.total, sheetX: i.sheetX, axisIncomplete: i.allPassUnknown }) ? (
             <div className={rowCls}>
               <StatusIcon state="na" />
               <span className="font-medium text-ink-faint w-44" title={`${DOC_TERMS.report10Full} · ${DOC_TERMS.report11Full}`}>이행계획·완료 (10·11호)</span>

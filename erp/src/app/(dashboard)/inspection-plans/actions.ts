@@ -7,6 +7,7 @@ import { loadAnchorDates, loadAnchorResolutions } from '@/lib/inspection-plan-ge
 import { anchorSourceLabel } from '@/lib/plan-anchor'
 import { rowInspectionType, rowSubType } from '@/lib/inspection-round'
 import { startInspectionCore, syncInspectionStepDates, syncInspectionVisitDate, isStepOneCompleted } from '@/lib/inspection-start'
+import { activeStepsByInspection, isStepActive } from '@/lib/active-steps'
 import type { PlanStatus, PlanItemStatus, InspectionType } from '@/types'
 
 // ── 점검 시작 — plan_item → inspections 생성 (코어는 src/lib/inspection-start.ts — 크론·자동 시작과 공용) ──
@@ -849,10 +850,16 @@ export async function getInspectionStepsForItemAction(inspectionId: string) {
     .select('id, step_num, name_ko, due_date, status, completed_at')
     .eq('inspection_id', inspectionId)
     .order('step_num')
-  return { steps: (data ?? []) as Array<{
+  // 🎯 소방계획서_45 §S11(Q-6 유예분) — 이 패널이 6행을 **그대로** 돌려주고 있었다.
+  // 점검표 모두 합격이라 작업대·목록·달력에서는 '해당없음'인 ⑤⑥이 여기서만 정상 단계로 보이고,
+  // [사유 완료]·[입력] 버튼까지 그려져 「하지 않아도 되는 일」을 하도록 안내했다(D34-2 방향).
+  // 점검 1건이라 배선이 짧다 — 판정은 크론·달력과 같은 한 벌을 쓴다.
+  const active = await activeStepsByInspection(admin, [inspectionId], 'plan-item-panel')
+  const steps = ((data ?? []) as Array<{
     id: string; step_num: number; name_ko: string
     due_date: string | null; status: string; completed_at: string | null
-  }> }
+  }>).filter(s => isStepActive(active, inspectionId, s.step_num))
+  return { steps }
 }
 
 // ── 일괄 확정 ────────────────────────────────────────────────

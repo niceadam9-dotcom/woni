@@ -9,7 +9,7 @@ import { RecentCustomersStrip } from '@/components/customers/recent-customers-st
 import type { InspectionStatus, InspectionType, PlanType, UserRole } from '@/types'
 import { inspectionNatureBadge } from '@/lib/inspection-nature'
 import { activeStepNums, isSelfInspection } from '@/lib/inspection-step-status'
-import { fetchAllRows } from '@/lib/supabase/paginate'
+import { fetchAllRows, fetchAllRowsByIds } from '@/lib/supabase/paginate'
 import { todayKst } from '@/lib/kst-date'
 
 const STATUS_LABELS: Record<InspectionStatus, string> = {
@@ -97,7 +97,19 @@ export default async function InspectionsPage({
 
   const [inspRes, profilesRes] = await Promise.all([
     // ADD-14: 최신 등록 건 최상위
-    query.order('created_at', { ascending: false }).range(from, to),
+    //
+    // 🎯 소방계획서_45 §S12(인계 1건 — Q-10 사용자 확정 «전건 로드 + 절단 경고»):
+    // 「전체」(`?per_page=0`)는 `range(0, 99999)`였는데 Supabase는 **1000행이 하드 상한**이라
+    // 그 뒤가 오류 없이 사라졌다 — 화면은 "그만큼밖에 없다"고 믿는다. 「전체」를 고른 사용자가
+    // 정확히 그 상황에서 배신당한다. 페이지 보기는 range 그대로 두고 전체일 때만 끝까지 받는다.
+    // ⚠ `created_at` 정렬은 **동점이 가능**하다(일괄 생성은 같은 초에 수백 건). 페이징 규약상
+    // 동점이 있으면 건너뜀·중복이 생기므로 id를 **보조 키**로 붙여 전순서를 만든다.
+    pageSize > 0
+      ? query.order('created_at', { ascending: false }).range(from, to)
+          .then(r => ({ data: r.data as unknown[] | null, count: r.count ?? null, truncated: false }))
+      : fetchAllRows<Record<string, unknown>>((f, t) => query
+          .order('created_at', { ascending: false }).order('id').range(f, t))
+          .then(r => ({ data: r.rows as unknown[], count: r.rows.length, truncated: !!r.error || r.truncated })),
     // 이름 해석은 퇴사자 포함 전체 — 필터 목록만 활성 직원으로 제한
     admin.from('profiles').select('id, name, position, is_active').order('name'),
   ])
@@ -113,6 +125,9 @@ export default async function InspectionsPage({
   const inspections = (inspRes.data ?? []) as unknown as InspRow[]
   const totalCount = inspRes.count ?? 0
   const totalPages = pageSize === 0 ? 1 : Math.ceil(totalCount / pageSize)
+  /** 「전체」 보기에서 폭주 방지 상한(20,000)이나 오류로 **끝까지 못 받았는가** — 화면에 알린다.
+   *  조용한 절단이 이 화면의 인계 결함이었으므로, 고쳐 놓고 다시 조용해지지 않게 신호를 남긴다. */
+  const listTruncated = inspRes.truncated
   const allProfiles = (profilesRes.data ?? []) as Array<{ id: string; name: string; position: string | null; is_active: boolean }>
   const employees = allProfiles.filter(e => e.is_active)
   const empMap = new Map(allProfiles.map(e => [e.id, e]))
@@ -134,14 +149,17 @@ export default async function InspectionsPage({
     // ⚠ 2026-09-08 독립 판정: 종전에는 불량·✕ 둘만 감싸고 **inspection_steps를 빠뜨렸다** —
     // 하필 분모·분자의 원천이라, 전체 보기에서 ids가 1000건이면 단계 행 6000건이 1000에서 잘려
     // 뒤쪽 점검의 진행단계 열이 통째로 결측이었다(자기가 세운 원칙을 셋 중 둘에만 적용한 것).
+    // ⚠ 3차 판정 후 실측(§S12): id 목록은 URL에 실려 **400건부터 요청이 실패**한다. 「전체」 보기의
+    // ids는 이제 상한 없이 수천이 될 수 있으므로(§S12 Q-10) 쪼개 보내지 않으면 이 세 조회가
+    // 통째로 error로 떨어져 진행단계 열이 전건 보수 판정(4→6)이 된다 — 포장보다 앞에 있는 벽이다.
     const [stepsRes, defectsRes, xRes] = await Promise.all([
-      fetchAllRows<{ inspection_id: string; step_num: number; status: string; due_date: string | null }>((from, to) =>
-        admin.from('inspection_steps').select('inspection_id, step_num, status, due_date')
-          .in('inspection_id', ids).order('id').range(from, to)),
-      fetchAllRows<{ inspection_id: string }>((from, to) => admin.from('inspection_defects')
-        .select('inspection_id').in('inspection_id', ids).order('id').range(from, to)),
-      fetchAllRows<{ inspection_id: string }>((from, to) => admin.from('inspection_sheet_responses')
-        .select('inspection_id').in('inspection_id', ids).eq('result', 'X').order('id').range(from, to)),
+      fetchAllRowsByIds<{ inspection_id: string; step_num: number; status: string; due_date: string | null }, string>(
+        ids, (c, from, to) => admin.from('inspection_steps').select('inspection_id, step_num, status, due_date')
+          .in('inspection_id', c).order('id').range(from, to)),
+      fetchAllRowsByIds<{ inspection_id: string }, string>(ids, (c, from, to) => admin.from('inspection_defects')
+        .select('inspection_id').in('inspection_id', c).order('id').range(from, to)),
+      fetchAllRowsByIds<{ inspection_id: string }, string>(ids, (c, from, to) => admin.from('inspection_sheet_responses')
+        .select('inspection_id').in('inspection_id', c).eq('result', 'X').order('id').range(from, to)),
     ])
     // ⚠ 조용한 폴백 금지 — ✕ 조회가 실패하면 needsRepair가 **말없이 종전 축으로 되돌아간다**
     // (모두 합격처럼 보이고 ⑤⑥이 잠긴다). 화면에는 신호가 없으므로 최소한 로그로 표면화한다.
@@ -265,6 +283,16 @@ export default async function InspectionsPage({
         )}
         <span className="text-xs text-ink-sub ml-auto">총 {totalCount}건</span>
       </form>
+
+      {/* 소방계획서_45 §S12 — 「전체」 보기가 끝까지 못 받았을 때. 종전에는 이 상태가 **조용했다**
+          (1000건에서 잘리고 화면은 "그만큼밖에 없다"고 말했다). 고쳐 놓고 다시 조용해지지 않도록,
+          상한·오류로 못 받은 경우에는 목록이 불완전함을 화면에서 말한다. */}
+      {listTruncated && (
+        <div className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+          목록을 끝까지 불러오지 못했습니다 — 아래 {inspections.length}건은 <b>전체가 아닙니다</b>.
+          연도·상태·담당으로 범위를 좁히거나 페이지 보기(25·50·100건)로 조회해 주세요.
+        </div>
+      )}
 
       {/* 목록 */}
       <div className="bg-surface rounded-xl border border-line shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px,rgba(18,43,165,0.08)_0px_6px_6px_-3px,rgba(18,43,165,0.08)_0px_12px_12px_-6px] overflow-hidden">

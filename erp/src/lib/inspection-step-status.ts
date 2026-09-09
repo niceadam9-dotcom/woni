@@ -57,6 +57,16 @@ export type StepEvidence = {
    *  완료로 굳는다(수기 추가·조치 후 재점검 기재도 같은 형태). 개수 비교가 아니라 **집합 차**여야
    *  신규 등록·삭제·재기재가 한 규칙으로 덮인다. sheetX(✕ 존재 여부 = ⑤⑥ 활성 축)와는 다른 축이다. */
   unregisteredX: number
+  /** 이 증거를 모은 **조회가 불완전한가**(오류·상한 절단). 소방계획서_45 3차 독립 판정 R-1.
+   *
+   *  ⚠ 실패를 '해당없음'으로 접지 않기 위한 축이다. 종전에는 보수 판정을 `unregisteredX` 한 필드에만
+   *  걸었는데, ✕ 조회가 실패하면 형제인 `sheetX`가 0으로 접혀 `hasSheetDefect`가 false가 되고
+   *  ⑤⑥이 분모에서 빠진 뒤 `status='completed'`가 **DB에 기록**됐다 — 보수 판정한 `unregisteredX`는
+   *  ⑤가 활성 집합에서 빠지는 순간 아무도 읽지 않으므로 무력했다.
+   *  개수를 부풀리는 대신 축을 실어, 활성(hasSheetDefect)·완료(evidenceDone ⑤)·사유 완료 무효
+   *  (isForced5Void) 세 판정이 **같은 신호 하나**로 함께 보수 판정한다.
+   *  미공급(undefined)은 '완전하다'로 본다 — 순수 단언·화면 리터럴 호출부 호환. */
+  axisIncomplete?: boolean
   /** ⑥ 별지 11호 제출일 */
   submit11At: string | null
   /** 강제 완료된 단계 번호 — 사유가 남고 **철회되지 않은** 것만 들어온다(R4-3 / resolveForcedSteps) */
@@ -107,7 +117,9 @@ export function evidenceDone(e: StepEvidence): Record<StepNum, boolean> {
     // ⑤는 **넓히지 않고 좁힌다**(R-5): 미등록 ✕가 남아 있으면 등록분을 다 조치해도 완료가 아니다.
     // `unregisteredX === 0` 추가는 완료를 더 어렵게만 하므로 '하지 않은 일이 완료로 남는' 방향으로는
     // 기울 수 없다 — defectsTotal>0 요구는 그대로 둔다(0에서 `0>=0`이 참이 되는 것을 막는 가드).
-    5: e.defectsTotal > 0 && e.defectsDone >= e.defectsTotal && (e.unregisteredX ?? 0) === 0,
+    // ⚠ R-1(3차 판정): 증거 조회가 불완전하면 ⑤는 **완료로 판정하지 않는다** — 못 받은 불량 행이
+    // 미조치일 수 있고, 그 상태로 완료가 굳으면 D34-2가 막으려던 자리로 되돌아간다.
+    5: !e.axisIncomplete && e.defectsTotal > 0 && e.defectsDone >= e.defectsTotal && (e.unregisteredX ?? 0) === 0,
     6: !!e.submit11At,
   }
   for (const n of e.forced ?? []) {
@@ -134,6 +146,8 @@ export function evidenceDone(e: StepEvidence): Record<StepNum, boolean> {
  *  ⚠ R-5(2026-09-08 2차 판정): 종전에는 그 집합 차를 `defectsTotal === 0`으로 근사했는데,
  *  불량 행이 하나라도 있으면 미등록 ✕가 안 보여 옆문이 열려 있었다(unregisteredX 주석 참조). */
 export function isForced5Void(e: StepEvidence): boolean {
+  // R-1(3차 판정) — 증거가 불완전하면 사유 완료도 굳히지 않는다(닫는 쪽으로 기운다)
+  if (e.axisIncomplete) return true
   if ((e.unregisteredX ?? 0) > 0) return true
   return e.defectsDone < e.defectsTotal
 }
@@ -165,7 +179,10 @@ export function activeStepNums(isSpecial: boolean, needsRepairSteps: boolean): S
  *
  *  두 축을 OR로 본다. `defectsTotal`은 등록된 불량내역, `sheetX`는 아직 등록되지 않은 ✕ 응답이다.
  *  어느 한쪽만 보면 화면이 갈라진다 — 목록·작업대·제출 현황판이 전부 이 함수를 거친다. */
-export function hasSheetDefect(e: { defectsTotal: number; sheetX?: number }): boolean {
+export function hasSheetDefect(e: { defectsTotal: number; sheetX?: number; axisIncomplete?: boolean }): boolean {
+  // ⚠ R-1(3차 판정) — **조회가 불완전하면 ⑤⑥을 지우지 않는다.** 0으로 접힌 개수와 '진짜 0건'을
+  // 구별할 수 없으므로, 못 잰 것은 '조치가 필요하다'로 본다(목록·크론의 repairAxisIncomplete와 같은 기울기).
+  if (e.axisIncomplete) return true
   return e.defectsTotal > 0 || (e.sheetX ?? 0) > 0
 }
 

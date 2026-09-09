@@ -1,5 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { computeFirePlanReadiness } from '@/lib/fire-plan-readiness'
+import { fetchAllRowsByIds } from '@/lib/supabase/paginate'
+import { hasSheetDefect } from '@/lib/inspection-step-status'
 import type { InspectionType } from '@/types'
 
 /** 고객 목록 공용 조회 (서버 전용) — 목록 페이지와 상세 [◀ 이전|다음 ▶] 네비가 같은 필터·정렬을 공유한다.
@@ -170,27 +172,57 @@ export async function fetchCustomerList(
     if (!prev || cur > (inspOrder.get(prev) ?? '')) { latestInsp.set(r.customer_id, r.id); inspOrder.set(r.id, cur) }
   }
   const latestInspIds = [...latestInsp.values()]
-  const [jobsRes, defRes] = latestInspIds.length > 0 ? await Promise.all([
-    admin.from('fire_plan_gen_jobs').select('inspection_id, report_type')
-      .in('inspection_id', latestInspIds).eq('status', 'done')
-      .in('report_type', ['report4', 'report9', 'report10', 'report11']),
-    admin.from('inspection_defects').select('inspection_id').in('inspection_id', latestInspIds),
-  ]) : [{ data: [] }, { data: [] }]
-  const jobHave = new Set(((jobsRes.data ?? []) as Array<{ inspection_id: string; report_type: string }>)
-    .map(j => `${j.inspection_id}:${j.report_type}`))
+  // 🎯 소방계획서_45 §S11(Q-4에서 별도 차수로 유예 확정했던 자리) — 종전에는 ⑩⑪ '해당없음'을
+  // **등록된 불량 0건**만으로 판정해, ✕만 찍고 아직 등록하지 않은 회차가 여기서 회색 '해당없음'으로
+  // 남았다. 같은 회차의 작업대·별지 트리·제출 현황판은 ⑤⑥·⑩⑪ 활성이라 화면이 갈라졌다.
+  // ⚠ 세 조회 모두 1000행 상한 미대비였다 — 불량은 회차당 수십 건이라 고객 수백이면 넘긴다.
+  // 잘리면 defCount가 낮아져 **'해당없음'으로 뒤집히는**(할 일이 사라지는) 방향이라 감싼다.
+  const empty = { rows: [] as never[], error: null, truncated: false }
+  // ⚠ 고객 목록은 「전체」에서 수백~수천 고객이라 latestInspIds도 같은 규모다 — id 목록이 URL에
+  // 실려 400건부터 요청이 실패하므로(§S12 실측) 쪼개 보낸다(그 실패는 조용하지 않지만, 이 함수는
+  // 종전에 error를 한 번도 안 봤다 = 조용히 '해당없음'이 되는 형태였다).
+  const [jobsRes, defRes, xRes] = latestInspIds.length > 0 ? await Promise.all([
+    fetchAllRowsByIds<{ inspection_id: string; report_type: string }, string>(latestInspIds,
+      (c, from, to) => admin.from('fire_plan_gen_jobs').select('inspection_id, report_type')
+        .in('inspection_id', c).eq('status', 'done')
+        .in('report_type', ['report4', 'report9', 'report10', 'report11'])
+        .order('id').range(from, to)),
+    fetchAllRowsByIds<{ inspection_id: string }, string>(latestInspIds,
+      (c, from, to) => admin.from('inspection_defects').select('inspection_id')
+        .in('inspection_id', c).order('id').range(from, to)),
+    fetchAllRowsByIds<{ inspection_id: string }, string>(latestInspIds,
+      (c, from, to) => admin.from('inspection_sheet_responses').select('inspection_id')
+        .in('inspection_id', c).eq('result', 'X').order('id').range(from, to)),
+  ]) : [empty, empty, empty]
+  // 조회가 불완전하면 ⑩⑪을 '해당없음'으로 **접지 않는다** — 못 잰 것은 '조치가 필요하다'로 본다
+  // (작업대·크론·목록과 같은 기울기. 여기서 0으로 접히면 목록에서 할 일이 조용히 사라진다)
+  const docAxisIncomplete = !!(defRes.error || defRes.truncated || xRes.error || xRes.truncated)
+  if (docAxisIncomplete) {
+    console.error('[customer-list] 불량·✕ 조회 불완전 — ⑩⑪ 해당없음 판정을 보류합니다', defRes.error, xRes.error)
+  }
+  const jobHave = new Set(jobsRes.rows.map(j => `${j.inspection_id}:${j.report_type}`))
   const defCount = new Map<string, number>()
-  for (const d of ((defRes.data ?? []) as Array<{ inspection_id: string }>)) {
+  for (const d of defRes.rows) {
     defCount.set(d.inspection_id, (defCount.get(d.inspection_id) ?? 0) + 1)
+  }
+  const xCount = new Map<string, number>()
+  for (const r of xRes.rows) {
+    xCount.set(r.inspection_id, (xCount.get(r.inspection_id) ?? 0) + 1)
   }
   function docStripOf(customerId: string): CustomerDocStrip {
     const plan: DocCell = planHave.has(customerId) ? 'have' : 'warn'
     const insp = latestInsp.get(customerId)
     if (!insp) return { plan, a4: 'na', a9: 'na', a10: 'na', a11: 'na' }  // 당해 연도 자체점검 없음
     const has = (t: string): DocCell => (jobHave.has(`${insp}:${t}`) ? 'have' : 'warn')
-    const hasDefect = (defCount.get(insp) ?? 0) > 0
+    // 판정축은 작업대 ⑤⑥과 **같은 함수**를 쓴다 — 여기만 `> 0`을 다시 쓰면 축을 넓힐 때 또 갈라진다
+    const hasDefect = hasSheetDefect({
+      defectsTotal: defCount.get(insp) ?? 0,
+      sheetX: xCount.get(insp) ?? 0,
+      axisIncomplete: docAxisIncomplete,
+    })
     return {
       plan, a4: has('report4'), a9: has('report9'),
-      a10: hasDefect ? has('report10') : 'na',   // 불량 0건이면 해당없음
+      a10: hasDefect ? has('report10') : 'na',   // 점검표 모두 합격(✕ 0 AND 불량 0)이면 해당없음
       a11: hasDefect ? has('report11') : 'na',
     }
   }

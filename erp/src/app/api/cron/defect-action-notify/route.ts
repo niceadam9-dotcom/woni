@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { filterNotifiableRecipients } from '@/lib/notify'
+import { fetchAllRows } from '@/lib/supabase/paginate'
 
 // 불량 이행기한 임박 알림 (소방계획서_4.md §9-7d — 과태료 방어)
 // inspection_defects.action_end(이행 종료 예정일)가 임박/경과했는데 미완료(action_completed_at null)인 건을
@@ -129,12 +130,24 @@ export async function GET(req: NextRequest) {
     report9_submitted_at: string | null
     customer: { customer_name: string } | null
   }
-  const { data: inspRaw } = await admin.from('inspections')
+  // 🎯 소방계획서_45 3차 독립 판정 R-9: 이 조회는 미포장·무정렬이었고, `report9_submitted_at is null`
+  // 이라 **보고 의무가 없는 정기·일반이 전량 매칭**해 1000행 예산을 먼저 먹었다. `specials` 필터는
+  // 이미 잘린 페이지에 client-side로 걸리므로, 어떤 자체점검이 살아남는지가 `.order()` 부재까지 겹쳐
+  // **비결정적**이었다 — 과태료를 막으려는 별지 9호 기한 알림이 무작위로 누락되는 기울기다.
+  // ① 서버측에서 정기·일반을 먼저 걸러 예산을 자체점검에만 쓰고 ② fetchAllRows로 끝까지 받는다.
+  const inspRes = await fetchAllRows<Record<string, unknown>>((from, to) => admin.from('inspections')
     .select('id, customer_id, assigned_employee_id, inspection_type, plan_type, inspection_start_date, inspection_end_date, report9_submitted_at, customer:customers(customer_name)')
     .is('report9_submitted_at', null)
     .gte('inspection_start_date', shiftDate(todayStr, -45))
-  const specials = ((inspRaw ?? []) as unknown as InspRow[])
-    .filter(r => !r.plan_type || r.plan_type.startsWith('special')) // 정기·일반은 보고 의무 없음(§9-9a)
+    // `special_*` — PostgREST의 like 와일드카드는 `*`다(customer-list.ts:161과 같은 표기)
+    .or('plan_type.is.null,plan_type.like.special_*')
+    .order('id').range(from, to))
+  if (inspRes.error || inspRes.truncated) {
+    console.error('[defect-action-notify] 별지 9호 대상 조회 불완전 — 기한 알림이 누락됩니다:', inspRes.error, inspRes.truncated)
+  }
+  const specials = (inspRes.rows as unknown as InspRow[])
+    // 서버측 `.or()`와 **같은 술어**를 남겨 둔다(이중 방어) — 종전에는 이것이 유일한 필터였다(§9-9a)
+    .filter(r => !r.plan_type || r.plan_type.startsWith('special')) // 정기·일반은 보고 의무 없음
     .map(r => ({ ...r, deadline: r.inspection_end_date ?? r.inspection_start_date }))
     .filter(r => r.deadline)
     .map(r => ({ ...r, deadline: shiftDate(r.deadline!, 15) }))

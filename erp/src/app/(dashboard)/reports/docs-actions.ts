@@ -49,6 +49,14 @@ export type InspectionDocs = {
   /** 점검표 ✕ 응답 수 — 불량내역 등록 **전**의 불량 신호 (소방계획서_45).
    *  별지 10·11호 '해당없음'은 defects.total과 이 값이 **둘 다** 0일 때만 성립한다. */
   sheetX: number
+  /** 위 두 수(defects.total·sheetX)를 믿을 수 없는가 — 조회 오류·상한 절단 (소방계획서_45 3차 판정 R-3).
+   *
+   *  ⚠ 같은 파일의 제출 현황판에는 2차 판정 때 `allPassUnknown`을 신설했는데 **이 조립 함수에는
+   *  오류 검사도 로그도 없었다**(판정자 2인 독립 합치). 별지 트리·회차 카드·문서 현황 셋이 전부
+   *  이 값을 읽으므로, 조회가 실패하면 세 화면이 한꺼번에 거짓 「해당없음 — 점검표 모두 합격」을
+   *  그리고 10·11호가 미리보기 목록에서 사라진다 — 같은 회차의 작업대는 ⑤⑥ 활성이라
+   *  45차수가 닫으려던 '두 화면 갈라짐'이 그대로 재현된다. */
+  allPassUnknown: boolean
   report4: DocGroupRef | null
   report9: DocGroupRef | null
   report10: DocGroupRef | null
@@ -108,6 +116,12 @@ async function buildInspectionDocs(
   ])
   const objects = objRes.data ?? []
   const defects = (defRes.data ?? []) as Array<{ photo_url: string | null; after_photo_url: string | null; action_completed_at: string | null }>
+  // ⚠ R-3(3차 판정, 2인 합치) — 조용한 폴백 금지. `data ?? []`·`count ?? 0`은 오류와 '진짜 0건'을
+  // 구별하지 못하고, 그 0이 곧 '점검표 모두 합격'으로 읽힌다. 축을 실어 보내 소비 3곳이 판정을 보류한다.
+  const allPassUnknown = !!(defRes.error || xRes.error)
+  if (allPassUnknown) {
+    console.error(`[docs] 불량·✕ 조회 실패 — 10·11호 '해당없음' 판정을 보류합니다 (inspection ${i.id}):`, defRes.error, xRes.error)
+  }
   const cert = objects.find(o => isCertFileName(o.name))
   const contract = objects.find(o => CONTRACT_FILE_RE.test(o.name))
   return {
@@ -122,6 +136,7 @@ async function buildInspectionDocs(
       photoPairs: defects.filter(d => d.photo_url && d.after_photo_url).length,
     },
     sheetX: xRes.count ?? 0,
+    allPassUnknown,
     report4: latestGroup(objects, 'report4', prefix),
     report9: latestGroup(objects, 'report9', prefix),
     report10: latestGroup(objects, 'report10', prefix),

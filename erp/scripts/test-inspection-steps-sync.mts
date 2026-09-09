@@ -19,7 +19,7 @@ const { evidenceDone, activeStepNums, hasSheetDefect, stepProgress, isSelfInspec
   statusMod as unknown as typeof import('../src/lib/inspection-step-status.ts')
 // 독립 검증 R4-10 지적 해소: 순수 함수에 손으로 값을 넣는 대신 **server-only 모듈을 실제로 불러**
 // syncInspectionSteps를 돌리고 inspection_steps.status를 읽어 확인한다(--conditions=react-server 필요)
-const { syncInspectionSteps } = syncMod as unknown as typeof import('../src/lib/inspection-step-sync.ts')
+const { syncInspectionSteps, gatherStepEvidence } = syncMod as unknown as typeof import('../src/lib/inspection-step-sync.ts')
 
 config({ path: '.env.local' })
 const SB_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!
@@ -182,6 +182,26 @@ console.log('— 1부 마커 철회·낡은 강제 완료 (독립 검증 D1)')
   // 좁힌 방향이 **반대쪽으로 새지 않는지** — unregisteredX는 완료를 어렵게만 해야 한다
   ok('불량이 전무하면 미등록도 없다 — ⑤는 여전히 미완료(0 >= 0이 참이 되지 않는다)',
     evidenceDone({ ...EV, unregisteredX: 0 })[5] === false)
+
+  // ── 소방계획서_45 R-1(3차 독립 판정): 조회 불완전 축 `axisIncomplete` ──
+  // 🎯 판별식이다. 종전 구현은 보수 판정을 `unregisteredX` **한 필드에만** 걸었는데, ✕ 조회가
+  // 실패하면 형제인 sheetX가 0으로 접혀 ⑤⑥이 분모에서 통째로 빠지고 → ①~④가 차 있으면
+  // `applyStepSideEffects`가 `inspections.status='completed'`를 **DB에 쓴다**.
+  // ⑤가 활성 집합에서 빠지는 순간 보수 판정한 unregisteredX는 아무도 읽지 않아 무력했다.
+  // 아래 넷은 구 구현(axisIncomplete 무시)에서 전부 반대로 나온다.
+  ok('조회가 불완전하면 ⑤⑥은 활성이다 — 0으로 접힌 개수를 "모두 합격"으로 읽지 않는다',
+    hasSheetDefect({ defectsTotal: 0, sheetX: 0, axisIncomplete: true }) === true)
+  ok('그 상태의 유효 단계는 ①~⑥ — 분모가 6이라야 completed로 굳지 않는다',
+    activeStepNums(true, hasSheetDefect({ defectsTotal: 0, sheetX: 0, axisIncomplete: true })).length === 6)
+  ok('조회가 불완전하면 ⑤ 증거 완료도 성립하지 않는다 — 못 받은 불량이 미조치일 수 있다',
+    evidenceDone({ ...EV, axisIncomplete: true, defectsTotal: 2, defectsDone: 2, unregisteredX: 0 })[5] === false)
+  ok('조회가 불완전하면 ⑤ 사유 완료도 굳지 않는다',
+    isForced5Void({ ...EV, axisIncomplete: true, defectsTotal: 2, defectsDone: 2, unregisteredX: 0 }) === true)
+  // 반대 방향으로 새지 않는지 — 미공급(undefined)은 '완전하다'로 본다(화면 리터럴 호출부 호환)
+  ok('axisIncomplete 미공급이면 종전 판정 그대로다',
+    evidenceDone({ ...EV, defectsTotal: 2, defectsDone: 2, unregisteredX: 0 })[5] === true)
+  ok('완전한 조회에서 모두 합격이면 여전히 ⑤⑥ 생략',
+    activeStepNums(true, hasSheetDefect({ defectsTotal: 0, sheetX: 0, axisIncomplete: false })).length === 4)
 }
 
 // ── 2부: 스테이징 실주행 ────────────────────────────────────────────────────
@@ -310,6 +330,71 @@ try {
   await db.from('inspection_defects').delete().eq('inspection_id', inspId)
   await syncInspectionSteps(admin, inspId, actorId)
   ok('불량을 전부 지우면 ⑤ 사유 완료가 다시 유효해진다', (await doneNow()).includes(5))
+
+  // ── 2부-B: 미등록 ✕ **집합 차**를 DB에서 실제로 계산시킨다 (3차 독립 판정 지적) ──
+  // ⚠ 여기까지 이 스위트의 실주행은 `result:'X'` 응답을 **한 건도 만들지 않았다** — 즉 76단언이
+  // 초록인 채로 `gatherStepEvidence`의 집합 차(R-5의 핵심)가 한 번도 실행된 적이 없었다.
+  // 미등록 ✕ 단언 10건은 전부 손으로 값을 넣은 순수 호출이었다([[feedback_fixture_distribution_blind]]).
+  {
+    await db.from('inspection_defects').delete().eq('inspection_id', inspId)
+    await db.from('inspection_sheet_responses').delete().eq('inspection_id', inspId)
+    const X = ['X-A-001', 'X-A-002', 'X-A-003']
+    await db.from('inspection_sheet_responses').insert(
+      X.map(code => ({ inspection_id: inspId, item_code: code, result: 'X', month: 0 })) as never)
+
+    const inspCols = 'id, customer_id, status, inspection_start_date, inspection_end_date, inspection_type, plan_type, report9_submitted_at, report11_submitted_at'
+    const readEvidence = async () => {
+      const { data } = await db.from('inspections').select(inspCols).eq('id', inspId).single()
+      return gatherStepEvidence(admin, data as never)
+    }
+
+    const e0 = await readEvidence()
+    ok('✕ 3건·등록 0건 — sheetX·미등록이 실제 조회로 3/3이 된다', e0.sheetX === 3 && e0.unregisteredX === 3,
+      `sheetX=${e0.sheetX} unregisteredX=${e0.unregisteredX}`)
+    ok('그 상태는 조회가 완전하다(보수 판정이 켜져 있지 않다)', e0.axisIncomplete === false)
+
+    // ① 코드가 있는 등록 — 집합 차가 그 한 건을 덜어낸다
+    // ⚠ 컬럼은 `defect_name`+`severity`다(`defect_content`가 아니다). 삽입 오류를 **단언으로 올린다** —
+    //   조용히 실패하면 아래 단언들이 전부 '변화 없음'을 통과로 읽는 공허 통과가 된다.
+    const { error: cErr } = await db.from('inspection_defects').insert({
+      inspection_id: inspId, defect_code: X[0], defect_name: `${SEED} 코드 있는 불량`, severity: '보통',
+    } as never)
+    ok('코드 있는 불량 등록 성공 — 실패하면 아래 집합 차 단언이 무의미해진다', !cErr, cErr?.message ?? '')
+    const e1 = await readEvidence()
+    ok('코드 있는 불량을 등록하면 미등록 ✕가 2로 준다 — 집합 차가 실제로 돈다',
+      e1.unregisteredX === 2, `unregisteredX=${e1.unregisteredX}`)
+    ok('등록해도 ✕ 응답은 남는다 — sheetX는 3 그대로(두 축이 다르다는 실측 근거)', e1.sheetX === 3)
+
+    // ② 🎯 Q-9(사용자 확정) — `defect_code`가 **비어 있는** 등록. 수기 폼은 코드 칸이 「선택」이고
+    // 모바일 Edge Function은 아예 안 보내서, 스테이징 실데이터 9행 중 2행(22%)이 이 형태였다.
+    // 집합 차만으로는 키가 없어 영원히 안 보이므로 **개수로 상쇄**한다.
+    const { error: nErr } = await db.from('inspection_defects').insert({
+      inspection_id: inspId, defect_code: null, defect_name: `${SEED} 코드 없는 불량(수기·모바일)`, severity: '보통',
+    } as never)
+    ok('코드 없는 불량 등록 성공 — 이 표본이 실데이터의 22%다', !nErr, nErr?.message ?? '')
+    const e2 = await readEvidence()
+    ok('코드 없는 불량 1건이 미등록 ✕ 1건을 상쇄한다 — 등록했는데 미등록으로 세던 결함',
+      e2.unregisteredX === 1, `unregisteredX=${e2.unregisteredX}`)
+    ok('상쇄해도 등록 총계는 2건 그대로 — 조치 확인 축은 안 흔들린다', e2.defectsTotal === 2)
+
+    // ③ 상쇄가 **음수로 새지 않는지**(반대 방향 가드) — 코드 없는 불량이 ✕보다 많아도 0에서 멈춘다
+    await db.from('inspection_defects').insert([
+      { inspection_id: inspId, defect_code: null, defect_name: `${SEED} 여분1`, severity: '보통' },
+      { inspection_id: inspId, defect_code: null, defect_name: `${SEED} 여분2`, severity: '보통' },
+      { inspection_id: inspId, defect_code: null, defect_name: `${SEED} 여분3`, severity: '보통' },
+    ] as never)
+    const e3 = await readEvidence()
+    ok('여분 등록까지 총 5건 — 상쇄 표본이 실제로 만들어졌다', e3.defectsTotal === 5, `defectsTotal=${e3.defectsTotal}`)
+    ok('상쇄는 0에서 멈춘다 — 미등록 ✕가 음수가 되지 않는다', e3.unregisteredX === 0,
+      `unregisteredX=${e3.unregisteredX}`)
+    // ✕가 남아 있어도 ⑤⑥은 활성이다(활성 축은 sheetX가 잡는다 — 상쇄가 단계를 지우지 않는다)
+    ok('상쇄해도 ⑤⑥ 활성 축은 유지된다 — 조치 확인이 사라지지 않는다',
+      hasSheetDefect(e3) === true && activeStepNums(true, hasSheetDefect(e3)).length === 6)
+
+    await db.from('inspection_defects').delete().eq('inspection_id', inspId)
+    await db.from('inspection_sheet_responses').delete().eq('inspection_id', inspId)
+    await syncInspectionSteps(admin, inspId, actorId)
+  }
 
   // 월간 건 분모
   // year는 inspection_start_date 기반 생성열이고 UNIQUE(customer_id, year, sequence_num)이라

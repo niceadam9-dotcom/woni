@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { filterNotifiableRecipients } from '@/lib/notify'
 import { fetchAllRows } from '@/lib/supabase/paginate'
-import { activeStepNums, isSelfInspection } from '@/lib/inspection-step-status'
+import { activeStepsByInspection, isStepActive } from '@/lib/active-steps'
 
 // Vercel Cron 또는 외부 스케줄러에서 매일 09:00 호출
 // Authorization: Bearer {CRON_SECRET} 헤더 필수
@@ -81,31 +81,15 @@ export async function GET(req: NextRequest) {
     } | null
   }
 
-  /** 소방계획서_45 — **해당없음 단계에는 알림을 보내지 않는다.**
-   *  종전에는 `due_date` 일치 + `status != completed`만 봐서 activeStepNums 필터가 아예 없었다.
-   *  그 결과 점검표 모두 합격이라 화면에서 '해당없음'으로 흐려진 ⑤⑥에 대해 「[D-3] 이행조치 마감」
-   *  알림이 실제로 발송됐다 — 화면은 "할 일 없음", 알림은 "마감 임박"이라 말하는 상태.
-   *  판정은 화면·목록·현황판과 **같은 원천**(activeStepNums × hasSheetDefect)을 쓴다. */
-  async function activeStepsByInspection(ids: string[]): Promise<Map<string, Set<number>>> {
-    const out = new Map<string, Set<number>>()
-    if (ids.length === 0) return out
-    const [inspRes, defRes, xRes] = await Promise.all([
-      admin.from('inspections').select('id, plan_type').in('id', ids),
-      fetchAllRows<{ inspection_id: string }>((from, to) => admin.from('inspection_defects')
-        .select('inspection_id').in('inspection_id', ids).order('id').range(from, to)),
-      fetchAllRows<{ inspection_id: string }>((from, to) => admin.from('inspection_sheet_responses')
-        .select('inspection_id').in('inspection_id', ids).eq('result', 'X').order('id').range(from, to)),
-    ])
-    // 조회가 불완전하면 **알림을 지우는 쪽으로 기울지 않는다** — 못 받은 건 '불량 있음'으로 보수 판정한다.
-    // (여기서 조용히 0으로 접으면 조치가 필요한 회차의 마감 알림이 사라진다 — 놓치는 쪽이 더 위험하다)
-    const incomplete = !!(defRes.error || defRes.truncated || xRes.error || xRes.truncated)
-    if (incomplete) console.error('[deadline-notify] 불량·✕ 조회 불완전 — 전 단계를 활성으로 보수 판정합니다', defRes.error, xRes.error)
-    const needsRepair = new Set([...defRes.rows, ...xRes.rows].map(r => r.inspection_id))
-    for (const i of (inspRes.data ?? []) as Array<{ id: string; plan_type: string | null }>) {
-      out.set(i.id, new Set(activeStepNums(isSelfInspection(i.plan_type), incomplete || needsRepair.has(i.id))))
-    }
-    return out
-  }
+  /* 소방계획서_45 — **해당없음 단계에는 알림을 보내지 않는다.**
+   * 종전에는 `due_date` 일치 + `status != completed`만 봐서 activeStepNums 필터가 아예 없었고,
+   * 점검표 모두 합격이라 화면에서 '해당없음'으로 흐려진 ⑤⑥에 「[D-3] 이행조치 마감」 알림이
+   * 실제로 발송됐다 — 화면은 "할 일 없음", 알림은 "마감 임박"이라 말하는 상태.
+   *
+   * ⭐3차 판정 후 §S11: 판정을 여기 **지역 함수로 두었던 것**이 화면 다섯 곳이 같은 거짓말을
+   * 계속하게 두었다(사이드바 영구 빨강·대시보드·점검 달력·계획 패널·개인 일정). 그래서
+   * `lib/active-steps.ts`로 승격해 여섯 표면이 한 벌을 쓴다 — 여기서는 그것을 부르기만 한다.
+   * R-4(3차 판정)로 잡힌 「plan_type 조회만 맨몸」도 그 모듈에서 함께 고쳐졌다. */
 
   let totalSent = 0
   const results: Record<string, number> = {}
@@ -126,31 +110,50 @@ export async function GET(req: NextRequest) {
     else if (stepsRes.truncated) console.error('[deadline-notify] 대상 단계 조회가 상한에서 잘렸습니다 — 알림 누락:', rule.dueDate)
 
     const rawSteps = stepsRes.rows as unknown as StepWithJoin[]
+    // ⚠ R-6(3차 판정): 대상이 0건인 날은 `results`·`skippedNa` 어디에도 키가 안 생겨 '규칙이 안 돌았다'와
+    // '대상이 없었다'가 다시 구별되지 않았다 — S9-7이 없애려던 모호성이 이 경로에 그대로 남아 있었다.
+    // 형제 크론들(defect-action-notify·insurance-expiry-notify)처럼 0을 **명시**한다.
+    results[rule.dueDate] ??= 0
+    skippedNa[rule.dueDate] ??= 0
     if (rawSteps.length === 0) continue
 
     // 해당없음 단계(모두 합격이면 ⑤⑥)를 여기서 떨어뜨린다 — 발송 직전이 아니라 **집계 전**이라
     // `results[dueDate]`에도 잡히지 않는다(보냈다고 보고되던 수치가 실제 발송과 어긋나지 않게)
-    const activeByInsp = await activeStepsByInspection([...new Set(rawSteps.map(s => s.inspection_id))])
-    const steps = rawSteps.filter(s => activeByInsp.get(s.inspection_id)?.has(s.step_num) ?? true)
+    const activeByInsp = await activeStepsByInspection(
+      admin, [...new Set(rawSteps.map(s => s.inspection_id))], 'deadline-notify')
+    const steps = rawSteps.filter(s => isStepActive(activeByInsp, s.inspection_id, s.step_num))
     // 필터 발화를 운영에서 **관측 가능하게** 남긴다 — 전건이 걸러진 날짜는 results에 키조차 안 생겨
     // '규칙이 안 돌았다'와 '해당없음이라 안 보냈다'를 구별할 수 없었다(2차 판정 지적)
-    if (steps.length < rawSteps.length) skippedNa[rule.dueDate] = rawSteps.length - steps.length
+    // ⚠ 단위는 **단계 수**다(results는 알림 행 수 = 단계 × 수신자). 같은 JSON에 실리므로 합·비교가
+    // 성립하지 않는다는 것을 이름으로 못 박는다(R-7). ⑤⑥ 해당없음과 정기 레거시 ②~⑥ 제외가
+    // 한 칸에 합산되는 것도 그대로다 — 둘 다 activeStepNums의 같은 판정에서 나온다.
+    skippedNa[rule.dueDate] = rawSteps.length - steps.length
     if (steps.length === 0) continue
 
     const stepIds = steps.map(s => s.id)
 
-    // 오늘 이미 발송된 알림 제외
-    const { data: existingRaw } = await admin
+    // 오늘 이미 발송된 알림 제외 — **멱등의 유일한 근거**다.
+    //
+    // 🎯 3차 독립 판정 R-5(중대): 2차 판정 수리가 상류 상한을 20배로 풀면서(fetchAllRows maxRows
+    // 20,000) 이 하류 조회는 맨몸으로 뒀다. 반환 행수는 `단계 수 × 수신자 수`라 임계가 1000행이
+    // 아니라 **단계 200건 수준**이고(매니저 5인), 잘리면 alreadyNotified가 불완전해져 같은 날
+    // 재실행·캐치업에서 **중복 알림이 대량 발송**된다. 상류를 풀었으면 하류도 함께 풀어야 한다.
+    // ⚠ 잘렸는데도 그냥 진행하면 중복을 보내므로, 불완전하면 **이 규칙을 건너뛴다**(안 보내는 쪽).
+    const existingRes = await fetchAllRows<{ reference_id: string | null }>((from, to) => admin
       .from('notifications')
       .select('reference_id')
       .in('reference_id', stepIds)
       .eq('type', rule.type)
       .gte('created_at', `${todayStr}T00:00:00+09:00`)
+      .order('id').range(from, to))
+
+    if (existingRes.error || existingRes.truncated) {
+      console.error('[deadline-notify] 기발송 조회 불완전 — 중복 발송을 막기 위해 이 규칙을 건너뜁니다:', rule.dueDate, existingRes.error)
+      continue
+    }
 
     const alreadyNotified = new Set(
-      ((existingRaw ?? []) as Array<{ reference_id: string | null }>)
-        .map(n => n.reference_id)
-        .filter(Boolean) as string[]
+      existingRes.rows.map(n => n.reference_id).filter(Boolean) as string[]
     )
 
     const batch: Record<string, unknown>[] = []
@@ -189,7 +192,14 @@ export async function GET(req: NextRequest) {
     }
 
     if (batch.length > 0) {
-      await admin.from('notifications').insert(batch as Record<string, unknown>[])
+      // ⚠ R-8(3차 판정): 종전에는 반환값을 버리고 `totalSent += batch.length`를 무조건 더해,
+      // insert가 실패해도 응답이 `ok:true, sent:N`이었다 — 운영은 발송됐다고 믿는다.
+      // 형제 크론 둘(defect-action-notify:115·insurance-expiry-notify:169)은 검사 후 500을 낸다.
+      const { error: insErr } = await admin.from('notifications').insert(batch as Record<string, unknown>[])
+      if (insErr) {
+        console.error('[deadline-notify] 알림 저장 실패:', rule.dueDate, insErr)
+        return NextResponse.json({ ok: false, error: insErr.message, dueDate: rule.dueDate }, { status: 500 })
+      }
       totalSent += batch.length
     }
 

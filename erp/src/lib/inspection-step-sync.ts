@@ -51,7 +51,12 @@ export async function gatherStepEvidence(
       .select('item_code').eq('inspection_id', insp.id).eq('result', 'X').order('id').range(from, to)),
     admin.storage.from('fire-plans').list(prefix, { limit: 100 }),
     admin.from('report_deliveries').select('id').eq('inspection_id', insp.id).eq('doc_kind', 'report9_owner').limit(1),
-    admin.from('inspection_defects').select('action_completed_at, defect_code').eq('inspection_id', insp.id),
+    // ⚠ 3차 독립 판정(R-2): 집합 차의 **반대편**인 이 조회만 맨몸이었다 — 상한 미대비·error 미확인.
+    // 실패하면 registered가 비어 ✕ 전건이 미등록으로 부풀고, applyStepSideEffects가 completed였던
+    // 점검을 in_progress로 **되돌리는 쓰기**까지 한다. 두 집합은 같은 규약으로 받아야 한다.
+    fetchAllRows<{ action_completed_at: string | null; defect_code: string | null }>((from, to) =>
+      admin.from('inspection_defects').select('action_completed_at, defect_code')
+        .eq('inspection_id', insp.id).order('id').range(from, to)),
     // ③ 오프라인 보고·강제 완료·철회 마커 — 마이그레이션 없이 activity_logs를 근거로 쓴다(D34-2).
     // created_at을 함께 읽는다: append-only라 철회는 '나중 마커'로만 표현된다(D1)
     admin.from('activity_logs').select('action, metadata, created_at')
@@ -62,7 +67,7 @@ export async function gatherStepEvidence(
     findArchivedCertInspections(admin, [insp.id]),
   ])
 
-  const defects = (defectsRes.data ?? []) as Array<{ action_completed_at: string | null; defect_code: string | null }>
+  const defects = defectsRes.rows
   const logs = (logsRes.data ?? []) as Array<{ action: string; metadata: Record<string, unknown> | null; created_at: string }>
   // 미등록 ✕ = ✕ 항목 코드 − 이미 등록된 불량 코드. 등록 경로(createDefectsFromXAction)가
   // `defect_code = item_code`로 넣으므로 두 집합의 키가 같다(sheet-actions.ts:731).
@@ -71,12 +76,23 @@ export async function gatherStepEvidence(
   const xCodes = xRes.rows.map(r => r.item_code)
   const registered = new Set(defects.map(d => d.defect_code).filter(Boolean))
   const xAxisIncomplete = !!(xRes.error || xRes.truncated)
-  if (xAxisIncomplete) {
-    console.error(`[step-sync] ✕ 응답 조회 불완전 — 미등록 ✕를 보수 판정합니다 (inspection ${insp.id}):`, xRes.error)
+  const defectAxisIncomplete = !!(defectsRes.error || defectsRes.truncated)
+  if (xAxisIncomplete || defectAxisIncomplete) {
+    console.error(`[step-sync] 불량·✕ 조회 불완전 — ⑤⑥ 축을 보수 판정합니다 (inspection ${insp.id}):`, xRes.error, defectsRes.error)
   }
-  const unregisteredX = xAxisIncomplete
-    ? Math.max(xCodes.length, 1)
-    : xCodes.filter(c => !registered.has(c)).length
+  /** ⚠ Q-9(2026-09-09 사용자 확정) — **코드 없는 불량 1건은 ✕ 1건을 덮은 것으로 본다.**
+   *  `defect_code`는 NULL 허용이고 실제로 두 경로가 비워서 넣는다: 수기 폼(`defect-actions.ts`,
+   *  코드 칸이 「선택」)과 모바일 Edge Function(`functions/add-defect`, 호출부가 아예 안 보낸다).
+   *  스테이징 실측 9행 중 **2행(22%)**이 그 형태였고, 그 회차는 등록을 했는데도 `unregisteredX=1`로
+   *  ⑤가 영구 미완이었다 — 출구가 배너 CTA뿐인데 누르면 같은 불량에 행이 하나 더 생겨 별지
+   *  9·10·11호에 **중복 인쇄**된다. 집합 차만으로는 키가 없는 행을 영원히 못 본다.
+   *  ⚠ 상쇄는 「무관한 수기 불량이 ✕ 하나를 가릴 수 있다」는 값을 치른다. 그래도 ⑤⑥ **활성** 축은
+   *  sheetX가 그대로 잡으므로 단계가 사라지지는 않고, 조치 전건 확인(defectsDone)도 그대로다. */
+  const uncodedDefects = defects.filter(d => !d.defect_code).length
+  const unmatchedX = xCodes.filter(c => !registered.has(c)).length
+  const unregisteredX = (xAxisIncomplete || defectAxisIncomplete)
+    ? xCodes.length
+    : Math.max(0, unmatchedX - uncodedDefects)
   const { steps: forced } = resolveForcedSteps(
     logs.map(l => ({ action: l.action, stepNum: Number(l.metadata?.['step_num']), at: l.created_at })),
   )
@@ -92,6 +108,13 @@ export async function gatherStepEvidence(
     defectsDone: defects.filter(d => d.action_completed_at).length,
     sheetX: xCodes.length,
     unregisteredX,
+    // 🎯 3차 독립 판정 R-1(중대): 종전에는 보수 판정을 `unregisteredX` **한 필드에만** 걸고
+    // 형제인 `sheetX`는 실패 시 그대로 0으로 접었다. 그러면 `hasSheetDefect`가 false가 되어
+    // ⑤⑥이 분모에서 통째로 빠지고(activeStepNums → [1,2,3,4]) ①~④가 이미 찼으면
+    // `applyStepSideEffects`가 **`inspections.status='completed'`를 DB에 쓴다** — 목록·현황판에서
+    // 막아 놓은 '거짓 초록 4/4'가 여기서는 **영속화**된다(점검 상세를 여는 것만으로 발화).
+    // 개수를 부풀려 흉내내지 않고 **축 자체를 실어** 순수 함수 세 곳이 함께 보수 판정하게 한다.
+    axisIncomplete: xAxisIncomplete || defectAxisIncomplete,
     submit11At: insp.report11_submitted_at,
     forced,
   }

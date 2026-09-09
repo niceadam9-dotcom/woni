@@ -3,6 +3,8 @@ import { CalendarDays } from 'lucide-react'
 import { getProfile } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { fetchAllRowsByIds } from '@/lib/supabase/paginate'
+import { activeStepsByInspection, isStepActive } from '@/lib/active-steps'
 import { SchedulesClient } from '@/components/my/schedules-client'
 import type { InspectionDeadline } from '@/components/my/schedules-client'
 
@@ -56,43 +58,51 @@ export default async function SchedulesPage() {
     const inspIds = myInspections.map(i => i.id)
     const custIds = [...new Set(myInspections.map(i => i.customer_id))]
 
+    // 🎯 소방계획서_45 §S11 — **3차 독립 판정이 찾은 5번째 화면**이다(Q-6 유예 4곳에 없었다).
+    // 여기도 activeStepNums 필터가 아예 없어, 점검표 모두 합격인 회차의 「5단계 · 소방보수 완료」가
+    // 개인 일정 달력에 빨간 D-Day 칩으로 떴다 — 크론이 방금 고친 것과 **글자 그대로 같은 거짓말**을
+    // 화면이 계속하고 있었다. 유예 목록은 '내가 아는 표면'의 목록이지 전수가 아니었다.
     const [stepsRes, customersRes] = await Promise.all([
-      admin.from('inspection_steps')
-        .select('id, inspection_id, step_num, name_ko, due_date')
-        .in('inspection_id', inspIds)
-        .neq('status', 'completed')
-        .gte('due_date', rangeStart)
-        .lte('due_date', rangeEnd)
-        .order('due_date'),
-      admin.from('customers')
-        .select('id, customer_name')
-        .in('id', custIds),
+      fetchAllRowsByIds<{ id: string; inspection_id: string; step_num: number; name_ko: string; due_date: string }, string>(
+        inspIds, (c, from, to) => admin.from('inspection_steps')
+          .select('id, inspection_id, step_num, name_ko, due_date')
+          .in('inspection_id', c)
+          .neq('status', 'completed')
+          .gte('due_date', rangeStart)
+          .lte('due_date', rangeEnd)
+          .order('id').range(from, to)),
+      fetchAllRowsByIds<{ id: string; customer_name: string }, string>(
+        custIds, (c, from, to) => admin.from('customers')
+          .select('id, customer_name')
+          .in('id', c).order('id').range(from, to)),
     ])
+    const activeSched = await activeStepsByInspection(admin, inspIds, 'my-schedules')
 
-    const custMap = new Map(
-      ((customersRes.data ?? []) as Array<{ id: string; customer_name: string }>)
-        .map(c => [c.id, c])
-    )
+    const custMap = new Map(customersRes.rows.map(c => [c.id, c]))
     const inspMap = new Map(myInspections.map(i => [i.id, i]))
 
     type StepRow = { id: string; inspection_id: string; step_num: number; name_ko: string; due_date: string }
 
-    inspectionDeadlines = ((stepsRes.data ?? []) as StepRow[]).map(s => {
-      const insp = inspMap.get(s.inspection_id)
-      const cust = insp ? custMap.get(insp.customer_id) : undefined
-      const dDays = Math.round(
-        (new Date(s.due_date).getTime() - new Date(todayStr).getTime()) / 86400000
-      )
-      return {
-        stepId: s.id,
-        inspectionId: s.inspection_id,
-        customerName: cust?.customer_name ?? '—',
-        stepNum: s.step_num,
-        stepName: s.name_ko,
-        dueDate: s.due_date,
-        dDays,
-      }
-    })
+    inspectionDeadlines = (stepsRes.rows as StepRow[])
+      .filter(s => isStepActive(activeSched, s.inspection_id, s.step_num))
+      // 조회를 id 정렬로 받았으므로(페이징 규약) 달력이 기대하는 마감일 순서는 여기서 세운다
+      .sort((a, b) => a.due_date.localeCompare(b.due_date))
+      .map(s => {
+        const insp = inspMap.get(s.inspection_id)
+        const cust = insp ? custMap.get(insp.customer_id) : undefined
+        const dDays = Math.round(
+          (new Date(s.due_date).getTime() - new Date(todayStr).getTime()) / 86400000
+        )
+        return {
+          stepId: s.id,
+          inspectionId: s.inspection_id,
+          customerName: cust?.customer_name ?? '—',
+          stepNum: s.step_num,
+          stepName: s.name_ko,
+          dueDate: s.due_date,
+          dDays,
+        }
+      })
   }
 
   return (

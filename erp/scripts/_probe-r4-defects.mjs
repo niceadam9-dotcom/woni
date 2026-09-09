@@ -93,6 +93,8 @@ const cron = read('src/app/api/cron/inspection-deadline-notify/route.ts')
 const custPage = read('src/app/(dashboard)/customers/[id]/page.tsx')
 const annexSection = read('src/components/customers/plan-annex-section.tsx')
 const roundCard = read('src/components/customers/plan-annex-round-card.tsx')
+// 45 §S11-0(2026-09-09): 크론 안의 지역 함수였던 판정을 공용 모듈로 승격했다 — 보수 판정 단언의 집이 여기로 옮겼다
+const activeSteps = read('src/lib/active-steps.ts')
 const terms = read('src/lib/doc-requirements.ts')
 
 // R-3: ⑤가 새로 활성이 된 구간(미등록 ✕)에서 [사유 완료]가 굳던 구멍
@@ -104,8 +106,13 @@ ok('그 축이 sheetX(✕ 전체)가 아니라 미등록분이다 — sheetX만 
   !/return \(e\.sheetX \?\? 0\) > 0 \|\| e\.defectsDone < e\.defectsTotal/.test(status)
   && !/e\.defectsTotal === 0 && \(e\.sheetX \?\? 0\) > 0/.test(status))
 // R-5: ⑤ **완료** 판정도 함께 좁혔다 — 등록분을 다 조치해도 미등록 ✕가 남으면 완료가 아니다
+// ⚠ 2026-09-09 정정: 이 단언은 ⑤ 행의 **구현식을 통째로 베껴** 두어, 3차 판정 수리로 `!e.axisIncomplete`가
+//   앞에 붙자 제품이 옳은데도 붉어졌다([[project_soban42]]와 같은 함정 — 검사에 좌표를 베끼면 격자가
+//   바뀔 때 한꺼번에 죽는다). 제품 원문을 먼저 읽어 옳음을 확인한 뒤, **한 줄에 무엇이 AND로 걸려
+//   있는가**만 보도록 고쳤다(순서·이웃 조건에 안 깨진다). 값 자체는 순수 단언 스위트가 본다.
 ok('evidenceDone ⑤가 미등록 ✕를 함께 본다',
-  /5: e\.defectsTotal > 0 && e\.defectsDone >= e\.defectsTotal && \(e\.unregisteredX \?\? 0\) === 0/.test(status))
+  /^\s*5: .*\(e\.unregisteredX \?\? 0\) === 0/m.test(status)
+  && /^\s*5: .*e\.defectsDone >= e\.defectsTotal/m.test(status))
 // 서버가 그 집합 차를 실제로 계산하는가 — 타입에만 있고 늘 0인 침묵 경로가 아님을 본다
 ok('gatherStepEvidence가 ✕ 코드와 불량 코드의 집합 차를 낸다',
   /xCodes\.filter\(c => !registered\.has\(c\)\)\.length/.test(sync)
@@ -118,8 +125,11 @@ ok('그 구멍을 무는 단언이 스위트에 있다 — 45차수는 67개가 
   && /등록 후 전건 조치했으면 ✕가 남아 있어도/.test(test))
 
 // R-4: 1000행 상한 — 축을 넓히며 **셋 중 둘만** 감쌌던 결함
-ok('목록의 세 조회가 모두 fetchAllRows다 (steps를 빠뜨렸었다)',
-  (inspList.match(/fetchAllRows</g) ?? []).length >= 3
+// ⚠ 2026-09-09 정정: `fetchAllRows<` 를 세던 단언이 3차 판정 수리(§S12-2)로 `fetchAllRowsByIds<`가
+//   되자 붉어졌다 — 제품은 **더 정확해졌다**(1000행 상한 위에 URL 한계까지 푼다). 헬퍼 이름이 아니라
+//   「셋 다 포장됐는가 · 맨몸 조회가 남아 있지 않은가」를 본다.
+ok('목록의 세 조회가 모두 포장돼 있다 (steps를 빠뜨렸었다)',
+  (inspList.match(/fetchAllRows(ByIds)?</g) ?? []).length >= 3
   && !/admin\.from\('inspection_steps'\)\.select\([^)]*\)\.in\('inspection_id', ids\)\s*,/.test(inspList))
 ok('현황판의 불량·✕ 조회가 모두 fetchAllRows다 — 잘리면 거짓 「해당없음」이 된다',
   /fetchAllRows<\{ inspection_id: string \}>\(\(from, to\) => admin\.from\('inspection_defects'\)/.test(docsActions))
@@ -138,13 +148,19 @@ ok('⑤ 배너 CTA가 권한을 본다 — 없으면 ①에 버튼이 없는 막
   !!wb && /\{canManage && \(\s*<button onClick=\{\(\) => setSel\('checklist'\)\}/.test(wb))
 
 // Q-4·제3표면: 같은 축을 쓰는 나머지 소비자들
-ok('별지 트리 미리보기가 같은 축을 쓴다', /hasSheetDefect\(\{ defectsTotal: r\.docs\?\.defects\.total \?\? 0/.test(annexSection))
-ok('회차 카드 ⑩⑪ 칩이 같은 축을 쓴다', /hasSheetDefect\(\{ defectsTotal: r\.docs\.defects\.total, sheetX: r\.docs\.sheetX \}\)/.test(roundCard))
+// ⚠ 2026-09-09 정정: 아래 넷도 **인자 목록을 통째로 베낀** 형태라, 3차 판정 수리로 `axisIncomplete`가
+//   인자에 늘고(§S10-3) 크론 판정이 공용 모듈로 옮겨가자(§S11-0) 제품이 옳은데도 한꺼번에 붉어졌다.
+//   「그 함수를 부르는가 · 그 축을 넘기는가」만 보도록 고친다.
+ok('별지 트리 미리보기가 같은 축을 쓴다',
+  /hasSheetDefect\(\{[\s\S]{0,200}r\.docs\?\.defects\.total/.test(annexSection))
+ok('회차 카드 ⑩⑪ 칩이 같은 축을 쓴다',
+  /hasSheetDefect\(\{[\s\S]{0,200}r\.docs\.defects\.total/.test(roundCard))
 ok('마감 알림 크론이 해당없음 단계를 발송 대상에서 뺀다',
-  /activeStepNums\(isSelfInspection\(i\.plan_type\)/.test(cron)
-  && /activeByInsp\.get\(s\.inspection_id\)\?\.has\(s\.step_num\)/.test(cron))
-ok('크론은 조회가 불완전하면 **보수적으로** 전 단계를 활성으로 본다 — 알림을 지우는 쪽으로 기울지 않는다',
-  /incomplete \|\| needsRepair\.has\(i\.id\)/.test(cron))
+  /activeStepsByInspection\(/.test(cron) && /isStepActive\(activeByInsp, s\.inspection_id, s\.step_num\)/.test(cron))
+ok('그 판정이 **공용 모듈**이다 — 지역 사본으로 되돌아가면 화면이 다시 갈라진다',
+  /from '@\/lib\/active-steps'/.test(cron) && !/async function activeStepsByInspection/.test(cron))
+ok('조회가 불완전하면 **보수적으로** 전 단계를 활성으로 본다 — 알림을 지우는 쪽으로 기울지 않는다',
+  /incomplete \|\| needsRepair\.has\(i\.id\)/.test(activeSteps))
 ok('고객 상세 진행바가 유효 단계만 센다 — 목록 4/4 · 상세 4/6으로 갈라져 있었다',
   /activeNumsByInsp\.get\(r\.inspection_id\)\?\.has\(r\.step_num\)/.test(custPage))
 

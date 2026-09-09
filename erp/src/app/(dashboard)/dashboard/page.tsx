@@ -15,6 +15,8 @@ import { SubmissionWidget } from '@/components/reports/submission-widget'
 import { countUnsentNotices } from '@/lib/sms'
 import { SmsNoticeWidget } from '@/components/sms/sms-notice-widget'
 import { fetchInputTodo } from '@/lib/customer-list'
+import { fetchAllRowsByIds } from '@/lib/supabase/paginate'
+import { activeStepsByInspection, isStepActive } from '@/lib/active-steps'
 import type { UserRole } from '@/types'
 
 const leaveStatusLabel: Record<string, string> = {
@@ -129,6 +131,10 @@ export default async function DashboardPage() {
     if (s in inspStats) inspStats[s]++
   }
 
+  /** 마감임박 위젯은 7건을 보여준다. 해당없음(⑤⑥)이 섞여 있을 수 있으므로 **거르기 전에** 여유분을
+   *  받아 온다 — 7건만 받아 뒤에서 거르면 목록이 7보다 줄어 "임박한 일이 적다"로 보인다. */
+  const DUE_SOON_SHOW = 7
+
   let dueSoonList: DueSoonItem[] = []
   let overdueStepCount = 0
   let todayStepCount = 0
@@ -140,46 +146,76 @@ export default async function DashboardPage() {
       inspection: { id: string; year: number; sequence_num: number; customer: { customer_name: string } | null } | null
     }
 
+    // 🎯 소방계획서_45 §S11(Q-6 유예분) — 세 수치 모두 `activeStepNums` 필터가 **없었다**.
+    // 점검표 모두 합격이라 화면에서 '해당없음'인 ⑤⑥이 「마감 임박」·「기한 초과」로 계속 뜨고,
+    // 그 회차가 '나의 점검현황 기한초과'까지 부풀렸다 — 크론이 고친 것과 같은 거짓말이다.
+    //
+    // ⚠ `.limit(7)`을 **먼저** 걸면 안 된다: 7건을 받아 뒤에서 거르면 해당없음이 섞인 만큼
+    // 목록이 7보다 줄어 "임박한 일이 적다"로 보인다. 여유분(40)을 받아 거른 뒤 7건으로 자른다.
+    // ⚠ 기한초과 조회는 미포장이었다 — 개수의 원천이라 잘리면 그대로 과소 집계된다.
     const [dueSoonRes, overdueRes, todayRes] = await Promise.all([
-      admin.from('inspection_steps')
-        .select('id, inspection_id, step_num, name_ko, due_date, inspection:inspections(id, year, sequence_num, customer:customers(customer_name))')
-        .in('inspection_id', myInspIds)
-        .gte('due_date', todayStr)
-        .lte('due_date', in7DaysStr)
-        .neq('status', 'completed')
-        .order('due_date')
-        .limit(7),
-      admin.from('inspection_steps')
-        .select('id, inspection_id')
-        .in('inspection_id', myInspIds)
-        .lt('due_date', todayStr)
-        .neq('status', 'completed'),
-      admin.from('inspection_steps')
-        .select('id', { count: 'exact', head: true })
-        .in('inspection_id', myInspIds)
-        .eq('due_date', todayStr)
-        .neq('status', 'completed'),
+      // ⚠ `.limit(N)`은 쪼갠 조각마다 걸리므로 여기서는 쓰지 않는다 — 창(窓)이 7일로 좁아
+      // 행수가 유계이고, 자르는 일은 아래에서 **거른 뒤에** 한다(그래야 7건이 7건으로 남는다).
+      fetchAllRowsByIds<Record<string, unknown>, string>(
+        myInspIds, (c, from, to) => admin.from('inspection_steps')
+          .select('id, inspection_id, step_num, name_ko, due_date, inspection:inspections(id, year, sequence_num, customer:customers(customer_name))')
+          .in('inspection_id', c)
+          .gte('due_date', todayStr)
+          .lte('due_date', in7DaysStr)
+          .neq('status', 'completed')
+          .order('id').range(from, to)),
+      // ⚠ myInspIds는 manager/admin이면 **전 점검**이라 수천이다 — `.in()`은 400건부터 URL 한계로
+      // 요청이 실패하므로(§S12 실측) 쪼개 보낸다. 종전에도 같은 형태였으니 이 수치들은 규모가
+      // 커진 시점부터 조용히 0이 되고 있었을 수 있다(대시보드는 error를 안 봤다).
+      fetchAllRowsByIds<{ id: string; inspection_id: string; step_num: number }, string>(
+        myInspIds, (c, from, to) => admin.from('inspection_steps')
+          .select('id, inspection_id, step_num')
+          .in('inspection_id', c)
+          .lt('due_date', todayStr)
+          .neq('status', 'completed')
+          .order('id').range(from, to)),
+      fetchAllRowsByIds<{ id: string; inspection_id: string; step_num: number }, string>(
+        myInspIds, (c, from, to) => admin.from('inspection_steps')
+          .select('id, inspection_id, step_num')
+          .in('inspection_id', c)
+          .eq('due_date', todayStr)
+          .neq('status', 'completed')
+          .order('id').range(from, to)),
     ])
 
-    const overdueSteps = (overdueRes.data ?? []) as Array<{ id: string; inspection_id: string }>
+    // 조각마다 id 정렬로 받았으므로(페이징 규약) 마감일 순서는 여기서 세운다 — 조각을 이어 붙인
+    // 배열은 날짜 순이 아니다. 정렬 전에 자르면 "가장 임박한 7건"이 아니게 된다.
+    const dueSoonRaw = (dueSoonRes.rows as unknown as DueSoonRaw[])
+      .sort((a, b) => a.due_date.localeCompare(b.due_date))
+    // 세 창(窓)의 점검을 한 번에 판정한다 — 화면 안에서 축이 갈라지지 않게 한 벌만 쓴다
+    const active = await activeStepsByInspection(admin, [...new Set([
+      ...dueSoonRaw.map(s => s.inspection_id),
+      ...overdueRes.rows.map(s => s.inspection_id),
+      ...todayRes.rows.map(s => s.inspection_id),
+    ])], 'dashboard')
+
+    const overdueSteps = overdueRes.rows.filter(s => isStepActive(active, s.inspection_id, s.step_num))
     overdueStepCount = overdueSteps.length
     // 기한 초과 단계가 있는 점검 건수 → 나의 점검현황 기한초과와 일치시킴
     inspStats.overdue = new Set(overdueSteps.map(s => s.inspection_id)).size
-    todayStepCount = todayRes.count ?? 0
+    todayStepCount = todayRes.rows.filter(s => isStepActive(active, s.inspection_id, s.step_num)).length
 
-    dueSoonList = ((dueSoonRes.data ?? []) as unknown as DueSoonRaw[]).map(s => {
-      const insp = s.inspection
-      const dDays = Math.round(
-        (new Date(s.due_date).getTime() - new Date(todayStr).getTime()) / 86400000
-      )
-      return {
-        stepId: s.id, inspectionId: s.inspection_id,
-        stepNum: s.step_num, stepName: s.name_ko,
-        dueDate: s.due_date, dDays,
-        customerName: insp?.customer?.customer_name ?? '—',
-        year: insp?.year ?? 0, sequenceNum: insp?.sequence_num ?? 1,
-      }
-    })
+    dueSoonList = dueSoonRaw
+      .filter(s => isStepActive(active, s.inspection_id, s.step_num))
+      .slice(0, DUE_SOON_SHOW)
+      .map(s => {
+        const insp = s.inspection
+        const dDays = Math.round(
+          (new Date(s.due_date).getTime() - new Date(todayStr).getTime()) / 86400000
+        )
+        return {
+          stepId: s.id, inspectionId: s.inspection_id,
+          stepNum: s.step_num, stepName: s.name_ko,
+          dueDate: s.due_date, dDays,
+          customerName: insp?.customer?.customer_name ?? '—',
+          year: insp?.year ?? 0, sequenceNum: insp?.sequence_num ?? 1,
+        }
+      })
   }
 
   // ── 공지사항 조회 (전체 역할) ───────────────────────────────────

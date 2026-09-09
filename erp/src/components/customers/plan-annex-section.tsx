@@ -139,7 +139,14 @@ export function PlanAnnexSection({ customerId, canRegister = false, initialData 
     return [
       { type: 'report4', label: '별지 4호 점검표', missing: [] },
       { type: 'report9', label: '별지 9호 실시결과 보고서', missing: [] },
-      ...(hasSheetDefect({ defectsTotal: r.docs?.defects.total ?? 0, sheetX: r.docs?.sheetX ?? 0 })
+      // ⚠ 3차 판정 R-3: 조회가 실패했으면(allPassUnknown) 0으로 떨어진 수를 '모두 합격'으로 읽지
+      // 않고 10·11호를 **지우지 않는다**. `docs`가 null인 것은 실패가 아니라 **완료·미시작 회차의
+      // 정상 상태**이므로(docs-actions.ts:163) 그 경우까지 보수로 몰면 전 완료 회차에 10·11호가
+      // 되살아난다 — 여기서는 실패 축만 본다.
+      ...(hasSheetDefect({
+        defectsTotal: r.docs?.defects.total ?? 0, sheetX: r.docs?.sheetX ?? 0,
+        axisIncomplete: r.docs?.allPassUnknown ?? false,
+      })
         ? [{ type: 'report10' as const, label: '별지 10호 이행계획서', missing: [] },
            { type: 'report11' as const, label: '별지 11호 이행완료 보고서', missing: [] }]
         : []),
