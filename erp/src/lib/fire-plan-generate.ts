@@ -97,8 +97,11 @@ export async function assembleFirePlan(
       // M-2·M-10(소방계획서_15): 계단·경사로·승강기 3종 — 전부 buildings 컬럼(104)이다.
       // ⚠ 2026-08-11 교정: 초기 구현이 stairs_count 등을 customers에서 select해 본문 생성이 통째로
       // 실패했다(컬럼 없음 → cust null → throw). 저장 경로(fire-plan-info-actions)·별지9호 조립 모두 buildings.
+      // 🚨 2026-09-09: `parking_summary`가 **이 목록에 없어서** 건물 폼에 주차장을 채워도
+      //    소방계획서 PDF·엑셀이 영영 공란이었다(양식 1.1 13행에 칸이 있다). 값 축·앵커를 아무리
+      //    봐도 안 나오는 이유가 여기였다 — **조회하지 않은 컬럼은 아래 모든 층에서 없는 값이다.**
       .select('id, purpose, total_area, building_area, floors_above, floors_below, height, receiver_location, main_structure, roof_structure, '
-        + 'stairs_count, ramp_count, evac_elevator_count, elevator_count, emergency_elevator_count')
+        + 'stairs_count, ramp_count, evac_elevator_count, elevator_count, emergency_elevator_count, parking_summary')
       .eq('customer_id', customerId).eq('is_active', true)
       .order('created_at', { ascending: true }),
     // M-6(소방계획서_15): 대표자·사업자등록번호 추가 — 1.8 표 유실 복구
@@ -133,6 +136,7 @@ export async function assembleFirePlan(
     height: number | string | null; receiver_location: string | null; main_structure: string | null; roof_structure: string | null
     stairs_count: number | null; ramp_count: number | null; evac_elevator_count: number | null
     elevator_count: number | null; emergency_elevator_count: number | null
+    parking_summary: string | null
   }>
   const b = buildings[0]
   const company = companyRes.data as {
@@ -271,6 +275,9 @@ export async function assembleFirePlan(
       emergency: nz(b?.emergency_elevator_count),
       evac: nz(b?.evac_elevator_count),
     },
+    // 주차장 — 양식 1.1 13행(승강기 바로 아래)이 같은 모양의 체크 행인데 이 값만 안 실려서
+    // 건물 폼에 채워도 PDF·엑셀이 늘 공란이었다(2026-09-09). 원천은 승강기와 같은 `b`(대표동).
+    parkingSummary: b?.parking_summary ?? '',
     // M-3: 1.1 운영현황 확장 — 대표자 구분·자격구분·강습교육 수료일(1.7 폴백 행)
     repRole: cust.rep_role ?? '',
     managerGrade: cust.manager_license_grade ?? '',

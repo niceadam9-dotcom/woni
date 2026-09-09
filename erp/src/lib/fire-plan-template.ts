@@ -14,6 +14,8 @@ import { compartmentHasArea, compartmentHasFloor } from '@/lib/evac-compartment'
  * ⚠ `fire-plan-xlsx-values`에서 끌어오지 않는다 — 그쪽은 앵커·manifest를 물고 오고 manifest는
  *   모듈 적재 시점에 throw 할 수 있어, 엑셀 격자가 밀리면 PDF까지 500이 된다(의존 없는 소모듈). */
 import { purposeCover } from '@/lib/purpose-label'
+/* 주차장 체크 판정 — 별지 9호 2쪽이 쓰는 그 함수를 그대로 쓴다(사본 금지, 순환 없음: report9는 이 파일을 안 문다) */
+import { parseParkingSummary } from '@/lib/doc-templates/report9'
 import type { EtcFacilitySection } from '@/components/customers/plan-form16'
 import type { ManagerRow } from '@/components/customers/plan-form17'
 import type { InspectionPlanSection, FireHistoryRow, DutyLogRow } from '@/components/customers/plan-form110'
@@ -129,6 +131,11 @@ export type FirePlanGenData = {
   stairsCount?: string          // 계단 개소 (0·미입력은 '')
   rampCount?: string            // 경사로 개소
   elevators?: { passenger: string; emergency: string; evac: string }  // 승용·비상용·피난용 대수
+  /** 주차장 요약 텍스트(`buildings.parking_summary`) — 「옥외 자주식 8대」처럼 사람이 적은 한 줄.
+   *  체크 판정은 **낱말 포함**이고 규칙은 `parseParkingSummary` 단일 원천이다(별지 9호 2쪽과 같은 축).
+   *  ⚠ 종전에는 이 값이 조립 결과에 아예 실리지 않아, 건물 폼에 주차장을 채워도 소방계획서 PDF·엑셀은
+   *    영영 빈칸이었다(양식 1.1에는 칸이 있다 — 2026-09-09 사용자 지적). */
+  parkingSummary?: string
   repRole?: string              // 대표자 구분 (소유자/관리자/점유자)
   managerGrade?: string         // 소방안전관리자 자격구분 (특급~3급)
   managerEduDate?: string       // 최근 강습교육 수료일 — 1.7 자동 폴백 행
@@ -306,6 +313,8 @@ export function buildFirePlanHtml(
   // ── 1.5 피난·방화시설 ──
   const ef = f.evacFire
   const stairKinds = ['직통계단', '피난계단', '특별피난계단', '옥외계단']
+  // 주차장 체크 — 규칙 사본을 만들지 않는다(별지 9호 2쪽과 **같은 함수**). 값이 없으면 전부 false.
+  const pk = parseParkingSummary(d.parkingSummary ?? '')
   const etcEvacKinds = ['대피공간', '경량칸막이', '피난안전구역', '옥상광장']
   // 방화구획 — 법정 서식과 **같은 상자 축**으로 편다. '면적별·층별'은 새 상자가 아니라
   // 면적별·층별 두 상자를 함께 체크한 것이다(엑셀 1.5.1!C14·F14와 같은 규약).
@@ -462,6 +471,10 @@ ${(d.autoFilled?.length ?? 0) > 0
     <tr><td class="l">구조: ${v(d.structure)}</td><td colspan="2" class="l">지붕: ${v(d.roof)}</td></tr>
     ${/* M-2·M-10(소방계획서_15): 승강기 3종은 건물·고객 원천 연결(대수 병기), 계단·경사로 개소 병기 — 값 없으면 종전 ☐/미표기 */''}
     <tr><td colspan="3" class="l">승강기: ${ck(!!d.elevators?.passenger, '승용')}${d.elevators?.passenger ? `(${esc(d.elevators.passenger)}대)` : ''} ${ck(!!d.elevators?.emergency, '비상용')}${d.elevators?.emergency ? `(${esc(d.elevators.emergency)}대)` : ''} ${ck(!!d.elevators?.evac, '피난용')}${d.elevators?.evac ? `(${esc(d.elevators.evac)}대)` : ''} &nbsp;/&nbsp; 계단: ${stairKinds.map(k => ck(!!ef?.stairs?.[k], k)).join(' ')}${d.stairsCount ? ` (${esc(d.stairsCount)}개소)` : ''}${d.rampCount ? ` / 경사로 ${esc(d.rampCount)}개소` : ''}</td></tr>
+    ${/* 주차장 — 양식 1.1이 승강기 바로 아래 두는 체크 행. 판정은 낱말 포함(parseParkingSummary
+         단일 원천, 별지 9호 2쪽과 같은 규칙)이고 원문을 함께 적어 「옥외 자주식 8대」의 대수를 잃지 않는다.
+         값이 없으면 종전처럼 ☐만 나온다(2026-09-09 신설). */''}
+    <tr><td colspan="3" class="l">주차장: ${ck(pk.pkIn, '옥내')} ${ck(pk.pkOut, '옥외')} ${ck(pk.pkMech, '기계식')}${d.parkingSummary ? ` &nbsp;(${esc(d.parkingSummary)})` : ''}</td></tr>
     <tr><th>운영현황</th><td colspan="3" class="l">${opsRow}</td></tr>
     <tr><th>업무대행</th><td colspan="3" class="l">■ 해당 [서식1.8] 작성 &nbsp; ☐ 해당없음</td></tr>
     <tr><th>화재보험<br><span class="small">(관계인 기록)</span></th><td colspan="3" class="l">${insRow}</td></tr>

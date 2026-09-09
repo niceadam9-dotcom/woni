@@ -119,8 +119,10 @@ console.log('\n[3] 백지 불변식 — 템플릿에 표본의 답이 남아 있
   const boxOnly = FIRE_PLAN_ANCHORS.filter(a => /^[□☐]$/.test(cellText(a)))
   check('빈 상자만 남은 앵커는 소수', boxOnly.length <= 3, boxOnly.map(a => `${a.sheet}!${a.cell}`).join(','))
   const boxLabel = FIRE_PLAN_ANCHORS.filter(isBoxLabelAnchor)
-  // 🚨 정체 판정 — 상한만 두면 예외가 **0개로 사라져도** 초록이다(1.5.1 3칸 + 1.1 19칸)
-  check('상자칸 예외 수가 그대로(1.5.1 3 + 1.1 19)', boxLabel.length === 22, `${boxLabel.length}칸`)
+  // 🚨 정체 판정 — 상한만 두면 예외가 **0개로 사라져도** 초록이다(1.5.1 3칸 + 1.1 21칸)
+  // 2026-09-09: 주차장 2칸(L13 옥내·AB13 옥외) 배선으로 1.1이 19→21이 됐다. 이 숫자는
+  // **늘어난 이유가 분명할 때만** 고친다 — 줄어들면 배선이 조용히 빠진 것이다.
+  check('상자칸 예외 수가 그대로(1.5.1 3 + 1.1 21)', boxLabel.length === 24, `${boxLabel.length}칸`)
   check('상자칸은 템플릿에서 전부 미체크', boxLabel.every(a => !/■/.test(cellText(a))),
     boxLabel.filter(a => /■/.test(cellText(a))).map(a => a.cell).join(','))
   const unitCells = FIRE_PLAN_ANCHORS.filter(isUnitLabelAnchor)

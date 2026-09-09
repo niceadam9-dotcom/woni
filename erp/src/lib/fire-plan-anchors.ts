@@ -111,7 +111,7 @@ const FIXED_SEEDS: Seed[] = [
    *  (`☐ 승용`) · **값칸**(공란).
    *
    *  ⚠ **데이터가 없어 일부러 안 세운 앵커**(조용히 넘기지 않는다):
-   *    · 주차장 4칸(옥내·옥외·자주식·기계식)과 전기차충전소 — ERP에 주차장 입력 축이 없다.
+   *    · 전기차충전소 — ERP에 그 축이 없다(주차장 옥내·옥외는 2026-09-09에 배선했다, 아래).
    *    · 공공기관·권원분리 — 판정할 데이터가 없다. 미입력이면 빈 상자가 정답이다.
    *    · 승강기 대수·계단 개소 — 양식에 그 숫자를 적을 자리가 없다. 상자만 체크한다
    *      (PDF는 HTML이라 `(3대)`를 덧붙이지만, 법정 서식 칸에 없는 글자를 넣지 않는다).
@@ -123,6 +123,13 @@ const FIXED_SEEDS: Seed[] = [
   { field: 'elevator_passenger', sheet: FP_SHEET.F1_1, cell: 'L12', labelCell: 'D12' },
   { field: 'elevator_emergency', sheet: FP_SHEET.F1_1, cell: 'AB12', labelCell: 'D12' },
   { field: 'elevator_evac', sheet: FP_SHEET.F1_1, cell: 'AS12', labelCell: 'D12' },
+  /* 주차장 13행 — 승강기 12행과 **같은 모양**의 체크 행인데 종전엔 미배선이었다. 사유 주석이
+   * 「ERP에 주차장 입력 축이 없다」였는데 그 뒤 건물 폼에 주차장 칩이 생겨 **근거가 낡았다**
+   * (2026-09-09 사용자 지적: 저장했는데 엑셀이 공란). 원천 `buildings.parking_summary`,
+   * 체크 판정은 `parseParkingSummary`(별지 9호 2쪽과 같은 규칙 — 사본 금지).
+   * ⚠ `AS13 전기차충전소`는 **여전히 안 세운다** — 그 축이 ERP에 없어 지어내는 셈이 된다. */
+  { field: 'parking_indoor', sheet: FP_SHEET.F1_1, cell: 'L13', labelCell: 'D13' },
+  { field: 'parking_outdoor', sheet: FP_SHEET.F1_1, cell: 'AB13', labelCell: 'D13' },
   { field: 'stair_special', sheet: FP_SHEET.F1_1, cell: 'L15', labelCell: 'D15' },
   { field: 'stair_direct', sheet: FP_SHEET.F1_1, cell: 'AJ15', labelCell: 'D15' },
   { field: 'stair_escape', sheet: FP_SHEET.F1_1, cell: 'L16', labelCell: 'D15' },

@@ -188,6 +188,11 @@ const steps: Step[] = [
   //   타지 않는 값(업무시설·공동주택)이라 어느 쪽으로 고쳐도 전 스위트가 초록이었다.
   //   그래서 여기 픽스처는 「제2종근린생활시설」이고, 음성 대조(업무시설=원값)를 함께 든다.
   { name: '용도 표기 두 갈래(PDF·엑셀)', cmd: 'npx tsx --conditions=react-server scripts/test-purpose-label.mts' },
+  // 주차장 축(2026-09-09) — 건물 폼에 저장한 값이 소방계획서 두 표면에 도달하는가.
+  // ⚠ 종전엔 **조립기 select 목록에 컬럼이 없어** 어떤 산출물에도 안 나왔는데(사용자 지적으로
+  //   드러났다) 이 축을 보는 검사가 하나도 없어 전 스위트가 초록이었다. 층이 넷(select→타입→
+  //   앵커→값)이라 한 층만 봐서는 안 보인다. 음성 대조(빈 값이면 어느 상자도 안 켜짐) 포함.
+  { name: '주차장 저장→문서 도달',      cmd: 'npx tsx --conditions=react-server scripts/test-parking-surface.mts' },
   // 서버 불필요 — 순수 렌더 함수 대조. 중복 입력 제거(대장 파생·미러)가 문서에 반영되는지 고정
   { name: '세부제원 파생·미러 렌더',    cmd: 'npx tsx scripts/test-spec-derive.mts' },
   // 인쇄 번들 셀 오버라이드(lib/doc-overrides) — 파서 없이 문자열을 훑어 법정 서식의 특정 칸을
