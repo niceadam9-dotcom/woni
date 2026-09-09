@@ -2,7 +2,7 @@
   "doc": "소방계획서_47",
   "title": "소방계획서 엑셀 양식을 미세 격자로 전환 — hwpx 치수 투영 자동 생성 + 강순기 완성본 대조",
   "created": "2026-09-08",
-  "updated": "2026-09-08",
+  "updated": "2026-09-09",
   "source_md": "erp_goal/소방계획서_47.md",
   "principle": "손으로 94장을 만들 필요가 없었다. 사용자가 그린 71열 미세 격자는 **열 폭 정의가 0개**라 비율이 '병합이 몇 칸을 먹나'로만 정해지는 눈대중인데, 양식 hwpx에는 `hp:cellSz`로 실제 치수가 있다. columnEdges를 N=60 격자에 투영하면 자동 생성되고 사람 것보다 정확하다. **미세 격자의 진짜 이점은 비율이 아니라 한 시트에 열 수가 다른 표를 섞을 수 있다는 것**이다(2.4 개별임무카드 6장·2.3 중첩표)",
   "principle_2": "⭐이 차수의 결함은 전부 **값이 소리 없이 사라지거나 절반만 걸리는** 종류였다 — 폭 0 열이 셀을 삼키고, 대조용 정규화가 출력으로 새고, 체크 글리프 3종 중 2종만 잡히고, 머리띠가 본문을 덮었다. 어느 것도 오류를 내지 않는다. **가드가 없으면 초록인 채로 나간다**",
@@ -32,84 +32,84 @@
   ],
   "sections": [
     {
-      "id": "S1", "title": "미세 격자 자동 생성", "status": "code_present",
+      "id": "S1", "title": "미세 격자 자동 생성", "status": "partial",
       "criteria": [
-        { "id": "S1-1", "desc": "양식 hwpx의 `columnEdges`를 N=60 격자에 투영해 표별로 열 경계를 만든다. 표마다 독립 투영이라 한 시트에 열 수가 다른 표를 섞을 수 있다", "status": "code_present", "evidence": "erp/scripts/_gs-book50.mts projectCols · N=60이면 양자화 오차 ≤ 1/60" },
-        { "id": "S1-2", "desc": "🎯**폭 0 열 해결** — `columnEdges`는 `colSpan===1` 셀에서만 폭을 읽어, 병합 셀만 걸치는 열이 폭 0이 된다. 그 열만 차지하는 셀은 격자에 자리가 없어 **통째로 사라졌다**(서식 1.1의 급수·연면적 값). 반대로 그 폭을 그대로 열 폭에 쓰면 글자가 세로로 깨졌다", "status": "code_present", "evidence": "solveWidths — 병합 셀 폭에서 이미 아는 열을 빼고 미지수 열에 고르게 배분(4패스)" },
-        { "id": "S1-3", "desc": "🚨**버려진 셀·누락 글자가 있으면 파일을 쓰지 않고 던진다**. 밀려 들어간 값은 육안으로 잘 안 보인다", "status": "code_present", "evidence": "buildSheet의 dropped/missing 가드 — 실제로 이 가드가 폭 0 결함을 잡았다" }
+        { "id": "S1-1", "desc": "양식 hwpx의 `columnEdges`를 N=60 격자에 투영해 표별로 열 경계를 만든다. 표마다 독립 투영이라 한 시트에 열 수가 다른 표를 섞을 수 있다", "status": "implemented", "evidence": "erp/scripts/_gs-book50.mts projectCols · N=60이면 양자화 오차 ≤ 1/60", "verified": "판정A(2026-09-09): 95표 투영 오버플로 0. ⚠「오차 ≤ 1/60」은 과장 — 좁은 열 최소 1칸 강제 배정이 잔여를 이웃에서 깎아 실측 최대 3.07%p(표#90). 값 소실은 없음" },
+        { "id": "S1-2", "desc": "🎯**폭 0 열 해결** — `columnEdges`는 `colSpan===1` 셀에서만 폭을 읽어, 병합 셀만 걸치는 열이 폭 0이 된다. 그 열만 차지하는 셀은 격자에 자리가 없어 **통째로 사라졌다**(서식 1.1의 급수·연면적 값). 반대로 그 폭을 그대로 열 폭에 쓰면 글자가 세로로 깨졌다", "status": "implemented", "evidence": "solveWidths — 병합 셀 폭에서 이미 아는 열을 빼고 미지수 열에 고르게 배분(4패스)", "verified": "판정A: columnEdges 단독이면 38표·260열이 폭 0(hwpx 실측) → solveWidths 후 0열. 과거 소실 자리(1.1 급수 「3급」·연면적 「799.30㎡」) v7 실재. 배분은 순서 의존 부정치이나 결정론적" },
+        { "id": "S1-3", "desc": "🚨**버려진 셀·누락 글자가 있으면 파일을 쓰지 않고 던진다**. 밀려 들어간 값은 육안으로 잘 안 보인다", "status": "partial", "evidence": "buildSheet의 dropped/missing 가드 — 실제로 이 가드가 폭 0 결함을 잡았다", "verified": "판정A: missing 가드는 실효(문자열 집합 대조). 🚨dropped 가드는 구조적 사문 — projectCols 단조 보정 후 c1<c0 도달 불가(95표 전 셀 실측 0건, 「잡았다」는 보정 삽입 전 역사). missing도 값 수준이라 **중복 문자열 셀의 개별 소실은 못 본다**" }
       ]
     },
     {
-      "id": "S2", "title": "95표 → 50시트", "status": "code_present",
+      "id": "S2", "title": "95표 → 50시트", "status": "implemented",
       "criteria": [
-        { "id": "S2-1", "desc": "묶음을 다시 정하지 않고 `fire-plan-xlsx-manifest.json`의 `tables`·`bannerRows`·`gridTops`를 **읽어서** 쓴다", "status": "code_present", "evidence": "_gs-manifest-map.mts로 확인 — 95표 전건이 50시트에 덮인다(누락 0)" },
-        { "id": "S2-2", "desc": "머리띠 표는 본문 시트의 제목 행으로. ⚠**`bannerRows`가 알려주는 행에 놓는다** — 0부터 채웠더니 표지에서 머리띠가 본문을 덮어 「☐ 근린생활시설」이 사라졌다", "status": "code_present", "evidence": "topOf 계산부. 1행짜리는 칸 유지, 여러 행짜리 머리 블록만 한 줄로 모은다" }
+        { "id": "S2-1", "desc": "묶음을 다시 정하지 않고 `fire-plan-xlsx-manifest.json`의 `tables`·`bannerRows`·`gridTops`를 **읽어서** 쓴다", "status": "implemented", "evidence": "_gs-manifest-map.mts로 확인 — 95표 전건이 50시트에 덮인다(누락 0)", "verified": "판정A: manifest 독립 집계 50시트·tables 95·중복 0·0..94 미포함 0, v7 시트 50·빈 시트 0" },
+        { "id": "S2-2", "desc": "머리띠 표는 본문 시트의 제목 행으로. ⚠**`bannerRows`가 알려주는 행에 놓는다** — 0부터 채웠더니 표지에서 머리띠가 본문을 덮어 「☐ 근린생활시설」이 사라졌다", "status": "implemented", "evidence": "topOf 계산부. 1행짜리는 칸 유지, 여러 행짜리 머리 블록만 한 줄로 모은다", "verified": "판정A: 머리띠표 수 vs bannerRows 수 불일치 0/50시트, 과거 피해 문구 «☐ 근린생활시설» 표지!M1 실재. ⚠폴백 `bannerRowList[i] ?? last ?? 0`은 매니페스트가 행을 안 주면 조용히 0행 — 현 데이터 미발화 잠복" }
       ]
     },
     {
-      "id": "S3", "title": "인쇄 — 시트당 1쪽, 단 글자를 뭉개지 않는다", "status": "code_present",
+      "id": "S3", "title": "인쇄 — 시트당 1쪽, 단 글자를 뭉개지 않는다", "status": "partial",
       "criteria": [
-        { "id": "S3-1", "desc": "`fitToWidth=1`로 가로는 항상 1쪽. 세로는 **실제 축소율을 계산**해 MIN_SCALE(0.78) 아래로 줄어들 때만 압축을 풀어 자연 크기로 흘린다", "status": "code_present", "evidence": "행 높이 합 vs A4 인쇄 영역. 행 수 임계(11장 해제·59쪽) → 축소율 계산(5장 해제·**55쪽**)" },
-        { "id": "S3-2", "desc": "넓은 표(≥14열)는 가로 방향", "status": "code_present", "evidence": "가로 12장 · 세로 38장" }
+        { "id": "S3-1", "desc": "`fitToWidth=1`로 가로는 항상 1쪽. 세로는 **실제 축소율을 계산**해 MIN_SCALE(0.78) 아래로 줄어들 때만 압축을 풀어 자연 크기로 흘린다", "status": "partial", "evidence": "행 높이 합 vs A4 인쇄 영역. 행 수 임계(11장 해제·59쪽) → 축소율 계산(5장 해제·**55쪽**)", "verified": "판정A: 산식 자체는 충실 — fitToHeight를 독립 재계산해 불일치 0/50(v6·v7), v6은 해제 5장·PDF 55/55쪽 재현. 🚨그러나 판정 리비전(HEAD)에선 S3-2 연쇄로 v7이 해제 11장·**62쪽** — 「55쪽」은 미재현" },
+        { "id": "S3-2", "desc": "넓은 표(≥14열)는 가로 방향", "status": "partial", "evidence": "가로 12장 · 세로 38장", "verified": "🚨판정A **fail** — `_gs-book50.mts:294`의 `wide = ms.cols >= 14`가 읽는 manifest `cols`는 `c23ebf8`(미세 격자 전환) 후 **50시트 전부 60** → v7 실측 **landscape 50 / portrait 0 · 62쪽**(양축 일치). 「가로12·세로38·55쪽」은 전환 전 v6에서만 참 — **「근생」이 실린 유일한 판(v7)과 55쪽 주장은 같은 파일에서 성립한 적이 없다**. 축의 뜻이 표 열 수→격자 60으로 바뀌었는데 코드가 그대로. 수리 방향: wide 판정을 hwpx 표 실제 colCnt(또는 manifest 별도 필드)로 — B-11" }
       ]
     },
     {
-      "id": "S4", "title": "정렬", "status": "code_present",
+      "id": "S4", "title": "정렬", "status": "partial",
       "criteria": [
-        { "id": "S4-1", "desc": "체크 항목은 **좌정렬**(원본 서식 1.4 / image-6)", "status": "code_present", "evidence": "STYLE_CHECK 646칸" },
-        { "id": "S4-2", "desc": "🎯**체크 글리프가 세 종류다** — `□` U+25A1 **406개** · `☐` U+2610 174개 · `■` U+25A0 66개. 눈으로 구별되지 않아 `[☐■]`만 쓴 1차 정규식이 **646개 중 240개만** 잡았고, 화면에는 「왜 얘만 안 움직이지」로 보였다", "status": "code_present", "evidence": "_47-boxchar.mts가 코드포인트로 실측 · CHECK_GLYPHS 상수", "verified": "적용 후 자동 점검에서 「체크 칸인데 좌정렬 아님」 **0건**" },
-        { "id": "S4-3", "desc": "단위 칸(`kW`·`kVA`·`대`·`명`·`  년   월`)은 **우정렬** — 값을 왼쪽에 적는 자리(원본 서식 1.6 / image-7)", "status": "code_present", "evidence": "isUnitCell · STYLE_RIGHT 61칸" },
-        { "id": "S4-4", "desc": "문장(업무내용·※비고)은 **좌정렬**(image-8)", "status": "code_present", "evidence": "isProse(무공백 12자 이상) · STYLE_LEFT 200칸" },
-        { "id": "S4-5", "desc": "「수행주기 월·화·수 사이 선」 지적은 **우리 산출물엔 이미 있다** — 리포의 기존 엑셀(image-8)을 보고 하신 것으로 보인다", "status": "implemented", "evidence": "미세 격자판은 칸마다 테두리가 그어진다" },
-        { "id": "S4-6", "desc": "**ERP가 채우는 칸은 좌측정렬**(2026-09-08 사용자 지시). 자리는 **양식**이 정한다 — 강순기의 값을 보고 판정하면 고객마다 달라지므로, form hwpx가 `{{토큰}}`을 둔 셀로 판정한다", "status": "code_present", "evidence": "tokenSlots() — 토큰 자리 **65칸** → STYLE_LEFT" },
-        { "id": "S4-7", "desc": "🎯**두 지시가 부딪치는 자리를 갈랐다** — `799.30㎡`는 ERP 데이터이면서 단위가 붙어 있어 「단위 우정렬」에 먼저 걸렸다. **단위만 있는 빈 칸**(`kW`·`대`·`  년   월` — 값을 왼쪽에 적는 자리)만 우정렬로 남기고, **값이 든 칸은 ERP 데이터로 보아 좌정렬**로 넘긴다", "status": "code_present", "evidence": "isUnitCell에서 `\\d[\\d.,]*\\s*단위` 분기 제거. 최종 분포 가운데 1,054 · 체크(좌) 646 · 문장·ERP값(좌) 219 · 단위만(우) 61 · 머리띠 78" }
+        { "id": "S4-1", "desc": "체크 항목은 **좌정렬**(원본 서식 1.4 / image-6)", "status": "implemented", "evidence": "STYLE_CHECK 646칸", "verified": "판정B(2026-09-09): v7 체크선두 646칸 전수 좌정렬 위반 0 — styles.xml 자체 파싱(선언 2311=파싱 2311 가드). ⚠**ERP 경로 워크북은 전 칸 가운데**(별건 B-12)" },
+        { "id": "S4-2", "desc": "🎯**체크 글리프가 세 종류다** — `□` U+25A1 **406개** · `☐` U+2610 174개 · `■` U+25A0 66개. 눈으로 구별되지 않아 `[☐■]`만 쓴 1차 정규식이 **646개 중 240개만** 잡았고, 화면에는 「왜 얘만 안 움직이지」로 보였다", "status": "implemented", "evidence": "_47-boxchar.mts가 코드포인트로 실측 · CHECK_GLYPHS 상수", "verified": "적용 후 자동 점검에서 「체크 칸인데 좌정렬 아님」 **0건** · 판정B 독립 계수 — □406·☐174·■66 합 646 **정확 일치**, 4번째 글리프 없음" },
+        { "id": "S4-3", "desc": "단위 칸(`kW`·`kVA`·`대`·`명`·`  년   월`)은 **우정렬** — 값을 왼쪽에 적는 자리(원본 서식 1.6 / image-7)", "status": "partial", "evidence": "isUnitCell · STYLE_RIGHT 61칸", "verified": "판정B: 실측 우정렬 **57 ≠ 신고 61**(v6·v7 동일, 57칸 전수 열람 오분류 0). 어긋난 실체: 1.10.1 AP8~10 «년 월» 3칸이 가운데 — `tidy`가 선두 공백을 깎아 isUnitCell rule2(`^\\s{2,}단위`)가 **죽은 코드**(D-2)" },
+        { "id": "S4-4", "desc": "문장(업무내용·※비고)은 **좌정렬**(image-8)", "status": "implemented", "evidence": "isProse(무공백 12자 이상) · STYLE_LEFT 200칸", "verified": "판정B: 좌정렬(비체크) 실측 220(신고 219 — Δ1 수치 낡음), 동작 정상" },
+        { "id": "S4-5", "desc": "「수행주기 월·화·수 사이 선」 지적은 **우리 산출물엔 이미 있다** — 리포의 기존 엑셀(image-8)을 보고 하신 것으로 보인다", "status": "partial", "evidence": "미세 격자판은 칸마다 테두리가 그어진다", "verified": "🚨판정B: 증거 문장이 S10-1(원본 충실 테두리) 적용 후 **무효** — v7 실측 «□ 월»~«□ 일» 사이 세로선 **없음**(원본 borderFill left/right NONE과는 일치). 제품은 원본 충실이나 「사용자 지적이 충족돼 있다」는 주장은 성립 안 함 — 선을 원하시면 별도 결정 필요(B-14)" },
+        { "id": "S4-6", "desc": "**ERP가 채우는 칸은 좌측정렬**(2026-09-08 사용자 지시). 자리는 **양식**이 정한다 — 강순기의 값을 보고 판정하면 고객마다 달라지므로, form hwpx가 `{{토큰}}`을 둔 셀로 판정한다", "status": "implemented", "evidence": "tokenSlots() — 토큰 자리 **65칸** → STYLE_LEFT", "verified": "판정B: 양식 토큰 셀 독립 계수 65 일치, 1.1 T10 «799.30㎡» 좌정렬 착지. ⚠ERP 경로는 B-12" },
+        { "id": "S4-7", "desc": "🎯**두 지시가 부딪치는 자리를 갈랐다** — `799.30㎡`는 ERP 데이터이면서 단위가 붙어 있어 「단위 우정렬」에 먼저 걸렸다. **단위만 있는 빈 칸**(`kW`·`대`·`  년   월` — 값을 왼쪽에 적는 자리)만 우정렬로 남기고, **값이 든 칸은 ERP 데이터로 보아 좌정렬**로 넘긴다", "status": "partial", "evidence": "isUnitCell에서 `\\d[\\d.,]*\\s*단위` 분기 제거. 최종 분포 가운데 1,054 · 체크(좌) 646 · 문장·ERP값(좌) 219 · 단위만(우) 61 · 머리띠 78", "verified": "판정B: 신고 5버킷 중 **3버킷 불일치**(실측 가운데 1,057·좌 866·우 57 — 646·78만 일치, 총 2,058 일치). 「값 든 칸 좌정렬」은 **토큰 칸만 실현** — 값+단위 4칸 중 T10만 좌, AJ10 «448.19㎡»·BA19 «100명»·X13 «1층»는 가운데(우정렬 해제만 되고 좌정렬 미도달). 신고 분포의 계측 스크립트는 리포에 없어 재현 불가" }
       ]
     },
     {
-      "id": "S5", "title": "표기·입력 공간", "status": "code_present",
+      "id": "S5", "title": "표기·입력 공간", "status": "implemented",
       "criteria": [
-        { "id": "S5-1", "desc": "🎯**연속 공백이 곧 입력 칸이다.** 「      년      월」·「매월  회 이상」·「기타(   )」를 `\\s+ → ' '`로 접었더니 적을 자리가 사라졌다", "status": "code_present", "evidence": "tidy() — 줄바꿈·탭만 공백으로 바꾸고 연속 공백은 보존" },
-        { "id": "S5-2", "desc": "🔄용도 표기를 **「근생」으로 통일**(Q-7 번복). 독립 생성기는 펴지 않는다 — 납품 문서의 **충실한 변환**이므로 원본이 「근생」이면 「근생」이다", "status": "code_present", "evidence": "`_gs-book50.mts`의 `TERM_MAP`을 **비웠다**. 산출물 v7 — 1.1 AJ9·1.2.1 H8·H9 모두 「근생」(v6에서는 셋 다 「제2종근린생활시설」)", "verified": "`_47-purpose-confirm.mts` — ERP 산출물·독립 산출물 신/구를 **나란히** 세어 대조" },
-        { "id": "S5-3", "desc": "ERP 경로도 세 칸이 한 목소리를 내야 한다 — 1.1·1.2.1은 「근생」, 표지는 「근린생활시설」", "status": "code_present", "evidence": "`fire-plan-xlsx-values.ts` — 갈래 목록 `NEIGHBORHOOD_FACILITY` 하나에서 `purposeShort`(근생)·`purposeCover`(근린생활시설) **두 표기를 파생**시킨다. 종류가 늘어도 한 곳만 고친다. `cover_purpose`는 `txt(d.purpose)`→`purposeCover`, `zone_*_usage`는 `txt(z?.name)`→`purposeShort`", "verified": "끝단 재생성 후 실측 — 표지 `☐ 근린생활시설` · 1.1 `근생` · 1.2.1 `근생`. 강순기 원본과 3/3 일치" },
-        { "id": "S5-4", "desc": "🚨**주석이 목표값을 말하는데 그 값을 만드는 코드가 없었다.** 「표지는 근생이 아니라 근린생활시설이다」라고 적혀 있었지만 코드는 대장 원값 `제2종근린생활시설`을 그대로 찍고 있었다", "status": "code_present", "evidence": "`purposeCover` 신설로 주석과 산출을 일치시켰다", "verified": "🎯**주석을 읽고 「처리됐구나」 넘어갔으면 못 봤다.** 산출물을 전수로 세어야 드러나는 종류의 어긋남이다" }
+        { "id": "S5-1", "desc": "🎯**연속 공백이 곧 입력 칸이다.** 「      년      월」·「매월  회 이상」·「기타(   )」를 `\\s+ → ' '`로 접었더니 적을 자리가 사라졌다", "status": "implemented", "evidence": "tidy() — 줄바꿈·탭만 공백으로 바꾸고 연속 공백은 보존", "verified": "판정B: 연속 공백 셀 145개 `xml:space=preserve` 누락 0, «매월        일»·«2025  년  11 월» 실재. 소소: 선두 공백은 깎임(실해 없음 확인 — 단 S4-3 D-2의 원인)" },
+        { "id": "S5-2", "desc": "🔄용도 표기를 **「근생」으로 통일**(Q-7 번복). 독립 생성기는 펴지 않는다 — 납품 문서의 **충실한 변환**이므로 원본이 「근생」이면 「근생」이다", "status": "implemented", "evidence": "`_gs-book50.mts`의 `TERM_MAP`을 **비웠다**. 산출물 v7 — 1.1 AJ9·1.2.1 H8·H9 모두 「근생」(v6에서는 셋 다 「제2종근린생활시설」)", "verified": "`_47-purpose-confirm.mts` — ERP 산출물·독립 산출물 신/구를 **나란히** 세어 대조 · 판정B 파일별 독립 계수: v7 근생3·full0 / v6 0·3 — 정확 일치" },
+        { "id": "S5-3", "desc": "ERP 경로도 세 칸이 한 목소리를 내야 한다 — 1.1·1.2.1은 「근생」, 표지는 「근린생활시설」", "status": "implemented", "evidence": "`fire-plan-xlsx-values.ts` — 갈래 목록 `NEIGHBORHOOD_FACILITY` 하나에서 `purposeShort`(근생)·`purposeCover`(근린생활시설) **두 표기를 파생**시킨다. 종류가 늘어도 한 곳만 고친다. `cover_purpose`는 `txt(d.purpose)`→`purposeCover`, `zone_*_usage`는 `txt(z?.name)`→`purposeShort`", "verified": "끝단 재생성 후 실측 — 표지 `☐ 근린생활시설` · 1.1 `근생` · 1.2.1 `근생`. 강순기 원본과 3/3 일치 · 판정B 호출부 전수: 엑셀 축 용도 필드는 cover_purpose·purpose·zone_*_usage 3계열뿐, 전부 파생 경유(fire-plan-xlsx-values.ts:153·166·269), e2e 실측 3표면 착지·제2종근린생활시설 0건. ⚠**PDF 경로(fire-plan-template.ts:448·771)는 원값** — 같은 고객이 PDF «제2종근린생활시설»·엑셀 «근생»으로 갈린다(B-15 별건)" },
+        { "id": "S5-4", "desc": "🚨**주석이 목표값을 말하는데 그 값을 만드는 코드가 없었다.** 「표지는 근생이 아니라 근린생활시설이다」라고 적혀 있었지만 코드는 대장 원값 `제2종근린생활시설`을 그대로 찍고 있었다", "status": "implemented", "evidence": "`purposeCover` 신설로 주석과 산출을 일치시켰다 (판정B: :75-78 실재·배선·e2e 착지 확인)", "verified": "🎯**주석을 읽고 「처리됐구나」 넘어갔으면 못 봤다.** 산출물을 전수로 세어야 드러나는 종류의 어긋남이다" }
       ]
     },
     {
-      "id": "S6", "title": "글자색", "status": "partial",
+      "id": "S6", "title": "글자색", "status": "implemented",
       "criteria": [
-        { "id": "S6-1", "desc": "hwpx에서 셀별 글자색 추출 — `header.xml`의 `hh:charPr@textColor` ← 본문 `hp:run@charPrIDRef`. 표는 중첩되므로 스택으로 따라간다", "status": "code_present", "evidence": "erp/scripts/_gs-cellcolor.mts — 색 있는 칸 **151개**(빨강 #FF0000 **79** · 흰 40 · 파랑 13 · 회색 13 · 기타 6). 스캐너가 센 표 95개·셀 4,033개가 원본 구조와 일치(눈멂 가드)" },
-        { "id": "S6-2", "desc": "엑셀에 적용 — 빨강 글씨는 빨강으로. 스타일 표를 **색 × 정렬 조합**으로 생성하도록 바꿨다(색마다 본문·머리띠 두 벌 폰트, 정렬 5종)", "status": "code_present", "evidence": "색 5종 적용(#FF0000·#0000FF·#999999·#E3DCC1·#CCCCCC). 색 0(검정)의 xf 인덱스가 1~5로 종전과 같아 `_47-inspect.mts`의 `s=\"3\"` 판정이 그대로 산다", "verified": "서식 1.1 렌더에서 「도로명주소·연락처·수신기위치·규모/구조·시설현황·승강기·주차장·인원현황·공공기관·업무대행·화재보험」이 원본대로 빨강" },
-        { "id": "S6-3", "desc": "🚨**흰색(#FFFFFF) 40칸은 쓰지 않는다** — 원본에선 어두운 바탕 위 글자인데 우리는 그 바탕을 재현하지 않는다. 그대로 넣으면 **흰 종이에 흰 글씨**가 되어 사라진다", "status": "code_present", "evidence": "DROP_COLORS — 기본 검정으로 떨어뜨리고 개수를 로그에 찍는다(조용히 버리지 않는다)" }
+        { "id": "S6-1", "desc": "hwpx에서 셀별 글자색 추출 — `header.xml`의 `hh:charPr@textColor` ← 본문 `hp:run@charPrIDRef`. 표는 중첩되므로 스택으로 따라간다", "status": "implemented", "evidence": "erp/scripts/_gs-cellcolor.mts — 색 있는 칸 **151개**(빨강 #FF0000 **79** · 흰 40 · 파랑 13 · 회색 13 · 기타 6). 스캐너가 센 표 95개·셀 4,033개가 원본 구조와 일치(눈멂 가드)", "verified": "판정B 재실행: 151·95표·4,033셀·분포 정확 일치 + 원문 스팟 3건(도로명주소 charPr39·수신기위치 137·주차장 138 → #FF0000) 독립 확인" },
+        { "id": "S6-2", "desc": "엑셀에 적용 — 빨강 글씨는 빨강으로. 스타일 표를 **색 × 정렬 조합**으로 생성하도록 바꿨다(색마다 본문·머리띠 두 벌 폰트, 정렬 5종)", "status": "implemented", "evidence": "색 5종 적용(#FF0000·#0000FF·#999999·#E3DCC1·#CCCCCC). 색 0(검정)의 xf 인덱스가 1~5로 종전과 같아 `_47-inspect.mts`의 `s=\"3\"` 판정이 그대로 산다 (판정B: 빨강 텍스트 셀 70=79−9 공란 칸 정합, 1.1 명칭·주소·연락처 등 빨강 착지)", "verified": "서식 1.1 렌더에서 「도로명주소·연락처·수신기위치·규모/구조·시설현황·승강기·주차장·인원현황·공공기관·업무대행·화재보험」이 원본대로 빨강" },
+        { "id": "S6-3", "desc": "🚨**흰색(#FFFFFF) 40칸은 쓰지 않는다** — 원본에선 어두운 바탕 위 글자인데 우리는 그 바탕을 재현하지 않는다. 그대로 넣으면 **흰 종이에 흰 글씨**가 되어 사라진다", "status": "implemented", "evidence": "DROP_COLORS — 기본 검정으로 떨어뜨리고 개수를 로그에 찍는다(조용히 버리지 않는다)", "verified": "판정B: v7 styles.xml 전수에 흰 폰트 0, 표본 5칸(개정이력) 검정 착지" }
       ]
     },
     {
-      "id": "S7", "title": "ERP 대조 — 강순기 건물_2", "status": "partial",
+      "id": "S7", "title": "ERP 대조 — 강순기 건물_2", "status": "implemented",
       "criteria": [
-        { "id": "S7-1", "desc": "서식 1.1의 토큰 18자리를 ERP와 대조. 값은 **가려서** 찍는다(앞 2자+길이)", "status": "code_present", "evidence": "_47-erp-vs-hwp.mts" },
-        { "id": "S7-2", "desc": "빈 칸 채우기 — 건물의 수신기위치·구조·지붕 3칸(값 출처는 강순기 문서). **이미 값이 있는 칸은 건드리지 않는다**", "status": "code_present", "evidence": "_47-fill-gs2.mts --apply(스테이징). 일치 **2 → 9**", "verified": "재대조 실측. 남은 「비었음」 2개(높이·대인 보험금액)는 강순기 문서에도 실값이 없다 — 지어내지 않았다" },
+        { "id": "S7-1", "desc": "서식 1.1의 토큰 18자리를 ERP와 대조. 값은 **가려서** 찍는다(앞 2자+길이)", "status": "implemented", "evidence": "_47-erp-vs-hwp.mts", "verified": "판정C(2026-09-09): 토큰 자리 18 독립 집계(owner_phone 2회 포함 — S11-1 정합)·가림 규약(앞 2자+길이) 출력 2곳 코드 실측. ⚠:91의 `structure||main_structure` 폴백은 제품(main_structure만 읽음)과 잣대가 다르다(T-3)" },
+        { "id": "S7-2", "desc": "빈 칸 채우기 — 건물의 수신기위치·구조·지붕 3칸(값 출처는 강순기 문서). **이미 값이 있는 칸은 건드리지 않는다**", "status": "implemented", "evidence": "_47-fill-gs2.mts --apply(스테이징). 일치 **2 → 9**", "verified": "재대조 실측. 남은 「비었음」 2개(높이·대인 보험금액)는 강순기 문서에도 실값이 없다 — 지어내지 않았다 · 판정C: 스테이징 3필드(수신기위치·구조·지붕) 실값 + 제품 값 맵 착지 실측. ⚠fill이 buildings.structure/roof(화면 축)에 썼는데 산출은 main_structure/roof_structure만 읽는다 — 지금 멀쩡한 건 후자에 별도 값이 있던 덕(두 축 갈라짐, 「건물 두 화면 정합」 미커밋 작업 영역과 맞닿음). :43 managerPhone=byToken('owner_phone') 첫 칸 집기·:73-78 owner_id 오배선도 휴면 잔존(재실행 시 함정)" },
         { "id": "S7-3", "desc": "🚨**ERP 매핑을 추측했다가 틀렸다** — `customers.owner_id`를 대표자라 짐작했으나 그건 다른 표를 가리키는 FK였다. 실제 규칙은 `customer_contacts`에서 `role='대표'`(fire-plan-generate.ts:128). 그 행이 **이미 있었는데** 「비었음」이라 오보했고 중복 연락처를 넣을 뻔했다", "status": "implemented", "evidence": "FK 제약 `customers_owner_id_fkey` 위반으로 쓰기가 막혔다", "verified": "⭐**FK가 막아준 것이지 내가 확인해서 막은 것이 아니다.** 매핑은 코드에서 읽을 것 — 바로잡으니 일치가 2→9로 올랐다" },
-        { "id": "S7-4", "desc": "서식 1.2.2 **화재취약장소**(보일러실·주방)를 ERP에 넣었다. 사용자 지시는 「ERP에 있는 값 근거로 양식에 입력한다」인데 **ERP에 `hazards` 0행**이라 양식이 빈 채로 나갔다 → 강순기 문서 값을 근거로 채웠다", "status": "code_present", "evidence": "_47-fill-hazards.mts --apply — 보일러실/1층 보일러실/[전기적 요인, 가스누출(폭발)] · 주방/1층 주방/[전기적 요인, 부주의, 가스누출(폭발)]. image-9와 일치", "verified": "저장 후 재조회 2행 확인. ⚠`sections`는 JSONB 한 덩어리라 **통째로 덮으면 다른 서식 입력이 날아간다**(photos·location·routeMeta·fireAccess·reportCover) → 읽어서 병합했고 키가 5→6으로만 늘었다" },
+        { "id": "S7-4", "desc": "서식 1.2.2 **화재취약장소**(보일러실·주방)를 ERP에 넣었다. 사용자 지시는 「ERP에 있는 값 근거로 양식에 입력한다」인데 **ERP에 `hazards` 0행**이라 양식이 빈 채로 나갔다 → 강순기 문서 값을 근거로 채웠다", "status": "implemented", "evidence": "_47-fill-hazards.mts --apply — 보일러실/1층 보일러실/[전기적 요인, 가스누출(폭발)] · 주방/1층 주방/[전기적 요인, 부주의, 가스누출(폭발)]. image-9와 일치 (판정C: 스테이징 sections 키 정확히 6종=병합 보존 증거·hazards 2행 자구까지 일치)", "verified": "저장 후 재조회 2행 확인. ⚠`sections`는 JSONB 한 덩어리라 **통째로 덮으면 다른 서식 입력이 날아간다**(photos·location·routeMeta·fireAccess·reportCover) → 읽어서 병합했고 키가 5→6으로만 늘었다" },
         { "id": "S7-5", "desc": "🚨**표 이름을 또 추측했다** — `fire_plan_sections`라 짐작했으나 없는 표였다. 실제는 `fire_plan_forms.sections`(fire-plan-generate.ts:106). 오늘 같은 종류의 실수를 **두 번** 했다(S7-3의 owner_id와 함께)", "status": "implemented", "evidence": "「Could not find the table 'public.fire_plan_sections'」", "verified": "⭐ERP 구조는 **코드에서 읽는다**. 스키마 추측은 조용한 0행이나 없는 표로 끝난다" }
       ]
     },
     {
-      "id": "S8", "title": "검증", "status": "code_present",
+      "id": "S8", "title": "검증", "status": "partial",
       "criteria": [
-        { "id": "S8-1", "desc": "글자 충실도 — 기준은 산출물이 아니라 **강순기 hwp 원문**", "status": "code_present", "evidence": "_gs-verify-all.mts — 원문 고유 1,119개 중 정말 없는 것 **0**(「근생」 치환 1건 제외) · 체크 ■ 40/40 · 이어붙은 칸 2(머리 블록)" },
-        { "id": "S8-2", "desc": "인쇄 쪽수 — 두 축으로 센다(`/Type/Page`·`/Count`)", "status": "code_present", "evidence": "_pdf-pages.mts — **55쪽** 양 축 일치" },
-        { "id": "S8-3", "desc": "50시트 자동 점검 — 칸보다 긴 글자·세로 라벨·빈 시트·좌정렬 누락", "status": "code_present", "evidence": "_47-inspect.mts — 빈 시트 0 · 체크 좌정렬 누락 **0** · 칸보다 긴 곳 48(대부분 ※비고 각주로 정상, 다만 1.11.4의 전화번호 한 칸은 실제로 두 줄로 끊긴다 → B-7)" },
+        { "id": "S8-1", "desc": "글자 충실도 — 기준은 산출물이 아니라 **강순기 hwp 원문**", "status": "implemented", "evidence": "_gs-verify-all.mts — 원문 고유 1,119개 중 정말 없는 것 **0**(「근생」 치환 1건 제외) · 체크 ■ 40/40 · 이어붙은 칸 2(머리 블록)", "verified": "판정B 재실행: 고유 1,119·실유실 0(집합 은닉 축은 별도 다중성 계측으로 보완 — 「50명 미만 권장」 1/2 부족이 배너 합침 문자열 안에 실재 확인). 「근생 치환 1건 제외」는 낡은 문구(현재 제외 없이 0). ⚠기준 추출이 빌더와 같은 파서(hwp5-read) 공유 — 공모 축 잔존" },
+        { "id": "S8-2", "desc": "인쇄 쪽수 — 두 축으로 센다(`/Type/Page`·`/Count`)", "status": "implemented", "evidence": "_pdf-pages.mts — **55쪽** 양 축 일치", "verified": "판정A: 도구는 건전(v6 55/55·판정자 자체 변환 v7 62/62 양축 일치). 🚨단 「55쪽」의 대상은 v6 — **v7 PDF는 존재한 적이 없다**(근생은 v7에서, 쪽수는 v6에서 재고 한 산출물처럼 기록됨 — S8-4의 함정에 구현자 스스로 걸림)" },
+        { "id": "S8-3", "desc": "50시트 자동 점검 — 칸보다 긴 글자·세로 라벨·빈 시트·좌정렬 누락", "status": "partial", "evidence": "_47-inspect.mts — 빈 시트 0 · 체크 좌정렬 누락 **0** · 칸보다 긴 곳 48(대부분 ※비고 각주로 정상, 다만 1.11.4의 전화번호 한 칸은 실제로 두 줄로 끊긴다 → B-7)", "verified": "판정A: v7 재실행 — 빈 시트 0·좌정렬 누락 0(자기정의 파싱·양성 646/646 확증)·긴 곳 **51**(「48」은 낡음). 🚨결함 둘: ①`:13 COL_W=2.2` 하드코딩 vs 제품 1.8 — 실폭 기준 긴 곳 **80**의 과소치(29건 시야 밖) ②방향·쪽수 축 부재 — 이번 최대 결함(전장 landscape·62쪽)을 4축 어느 것도 못 보고 초록 통과" },
         { "id": "S8-4", "desc": "⚠**옛 판을 보고 「안 고쳐졌다」고 판단할 수 있다.** 사용자가 「근생 변경해줘」라고 했을 때 실제로는 이미 바뀌어 있었고, **열어두신 파일이 TERM_MAP 이전 빌드**였다. 파일별로 세어 가렸다", "status": "implemented", "evidence": "_47-check-geunsaeng.mts — `강순기_소방계획서_50쪽.xlsx` 근생 3 / v2·v3·v4 근생 0·제2종근린생활시설 3. ERP도 이미 `purpose=제2종근린생활시설`", "verified": "⭐산출물이 여러 판이면 **어느 판을 보고 있는지부터** 가를 것" }
       ]
     },
     {
-      "id": "S11", "title": "ERP 양식을 미세 격자로 전환 (Q-9 1번 갈래)", "status": "code_present",
+      "id": "S11", "title": "ERP 양식을 미세 격자로 전환 (Q-9 1번 갈래)", "status": "implemented",
       "criteria": [
         { "id": "S11-1", "desc": "🎯**2번 갈래를 실측으로 기각했다.** 「앵커를 매니페스트 파생으로 풀면 격자 교체가 싸진다」고 내가 권했는데, 재 보니 파생 가능한 앵커는 62개 중 **22개(35%)**뿐이었다 — 29개는 양식에 토큰이 없어 **사람이 라벨 축으로 세운 자리**, 11개는 사람이 **고친 자리**다", "status": "implemented", "evidence": "_47-anchor-derive.mts. 대표 사례 `1.1!I7`: 앵커=manager_phone vs 양식토큰=owner_phone — 파생하면 전 고객 문서에 대표자 전화가 소방안전관리자 칸에 찍힌다", "verified": "⭐**내가 권한 방향이 틀렸다.** 앵커 파일 머리에 「사람이 라벨을 보며 재승인했다」고 적혀 있던 것을 가볍게 읽었다 — 남의 자산을 고치기 전에 그 자산의 주석부터 읽을 것" },
-        { "id": "S11-2", "desc": "빌더가 미세 격자를 뱉도록 전환 — 워크북·매니페스트·앵커가 **한 자리에서** 일관되게 재생성된다", "status": "code_present", "evidence": "build-fire-plan-template.mts에 `projectCols`/`solveWidths` 삽입(6곳: nCols·셀 주소·병합·덮인 칸·열 폭). 빌더 게이트 **전건 통과** — 50시트·병합 3,951·토큰 65·니들 0·토큰 잔존 0", "note": "⚠상수를 함수 근처에 뒀다가 **TDZ**로 섰다(`Cannot access 'FINE_N' before initialization`) — 파일 머리로 옮겼다" },
-        { "id": "S11-3", "desc": "좌표 재배치 — `field↔labelCell`은 손대지 않고 **좌표만** 옛 격자 → 미세 격자로 옮긴다", "status": "code_present", "evidence": "_47-anchor-remap.mts **62/62** · _47-values-remap.mts **29/29**. 사전 점검(_47-coordmap.mts)이 62/62 이동 가능함을 먼저 확인했고, 옮긴 라벨칸에 실제로 라벨이 있는지 검사해 하나라도 없으면 파일을 쓰지 않는다" },
-        { "id": "S11-4", "desc": "🚨**가드가 계산형 앵커를 잡았다** — 정규식 치환은 리터럴만 옮겼고, `ZONE_COLS`·`BRIG_COLS`는 **열 문자와 행 번호를 조합**해 주소를 만들어 못 옮겼다. `labelAt`이 모듈 적재 시점에 `1.2.1!B6에 라벨이 없다`로 던져 드러났다", "status": "code_present", "evidence": "_47-colmap.mts로 사상 산출 후 손수 이동 — ZONE B·C·D·J·K → D·H·O·AL·AR · BRIG C·D·F·H → N·X·AG·AZ", "verified": "⭐이 가드가 없었으면 「엑셀 받기」가 런타임에 500으로 끊겼을 것이다" },
+        { "id": "S11-2", "desc": "빌더가 미세 격자를 뱉도록 전환 — 워크북·매니페스트·앵커가 **한 자리에서** 일관되게 재생성된다", "status": "implemented", "evidence": "build-fire-plan-template.mts에 `projectCols`/`solveWidths` 삽입(6곳: nCols·셀 주소·병합·덮인 칸·열 폭). 빌더 게이트 **전건 통과** — 50시트·병합 3,951·토큰 65·니들 0·토큰 잔존 0 (판정C: 함수 실재 :696/:717/:614 + manifest 지문=자산 sha256 3축 일치)", "note": "⚠상수를 함수 근처에 뒀다가 **TDZ**로 섰다(`Cannot access 'FINE_N' before initialization`) — 파일 머리로 옮겼다" },
+        { "id": "S11-3", "desc": "좌표 재배치 — `field↔labelCell`은 손대지 않고 **좌표만** 옛 격자 → 미세 격자로 옮긴다", "status": "implemented", "evidence": "_47-anchor-remap.mts **62/62** · _47-values-remap.mts **29/29**. 사전 점검(_47-coordmap.mts)이 62/62 이동 가능함을 먼저 확인했고, 옮긴 라벨칸에 실제로 라벨이 있는지 검사해 하나라도 없으면 파일을 쓰지 않는다", "verified": "판정C: 옛 자산을 `c23ebf8^`에서 바이트로 추출해 **manifest 미경유 교차 대조** — (field,sheet) 쌍 증감 0·좌표 이동 61·불변 1(cover_title A3)·옛/새 워크북 실셀 라벨 62쌍 갈라짐 0. manager_phone `I7/G7→AW7/AJ7` 라벨 «연락처»·«소방안전관리자» — 사람이 고친 자리 생존. ⚠「29/29」는 29건 처리이지 29건 이동이 아님(28 이동+1 불변)" },
+        { "id": "S11-4", "desc": "🚨**가드가 계산형 앵커를 잡았다** — 정규식 치환은 리터럴만 옮겼고, `ZONE_COLS`·`BRIG_COLS`는 **열 문자와 행 번호를 조합**해 주소를 만들어 못 옮겼다. `labelAt`이 모듈 적재 시점에 `1.2.1!B6에 라벨이 없다`로 던져 드러났다", "status": "implemented", "evidence": "_47-colmap.mts로 사상 산출 후 손수 이동 — ZONE B·C·D·J·K → D·H·O·AL·AR · BRIG C·D·F·H → N·X·AG·AZ (판정C: 사상 실측 일치, 새 열 머리 라벨 5종이 옛 워크북과 글자 단위 동일·BRIG 블록 머리 «현장대응팀» 보존)", "verified": "⭐이 가드가 없었으면 「엑셀 받기」가 런타임에 500으로 끊겼을 것이다" },
         { "id": "S11-5", "desc": "🎯**끝단 검증** — 라우트와 같은 순서로 실제 고객의 엑셀을 만들어 본다", "status": "implemented", "evidence": "_47-e2e.mts (강순기 건물_2): 앵커 검증 ✅ → 값 **155개**·매핑 완전 → 주입 대상 **158**·미매핑 0 → **전건 착지**(1,710,983바이트)", "verified": "렌더 육안 — 시트 범위 `A1:J27`(10열) → **`A1:BH27`(60열)**, 명칭·주소·연락처·급수 3급·연면적 799.3·화재보험(농협 2024-11-16~2034-11-16)이 제자리에 찍혔다" },
-        { "id": "S11-6", "desc": "게이트", "status": "implemented", "evidence": "tsc **rc=0·0바이트** · `validateAnchors` **158/158 통과** · 빌더 게이트 전건 통과", "note": "옛 자산은 `_manifest-old.json`·`_workbook-old.xlsx`·`_anchors-old.ts`·`_values-old.ts`로 백업(되돌릴 수 있다)" }
+        { "id": "S11-6", "desc": "게이트", "status": "implemented", "evidence": "tsc **rc=0·0바이트** · `validateAnchors` **158/158 통과** · 빌더 게이트 전건 통과", "note": "옛 자산은 `_manifest-old.json`·`_workbook-old.xlsx`·`_anchors-old.ts`·`_values-old.ts`로 백업(되돌릴 수 있다)", "verified": "판정C: tsc rc=0 재실측 · test-fire-plan-xlsx **105/0**(HEAD) · 비항진 보강 — manifest 미경유 워크북 실셀 158/158 라벨 일치·값칸 백지 전건(validateAnchors는 항진명제라 이 축이 실문지기). ⚠note의 백업 4파일은 어디에도 실재하지 않음(git `c23ebf8^` 복원 가능이라 실질 무해) 🚨test-fire-plan-xlsx가 **test-all 미등재**(B-13)" }
       ]
     },
     {
@@ -123,22 +123,22 @@
       ]
     },
     {
-      "id": "S9", "title": "별지서식 탭에 「소방계획서 엑셀」 버튼", "status": "code_present",
+      "id": "S9", "title": "별지서식 탭에 「소방계획서 엑셀」 버튼", "status": "implemented",
       "criteria": [
         { "id": "S9-1", "desc": "⭐**새로 만들지 않았다** — 생성 라우트(`customers/[id]/fire-plan/xlsx`)와 다운로드 로직이 계획서 탭(`FirePlanViewClient`)에 **이미 있었다**. 위치만 넓혔다", "status": "implemented", "evidence": "라우트·호출부 실측 후 착수" },
-        { "id": "S9-2", "desc": "로직을 **복제하지 않고** 공용 컴포넌트로 뺐다 — 두 벌이 되면 한쪽만 고쳐지는 날이 온다", "status": "code_present", "evidence": "src/components/customers/fire-plan-xlsx-button.tsx 신설 · fire-plan-view.tsx가 그것을 쓰도록 교체(죽은 상태 `xlsxBusy`·import 정리)" },
-        { "id": "S9-3", "desc": "⚠**`window.open`으로 받으면 안 된다**는 제약을 함께 옮겼다 — 라우트가 `X-FirePlan-Missing`으로 보내는 고지(자가치유·구역 넘침·미입력)가 새 탭으로 열면 사라진다. `fetch`+`Blob`으로 받는다. PDF 쪽은 그 헤더가 없어 `window.open` 그대로(회귀 금지)", "status": "code_present", "evidence": "fire-plan-xlsx-button.tsx 머리주석 + 구현" },
-        { "id": "S9-4", "desc": "고지 표시는 **화면마다 다르다** — 계획서 탭은 이미 자리가 있어 콜백(`onNotice`/`onError`)으로 받아 기존 자리에 그리고, 별지서식 탭은 버튼 아래에 스스로 그린다", "status": "code_present", "evidence": "owns 플래그" },
-        { "id": "S9-5", "desc": "별지서식 탭 상단에 배치 + 한 줄 안내. 별지(9·10·11호)는 **회차** 문서이고 소방계획서는 **고객** 문서라 성격이 다르므로 그 차이를 적었다", "status": "code_present", "evidence": "customers/[id]/page.tsx annexTab", "note": "⚠이 버튼이 내려주는 것은 **리포의 기존 성긴 격자 워크북**이다 — 오늘 만든 미세 격자판이 아니다(Q-9)" },
+        { "id": "S9-2", "desc": "로직을 **복제하지 않고** 공용 컴포넌트로 뺐다 — 두 벌이 되면 한쪽만 고쳐지는 날이 온다", "status": "implemented", "evidence": "src/components/customers/fire-plan-xlsx-button.tsx 신설 · fire-plan-view.tsx가 그것을 쓰도록 교체(죽은 상태 `xlsxBusy`·import 정리)", "verified": "판정D(2026-09-09): `/fire-plan/xlsx` fetch는 저장소 전체에서 이 파일 1곳뿐·호출부 전수 2곳(콜백형·자가렌더형)·xlsxBusy grep 0" },
+        { "id": "S9-3", "desc": "⚠**`window.open`으로 받으면 안 된다**는 제약을 함께 옮겼다 — 라우트가 `X-FirePlan-Missing`으로 보내는 고지(자가치유·구역 넘침·미입력)가 새 탭으로 열면 사라진다. `fetch`+`Blob`으로 받는다. PDF 쪽은 그 헤더가 없어 `window.open` 그대로(회귀 금지)", "status": "implemented", "evidence": "fire-plan-xlsx-button.tsx 머리주석 + 구현", "verified": "판정D: fetch+Blob+`<a download>`(:39·:49-59) · 헤더명 라우트(:92)와 바이트 일치 · encodeURIComponent↔decodeURIComponent+raw 폴백 왕복 정합 · RFC5987 filename* 파싱 정합 · PDF는 여전히 window.open(회귀 0)" },
+        { "id": "S9-4", "desc": "고지 표시는 **화면마다 다르다** — 계획서 탭은 이미 자리가 있어 콜백(`onNotice`/`onError`)으로 받아 기존 자리에 그리고, 별지서식 탭은 버튼 아래에 스스로 그린다", "status": "implemented", "evidence": "owns 플래그", "verified": "판정D: 실호출부 2곳 정상 조합. ⚠잠복(low): 콜백을 **하나만** 넘기는 호출부가 생기면 owns=false인데 selfError 미렌더 — 오류가 조용히 삼켜진다. 타입으로 짝 강제 권고" },
+        { "id": "S9-5", "desc": "별지서식 탭 상단에 배치 + 한 줄 안내. 별지(9·10·11호)는 **회차** 문서이고 소방계획서는 **고객** 문서라 성격이 다르므로 그 차이를 적었다", "status": "implemented", "evidence": "customers/[id]/page.tsx annexTab", "note": "⚠이 버튼이 내려주는 것은 **리포의 기존 성긴 격자 워크북**이다 — 오늘 만든 미세 격자판이 아니다(Q-9)", "verified": "판정D: :809-825 annexTab 최상단 배치 + 회차/고객 문서 성격 안내 확인. note는 Q-9 자산 교체(c23ebf8)로 해소됨(B-8)" },
         { "id": "S9-6", "desc": "게이트", "status": "implemented", "evidence": "tsc **rc=0·0바이트** · eslint 바꾼 3파일 **error 0**(경고 4건은 page.tsx의 장기 기준선 — 내가 넣은 줄이 아니다)" }
       ]
     },
     {
-      "id": "S12", "title": "인쇄 후 원위치 복귀 (Q-10)", "status": "code_present",
+      "id": "S12", "title": "인쇄 후 원위치 복귀 (Q-10)", "status": "implemented",
       "criteria": [
         { "id": "S12-1", "desc": "🎯**증상의 실체를 먼저 확정했다** — 원래 탭은 안 다친다(인쇄 버튼 전수가 `_blank`). 원복이 안 되는 것은 **인쇄가 끝나도 뷰어 탭이 남아 손으로 닫아야 하기 때문**", "status": "implemented", "evidence": "인쇄 진입점 전수 추적(Explore 에이전트 + 직접 확인) — print-bundle 진입 2곳·초안 인쇄 1곳·내장 뷰어 열람 다수, 같은 탭 이동 0" },
-        { "id": "S12-2", "desc": "`afterprint`(인쇄·취소 불문 대화상자 닫힘) → `window.close()`. **opener 가드** — 주소 직접 진입 탭은 닫지 않는다(돌아갈 원래 탭이 없다)", "status": "code_present", "evidence": "print-pdf-client.tsx — iframe 창(자동 인쇄·[인쇄] 버튼 발화 지점) + 바깥 창(뷰어 탭 Ctrl+P) 양쪽. annex-print-button.tsx — 초안 인쇄 창" },
-        { "id": "S12-3", "desc": "E2E — 대화상자 닫힘 신호를 주입해 그 뒤 우리 배선을 검증(3축)", "status": "code_present", "evidence": "_47-q10-e2e.mts **3/0**: ①스크립트로 연 탭 afterprint→닫힘 ②직접 진입 탭은 남음 ③원래 탭 URL 불변", "note": "⚠**헤드리스엔 PDF 뷰어가 없어 iframe 창 load가 안 선다** — 검증은 바깥 창 리스너로 하고, iframe 창 발화는 자동 인쇄가 실사용에서 서는 것으로 증명돼 있다" },
+        { "id": "S12-2", "desc": "`afterprint`(인쇄·취소 불문 대화상자 닫힘) → `window.close()`. **opener 가드** — 주소 직접 진입 탭은 닫지 않는다(돌아갈 원래 탭이 없다)", "status": "implemented", "evidence": "print-pdf-client.tsx — iframe 창(자동 인쇄·[인쇄] 버튼 발화 지점) + 바깥 창(뷰어 탭 Ctrl+P) 양쪽. annex-print-button.tsx — 초안 인쇄 창", "verified": "판정D: 3곳 실측(:27-31 cleanup 있음·:97-99 onLoad 1회·초안 창 :52는 항상 스크립트가 연 창이라 가드 불필요=옳음) · opener 가드 양쪽 `if (window.opener)` · 리스너가 document.open/write/close **뒤** 등록이라 안 지워짐 · opener 경계(원래 탭 먼저 닫힘·noopener) 양쪽 다 안전한 방향으로 실패" },
+        { "id": "S12-3", "desc": "E2E — 대화상자 닫힘 신호를 주입해 그 뒤 우리 배선을 검증(3축)", "status": "implemented", "evidence": "_47-q10-e2e.mts **3/0**: ①스크립트로 연 탭 afterprint→닫힘 ②직접 진입 탭은 남음 ③원래 탭 URL 불변 (판정D: 3축 비공허 — ①은 isClosed 참 단언이라 주입만으론 통과 불가, ②가 음성 대조, 픽스처 부재 시 exit 1. 단서: ①이 두 창에 동시 주입이라 iframe 배선 단독 커버리지는 없음 — 자인된 한계)", "note": "⚠**헤드리스엔 PDF 뷰어가 없어 iframe 창 load가 안 선다** — 검증은 바깥 창 리스너로 하고, iframe 창 발화는 자동 인쇄가 실사용에서 서는 것으로 증명돼 있다" },
         { "id": "S12-4", "desc": "⚠**「바로 보기·인쇄」는 범위 밖** — 브라우저 내장 PDF 뷰어 탭은 스크립트가 안 돌아 자동 복귀 불가. 열람 겸용이라 자동 인쇄·자동 닫기를 걸면 보기 동선이 죽는다", "status": "implemented", "evidence": "generated-doc-list.tsx·/doc 라우트 — 손대지 않음(그 탭은 원래 탭을 안 건드리므로 닫기만 하면 제자리)" }
       ]
     }
@@ -148,12 +148,17 @@
     { "id": "B-2", "what": "✅**해소** — 글자색 적용 (S6-2)", "why": "색 5종 적용(빨강 79칸). 흰색 40칸은 바탕을 재현하지 않아 제외" },
     { "id": "B-3", "what": "✅**해소** — ERP 자산 교체 (Q-9)", "why": "`c23ebf8`로 워크북+매니페스트+앵커+값 좌표 동시 전환(S11). 검증 스크립트 복구는 타 세션이 `7c1dc90`으로 마감" },
     { "id": "B-4", "what": "✅**커밋 완료** — 미푸시 3커밋", "why": "`1af1abc`(도구 21파일) · `2bb4e94`(미세 격자 양식 21파일) · `e1ee223`(테두리·머리띠 5파일). 🚨**`2bb4e94`는 한 번 잘못 만들었다** — 임시 인덱스를 `read-tree` 한 뒤 HEAD가 움직였는데 구 sha 가드가 **이동 후 값끼리 비교**해 통과했고, 스테일 트리로 타 세션의 `소방계획서_46.json/.md`를 되돌렸다. 미푸시라 재작성으로 복구(46 blob 해시 동일 확인). `e1ee223`부터는 **read-tree 직전 sha를 박아** 비교한다. **푸시는 미실시** — pre-push 훅이 작업트리를 빌드하는데 타 세션 미커밋이 섞여 있어 내 커밋이 아닌 이유로 깨질 수 있다" },
-    { "id": "B-10", "what": "칸보다 글자가 긴 곳 51건 — **대부분 결함 아님**", "why": "자동 점검이 51건을 짚지만 대부분 ※비고 각주와 원본에서도 두 줄인 문장이다(행 높이는 hwpx에서 가져오므로 원본이 두 줄이면 자리가 있다). 다만 **`1.11.4`의 전화번호가 9열 칸에서 두 줄로 끊기는 것**은 값이 끊기는 자리라 손볼 값어치가 있다 — ERP 데이터 칸에 `shrinkToFit`을 켜는 안을 검토하되, 「글자 크게」 요구와 상충하므로 사용자 확인 후" },
+    { "id": "B-10", "what": "✅**종결(그대로 둔다)** — 칸보다 글자가 긴 곳 51건", "why": "대부분 ※비고 각주와 원본에서도 두 줄인 문장이라 결함 아님. 유일한 실값 자리였던 **1.11.4 전화번호 칸도 「그대로 둔다」**(2026-09-08 사용자 확정 — 원본 hwp도 이 칸이 좁고, 두 줄이어도 번호는 읽힌다). shrinkToFit·칸 넓히기 안은 기각" },
     { "id": "B-8", "what": "✅**해소** — 별지서식 버튼도 미세 격자판을 내려준다", "why": "버튼은 `templates/fire-plan-workbook.xlsx`를 그대로 쓰므로 Q-9의 자산 교체(`c23ebf8`)로 자동 해소. 끝단 E2E(`_47-e2e.mts`)가 그 경로로 158칸 전건 착지를 확인" },
     { "id": "B-9", "what": "✅**해소** — 인쇄 후 원위치 복귀 (Q-10)", "why": "전수 추적으로 「원래 탭은 안 다친다(전부 `_blank`) — **인쇄 끝난 뷰어 탭이 남아 손으로 닫아야 하는 것**이 원복 부재의 실체」로 확정하고, `afterprint` → `window.close()`(opener 가드)를 3곳에 배선. 스크롤 복원은 **얹지 않았다** — 원래 탭이 안 움직이는 것을 E2E ③이 단언한다. 상세는 Q-10 resolution" },
-    { "id": "B-5", "what": "독립 판정", "why": "이 차수는 아직 구현자=판정자다. 특히 S1-2(폭 배분)·S4-2(글리프)·S3-1(축소율 임계)은 값이 조용히 틀릴 수 있는 자리다" },
-    { "id": "B-6", "what": "✅**해소** — 고객 중복 정리", "why": "**`강순기 건물_2`를 남기고 `강순건물` 완전 삭제**(2026-09-08 사용자 확정). 앱과 같은 RPC(`hard_delete_customer`)로 스테이징에서 삭제 — 점검 1·설비대장 1·계획서식 1·계획항목 1·세부제원 3 동반, 잔여 0 실측. **운영은 「강순」 0건 실측**이라 대상 아님. 남은 `강순기 건물_2`는 **비활성 상태 그대로**(활성화는 별도 지시 대기)" },
-    { "id": "B-7", "what": "1.11.4 전화번호 칸", "why": "9열 칸에 13자라 두 줄로 끊긴다. 칸을 넓히거나 글자를 줄여야 한다" }
+    { "id": "B-5", "what": "✅**해소** — 독립 판정 4인 완료(2026-09-09)", "why": "격리 워크트리(`7413dec`)에서 축 분할(A 기하·수치 / B 글자·정렬·색 / C ERP 자산·DB / D UI 배선). **S11 6/6·S9 6/6·S12 4/4·S5·S6·S7 전건 implemented** — ERP 축(운영 배포본)은 제품 결함 0. 지목됐던 위험 축 실측: S1-2 폭 0 열 38표·260열→0(통과) · S4-2 글리프 646 정확 일치(통과) · S3-1 산식 충실하나 **S3-2 연쇄로 55쪽 미재현**. 🚨최대 발견 = **S3-2 fail**(독립 생성기 방향 축 사망 → B-11) · ERP 워크북 전 칸 가운데 정렬(→ B-12) · test-fire-plan-xlsx 게이트 미등재(→ B-13). 상세는 각 criterion verified" },
+    { "id": "B-6", "what": "✅**해소** — 고객 중복 정리 + 활성화", "why": "**`강순기 건물_2`를 남기고 `강순건물` 완전 삭제**(2026-09-08 사용자 확정). 앱과 같은 RPC(`hard_delete_customer`)로 스테이징에서 삭제 — 점검 1·설비대장 1·계획서식 1·계획항목 1·세부제원 3 동반, 잔여 0 실측. **운영은 「강순」 0건 실측**이라 대상 아님. 후속으로 `강순기 건물_2` **활성화 완료**(is_active false→true 실측, 사용자 확정) — 고객 목록·달력에 보인다" },
+    { "id": "B-7", "what": "✅**종결(그대로 둔다)** — 1.11.4 전화번호 칸", "why": "B-10과 같은 결정(2026-09-08 사용자 확정). 원본 충실이 우선" },
+    { "id": "B-11", "what": "🚨독립 생성기 방향 축 사망 — 전장 landscape·62쪽 (판정A, 수리 대기)", "why": "`_gs-book50.mts:294` `wide = ms.cols >= 14`가 읽는 manifest `cols`가 미세 격자 전환(`c23ebf8`) 후 전 시트 60 → 지금 재생성하면 landscape 50/50·62쪽. 「가로12·세로38·55쪽」(Q-4 착지)은 v6에서만 참이고 **근생이 실린 v7과 양립한 적 없음**. ERP 자산은 무관(xlsx-build.ts:234 portrait 고정). 수리: wide 판정을 표 실제 colCnt 축으로 + v8 재생성·PDF 재계측 + _47-inspect에 방향·쪽수 축 추가(COL_W=2.2→1.8 교정 포함)" },
+    { "id": "B-12", "what": "ERP 미세 격자 워크북 정렬 — 사용자 결정 대기 (판정B D-1)", "why": "고객이 버튼으로 받는 **운영 배포본**은 cellXfs 정렬이 center 하나뿐 — 체크선두 646칸 좌정렬 0, ERP 채움 값(«강순기 건물_2»·«근생»·«799.3») 전부 가운데. S4의 정렬 지시 4건(체크 좌·단위 우·문장 좌·ERP값 좌)이 **독립 생성기에만 배선**됐다(build-fire-plan-template.mts:491 center:true 고정, xlsx-build.ts:167은 center/left 2값뿐). 지시가 강순기 납품본 국한이었다면 결함 아님 — 해석 확인 필요" },
+    { "id": "B-13", "what": "test-fire-plan-xlsx를 test-all에 등재 (판정C T-2)", "why": "미세 격자 자산을 지키는 유일한 무서버 스위트(105단언·좌표 착지 문지기 — validateAnchors는 항진명제)가 pre-push 회귀 게이트 밖이다. HEAD·공유 트리 양쪽 git grep rc=1로 미등재 확인. 42의 「c23ebf8이 검증을 안 데려간」 사고의 재발 방지 축" },
+    { "id": "B-14", "what": "수행주기 월·화·수 사이 선 — 사용자 확인 필요 (판정B S4-5)", "why": "S10-1(원본 충실 테두리) 적용 후 v7엔 그 세로선이 없다(원본 hwpx borderFill left/right NONE과 일치). 「이미 있다」던 S4-5 증거는 무효 — 원본 충실 vs 사용자 지적(선을 원함) 중 택일" },
+    { "id": "B-15", "what": "PDF↔엑셀 용도 표기 불일치 — 별건 (판정B O-1)", "why": "같은 고객이 PDF(fire-plan-template.ts:448·771 — `d.purpose` 원값)는 «제2종근린생활시설», 엑셀은 «근생». 47 범위는 엑셀뿐이라 결함은 아니나 두 산출물이 갈린다 — purposeShort를 PDF에도 적용할지 결정 필요" }
   ],
   "traps": [
     "⭐⭐**`columnEdges`는 폭 0 열을 남긴다 — 값이 소리 없이 사라진다.** `colSpan===1` 셀에서만 폭을 읽으므로 병합 셀만 걸치는 열이 0이 되고, 그 열만 차지하는 셀은 격자에 자리가 없어 통째로 없어진다. 반대로 그 폭을 열 폭으로 쓰면 글자가 세로로 깨진다. **병합 셀 폭에서 역산해 배분할 것**",
