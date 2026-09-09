@@ -10,6 +10,7 @@ import { fetchBuildingLedgerAction, checkAddressAction, type AddressDuplicateCus
 import { AddressDuplicateDialog } from '@/components/customers/address-duplicate-dialog'
 import { autoApplyLedgerEmptyAction } from '@/app/(dashboard)/customers/fire-plan-info-actions'
 import { parseParkingSummary } from '@/lib/doc-templates/report9'
+import { findSameNameBuilding, normalizeBuildingName } from '@/lib/building-dup'
 import { useDaumPostcode } from '@/hooks/use-daum-postcode'
 import { useCustomerTabs } from '@/components/customers/customer-tabs'
 
@@ -147,10 +148,16 @@ export function BuildingListPanel({ customerId, customerName, customerAddress, b
   // 주소 상속용: bcode가 저장된 첫 활성 건물 (§5-A-2)
   const inheritSrc = buildings.find(b => b.is_active && b.bcode) ?? null
 
-  // 건물 등록 폼은 항상 열림 — 기존 건물 수정 중이 아니면 기본이 '건물 등록' 패널 (조회 전용은 제외)
+  /* 등록 폼은 **접혀서 시작**한다 (2026-09-09 사용자 확정).
+   *  종전엔 항상 펼쳐져 있었고, 그래서 기존 건물을 고치려던 입력이 그대로 **새 건물 등록**이 됐다
+   *  (「규현빌라」가 두 번 생긴 실사고 — 화면·문서는 대표동만 보여 값이 사라진 것처럼 보였다).
+   *  ⭐ [+ 건물 등록] 버튼은 원래 있었지만 `editing !== 'new'` 조건이라 **영원히 숨어 있었다** —
+   *    폼을 접으니 그 버튼이 드러난다(사용자: "추가하는 버튼은 어디에 있어?").
+   *  ⚠ 단 **건물이 하나도 없으면 열어 둔다** — 그때는 등록 말고 할 일이 없다. */
   const initialEditing = initialNew
     ? 'new'
-    : (initialOpenId && buildings.some(b => b.id === initialOpenId) ? initialOpenId : (canManage ? 'new' : null))
+    : (initialOpenId && buildings.some(b => b.id === initialOpenId) ? initialOpenId
+      : (canManage && buildings.length === 0 ? 'new' : null))
   const [editing, setEditing] = useState<string | null>(initialEditing)
   const [form, setForm] = useState<FormState>(() =>
     initialEditing && initialEditing !== 'new' ? toForm(buildings.find(b => b.id === initialEditing)) : newForm())
@@ -162,6 +169,9 @@ export function BuildingListPanel({ customerId, customerName, customerAddress, b
   const [dupInfo, setDupInfo] = useState<{ customer?: AddressDuplicateCustomer; building?: AddressDuplicateBuilding } | null>(null)
   const dupAckRef = useRef('')            // '계속 등록'으로 확인 완료된 주소
   const pendingSaveRef = useRef(false)    // 저장 시점 중복 확인 후 이어서 저장할지
+  // 같은 이름 건물 확인 팝업 — 같은 고객 안에서 이름이 겹칠 때(다동은 정상이라 확인만 받는다)
+  const [sameNameDup, setSameNameDup] = useState<BuildingPanelRow | null>(null)
+  const sameNameAckRef = useRef('')       // '그래도 등록'으로 확인 완료된 이름(정규화형)
   // 폼을 연 시점의 bcode — 저장 후 대장 '전 필드' 반영은 **주소가 이 편집에서 새로 확정된 경우에만**.
   // 종전엔 bcode만 있으면 항상 mode:'all'이라, 방금 저장한 수기 값(주차장·구조 등)이 대장 값으로 되돌아갔다.
   const openBcodeRef = useRef(
@@ -263,14 +273,11 @@ export function BuildingListPanel({ customerId, customerName, customerAddress, b
     setLedgerNote(''); setError(''); syncUrl('new')
     if (f.bcode && f.address_jibun) fetchLedger(f.bcode, f.address_jibun, f)
   }
-  // 닫기 = 열린 '건물 등록' 폼으로 복귀 (등록 폼 항상 오픈 — 조회 전용만 완전 닫힘)
+  /* 닫기 = **완전히 접는다**(2026-09-09). 종전엔 여기서 다시 '건물 등록' 폼을 열었는데,
+   * 수정을 마치고 닫은 자리에 빈 등록 폼이 나타나 **다음 입력이 새 건물이 되는** 통로였다. */
   function close() {
-    if (canManage) {
-      setForm(newForm()); setEditing('new'); setSameAsCustomer(!!customerAddress)
-      openBcodeRef.current = inheritSrc?.bcode ?? ''
-    } else {
-      setEditing(null)
-    }
+    setForm(newForm()); setEditing(null); setSameAsCustomer(false)
+    openBcodeRef.current = ''
     setLedgerNote(''); setError('')
     tabs?.setTabDirty('buildings', false)
     syncUrl(null)
@@ -400,6 +407,16 @@ export function BuildingListPanel({ customerId, customerName, customerAddress, b
       return
     }
     setError('')
+    /* 같은 고객·**같은 이름** 건물 확인 (2026-09-09 사용자 확정) — 차단이 아니라 확인이다.
+     * 주소 중복 팝업은 **다른 고객**과 겹칠 때만 뜨므로, 같은 고객 안에서 이름까지 같은 동이
+     * 조용히 두 번 만들어졌다(실사고). 다동은 정상이니 「그래도 등록」으로 넘어갈 수 있다. */
+    if (editing === 'new') {
+      const nm = form.building_name.trim()
+      if (sameNameAckRef.current !== normalizeBuildingName(nm)) {
+        const dup = findSameNameBuilding(buildings, nm)
+        if (dup) { setSameNameDup(dup); return }
+      }
+    }
     // 저장 시점 중복 재검증 (주소 수기 보정 대비) — 이미 확인한 주소는 통과
     const addr = form.address.trim()
     if (addr && dupAckRef.current !== addr) {
@@ -702,6 +719,40 @@ export function BuildingListPanel({ customerId, customerName, customerAddress, b
           }}
           continueLabel="계속 저장"
         />
+      )}
+
+      {/* 같은 이름 건물 확인 (2026-09-09) — 같은 고객 안에서 이름이 겹칠 때. **차단이 아니다**:
+          한 고객이 여러 동을 가지는 것은 정상이라 「그래도 등록」으로 넘어갈 수 있고, 대신
+          이름을 갈라 적도록 권한다(A동·B동). 종전엔 이 확인이 없어 같은 이름이 조용히 쌓였다. */}
+      {sameNameDup && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true">
+          <div className="bg-surface rounded-xl border border-brand-line shadow-xl w-full max-w-sm p-5" data-testid="building-samename-dialog">
+            <h3 className="text-form-base-title font-semibold text-ink mb-2">같은 이름의 건물이 이미 있습니다</h3>
+            <p className="text-form-sm text-ink-sub mb-1">
+              이 고객에 <b className="text-ink">{sameNameDup.building_name}</b>
+              {sameNameDup.is_active === false && <span className="text-ink-meta">(비활성)</span>}
+              {' '}건물이 이미 등록돼 있습니다.
+            </p>
+            <p className="text-form-sm text-ink-meta mb-4">
+              같은 건물을 <b>수정</b>하려면 목록에서 그 건물을 눌러 주세요.
+              동이 여러 개라면 <b>「{sameNameDup.building_name} A동」</b>처럼 이름을 갈라 적으면 문서에서 구별됩니다.
+            </p>
+            <div className="flex gap-2 justify-end">
+              <button onClick={() => setSameNameDup(null)}
+                className="h-form-8 px-3 rounded-lg border border-line text-form-sm text-ink-sub hover:bg-brand-tint">취소</button>
+              <button
+                onClick={() => { const b = sameNameDup; setSameNameDup(null); openEdit(b) }}
+                className="h-form-8 px-3 rounded-lg border border-brand-line text-form-sm text-brand hover:bg-brand-tint">기존 건물 수정</button>
+              <button
+                onClick={() => {
+                  sameNameAckRef.current = normalizeBuildingName(form.building_name)
+                  setSameNameDup(null)
+                  save()
+                }}
+                className="h-form-8 px-3 rounded-lg bg-brand text-white text-form-sm hover:opacity-90">그래도 등록</button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )
