@@ -43,6 +43,33 @@ export interface CellStyle {
   align: HAlign
 }
 
+/* ────────────────────────── 바탕 밝기 (한 벌 자) ────────────────────────── */
+
+/** 지각 밝기 0(검정)~1(흰색). ITU-R BT.601 가중치 — 회색 계열만 판별하면 되므로 감마 보정은 뺐다. */
+function luminance(hex: string): number {
+  const h = hex.replace('#', '')
+  const rgb = h.length === 8 ? h.slice(2) : h
+  if (rgb.length !== 6) return 1
+  const n = Number.parseInt(rgb, 16)
+  if (Number.isNaN(n)) return 1
+  return (0.299 * ((n >> 16) & 0xff) + 0.587 * ((n >> 8) & 0xff) + 0.114 * (n & 0xff)) / 255
+}
+
+/**
+ * 어두운 바탕인가 — **검정 바탕·흰 글씨 규약의 유일한 자**다(소방계획서_48).
+ *
+ * 🚨 이 판정을 손목록(「배너 행이면」)으로 두면 안 된다. 실측에서 진회색 칸 2,100개 중 **60개가
+ *   배너 행 밖**(개정이력 1행)이었고, 반대로 배너 행 6개는 연보라·무채움이었다 —
+ *   「배너 = 어두움」이 참이 아니다. 색이 어두운지는 **색에게 묻는다**.
+ *
+ * 경계 0.5는 실측상 안전하다: 이 양식의 채움은 #4C4C4C(0.30) 아니면 #E0E5FA(0.89)·#F2F2F2·
+ * #FFE0CC·#FFFFFF(0.88~1.00)뿐이라 사이가 텅 비어 있다. 양식이 개정돼 새 어두운 칸이 생겨도
+ * 그 칸은 자동으로 흰 글씨를 받는다.
+ */
+export function isDarkFill(fill: string | null | undefined): boolean {
+  return !!fill && luminance(fill) < 0.5
+}
+
 export interface BuildCell {
   /** 0-based */
   row: number
@@ -129,6 +156,13 @@ function argb(hex: string): string {
   return h.length === 6 ? `FF${h}` : h.length === 8 ? h : 'FFFFFFFF'
 }
 
+/** fontId 0 = 본문(검정), 1 = 어두운 바탕용(흰색). `isDarkFill`이 칸마다 둘 중 하나를 고른다.
+ *  ⚠ 굵기·크기·글꼴은 둘이 **같아야** 한다 — 다르면 머리띠만 글자 크기가 달라진다. */
+const FONTS = [
+  '<font><sz val="10"/><color theme="1"/><name val="맑은 고딕"/><family val="2"/><charset val="129"/></font>',
+  '<font><sz val="10"/><color rgb="FFFFFFFF"/><name val="맑은 고딕"/><family val="2"/><charset val="129"/></font>',
+]
+
 interface StyleTables {
   borders: string[]
   fills: string[]
@@ -170,8 +204,10 @@ function styleIndex(t: StyleTables, s: CellStyle): number {
   // wrapText: 원본 셀이 여러 줄을 담으므로 항상 켠다. vertical=center는 hwpx 기본과 같다.
   // left/right는 indent=1 — 글자가 테두리에 붙지 않게. 생성기(_gs-book50)의 정렬 XML과 같은 모양이다(B-12).
   const align = `<alignment horizontal="${s.align}" vertical="center" wrapText="1"${s.align === 'center' ? '' : ' indent="1"'}/>`
+  // 어두운 바탕엔 흰 글씨. 채움에서 파생하므로 위 `key`(채움 포함)가 이미 이 갈래를 가른다.
+  const fontId = isDarkFill(s.fill) ? 1 : 0
   t.xfs.push(
-    `<xf numFmtId="0" fontId="0" fillId="${fIdx}" borderId="${bIdx}" xfId="0"`
+    `<xf numFmtId="0" fontId="${fontId}" fillId="${fIdx}" borderId="${bIdx}" xfId="0"`
     + ` applyFont="1" applyFill="${s.fill ? 1 : 0}" applyBorder="1" applyAlignment="1">${align}</xf>`,
   )
   const idx = t.xfs.length - 1
@@ -182,7 +218,7 @@ function styleIndex(t: StyleTables, s: CellStyle): number {
 function stylesXml(t: StyleTables): string {
   return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">`
-    + `<fonts count="1"><font><sz val="10"/><color theme="1"/><name val="맑은 고딕"/><family val="2"/><charset val="129"/></font></fonts>`
+    + `<fonts count="${FONTS.length}">${FONTS.join('')}</fonts>`
     + `<fills count="${t.fills.length}">${t.fills.join('')}</fills>`
     + `<borders count="${t.borders.length}">${t.borders.join('')}</borders>`
     + `<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>`

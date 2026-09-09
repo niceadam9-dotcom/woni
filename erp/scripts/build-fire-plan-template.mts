@@ -24,7 +24,7 @@ import {
   type HwpxTable, type HwpxCell, type HwpxBorderFill,
 } from '../src/lib/hwpx-table.ts'
 import {
-  buildXlsx, cellRef, type BuildSheet, type BuildCell, type CellStyle, type HAlign,
+  buildXlsx, cellRef, isDarkFill, type BuildSheet, type BuildCell, type CellStyle, type HAlign,
 } from '../src/lib/xlsx-build.ts'
 import { classifyAlign } from '../src/lib/fire-plan-align.ts'
 import {
@@ -55,7 +55,16 @@ const FINE_COL_W = 1.8
  */
 type Part =
   | { kind: 'banner'; table: number }
-  | { kind: 'grid'; table: number; rc: [number, number] }
+  /** `blankEmptyCols` — 원문에 글자가 **한 칸도 없는 열**은 아예 안 그린다(채움·테두리 없음).
+   *
+   *  ⚠ 칸 단위가 아니라 **열 단위**다. 칸으로 지우면 글자 있는 열의 빈 칸까지 뚫려 상자가
+   *    ㄴ자로 파인다(실측: 표지 용도 상자의 ☐ 아래 칸). 열은 통째로 비었을 때만 사라지므로
+   *    남는 칸들은 항상 반듯한 사각형을 이룬다.
+   *
+   *  🚨 기본값이 아니다. 이 양식의 빈 칸은 대개 **값을 적을 자리**라 테두리가 있어야 하고,
+   *    빌드 시점의 공란만 보고 지우면 서식 전체가 상자를 잃는다. 원문 자체가 비어 있고
+   *    앞으로도 채워질 일이 없는 표에만 붙인다. */
+  | { kind: 'grid'; table: number; rc: [number, number]; blankEmptyCols?: true }
 
 interface SectionDef {
   /** 시트명 — S3-2 규약(31자·금지문자 없음·중복 없음). 앵커·라우트·검증의 키 */
@@ -68,7 +77,10 @@ interface SectionDef {
 
 const CHAPTER1: SectionDef[] = [
   // 표지 — 배너가 없다. #1(제목)이 #0(용도 상자) **뒤에** 오는 것은 원문 순서 그대로다.
-  { name: '표지', no: null, parts: [{ kind: 'grid', table: 0, rc: [2, 4] }, { kind: 'banner', table: 1 }] },
+  // 용도 상자(#0)는 2행×4열인데 원문이 글자를 실은 열은 앞의 **두 열**뿐이고(`용도` · `☐ 복합
+  // 건축물`) 뒤 두 열은 hwpx에서도 통째로 공란이다 — 값 축(cover_purpose)도 M1 하나만 쓴다.
+  // 그 두 열에 연보라 채움과 점선이 그려져 표지 위쪽에 빈 격자가 떠 있었다(사용자 지적 image-15).
+  { name: '표지', no: null, parts: [{ kind: 'grid', table: 0, rc: [2, 4], blankEmptyCols: true }, { kind: 'banner', table: 1 }] },
   { name: '개정이력', no: null, parts: [{ kind: 'grid', table: 2, rc: [12, 6] }] },
 
   { name: '1.1 건축물 일반현황', no: '1.1', parts: [{ kind: 'banner', table: 3 }, { kind: 'banner', table: 4 }, { kind: 'grid', table: 5, rc: [25, 10] }] },
@@ -217,6 +229,31 @@ const SAMPLE_ANSWER_CELLS: BlankCell[] = [
 ]
 
 const blankAt = new Map<string, BlankCell>(SAMPLE_ANSWER_CELLS.map(b => [`${b.table}:${b.row}:${b.col}`, b]))
+
+/* ══════════ 표본 답 비우기 — **시트 좌표 축**(2026-09-08 제3장 배선) ══════════
+ *
+ *  위 `SAMPLE_ANSWER_CELLS`는 hwpx 표 좌표(`표:행:열`)로 적는다. 미세 격자 전환 뒤로는 그 축이
+ *  사람이 확인하기 어려워졌다 — 눈에 보이는 것은 시트 좌표(`3.4!G4`)이고, 표 좌표는 투영 전 값이라
+ *  육안 대조가 불가능하다. 그래서 **보이는 축으로도 적을 수 있게** 한다. 둘은 같은 일을 한다.
+ *
+ *  🎯 아래 9칸은 제3장 배선 중 **백지 불변식이 잡아냈다** — 앵커를 걸었더니 "그 칸이 비어 있지
+ *    않다"고 붉어졌고, 열어 보니 표본 고객의 기입이었다. 검사가 먼저 말해 준 자리다.
+ *  ⚠ 서식 3.6의 피난방법 4칸은 **여기 넣지 않는다** — 그건 표본 답이 아니라 승진소방이 고객
+ *    간에 재사용하는 **표준 문구**이고 사용자가 Q-5에서 「남긴다」로 확정했다. 값 축이
+ *    `orLabel`로 되쓰고, 백지 불변식은 그 갈래를 따로 예외로 둔다.
+ */
+const SAMPLE_ANSWER_REFS: Record<string, string> = {
+  '3.4 피난유도 절차·경로!G4': '비화재보 대응방법 = 고객이 적은 답(1층 주차장 대기…)',
+  '3.4 피난유도 절차·경로!J10': '피난경로 개수 = 표본값 1',
+  '3.4 피난유도 절차·경로!AT10': '피난경로 표의 집결지 = 표본값(1층 주차장)',
+  '3.4 피난유도 절차·경로!A11': '피난경로 서술 = 고객이 적은 답(각 세대 출입구 앞 직통계단)',
+  '3.4 피난유도 절차·경로!T13': '집결지 장소 = 표본값(1층 주차장)',
+  '3.7 피난기구·유도장비 현황!L3': '피난기구 층별 = 표본값(3~5층)',
+  '3.7 피난기구·유도장비 현황!S3': '피난기구 명칭 = 표본값(완강기)',
+  '3.7 피난기구·유도장비 현황!AH3': '피난기구 보관장소 = 표본값(베란다)',
+  '3.7 피난기구·유도장비 현황!BB3': '피난기구 수량 = 표본값(각 1개)',
+}
+let blankRefHits = 0
 
 /* ══════════════════════ 표본 답 잔재 — **규칙 축**(2026-09-08) ══════════════════════
  *
@@ -484,11 +521,23 @@ interface SheetManifest {
   gridTops: { table: number; top: number; rows: number; cols: number[] }[]
 }
 
+/** 서식 머리띠 바탕 — 사용자 지시(2026-09-09): **검정 바탕에 흰 글씨**.
+ *  원본 hwpx는 진회색(#4C4C4C)이고 글자색을 안 싣는데, 파서가 색을 안 읽어 검은 글씨가
+ *  진회색 위에 깔렸다(image-16). 흰 글씨는 `xlsx-build`가 `isDarkFill`로 스스로 고르므로
+ *  여기서는 **바탕만** 검정으로 옮긴다 — 두 규칙이 같은 자(`isDarkFill`)를 쓴다. */
+const DARK_FACE = '#000000'
+
+/** 아무것도 그리지 않는 스타일 — 채움도 테두리도 없다(참조 화면 image-14). */
+const BLANK_STYLE: CellStyle = {
+  left: 'none', right: 'none', top: 'none', bottom: 'none', fill: null, align: 'center',
+}
+
 function styleOf(bf: HwpxBorderFill | undefined, align: HAlign = 'center'): CellStyle {
+  const face = bf?.faceColor ?? null
   return {
     left: bf?.left ?? 'none', right: bf?.right ?? 'none',
     top: bf?.top ?? 'none', bottom: bf?.bottom ?? 'none',
-    fill: bf?.faceColor ?? null,
+    fill: isDarkFill(face) ? DARK_FACE : face,
     align,
   }
 }
@@ -614,6 +663,15 @@ for (const sec of SECTIONS) {
 
     /* 미세 격자 투영 — 표마다 독립이라 열 수가 다른 표를 한 시트에 쌓을 수 있다(Q-9) */
     const proj = projectCols(g)
+
+    /* 글자를 한 칸도 싣지 않은 **원본 열** — `blankEmptyCols`가 켜진 표에서만 쓴다.
+     * 판정은 `processText` 이전의 **원문**으로 한다: 토큰 칸·표본 답 칸은 뒤에서 공란이 되므로
+     * 가공된 글자로 재면 값이 들어올 열까지 통째로 지운다. */
+    const emptyCol = new Array<boolean>(g.colCnt).fill(true)
+    for (const c of g.cells) {
+      if (!c.text.trim()) continue
+      for (let k = c.col; k < Math.min(c.col + c.colSpan, g.colCnt); k++) emptyCol[k] = false
+    }
     /* 🚨 **행뿐 아니라 열도 발행한다.** 종전엔 `top`만 실어 소비자가 `시트 열 == 표 열`이라고
      *   추측했고, 미세 격자로 옮긴 뒤 그 추측이 깨져 강순기 대조 일치율이 95.9% → 24.8%로
      *   무너졌다(멀쩡한 산출물을 '자구 불일치 37건'으로 신고). F-20을 행 축에서 배우고도
@@ -637,7 +695,12 @@ for (const sec of SECTIONS) {
       /* B-12 — 정렬 분류(생성기 `_gs-book50.mts`와 한 벌: fire-plan-align). 토큰 칸은 위에서
        *  공란이 됐지만 **스타일은 남으므로** 런타임 주입 값이 그대로 좌정렬을 받는다 —
        *  자리 판정은 값이 아니라 양식의 `{{토큰}}`(= 방금 기록된 m.tokenCells)이 한다. */
-      const style = styleOf(fills.get(c.borderFillId), classifyAlign(text, { token: ref in m.tokenCells }))
+      /* 이 칸이 **덮는 열이 전부** 빈 열일 때만 안 그린다 — 한 열이라도 글자를 실었으면 남는다 */
+      const allColsEmpty = gp.blankEmptyCols
+        && Array.from({ length: Math.min(c.colSpan, g.colCnt - c.col) }, (_, k) => emptyCol[c.col + k]).every(Boolean)
+      const style = allColsEmpty
+        ? BLANK_STYLE
+        : styleOf(fills.get(c.borderFillId), classifyAlign(text, { token: ref in m.tokenCells }))
 
       cells.push({ row: r0, col: c0, text, style })
 
