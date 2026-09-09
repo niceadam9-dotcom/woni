@@ -16,6 +16,7 @@ import JSZip from 'jszip'
 import { parseTables, parseBorderFills, columnEdges, rowHeights, hwpToPt, type HwpxTable } from '../src/lib/hwpx-table.ts'
 import { readSectionStream, walkRecords, extractTables, calibrateCellOffset, type Hwp5Table } from './hwp5-read.mts'
 import { scanCellColors } from './_gs-cellcolor.mts'
+import { isCheckText, isUnitCell, isProse } from '../src/lib/fire-plan-align.ts'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 /* ⚠ 엑셀이 열고 있는 파일은 **쓰기가 막힌다**(node:fs EBUSY) — 그런데 빌드 로그는 앞부분이 초록이라
@@ -49,7 +50,7 @@ if (!cal || cal.hitRate < 0.95) throw new Error('좌표 보정 실패')
 const fill = extractTables(rec, cal.offset)
 if (fill.length !== form.length) throw new Error(`표 수 불일치 ${fill.length} vs ${form.length}`)
 
-interface MSheet { name: string; no: string | null; tables: number[]; rows: number; cols: number; bannerRows: number[]; gridTops: { table: number; top: number; rows: number }[] }
+interface MSheet { name: string; no: string | null; tables: number[]; rows: number; cols: number; bannerRows: number[]; gridTops: { table: number; top: number; rows: number; cols?: number[] }[] }
 const manifest = JSON.parse(readFileSync(resolve(HERE, '../src/lib/fire-plan-xlsx-manifest.json'), 'utf8')) as { sheets: MSheet[] }
 console.log(`양식 ${form.length}표 · 강순기 ${fill.length}표 · 좌표 ${(cal.hitRate * 100).toFixed(1)}% · 매니페스트 ${manifest.sheets.length}시트`)
 
@@ -111,17 +112,9 @@ const textOf = (t: Hwp5Table) => {
   return m
 }
 
-/** 단위 칸인가 — 「kW」「kVA」「대」「명」이나 「  년   월」처럼 **값을 왼쪽에 적는** 자리.
- *  원본(서식 1.6)은 이런 칸을 **우측정렬**해 단위를 오른쪽 끝에 붙인다(사용자 지시). */
-const UNIT = '(?:kW|kVA|kva|㎡|㎥|m|대|명|원|회|개|일|년|월|층|人)'
-/** ⚠ **단위만 있는 빈 칸**이어야 한다. 「<숫자>㎡」처럼 **값이 이미 든 칸은 ERP 데이터**라
- *  좌측정렬 규칙(아래 TOKEN_CELLS)으로 넘긴다 — 두 지시가 겹치는 자리라 여기서 갈라 둔다.
- *  1차에 `\d[\d.,]*\s*단위`까지 우정렬로 잡아 연면적·건축면적이 오른쪽에 붙었다. */
-const isUnitCell = (v: string) => new RegExp(`^\\s*${UNIT}(?:\\s+(?:이상|이하))?\\s*$`).test(v)
-  || new RegExp(`^\\s{2,}${UNIT}`).test(v)            // 「   년   월」류 — 앞이 입력 공백
-  || /^\s*(매월|매년)\s{2,}/.test(v)                   // 「매월    일」·「매월  회 이상」
-/** 긴 문장은 가운데로 몰면 읽기 나쁘다 — 좌측정렬(사용자 지시: 「글자입력은 칸 안에서 좌측정렬」) */
-const isProse = (v: string) => v.replace(/\s/g, '').length >= 12
+/* 정렬 판정 술어(isUnitCell·isProse·isCheckText)는 **한 벌 공유**로 옮겼다(47 B-12) —
+ * 여기 있던 원문 정의·경위 주석은 `../src/lib/fire-plan-align.ts`에 그대로 있다.
+ * ERP 빌더(build-fire-plan-template.mts)와 이 생성기가 같은 술어를 쓴다(두 벌 갈라짐 방지). */
 
 /** ERP가 채우는 칸인가 — 양식 hwpx가 그 자리에 `{{토큰}}`을 둔 셀.
  *
@@ -190,15 +183,7 @@ const STYLE_BODY = styleAt(A_CENTER, undefined), STYLE_BANNER = styleAt(A_BANNER
 const STYLE_CHECK = styleAt(A_CHECK, undefined), STYLE_RIGHT = styleAt(A_RIGHT, undefined)
 const STYLE_LEFT = styleAt(A_LEFT, undefined)
 
-/** 체크 칸인가 — 원본 서식(서식 1.4)은 이런 칸을 **좌정렬**한다. 가운데 정렬하면 상자가 글자
- *  덩어리와 함께 떠서 목록을 눈으로 훑기 어렵다.
- *
- *  ⚠ 글리프가 **세 종류**다(실측): `□` U+25A1 406개 · `☐` U+2610 174개 · `■` U+25A0 66개.
- *  눈으로는 구별되지 않아서, `[☐■]`만 쓴 1차 정규식이 646개 중 **240개만** 잡았다 —
- *  좌정렬이 절반만 걸려 있었고 화면으로는 "왜 얘만 안 움직이지"로 보였다.
- *  글리프 목록을 손으로 적을 땐 **실측으로 세고 적을 것**. */
-const CHECK_GLYPHS = '□☐■▣☑☒✓✔'   // □ ☐ ■ ▣ ☑ ☒ ✓ ✔
-const isCheckText = (v: string) => new RegExp(`^\\s*[${CHECK_GLYPHS}]`).test(v)
+/* 체크 칸 판정(isCheckText)도 공유 모듈에서 온다 — 글리프 3종 실측 경위 주석은 그쪽에 있다. */
 
 function buildSheet(ms: MSheet) {
   /* 표별 시작 행.
@@ -290,8 +275,17 @@ function buildSheet(ms: MSheet) {
     return `<row r="${r + 1}"${h ? ` ht="${h.toFixed(1)}" customHeight="1"` : ''}>${cells}</row>`
   }).join('')
 
-  /* 넓은 표는 가로로 — 세로로 1쪽에 욱여넣으면 글자가 읽을 수 없이 작아진다 */
-  const wide = ms.cols >= 14
+  /* 넓은 표는 가로로 — 세로로 1쪽에 욱여넣으면 글자가 읽을 수 없이 작아진다.
+   *  🚨(B-11) 축은 **표의 실제 열 수**다. 종전 `ms.cols >= 14`는 성긴 격자 시절 「시트 열 수 =
+   *  표 열 수」였을 때의 코드인데, 미세 격자 전환(c23ebf8) 후 `ms.cols`는 전 시트 60(격자 열 수)이
+   *  되어 **전 시트가 landscape로 뒤집혔다**(재생성 시 62쪽). 표 열 수는 manifest `gridTops[].cols`
+   *  (표별 열 경계 발행 — 경계 K+1개 = 열 K개)에서 역산한다. 시트에 표가 여럿이면 최대값.
+   *  없으면 추측하지 않고 세운다. v6 실측과 집합 일치 확인(가로 12·세로 38, _47-wide-dist.mts). */
+  const tableCols = (ms.gridTops ?? []).map(g => {
+    if (!g.cols || g.cols.length < 2) throw new Error(`«${ms.name}» 표#${g.table}: gridTops.cols 미발행 — wide 판정 불가(manifest 재생성 필요)`)
+    return g.cols.length - 1
+  })
+  const wide = tableCols.length > 0 && Math.max(...tableCols) >= 14
   /* ⭐ 세로 압축은 **행이 많을 때만** 푼다 (2026-09-08 사용자 확정: "글자가 깨지면 50쪽을 넘어도
    *  된다 · 1~5장 넘겨도 된다"). 가로 폭은 언제나 1쪽에 맞추되(fitToWidth=1), 긴 시트는
    *  fitToHeight=0으로 **자연 크기로 흘려보낸다** — 억지로 한 쪽에 넣으면 글자가 뭉갠다.

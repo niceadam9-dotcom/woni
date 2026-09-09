@@ -24,8 +24,9 @@ import {
   type HwpxTable, type HwpxCell, type HwpxBorderFill,
 } from '../src/lib/hwpx-table.ts'
 import {
-  buildXlsx, cellRef, type BuildSheet, type BuildCell, type CellStyle,
+  buildXlsx, cellRef, type BuildSheet, type BuildCell, type CellStyle, type HAlign,
 } from '../src/lib/xlsx-build.ts'
+import { classifyAlign } from '../src/lib/fire-plan-align.ts'
 import {
   scrubText, uncheckText, FIRE_PLAN_SCRUB_NEEDLES, FIRE_PLAN_MARK_CHECKED_RE,
 } from '../src/lib/fire-plan-scrub.ts'
@@ -483,12 +484,12 @@ interface SheetManifest {
   gridTops: { table: number; top: number; rows: number; cols: number[] }[]
 }
 
-function styleOf(bf: HwpxBorderFill | undefined): CellStyle {
+function styleOf(bf: HwpxBorderFill | undefined, align: HAlign = 'center'): CellStyle {
   return {
     left: bf?.left ?? 'none', right: bf?.right ?? 'none',
     top: bf?.top ?? 'none', bottom: bf?.bottom ?? 'none',
     fill: bf?.faceColor ?? null,
-    center: true,
+    align,
   }
 }
 
@@ -590,7 +591,8 @@ for (const sec of SECTIONS) {
     const raw = bt.cells
       .slice().sort((a, b) => (a.row - b.row) || (a.col - b.col))
       .map(c => c.text.trim()).filter(Boolean).join('  ')
-    const style = styleOf(fills.get(bt.cells[0]?.borderFillId ?? 0))
+    // B-12 — 머리띠는 좌정렬(생성기 S10-2와 동일: 「서식 1.6」 배지 뒤에서 왼쪽으로 흐른다)
+    const style = styleOf(fills.get(bt.cells[0]?.borderFillId ?? 0), 'left')
     const text = processText(raw, cellRef(row, 0), () => null)
     for (let k = 0; k < nCols; k++) cells.push({ row, col: k, text: k === 0 ? text : '', style })
     if (nCols > 1) merges.push(`${cellRef(row, 0)}:${cellRef(row, nCols - 1)}`)
@@ -619,7 +621,6 @@ for (const sec of SECTIONS) {
      *   `cols[i]` = 표의 i번째 열이 시작하는 시트 열(0-based), 길이는 colCnt+1(마지막은 끝 경계). */
     m.gridTops.push({ table: gp.table, top, rows: g.rowCnt, cols: proj })
     for (const c of g.cells) {
-      const style = styleOf(fills.get(c.borderFillId))
       const r0 = top + c.row
       const c0 = proj[c.col]
       const c1 = proj[Math.min(c.col + c.colSpan, g.colCnt)] - 1
@@ -632,6 +633,11 @@ for (const sec of SECTIONS) {
       const raw = blank ? (blank.keep === 'box' ? (c.text.match(BOX_RE)?.[0] ?? '') : '') : c.text
       if (blank) { m.sampleBlanked[ref] = blank.why; blankHits++ }
       const text = processText(raw, ref, () => oracle.glyphFor(c))
+
+      /* B-12 — 정렬 분류(생성기 `_gs-book50.mts`와 한 벌: fire-plan-align). 토큰 칸은 위에서
+       *  공란이 됐지만 **스타일은 남으므로** 런타임 주입 값이 그대로 좌정렬을 받는다 —
+       *  자리 판정은 값이 아니라 양식의 `{{토큰}}`(= 방금 기록된 m.tokenCells)이 한다. */
+      const style = styleOf(fills.get(c.borderFillId), classifyAlign(text, { token: ref in m.tokenCells }))
 
       cells.push({ row: r0, col: c0, text, style })
 

@@ -18,6 +18,7 @@ import { FIRE_PLAN_ANCHORS, FIRE_PLAN_FIELDS, FP_SHEET, ZONE_ROWS, ZONE_SHEET, Z
 import { brigadeRowOverflow, buildFirePlanValues, missingValueFields, planDate, zoneRowOverflow } from '../src/lib/fire-plan-xlsx-values.ts'
 import { FIRE_PLAN_MANIFEST, labelAt, boxGlyphAt } from '../src/lib/fire-plan-xlsx-manifest.ts'
 import { FIRE_PLAN_SCRUB_NEEDLES, FIRE_PLAN_MARK_CHECKED_RE } from '../src/lib/fire-plan-scrub.ts'
+import { classifyAlign, isCheckText } from '../src/lib/fire-plan-align.ts'
 import { COMPARTMENT_KINDS } from '../src/lib/evac-compartment.ts'
 import type { FirePlanGenData } from '../src/lib/fire-plan-template.ts'
 
@@ -555,6 +556,81 @@ console.log('\n[7] 값 맵 완결성 · 표기 규약')
   check('빈 데이터 주입도 missed 0', injE.missed.length === 0, injE.missed.slice(0, 4).join(','))
   const wbE = XLSX.read(injE.bytes, { cellStyles: false })
   check('빈 값 칸에 잔재 없음', !String((wbE.Sheets[ZONE_SHEET]?.[`B${ZONE_FIRST_ROW}`] as XLSX.CellObject | undefined)?.v ?? '').trim())
+}
+
+/* ══════════════════════ [8] 정렬 축 (소방계획서_47 B-12) ══════════════════════
+ *  정렬 지시(체크 좌 · 단위만 우 · 문장 좌 · 토큰 좌 · 배너 좌 · 나머지 가운데)가 **자산의
+ *  styles.xml에 실제로 실렸는가**. 종전엔 이 지시들이 독립 생성기(_gs-book50)에만 배선돼
+ *  고객이 받는 ERP 워크북은 가운데 하나뿐이었다 — 여기가 붉으면 그 회귀다.
+ *
+ *  ⚠ 스타일 **번호를 하나도 적지 않는다** — styles.xml을 스스로 파싱해 번호→정렬을 그때그때
+ *    푼다(이 저장소에서 좌표·번호 하드코딩 검사가 두 번 오보를 냈다). 분류 규칙은 빌더와
+ *    **한 벌**(fire-plan-align)에서 읽는다 — 이 검사의 축은 '분류가 옳은가'가 아니라
+ *    '분류가 자산에 착지했는가'다(분류 자체의 옳음은 생성기 육안·사용자 지시가 원천). */
+console.log('\n[8] 정렬 축 — 분류가 styles.xml에 실렸는가 (B-12)')
+{
+  const zip = await JSZip.loadAsync(bytes)
+  const stylesXml = await zip.file('xl/styles.xml')!.async('string')
+  // ⚠ <xf/> 자기닫힘과 <xf>…</xf>가 섞일 수 있다 — 자기닫힘을 놓치면 번호가 통째로 밀린다
+  const cellXfsXml = /<cellXfs[^>]*>([\s\S]*?)<\/cellXfs>/.exec(stylesXml)?.[1] ?? ''
+  const xfAligns: string[] = []
+  for (const m of cellXfsXml.matchAll(/<xf\b[^>]*?(?:\/>|>([\s\S]*?)<\/xf>)/g)) {
+    xfAligns.push(/<alignment\b[^>]*?horizontal="([^"]+)"/.exec(m[1] ?? '')?.[1] ?? 'general')
+  }
+  check('cellXfs 정렬 파싱이 비지 않았다(눈멂 가드)', xfAligns.length >= 4, `${xfAligns.length}개`)
+  check('left·center·right 세 정렬이 모두 실재', ['left', 'center', 'right'].every(a => xfAligns.includes(a)),
+    [...new Set(xfAligns)].join(','))
+
+  // 시트명 → 시트 XML 경로 — [6]과 같은 자기정의 방식(rels 경유)
+  const wbXml = await zip.file('xl/workbook.xml')!.async('string')
+  const relXml = await zip.file('xl/_rels/workbook.xml.rels')!.async('string')
+  const relTarget = new Map<string, string>()
+  for (const m of relXml.matchAll(/<Relationship Id="([^"]+)"[^>]*Target="([^"]+)"/g)) relTarget.set(m[1], m[2])
+  const sheetPath = new Map<string, string>()
+  for (const m of wbXml.matchAll(/<sheet name="([^"]+)"[^>]*r:id="([^"]+)"/g)) {
+    const t = relTarget.get(m[2])
+    if (t) sheetPath.set(m[1].replace(/&amp;/g, '&'), `xl/${t}`)
+  }
+
+  const cnt = { banner: 0, check: 0, unit: 0, prose: 0, token: 0, center: 0 }
+  const bad: Record<keyof typeof cnt, string[]> = { banner: [], check: [], unit: [], prose: [], token: [], center: [] }
+  for (const s of FIRE_PLAN_MANIFEST.sheets) {
+    const p = sheetPath.get(s.name)
+    if (!p) { check(`${s.name} 시트 XML 접근`, false); continue }
+    const xml = await zip.file(p)!.async('string')
+    const sAt = new Map<string, number>()
+    for (const m of xml.matchAll(/<c r="([A-Z]+\d+)"(?:\s+s="(\d+)")?/g)) sAt.set(m[1], Number(m[2] ?? -1))
+    const alignAt = (ref: string) => xfAligns[sAt.get(ref) ?? -1] ?? '(칸없음)'
+    const bannerRows = new Set(s.bannerRows)
+    const rowOf = (ref: string) => Number(/\d+/.exec(ref)![0]) - 1
+    const judge = (ref: string, kind: keyof typeof cnt, want: string) => {
+      cnt[kind]++
+      const got = alignAt(ref)
+      if (got !== want) bad[kind].push(`${s.name}!${ref} ${want}≠${got}`)
+    }
+    // 토큰 칸 — 템플릿에서 공란이지만 스타일은 남아 런타임 주입 값이 좌정렬을 받는다(배너 토큰도 좌)
+    for (const ref of Object.keys(s.tokenCells)) judge(ref, 'token', 'left')
+    for (const [ref, label] of Object.entries(s.labels)) {
+      if (bannerRows.has(rowOf(ref))) { judge(ref, 'banner', 'left'); continue }
+      const want = classifyAlign(label)
+      const kind = want === 'right' ? 'unit' : want === 'center' ? 'center' : isCheckText(label) ? 'check' : 'prose'
+      judge(ref, kind, want)
+    }
+  }
+  const totalTokens = FIRE_PLAN_MANIFEST.sheets.reduce((t, s) => t + Object.keys(s.tokenCells).length, 0)
+  // 🚨 분모를 함께 단언한다 — 라벨이 0으로 새면 '불일치 0'은 항진명제다
+  check(`체크 선두 칸 전건 좌`, cnt.check >= 100 && bad.check.length === 0,
+    bad.check.slice(0, 4).join(' · ') || `${cnt.check}칸`)
+  check(`단위만 칸 전건 우`, cnt.unit >= 3 && bad.unit.length === 0,
+    bad.unit.slice(0, 4).join(' · ') || `${cnt.unit}칸`)
+  check(`문장 칸 전건 좌`, cnt.prose >= 30 && bad.prose.length === 0,
+    bad.prose.slice(0, 4).join(' · ') || `${cnt.prose}칸`)
+  check(`토큰 칸 전건 좌(분모 = manifest 전수)`, cnt.token === totalTokens && totalTokens >= 50 && bad.token.length === 0,
+    bad.token.slice(0, 4).join(' · ') || `${cnt.token}/${totalTokens}칸`)
+  check(`배너 줄 전건 좌`, cnt.banner >= 30 && bad.banner.length === 0,
+    bad.banner.slice(0, 4).join(' · ') || `${cnt.banner}줄`)
+  check(`나머지 라벨은 가운데(다수)`, cnt.center >= 500 && bad.center.length === 0,
+    bad.center.slice(0, 4).join(' · ') || `${cnt.center}칸`)
 }
 
 console.log(`\n=== pass ${pass} / fail ${fail} ===`)

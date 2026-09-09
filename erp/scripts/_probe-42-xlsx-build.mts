@@ -45,7 +45,7 @@ function toSheet(t: HwpxTable, fills: Map<number, HwpxBorderFill>, name: string)
       left: bf?.left ?? 'none', right: bf?.right ?? 'none',
       top: bf?.top ?? 'none', bottom: bf?.bottom ?? 'none',
       fill: bf?.faceColor ?? null,
-      center: true,
+      align: 'center',
     } as BuildCell['style']
 
     cells.push({ row: c.row, col: c.col, text: c.text, style })

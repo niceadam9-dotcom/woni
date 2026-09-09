@@ -175,6 +175,12 @@ const steps: Step[] = [
   // ⚠ server-only 패키지를 물어 --conditions=react-server 필수. A4 쪽수 축(--lo)은 LibreOffice가
   //    필요해 기본 실행에서 뺐다 — 행 높이·열 폭을 건드리면 그때는 반드시 --lo로 재확인할 것.
   { name: '갑지 불량사진 시트',        cmd: 'npx tsx --conditions=react-server scripts/test-photo-sheet.mts' },
+  // 소방계획서 워크북(소방계획서_42 S7-2 · 미세 격자) — 지문·앵커·백지 불변식·무수식·행 삽입
+  // 안전성·값 착지·정렬 축(47 B-12)을 자산 파일만으로 판정하는 **유일한 무서버 문지기**다.
+  // ⚠ 2026-09-09까지 미등재였다(47 B-13) — 그래서 미세 격자 전환 커밋이 검증 스크립트를 안
+  //   데려간 채 HEAD에 실렸어도(42 R-7 실사고) 회귀 그물이 조용했다. 여기가 붉으면 자산·앵커·
+  //   manifest 셋 중 하나가 갈라진 것 — build-fire-plan-template 재실행부터 볼 것.
+  { name: '소방계획서 워크북 자산',    cmd: 'npx tsx scripts/test-fire-plan-xlsx.mts' },
   // 서버 불필요 — 순수 렌더 함수 대조. 중복 입력 제거(대장 파생·미러)가 문서에 반영되는지 고정
   { name: '세부제원 파생·미러 렌더',    cmd: 'npx tsx scripts/test-spec-derive.mts' },
   // 인쇄 번들 셀 오버라이드(lib/doc-overrides) — 파서 없이 문자열을 훑어 법정 서식의 특정 칸을

@@ -28,6 +28,10 @@ import JSZip from 'jszip'
 import { escXml } from '@/lib/xlsx-inject'
 import type { BorderKind } from '@/lib/hwpx-table'
 
+/** 수평 정렬. B-12(소방계획서_47)에서 center/left 2값 → 3값이 됐다 —
+ *  분류 규칙은 `fire-plan-align.ts`(생성기 `_gs-book50.mts`와 한 벌)가 정한다. */
+export type HAlign = 'left' | 'center' | 'right'
+
 export interface CellStyle {
   left: BorderKind
   right: BorderKind
@@ -35,8 +39,8 @@ export interface CellStyle {
   bottom: BorderKind
   /** '#RRGGBB' — 채움 없으면 null */
   fill: string | null
-  /** 가운데 정렬 여부(라벨 칸). false면 왼쪽 */
-  center: boolean
+  /** 수평 정렬 — 라벨은 대개 center, 체크·문장·토큰 칸은 left, 단위만 칸은 right(B-12) */
+  align: HAlign
 }
 
 export interface BuildCell {
@@ -147,7 +151,7 @@ function newStyleTables(): StyleTables {
 }
 
 function styleIndex(t: StyleTables, s: CellStyle): number {
-  const key = `${borderKey(s)}|${s.fill ?? '-'}|${s.center ? 'c' : 'l'}`
+  const key = `${borderKey(s)}|${s.fill ?? '-'}|${s.align}`
   const hit = t.index.get(key)
   if (hit !== undefined) return hit
 
@@ -164,7 +168,8 @@ function styleIndex(t: StyleTables, s: CellStyle): number {
   }
 
   // wrapText: 원본 셀이 여러 줄을 담으므로 항상 켠다. vertical=center는 hwpx 기본과 같다.
-  const align = `<alignment horizontal="${s.center ? 'center' : 'left'}" vertical="center" wrapText="1"/>`
+  // left/right는 indent=1 — 글자가 테두리에 붙지 않게. 생성기(_gs-book50)의 정렬 XML과 같은 모양이다(B-12).
+  const align = `<alignment horizontal="${s.align}" vertical="center" wrapText="1"${s.align === 'center' ? '' : ' indent="1"'}/>`
   t.xfs.push(
     `<xf numFmtId="0" fontId="0" fillId="${fIdx}" borderId="${bIdx}" xfId="0"`
     + ` applyFont="1" applyFill="${s.fill ? 1 : 0}" applyBorder="1" applyAlignment="1">${align}</xf>`,
