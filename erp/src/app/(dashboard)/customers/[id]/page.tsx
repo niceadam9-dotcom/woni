@@ -25,7 +25,8 @@ import { PlanForm16, EMPTY_ETC_FACILITY, type EtcFacilitySection } from '@/compo
 import { PlanForm17, type ManagerRow } from '@/components/customers/plan-form17'
 import { PlanForm18 } from '@/components/customers/plan-form18'
 import { PlanFormCover, type ReportCoverSection } from '@/components/customers/plan-form-cover'
-import { PlanForm110, type InspectionPlanSection, type MultiUseSection, type FireHistoryRow, type DutyLogRow } from '@/components/customers/plan-form110'
+import { PlanForm110, type InspectionPlanSection, type FireHistoryRow, type DutyLogRow } from '@/components/customers/plan-form110'
+import { type MultiUseSection } from '@/components/customers/plan-multi-use-card'
 import { PlanForm1215, type LogRow } from '@/components/customers/plan-form1215'
 import { PlanForm111, type TrainingSection } from '@/components/customers/plan-form111'
 import { PlanCh2 } from '@/components/customers/plan-ch2'
@@ -398,12 +399,13 @@ export default async function CustomerDetailPage({
     '1.1': { done: readiness.done, total: readiness.total },
     '1.2': !!((fpSections.zones?.length ?? 0) || (fpSections.hazards?.length ?? 0)),
     '1.3': !!(fpSections.location || fpSections.fireAccess),
-    '1.4': planInfoInitial.facilityCodes.length > 0,
+    // 1.10.3 다중이용업소 입력 자리가 1.4로 옮겨졌으므로 완성도도 함께 옮긴다 (소방계획서_43 S7)
+    '1.4': planInfoInitial.facilityCodes.length > 0 || !!fpSections.multiUse,
     '1.5': !!(fpSections.evacFire || (fpSections.evacMaps?.length ?? 0)),
     '1.6': !!fpSections.etcFacility,
     '1.7': !!((fpSections.managers?.length ?? 0) || repContact),
     '1.8': true, // 자동 읽기 전용 (3-1.8)
-    '1.10': !!(fpSections.inspection || fpSections.multiUse || (fpSections.fireHistory?.length ?? 0)),
+    '1.10': !!(fpSections.inspection || (fpSections.fireHistory?.length ?? 0)),
     '1.11': !!fpSections.training,
     '1.12': !!((fpSections.fireworkLog?.length ?? 0) || (fpSections.constructionLog?.length ?? 0)
       || (fpSections.promoLog?.length ?? 0) || (fpSections.recoveryLog?.length ?? 0)),
@@ -739,7 +741,8 @@ export default async function CustomerDetailPage({
         fireStationEstimated={s(cRec.fire_station_source) === 'estimate'}
         stationCandidates={stationCandidates} />}
       form14={<PlanForm14 customerId={customer.id} buildings={facilityBuildings} canManage={canManage}
-        canRegister={can(profile.role as UserRole, 'inspection_register')} specsByBuilding={specsByBuilding} />}
+        canRegister={can(profile.role as UserRole, 'inspection_register')} specsByBuilding={specsByBuilding}
+        showMultiUse multiUse={fpSections.multiUse ?? null} />}
       form15={<PlanForm15 customerId={customer.id} canManage={canManage}
         initialEvacFire={fpSections.evacFire ?? EMPTY_EVAC_FIRE} initialMaps={fpSections.evacMaps ?? []}
         presetType={recommendPresetType(planInfoInitial.purpose) ?? ''} />}
@@ -770,7 +773,7 @@ export default async function CustomerDetailPage({
       form110={<PlanForm110 customerId={customer.id} canManage={canManage}
         isComprehensive={isComprehensive} autoOpMonth={autoOpMonth} autoCompMonth={autoCompMonth}
         useApprovalDate={s(cRec.use_approval_date)} fireStation={s(cRec.fire_station)}
-        initialInspection={fpSections.inspection ?? null} initialMultiUse={fpSections.multiUse ?? null}
+        initialInspection={fpSections.inspection ?? null}
         initialHistory={fpSections.fireHistory ?? []} initialDutyLog={fpSections.dutyLog ?? []} />}
       form111={<PlanForm111 customerId={customer.id} canManage={canManage}
         initial={fpSections.training ?? null} presetType={recommendPresetType(planInfoInitial.purpose) ?? ''} />}

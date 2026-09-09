@@ -119,7 +119,10 @@ check('C축 실행됨(조용히 건너뛰지 않음)', cRan, 'DB 없이 통과�
 console.log('\n=== D. 소스 가드 (.applicable 직접 접근)')
 const ALLOWED = new Set([
   'src/lib/multi-use.ts',                          // 판정 원천
-  'src/components/customers/plan-form110.tsx',     // 1.10.3 입력 토글 자체
+  // 1.10.3 입력 토글 자체 — 2026-09-09(43 S7) 서식 1.4 「기타」 아래로 이사했다.
+  // 면제를 **옮긴 것이지 늘린 것이 아니다**: plan-form110은 더 이상 토글을 갖고 있지 않으므로
+  // 그 항목을 남겨 두면 낡은 면제가 되어 그 파일의 새 위반을 조용히 통과시킨다.
+  'src/components/customers/plan-multi-use-card.tsx',
 ])
 const srcRoot = path.join(import.meta.dirname, '..', 'src')
 const walk = (dir: string): string[] => readdirSync(dir, { withFileTypes: true }).flatMap(e => {

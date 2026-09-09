@@ -174,8 +174,10 @@
       "id": "D-9", "sev": "LOW",
       "desc": "S6-3 가드의 **근거 주석이 낡았다**. `report9-assemble.ts:666`이 「설치 코드는 활성 건물 **첫 1동만** 읽으므로(:241) 별관에만 설치·대장 미체크가 곧 '미해당'이 아니고」라고 가드를 정당화하는데, 같은 파일 :406-409의 `codes` 조회는 이미 **전 활성 동**을 읽는다(`.in('building_id', bldRows.map(...))`). 전제가 뒤집혔다",
       "evidence": "2026-09-08 실측 — :406-409 vs :666 대조",
-      "status": "open — 가드 자체는 여전히 타당하다(대장이 통째로 비면 '모름'이지 '미해당'이 아니다). 틀린 것은 **이유**뿐이라 동작에는 영향이 없다. 다만 읽는 사람이 거짓 사실에서 추론하게 되므로 다음에 그 자리를 만질 때 주석을 고칠 것",
-      "found": "S6 독립 검증 중 가드의 전제를 확인하다 발견"
+      "status": "fixed (2026-09-09)",
+      "fix": "가드는 그대로 두고 **근거 문장만** 참으로 바꿨다 — 「대장이 비었다는 것은 '설비가 없다'가 아니라 아직 아무도 안 적었다는 뜻」. 낡은 「첫 1동만 읽으므로」를 지우고, 왜 낡았는지(:406이 전 활성 동을 읽는 2026-09-08 수리)를 함께 남겼다. **동작 변경 0 · 고친 것은 문장뿐** — tsc 0, 관련 스위트 전건 그린(test-applicable-surfaces 46/0 · test-defect-fold 36/36 · _probe-mu-applicable 29/29)",
+      "found": "S6 독립 검증 중 가드의 전제를 확인하다 발견",
+      "sibling_fixed": "같은 부류를 이웃에서 한 건 더 잡았다([[feedback_fix_the_sibling_too]]) — `prev-year-duty.ts:122`가 「1.10 저장은 inspection·multiUse·fireHistory·dutyLog를 **항상 함께 보낸다**」를 전제로 적어 두었는데, S7으로 multiUse가 빠지면서 그 문장이 거짓이 됐다. 판정이 이미 키 개수가 아니라 **내용** 축이라(44 D-5) 동작 영향은 0이지만, 키 축이었다면 여기서 조용히 갈렸을 자리다"
     },
     {
       "id": "D-7-note", "sev": "INFO",
@@ -309,8 +311,8 @@
         {
           "id": "S6-1",
           "desc": "'기타' 그룹 = 1.4 「기타」 7종 중 **하나라도 설치 체크**되면 해당 — `ETC_CODES.some(c => codes.includes(c))`. 41 Q-1(2026-09-06 '기타는 설치 축이 없다')을 **번복**한다. ⚠ facilityChecks로는 판정할 수 없다(M-10 항진명제)",
-          "status": "pending_order",
-          "evidence": "M-10·M-11 — 사용자 확정 2026-09-08, 타 세션 미수리(:528 여전히 false)"
+          "status": "code_present",
+          "evidence": "2026-09-09 재독 — 코드는 이미 확정 판정식이다: `const etcInstalled = ETC_CODES.some(c => codes.includes(c))`(report9-assemble.ts:669)를 :672가 쓴다. ⚠ 종전 evidence 「타 세션 미수리(:528 여전히 false)」는 **낡은 문장이었다** — 그 사이 수리됐다. 다만 **검증은 여전히 불가**: DB 전체에 ETC_CODES 행이 0건이라 양성 표본을 만들 수 없어 음성 방향만 확인된다(S5-7). 초록이라 말하지 않는다"
         },
         {
           "id": "S6-2",
@@ -328,11 +330,16 @@
     },
     {
       "id": "S7",
-      "title": "1.10.3 다중이용업소 현황 배치 이동 (제안 — 사용자 요청)",
-      "status": "pending_order",
-      "note": "사용자 요청 원문(2026-09-08): 「1.10.3 다중이용업소현황 위치를 1.4 소방시설 > 기타 아래로 이동하는 것을 제안해줘, 안전시설등 항목을 다중이용업소현황(으로)」. 구현 지시가 아니라 **제안 요청**이라 설계만 적는다 — 제안 본문은 소방계획서_43.md §10",
+      "title": "1.10.3 다중이용업소 현황을 서식 1.4 「기타」 아래로 (제안 → 2026-09-09 구현)",
+      "status": "code_present",
+      "note": "사용자 요청 원문(2026-09-08): 「1.10.3 다중이용업소현황 위치를 1.4 소방시설 > 기타 아래로 이동하는 것을 제안해줘, 안전시설등 항목을 다중이용업소현황(으로)」. 2026-09-09 사용자가 **B안(카드를 1.4로 통째 이동)** 확정 — 제안서의 A안(요약 행+링크)이 아니라 입력 카드 자체를 옮겼다. 🚨 착수 직후 제안서의 전제 하나가 깨졌다: 제안은 이동을 '렌더 순서 문제'로 봤으나 **1.4와 1.10은 같은 페이지가 아니라 별개 폼 탭**이다(?form=1.4 vs ?form=1.10, plan-tab-view.tsx:459). 그래서 실제 작업은 순서 바꾸기가 아니라 **카드 추출 + 저장 분리**였다",
       "criteria": [
-        { "id": "S7-1", "desc": "제안서 작성 — 근거·영향 범위·이관 필요 여부·위험", "status": "confirmed", "evidence": "아래 s7_proposal (2026-09-08 작성). 구현 지시는 아직 없다 — 사용자 판단 대기" }
+        { "id": "S7-1", "desc": "제안서 작성 — 근거·영향 범위·이관 필요 여부·위험", "status": "confirmed", "evidence": "아래 s7_proposal (2026-09-08 작성)" },
+        { "id": "S7-2", "desc": "카드를 독립 컴포넌트로 추출해 1.4 「기타」 **아래**에 마운트. ⚠ 저장 단위가 다르므로(1.4=fire_facilities 건물별 행 / 카드=sections.multiUse 고객별 JSONB) saveFacilitiesAction에 섞지 않고 **자기 저장**을 갖게 한다. 화면에도 그 경계를 적는다(건물 선택기 아래라 '이 동의 다중이용업소'로 읽힐 소지)", "status": "code_present", "evidence": "신규 `src/components/customers/plan-multi-use-card.tsx`(PlanMultiUseCard, saveFirePlanSectionsAction에 multiUse 키만 실음) + plan-form14.tsx `showMultiUse` 프롭으로 마운트(:767). test-s7-multi-use-move **15/0** — DOM 순서로 「기타」 뒤임까지 단언" },
+        { "id": "S7-3", "desc": "1.10에서는 카드·앵커 바 항목을 걷어내고, form110의 save()에서 multiUse 키를 뺀다(부분 업데이트라 기존 값은 산다)", "status": "code_present", "evidence": "plan-form110.tsx — 카드 JSX·mu 상태·pm()·initialMultiUse 프롭·CardAnchorBar 항목 제거. 타입 정본(MultiUseSection·EMPTY_MULTI_USE·MULTI_USE_USER_TYPES)도 새 파일로 옮기고 importer 2곳(customers/[id]/page.tsx·fire-plan-template.ts) 갱신" },
+        { "id": "S7-4", "desc": "옛 딥링크 구제 — `?form=1.10#c-1.10.3`이 1.4로 착지해야 한다. 그냥 두면 1.10을 열고 앵커를 못 찾아 **조용히 아무 일도 안 일어난다**", "status": "code_present", "evidence": "plan-tab-view.tsx `MOVED_ANCHOR_FORM` + 마운트 1회 이펙트(applySelect로 URL까지 정정). 프로브 2/0. ⚠ 첫 실행의 빨강은 제품이 아니라 검사였다 — 직전 goto와 **해시만 다른 URL**이라 브라우저가 문서 내 이동으로 처리해 마운트 이펙트가 안 돌았다. 중립 페이지를 거치자 그린" },
+        { "id": "S7-5", "desc": "양방향 저장 무손상 — 1.10 저장이 multiUse를 지우지 않고, 1.4 저장(건물별 설비)도 지우지 않는다. 지워져도 **화면은 조용하다**(다시 열어야 빈 칸이 보인다)", "status": "code_present", "evidence": "test-s7-multi-use-move S7-6·S7-7 그린 + 새로고침 복원 S7-8. ⚠ 공허 통과 방지로 '양성 표본이 실재했다'를 **먼저** 단언한다 — 값이 없으면 무엇을 저장해도 '무손상'이라 늘 초록이다. test-all 등재 완료" },
+        { "id": "S7-6", "desc": "개명(안전시설등 → 다중이용업소현황)은 **하지 않는다** — 인쇄물의 그 문자열은 법정 서식 원문이자 갑지 앵커 라벨 대조 축이라 바꾸면 갑지 생성이 통째로 500이 된다", "status": "confirmed", "evidence": "s7_proposal 결론 ②·④ 그대로. 절 번호 1.10.3도 유지 — 별지 9호 2쪽이 그 번호로 인쇄된다. 이번 변경의 인쇄물·앵커·저장소 diff = 0" }
       ],
       "s7_proposal": {
         "요청": "「1.10.3 다중이용업소현황 위치를 1.4 소방시설 > 기타 아래로 이동 + 안전시설등 항목을 다중이용업소현황(으로)」",

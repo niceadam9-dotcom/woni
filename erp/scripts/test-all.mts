@@ -368,6 +368,13 @@ const steps: Step[] = [
   //     ③ 같은 pathname으로 ?tab=만 바꾸는 이동은 서버를 재렌더하지 않는다. 실패하면 사용자는 화면에
   //        그대로 남고 **아무 일도 안 일어난 것처럼 보인다**(에러도 로그도 없다)
   { name: '소방계획서 탭(E2E)',         cmd: 'npx tsx scripts/test-plan-tab.mts',             needServer: true },
+  // 1.10.3 다중이용업소가 1.10 → 1.4 「기타」 아래로 이사했다(43 S7, 2026-09-09 B안 확정).
+  // 등재 이유는 이 이사가 **화면과 저장소를 어긋나게** 두기 때문이다: 카드는 1.4 안에 있는데 값은
+  // 고객 단위 sections.multiUse라, 1.4의 [저장](건물별 fire_facilities)과 1.10의 [저장]이 각자
+  // 상대의 값을 지울 수 있는 자리가 됐다. 지워져도 화면은 조용하다 — 다시 열어야 빈 칸이 보인다.
+  // 그래서 '보이는가'보다 **양방향 무손상**을 묻고, 값이 애초에 없으면 늘 초록인 공허 통과를 막으려
+  // 양성 표본이 실재했음을 먼저 단언한다.
+  { name: '1.10.3 이사·저장 분리(E2E)', cmd: 'npx tsx scripts/test-s7-multi-use-move.mts',    needServer: true },
   { name: '별지 상호작용(E2E)',         cmd: 'npx tsx scripts/test-annex-interaction.mts',    needServer: true },
   { name: '별지 탭 승격(프로브)',        cmd: 'npx tsx scripts/_probe-annex-tab.mts',          needServer: true },
   { name: '별지 같은경로 이동(프로브)',   cmd: 'npx tsx scripts/_probe-annex-samepath-nav.mts', needServer: true },

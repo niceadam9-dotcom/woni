@@ -71,6 +71,11 @@ const CH1_FORMS = [
   { key: '1.12', label: '1.12~1.15 기록부', active: true }, // §12-3 결정(2026-07-23): v1 포함
 ]
 
+/** 다른 서식으로 이사한 카드의 앵커 → 지금 그 카드가 있는 서식 키.
+ *  소방계획서_43 S7(2026-09-09): 1.10.3 다중이용업소가 1.10 → 1.4 「기타」 아래로 옮겨졌다.
+ *  절 번호는 그대로라 앵커 id도 그대로다 — 바뀐 것은 '어느 서식에 있는가'뿐이다. */
+const MOVED_ANCHOR_FORM: Record<string, string> = { 'c-1.10.3': '1.4' }
+
 /** 목차 완성도 — true=입력 있음(✓), false=비어 있음(○), {done,total}=게이지형(1.1) */
 export type FormStatusMap = Record<string, boolean | { done: number; total: number }>
 
@@ -171,6 +176,17 @@ export function PlanTabView({
     window.addEventListener('erp:plan-select', onSelect)
     return () => window.removeEventListener('erp:plan-select', onSelect)
   })
+  // 이사한 카드의 옛 딥링크 구제 — 앵커 id는 그대로 두고 서식만 바로잡는다.
+  // 그냥 두면 ?form=1.10#c-1.10.3이 1.10을 열고 아무것도 못 찾아 조용히 아무 일도 안 일어난다.
+  // 1회만 — 그 뒤 사용자가 서식을 바꾸면 그 선택이 이긴다.
+  const movedAnchorRan = useRef(false)
+  useEffect(() => {
+    if (movedAnchorRan.current) return
+    movedAnchorRan.current = true
+    const id = decodeURIComponent(window.location.hash.slice(1))
+    const to = MOVED_ANCHOR_FORM[id]
+    if (to && VALID_SEL.has(to) && to !== sel) applySelect(to)
+  }, [])
   // §1-2·1-3 카드 앵커 딥링크 — ?form=…#c-카드 진입/서식 전환 시 해당 카드로 스크롤
   useEffect(() => {
     const h = window.location.hash

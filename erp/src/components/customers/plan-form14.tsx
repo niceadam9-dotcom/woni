@@ -12,6 +12,7 @@ import { FACILITY_STANDARD, ALL_STANDARD_CODES, EVAC_TYPES, FIRE_SUB_ITEMS, ETC_
 import { rollUpForm3Results, sheetMatchesFacilities, type SheetGroupStat } from '@/lib/sheet-facility-map'
 import type { SheetOverview } from '@/lib/sheet-overview'
 import { PlanForm14Specs, type SpecsSaveResult } from '@/components/customers/plan-form14-specs'
+import { PlanMultiUseCard, type MultiUseSection } from '@/components/customers/plan-multi-use-card'
 import { NumField, TableWrap } from '@/components/ui/fields'
 import { usePlanSaveHandler, useUnsavedNavGuard } from '@/components/ui/unsaved-nav'
 
@@ -82,7 +83,7 @@ type Building = {
 }
 type FacState = Record<string, { installed: boolean; note: string }>
 
-export function PlanForm14({ customerId, buildings, canManage, canRegister = false, specsByBuilding = {}, inspectionCtx, linkFrom, focusCodes }: {
+export function PlanForm14({ customerId, buildings, canManage, canRegister = false, specsByBuilding = {}, inspectionCtx, linkFrom, focusCodes, showMultiUse = false, multiUse = null }: {
   customerId: string; buildings: Building[]; canManage: boolean
   /** 소방계획서_26 S4 — 설비별 점검결과 입력 권한. 1.4의 canManage(customer_manage)와 축이 다르다:
    *  결과 쓰기 액션은 전부 inspection_register라 이 값이 없으면 배지·패널을 아예 그리지 않는다. */
@@ -99,6 +100,14 @@ export function PlanForm14({ customerId, buildings, canManage, canRegister = fal
   /** 소방계획서_40 S5-1b — 점검표에서 넘어올 때 관련 설비 행으로 스크롤·강조할 코드들.
    *  미지정이면 아무 동작 없음. */
   focusCodes?: string[]
+  /** 소방계획서_43 S7 — 1.10.3 다중이용업소 카드를 「기타」 아래에 함께 그릴지.
+   *  ⚠ 이 폼은 두 곳에 마운트된다(고객 상세 1.4 · /inspections/[id]/facilities). 카드가 읽고 쓰는
+   *    sections.multiUse는 **고객 단위**라 점검 귀속 화면에서는 켜지 않는다 — 그쪽은 회차의
+   *    설비 대장을 고치러 오는 자리이고, 켜려면 fire_plan_forms 조회를 그 페이지에 새로 달아야 한다.
+   *    기본값 false = 종전 동작 무변경(대조군). */
+  showMultiUse?: boolean
+  /** showMultiUse일 때의 초기값 (sections.multiUse, 미저장이면 null) */
+  multiUse?: MultiUseSection | null
 }) {
   const [bidx, setBidx] = useState(0)
   const b = buildings[bidx]
@@ -747,6 +756,16 @@ export function PlanForm14({ customerId, buildings, canManage, canRegister = fal
           })}
         </div>
       </div>
+
+      {/* ── 1.10.3 다중이용업소 현황 (소방계획서_43 S7, 2026-09-09 사용자 확정 B안) ─────────────
+          「기타」 바로 아래에 둔다. 별지 9호 설비 구분 7종 중 6종은 위 1.4에서 체크하는데
+          「안전시설등」 하나만 1.10 아래 떨어져 있어, 축이 멀다는 이유로 다른 목적의 값을 빌려 쓰는
+          D-6 결함이 났다(43 §9). 입력 자리를 판정 구조에 맞춘 것이다.
+          ⚠ 저장은 1.4와 **따로** 간다(건물별 fire_facilities vs 고객별 sections.multiUse) —
+            카드가 자기 [1.10.3 저장]을 갖는다. 아래 [저장]은 이 카드를 건드리지 않는다. */}
+      {showMultiUse && (
+        <PlanMultiUseCard customerId={customerId} canManage={canManage} initialMultiUse={multiUse} />
+      )}
 
       {/* 소방계획서_28 S4 — 결과 입력 패널은 전용 화면(/inspections/{id}/sheet)으로 옮겼다.
           여기서 직접 입력하던 종전 구조(26 S4)는 "즉시 기록 — 아래 [저장]과 무관"이라는 안내문으로

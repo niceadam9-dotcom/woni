@@ -355,7 +355,16 @@ try {
   await page.waitForSelector('text=서식 1.10 저장됨')
   const { data: f110 } = await raw.from('fire_plan_forms').select('sections').eq('customer_id', customerId).maybeSingle()
   const inspSec = (f110?.sections as { inspection?: { opMonth: string }; multiUse?: { applicable: boolean } } | null)
-  check('DB sections.inspection 저장', inspSec?.inspection?.opMonth === '2026년 10월' && inspSec?.multiUse?.applicable === false, JSON.stringify(inspSec?.inspection))
+  check('DB sections.inspection 저장', inspSec?.inspection?.opMonth === '2026년 10월', JSON.stringify(inspSec?.inspection))
+  // 2026-09-09(43 S7) — 종전 단언은 여기에 `multiUse.applicable === false`를 함께 걸고 있었다.
+  // 그건 사용자에게 보이는 동작이 아니라 **구현 부산물**이었다: 1.10.3 카드를 건드린 적이 없어도
+  // 서식 1.10을 저장하면 빈 multiUse가 함께 찍혔던 것뿐이다. 인쇄물은 둘을 구별하지 못한다 —
+  // isMultiUseNone()이 미입력을 포함하는 정확한 여집합이라 undefined와 {applicable:false}가
+  // 네 사용처에서 모두 같은 「해당없음」으로 나간다(lib/multi-use.ts).
+  // 카드가 1.4로 이사한 지금은 1.10 저장이 그 키를 아예 건드리지 않는 것이 옳다 —
+  // 단언을 없애지 않고 **새 계약으로 바꿔** 건다(값이 있는 경우의 무손상은 test-s7-multi-use-move가 본다).
+  check('1.10 저장은 multiUse를 건드리지 않는다(카드는 1.4에 있다)',
+    inspSec?.multiUse === undefined, JSON.stringify(inspSec?.multiUse))
 
   await page.click('button:has-text("1.11 훈련·교육")')
   await page.waitForSelector('text=1.11.1 연간 훈련·교육 계획')

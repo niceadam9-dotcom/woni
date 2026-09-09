@@ -5,32 +5,23 @@ import { useRouter } from 'next/navigation'
 import { Loader2, Save, Plus, Trash2, ExternalLink } from 'lucide-react'
 import { saveFirePlanSectionsAction, getPrevYearDutyAction } from '@/app/(dashboard)/customers/fire-plan-form-actions'
 import { annexStatusMarks, type AnnexStatusSection, type DutyMark, type PlanStoredMark, type PlanWrittenMark, type PrevYearDutyAuto } from '@/lib/prev-year-duty'
-import { MULTI_USE_CATEGORIES } from '@/lib/doc-requirements'
-import { CardAnchorBar, MonthField, NumStepper, formatPhoneKR, useUnsavedWarning } from '@/components/ui/fields'
+import { CardAnchorBar, MonthField, useUnsavedWarning } from '@/components/ui/fields'
 import { DateInput } from '@/components/ui/date-input'
 
 /** 서식 1.10 소방안전관리자 자체점검 및 업무 수행 — 섹션 카드 4개 (소방계획서_4.md §3)
  *  1.10.1 연간 점검 계획(sections.inspection — 종합 블록은 종합 고객만, §9-8 필드 조건부)
  *  1.10.2 업무수행 기록(sections.dutyLog — §12-1 결정 2026-07-23: ERP 입력 관리)
- *  1.10.3 다중이용업소(sections.multiUse — 업종은 별지 9호 28종 선택형, §9-6④)
- *  1.10.4 화재/비화재보 이력(sections.fireHistory) */
+ *  1.10.4 화재/비화재보 이력(sections.fireHistory)
+ *
+ *  ⚠ 1.10.3 다중이용업소는 2026-09-09부터 **서식 1.4 「기타」 아래**에 있다(소방계획서_43 S7 B안).
+ *    그 절이 곧 별지 9호 「안전시설등」 설비 구분의 설치 축이라 판정 구조에 입력 자리를 맞춘 것이다.
+ *    저장은 여전히 sections.multiUse지만, 카드가 자기 저장을 갖고 있어 여기 save()는 싣지 않는다
+ *    (부분 업데이트라 키를 빼면 기존 값이 그대로 산다) — components/customers/plan-multi-use-card.tsx */
 
 export type InspectionPlanSection = {
   opMonth: string; opInspector: '자체' | '외주' | ''
   isInitial: boolean; initialMonth: string
   compMonth: string; comp2Month: string; compInspector: '자체' | '외주' | ''
-}
-/** M-16(소방계획서_15, 2026-08-11 보강): 이용자 유형 4종 — 설계 4.md §3-8 */
-export const MULTI_USE_USER_TYPES = ['노유자', '주취자', '청소년', '신체부자유자'] as const
-export type MultiUseSection = {
-  applicable: boolean
-  categories: Record<string, string> // 업종 → 개소
-  bizName: string; location: string; owner: string; phone: string
-  hours: string; users: string; capacity: string
-  /** M-16: 영업시간 세분(평일/휴일 × 주간/야간, 예 '09:00~18:00') — hours(자유 텍스트)는 레거시 폴백 */
-  hoursDetail?: { wkDay: string; wkNight: string; holDay: string; holNight: string }
-  /** M-16: 이용자 유형 체크 — users(자유 텍스트)는 레거시 병기 */
-  userTypes?: string[]
 }
 export type FireHistoryRow = { kind: '화재' | '비화재보'; at: string; place: string; cause: string; action: string }
 /** 1.10.2 업무수행 기록 행 (§12-1 — ERP 입력 관리) */
@@ -52,11 +43,7 @@ function joinAt(date: string, time: string): string {
 export const EMPTY_INSPECTION: InspectionPlanSection = {
   opMonth: '', opInspector: '외주', isInitial: false, initialMonth: '', compMonth: '', comp2Month: '', compInspector: '외주',
 }
-export const EMPTY_MULTI_USE: MultiUseSection = {
-  applicable: false, categories: {}, bizName: '', location: '', owner: '', phone: '', hours: '', users: '', capacity: '',
-}
-
-export function PlanForm110({ customerId, canManage, isComprehensive, autoOpMonth, autoCompMonth, useApprovalDate, fireStation, initialInspection, initialMultiUse, initialHistory, initialDutyLog = [] }: {
+export function PlanForm110({ customerId, canManage, isComprehensive, autoOpMonth, autoCompMonth, useApprovalDate, fireStation, initialInspection, initialHistory, initialDutyLog = [] }: {
   customerId: string
   canManage: boolean
   isComprehensive: boolean          // 종합 고객만 종합점검 블록 표시 (§9-8)
@@ -65,7 +52,6 @@ export function PlanForm110({ customerId, canManage, isComprehensive, autoOpMont
   useApprovalDate: string
   fireStation: string
   initialInspection: InspectionPlanSection | null
-  initialMultiUse: MultiUseSection | null
   initialHistory: FireHistoryRow[]
   initialDutyLog?: DutyLogRow[]
 }) {
@@ -73,7 +59,6 @@ export function PlanForm110({ customerId, canManage, isComprehensive, autoOpMont
   const [insp, setInsp] = useState<InspectionPlanSection>(initialInspection ?? {
     ...EMPTY_INSPECTION, opMonth: autoOpMonth, compMonth: isComprehensive ? autoCompMonth : '',
   })
-  const [mu, setMu] = useState<MultiUseSection>(initialMultiUse ?? EMPTY_MULTI_USE)
   const [hist, setHist] = useState<FireHistoryRow[]>(initialHistory)
   const [duty, setDuty] = useState<DutyLogRow[]>(initialDutyLog)
   // 소방계획서_44 — 별지 9호 2쪽 3행의 확정값. 로드 전(null)에는 저장 패치에 싣지 않는다:
@@ -96,7 +81,6 @@ export function PlanForm110({ customerId, canManage, isComprehensive, autoOpMont
   }, [customerId])
 
   function pi(p: Partial<InspectionPlanSection>) { setInsp(v => ({ ...v, ...p })); setDirty(true) }
-  function pm(p: Partial<MultiUseSection>) { setMu(v => ({ ...v, ...p })); setDirty(true) }
   /** 전년도 실적 확정 — 같은 칩을 다시 누르면 ''(자동 판정에 맡김)으로 돌아간다.
    *  ⚠ 연도 키 없음(D-6): 확정은 **한 벌**이고 어느 회차를 찍든 그대로 적용된다.
    *    구본이 연도 맵으로 저장돼 있으면 annexStatusMarks가 최신 연도를 흡수해 오므로,
@@ -120,7 +104,9 @@ export function PlanForm110({ customerId, canManage, isComprehensive, autoOpMont
     return new Promise(resolve => {
       startTransition(async () => {
         const res = await saveFirePlanSectionsAction(customerId, {
-          inspection: insp, multiUse: mu,
+          // multiUse는 여기서 싣지 않는다 — 1.4의 PlanMultiUseCard가 자기 저장을 갖는다(S7 B안).
+          // 부분 업데이트라 키를 빼면 기존 값이 그대로 산다(fire-plan-form-actions.ts:74).
+          inspection: insp,
           fireHistory: hist.filter(h => h.at.trim() || h.place.trim() || h.cause.trim()),
           dutyLog: duty.filter(d => d.date.trim() || d.content.trim()),
           // 아직 못 읽었으면 아예 보내지 않는다 — 부분 업데이트라 키를 빼면 기존 값이 그대로 산다
@@ -173,7 +159,7 @@ export function PlanForm110({ customerId, canManage, isComprehensive, autoOpMont
       <CardAnchorBar items={[
         { id: 'c-1.10.1', label: '1.10.1 연간 계획' }, { id: 'c-1.10-prev', label: '전년도 실시사항' },
         { id: 'c-1.10.2', label: '1.10.2 업무수행 기록' },
-        { id: 'c-1.10.3', label: '1.10.3 다중이용업소' }, { id: 'c-1.10.4', label: '1.10.4 화재 이력' },
+        { id: 'c-1.10.4', label: '1.10.4 화재 이력' },
       ]} />
       {/* 1.10.1 연간 점검 계획 */}
       <div id="c-1.10.1" className="scroll-mt-4 rounded-xl border border-brand-line-soft bg-brand-tint p-4 space-y-2">
@@ -301,85 +287,9 @@ export function PlanForm110({ customerId, canManage, isComprehensive, autoOpMont
         </div>
       </div>
 
-      {/* 1.10.3 다중이용업소 */}
-      <div id="c-1.10.3" className="scroll-mt-4 rounded-xl border border-brand-line-soft bg-brand-tint p-4 space-y-2">
-        <div className="flex items-center gap-2">
-          <p className="text-form-sm font-semibold text-ink-sub">1.10.3 다중이용업소 현황</p>
-          <button disabled={!canManage} className={chip(mu.applicable)} onClick={() => pm({ applicable: !mu.applicable })}>
-            {mu.applicable ? '해당' : '해당없음'}
-          </button>
-        </div>
-        {mu.applicable && (
-          <>
-            <div className="flex items-center gap-1 flex-wrap">
-              {MULTI_USE_CATEGORIES.map(cat => {
-                const on = mu.categories[cat] !== undefined
-                return (
-                  <span key={cat} className="inline-flex items-center gap-0.5">
-                    <button disabled={!canManage} className={chip(on)}
-                      onClick={() => {
-                        const next = { ...mu.categories }
-                        if (on) delete next[cat]
-                        else next[cat] = '1'
-                        pm({ categories: next })
-                      }}>
-                      {cat}
-                    </button>
-                    {on && (
-                      <NumStepper value={mu.categories[cat]} disabled={!canManage} label={`${cat} 개소`}
-                        onChange={v => pm({ categories: { ...mu.categories, [cat]: v } })}>
-                        <input value={mu.categories[cat]} disabled={!canManage} inputMode="numeric"
-                          onChange={e => pm({ categories: { ...mu.categories, [cat]: e.target.value } })}
-                          className={`${inputCls} w-10`} title="개소" />
-                      </NumStepper>
-                    )}
-                  </span>
-                )
-              })}
-            </div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <input value={mu.bizName} disabled={!canManage} placeholder="사업장명" onChange={e => pm({ bizName: e.target.value })} className={`${inputCls} w-32`} />
-              <input value={mu.location} disabled={!canManage} placeholder="위치" onChange={e => pm({ location: e.target.value })} className={`${inputCls} w-28`} />
-              <input value={mu.owner} disabled={!canManage} placeholder="영업주" onChange={e => pm({ owner: e.target.value })} className={`${inputCls} w-24`} />
-              <input value={mu.phone} disabled={!canManage} inputMode="tel" placeholder="010-0000-0000" onChange={e => pm({ phone: formatPhoneKR(e.target.value) })} className={`${inputCls} w-28`} />
-              <NumStepper value={mu.capacity} disabled={!canManage} label="수용인원" onChange={v => pm({ capacity: v })}>
-                <input value={mu.capacity} disabled={!canManage} inputMode="numeric" placeholder="수용인원" onChange={e => pm({ capacity: e.target.value })} className={`${inputCls} w-20`} />
-              </NumStepper>
-            </div>
-            {/* M-16(소방계획서_15, 2026-08-11 보강): 영업시간 평일/휴일 × 주간/야간 세분 — 자유 텍스트(hours)는 레거시 폴백 */}
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-form-xs font-medium text-ink-sub">영업시간</span>
-              <span className="text-form-2xs text-ink-meta">평일</span>
-              <input value={mu.hoursDetail?.wkDay ?? ''} disabled={!canManage} placeholder="주간 09:00~18:00"
-                onChange={e => pm({ hoursDetail: { wkDay: e.target.value, wkNight: mu.hoursDetail?.wkNight ?? '', holDay: mu.hoursDetail?.holDay ?? '', holNight: mu.hoursDetail?.holNight ?? '' } })} className={`${inputCls} w-36`} />
-              <input value={mu.hoursDetail?.wkNight ?? ''} disabled={!canManage} placeholder="야간"
-                onChange={e => pm({ hoursDetail: { wkDay: mu.hoursDetail?.wkDay ?? '', wkNight: e.target.value, holDay: mu.hoursDetail?.holDay ?? '', holNight: mu.hoursDetail?.holNight ?? '' } })} className={`${inputCls} w-32`} />
-              <span className="text-form-2xs text-ink-meta">휴일</span>
-              <input value={mu.hoursDetail?.holDay ?? ''} disabled={!canManage} placeholder="주간"
-                onChange={e => pm({ hoursDetail: { wkDay: mu.hoursDetail?.wkDay ?? '', wkNight: mu.hoursDetail?.wkNight ?? '', holDay: e.target.value, holNight: mu.hoursDetail?.holNight ?? '' } })} className={`${inputCls} w-32`} />
-              <input value={mu.hoursDetail?.holNight ?? ''} disabled={!canManage} placeholder="야간"
-                onChange={e => pm({ hoursDetail: { wkDay: mu.hoursDetail?.wkDay ?? '', wkNight: mu.hoursDetail?.wkNight ?? '', holDay: mu.hoursDetail?.holDay ?? '', holNight: e.target.value } })} className={`${inputCls} w-32`} />
-              {mu.hours.trim() !== '' && (
-                <input value={mu.hours} disabled={!canManage} placeholder="영업시간(구 자유입력)" onChange={e => pm({ hours: e.target.value })} className={`${inputCls} w-44`} title="구버전 자유 입력 — 세분 칸 입력 시 문서에는 세분 값이 인쇄됩니다" />
-              )}
-            </div>
-            {/* M-16: 이용자 유형 체크 — 자유 텍스트(users)는 레거시 병기 */}
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-form-xs font-medium text-ink-sub">이용자</span>
-              {MULTI_USE_USER_TYPES.map(t => {
-                const on = (mu.userTypes ?? []).includes(t)
-                return (
-                  <button key={t} disabled={!canManage} className={chip(on)}
-                    onClick={() => pm({ userTypes: on ? (mu.userTypes ?? []).filter(x => x !== t) : [...(mu.userTypes ?? []), t] })}>
-                    {t}
-                  </button>
-                )
-              })}
-              <input value={mu.users} disabled={!canManage} placeholder="기타 이용자 유형" onChange={e => pm({ users: e.target.value })} className={`${inputCls} w-32`} />
-            </div>
-          </>
-        )}
-      </div>
+      {/* 1.10.3 다중이용업소 — 서식 1.4 「기타」 아래로 옮겼다 (소방계획서_43 S7, 2026-09-09).
+          입력 자리만 옮긴 것이고 절 번호·저장소(sections.multiUse)·인쇄물은 그대로다.
+          카드 본체: components/customers/plan-multi-use-card.tsx */}
 
       {/* 1.10.4 화재/비화재보 이력 */}
       <div id="c-1.10.4" className="scroll-mt-4 rounded-xl border border-brand-line-soft bg-brand-tint p-4">
