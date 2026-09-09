@@ -10,6 +10,10 @@ import 'server-only'
 import type { LocationSection, FireAccessSection } from '@/components/customers/plan-form13'
 import type { EvacFireSection, EvacMapRow } from '@/components/customers/plan-form15'
 import { compartmentHasArea, compartmentHasFloor } from '@/lib/evac-compartment'
+/* 용도 표기 — 사용자 확정(2026-09-09, 47 B-15): **PDF는 세 자리 모두 `근린생활시설`**이다.
+ * ⚠ `fire-plan-xlsx-values`에서 끌어오지 않는다 — 그쪽은 앵커·manifest를 물고 오고 manifest는
+ *   모듈 적재 시점에 throw 할 수 있어, 엑셀 격자가 밀리면 PDF까지 500이 된다(의존 없는 소모듈). */
+import { purposeCover } from '@/lib/purpose-label'
 import type { EtcFacilitySection } from '@/components/customers/plan-form16'
 import type { ManagerRow } from '@/components/customers/plan-form17'
 import type { InspectionPlanSection, MultiUseSection, FireHistoryRow, DutyLogRow } from '@/components/customers/plan-form110'
@@ -254,7 +258,10 @@ export function buildFirePlanHtml(
     </figure>`).join('')
 
   const zoneRows = (d.zones.length ? d.zones : [{ zone: '', name: '', area: '', weekday: '', holiday: '', managerCo: '', contact: '' }])
-    .map(z => `<tr${af('zones')}><td>${v(z.zone)}</td><td class="l">${v(z.name)}</td><td>${v(z.area)}</td><td>${v(z.weekday)}</td><td>${v(z.holiday)}</td><td>${v(z.managerCo)}</td><td>${v(z.contact)}</td></tr>`).join('')
+    /* 명칭/용도 — 구역이 미입력이면 조립기가 `name: b.purpose`로 폴백한다(fire-plan-generate).
+     * 그래서 여기 오는 값이 **용도일 수도, 사람이 적은 구역명일 수도** 있다. `purposeCover`는
+     * 근린생활시설 갈래만 갈아 끼우고 나머지(`사무실`·`1~2층`)는 원값 그대로 통과시킨다. */
+    .map(z => `<tr${af('zones')}><td>${v(z.zone)}</td><td class="l">${v(purposeCover(z.name))}</td><td>${v(z.area)}</td><td>${v(z.weekday)}</td><td>${v(z.holiday)}</td><td>${v(z.managerCo)}</td><td>${v(z.contact)}</td></tr>`).join('')
 
   const hazardRows = (d.hazards.length ? d.hazards : [{ place: '', location: '', factors: [] as string[] }])
     .map(h => `<tr${af('hazards')}><td>${v(h.place)}</td><td class="l">${v(h.location)}</td>
@@ -445,7 +452,10 @@ ${(d.autoFilled?.length ?? 0) > 0
         <td colspan="2" class="l">소방안전관리자: ${v(d.managerName)}${d.managerGrade ? ` (${esc(d.managerGrade)})` : ''} / ${v(d.managerPhone)}</td></tr>
     <tr><th rowspan="5">시설현황</th><td class="l">수신기위치: ${v(d.receiverLocation)}</td>
         <td colspan="2" class="l">대상물 급수: ${GRADES.map(g => ck(d.grade === g, g)).join(' ')}</td></tr>
-    <tr><td class="l">주용도: ${v(d.purpose)}</td><td class="l">사용승인일: ${v(d.useApprovalDate)}</td><td class="l">연면적: ${v(d.totalArea, ' ㎡')}</td></tr>
+    <tr><td class="l">주용도: ${/* 47 B-15: 근린생활시설 갈래는 `제N종`을 떼고 적는다(납품본 표기).
+      ⚠ 주석을 **줄로** 넣지 않는다 — 템플릿 리터럴 안이라 들여쓰기·줄바꿈이 그대로 인쇄 소스에
+        실려 `test-print-source-pin`의 고정 해시를 흔든다(값이 아니라 공백으로). */
+      v(purposeCover(d.purpose))}</td><td class="l">사용승인일: ${v(d.useApprovalDate)}</td><td class="l">연면적: ${v(d.totalArea, ' ㎡')}</td></tr>
     <tr><td class="l">건축면적: ${v(d.buildingArea, ' ㎡')}</td><td class="l">층수: ${v(d.floors)}</td><td class="l">높이: ${v(d.height, ' m')}</td></tr>
     <tr><td class="l">구조: ${v(d.structure)}</td><td colspan="2" class="l">지붕: ${v(d.roof)}</td></tr>
     ${/* M-2·M-10(소방계획서_15): 승강기 3종은 건물·고객 원천 연결(대수 병기), 계단·경사로 개소 병기 — 값 없으면 종전 ☐/미표기 */''}
@@ -768,7 +778,8 @@ ${(d.autoFilled?.length ?? 0) > 0
   <p class="formno">서식 3.1</p><h3 style="display:inline;margin-left:8px">피난시설 및 기타시설 일반현황</h3>
   <table>
     <tr><th style="width:80px">명칭</th><td class="l">${v(d.buildingName)}</td><th style="width:80px">층수</th><td class="l">${v(d.floors)}</td></tr>
-    <tr><th>구조</th><td class="l">${v(d.structure)}</td><th>용도</th><td class="l">${v(d.purpose)}</td></tr>
+    <tr><th>구조</th><td class="l">${v(d.structure)}</td><th>용도</th><td class="l">${/* 47 B-15: 1.1 주용도와 같은 표기 — 엑셀 3.1!AY4와 한 축이다 */
+      v(purposeCover(d.purpose))}</td></tr>
     <tr><th>계단</th><td class="l" colspan="3"><div class="ckgrid">${
       stairKinds.map(k => `${ck(!!ef?.stairs?.[k], k)}${ef?.stairs?.[k] ? ` <span class="small">(${esc(ef.stairs[k])}개소)</span>` : ''}`).join('')
     }</div></td></tr>

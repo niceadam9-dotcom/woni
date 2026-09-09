@@ -22,6 +22,7 @@ import type { BrigadeRow, FirePlanGenData } from '@/lib/fire-plan-template'
 import { formatTel } from '@/lib/format-contact'
 import { BRIG_ROWS, FIRE_PLAN_ANCHORS, FP_SHEET, ZONE_ROWS, ZONE_SHEET } from '@/lib/fire-plan-anchors'
 import { boxGlyphAt, labelAt, tokenTemplateAt } from '@/lib/fire-plan-xlsx-manifest'
+import { purposeCover, purposeShort } from '@/lib/purpose-label'
 import { compartmentApplies, compartmentHasArea, compartmentHasFloor } from '@/lib/evac-compartment'
 import { isMultiUseApplicable, isMultiUseNone } from '@/lib/multi-use'
 
@@ -43,39 +44,14 @@ export function planDate(v: string | null | undefined): string {
 }
 
 /**
- * **주용도 표기** — 좁은 칸에 맞춰 줄인다. **값이 아니라 표기만** 바꾸는 자리다(47 S5-2와 같은 축).
+ * **주용도 표기** — 규칙과 유래는 전부 `@/lib/purpose-label`에 있다(47 B-15에서 떼어냈다).
  *
- * 왜 필요한가: ERP는 건축물대장 그대로 `제2종근린생활시설`(9자)을 갖고 있는데 서식 1.1의
- * 주용도 칸이 그만큼 넓지 않다 — 두 줄로 접히면서 옆 칸(사용승인일)까지 밀어낸다.
- * 강순기 실납품본은 이 칸을 **`근생`**으로 줄여 적었고(D-4 = 강순기가 정답지), 사용자도
- * 그렇게 지시했다(2026-09-08).
- *
- * ⚠ **제2종만 줄이면 제1종이 다음에 똑같이 넘친다.** 근린생활시설 갈래를 함께 넣는다
- *   (`근생`은 원래 그 갈래 전체의 통용 약어다). 오늘 DB엔 제2종 3건뿐이지만 제1종은
- *   건축법 분류에 실재하므로 들어올 수 있다.
- * ⚠ `문화및집회시설`(7자)은 **줄이지 않는다** — 통용되는 약어가 없어 우리가 지어내는 것이
- *   되고, 법정 기재사항을 임의로 축약하는 셈이다. 넘치면 그때 별도로 판단한다.
- * ⚠ **표지는 `근생`이 아니다** — 강순기 표지는 `근린생활시설`이다(F-14 대조). 한 문서가 같은
- *   값을 자리마다 다르게 적는 것이고, 그건 원본이 그렇다. 그래서 `purposeCover`가 따로 있다.
- *
- * 🚨 2026-09-08 실측으로 드러난 것: 위 주석은 「표지는 근린생활시설」이라 적어 두었는데 정작
- *    코드는 `txt(d.purpose)`를 그대로 넘겨 **`제2종근린생활시설`**을 찍고 있었다. 주석이 목표값을
- *    말하면서 그 값을 만드는 함수가 없었던 것 — **의도와 산출이 갈라져 있었다.** 그래서
- *    갈래 목록을 하나로 두고 **표기 두 가지를 거기서 파생**시킨다. 종류가 늘어도 한 곳만 고친다.
+ * ⭐ 왜 여기가 아니라 거기인가: PDF(`fire-plan-template.ts`)도 같은 표기를 쓰는데, 이 파일에서
+ *   import 하면 HTML 경로가 `fire-plan-anchors` → manifest까지 물고 와 **엑셀 격자가 밀리면
+ *   PDF도 500**이 된다(manifest `labelAt`은 모듈 적재 시점에 throw). 표기는 격자와 무관하므로
+ *   의존 없는 소모듈에 둔다. 기존 호출부가 안 깨지도록 **여기서 그대로 다시 내보낸다**.
  */
-const NEIGHBORHOOD_FACILITY = new Set(['제1종근린생활시설', '제2종근린생활시설'])
-
-/** 좁은 칸(서식 1.1 주용도·1.2.1 구역 용도)용 표기 — 근린생활시설 갈래는 `근생`으로 줄인다. */
-export function purposeShort(v: string | null | undefined): string {
-  const s = txt(v)
-  return NEIGHBORHOOD_FACILITY.has(s) ? '근생' : s
-}
-
-/** 표지용 표기 — 갈래는 밝히되 `제N종`은 떼어낸다(강순기 표지가 그렇다). 칸이 넓어 줄일 이유가 없다. */
-export function purposeCover(v: string | null | undefined): string {
-  const s = txt(v)
-  return NEIGHBORHOOD_FACILITY.has(s) ? '근린생활시설' : s
-}
+export { purposeShort, purposeCover, isNeighborhoodFacility, NEIGHBORHOOD_FACILITY } from '@/lib/purpose-label'
 
 /**
  * 체크 상자 한 칸 — **미체크면 manifest의 원본 글자를, 체크면 `■`를 쓴다**(S5-1).
@@ -236,6 +212,11 @@ export function buildFirePlanValues(d: FirePlanGenData): Map<string, CellValue> 
   //   둘 다 빈 상자로 둔다(미입력). '미가입'을 찍는 건 관계인이 그렇게 답한 경우뿐이다.
   v.set('insurance_yes', boxLabelCell(FP_SHEET.F1_1, 'L24', joined))
   v.set('insurance_no', boxLabelCell(FP_SHEET.F1_1, 'AJ24', ins?.insuranceJoined === false))
+
+  /* ── 용도 두 칸 (3.1 · 1.11.4) ── 2026-09-09 · 47 B-15
+   *  같은 `d.purpose`인데 표기가 1.1·1.2.1과 다르다(`근생` vs `근린생활시설`) — 납품본이 그렇다.
+   *  그래서 필드를 나눠 둔다. 값 자체는 하나이므로 두 칸이 갈라질 수 없다(앵커 둘·필드 하나). */
+  v.set('purpose_full', purposeCover(d.purpose))
 
   // ── 서식 1.3 소방차 진입경로 ──
   v.set('fire_station', txt(d.fireStation))
