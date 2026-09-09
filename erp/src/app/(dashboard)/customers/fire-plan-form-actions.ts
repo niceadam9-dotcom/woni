@@ -260,13 +260,41 @@ export async function deletePlanAssetAction(customerId: string, path: string): P
   return {}
 }
 
-export async function getPlanAssetUrlAction(customerId: string, path: string): Promise<{ url?: string; error?: string }> {
+/** 서명 URL 발급. download에 파일명을 주면 Content-Disposition: attachment가 붙어
+ *  브라우저가 새 탭으로 여는 대신 내려받는다 — 앵커의 download 속성은 교차 출처(스토리지 도메인)에서
+ *  무시되므로 [다운로드] 버튼은 반드시 이 축을 써야 한다 (2026-09-08). */
+export async function getPlanAssetUrlAction(
+  customerId: string,
+  path: string,
+  opts?: { download?: string },
+): Promise<{ url?: string; error?: string }> {
   await requirePermission('customer_manage')
   if (!path.startsWith(`${customerId}/plan-assets/`)) return { error: '잘못된 경로입니다.' }
   const admin = createAdminClient()
-  const { data, error } = await admin.storage.from(BUCKET).createSignedUrl(path, 300)
+  const { data, error } = await admin.storage.from(BUCKET)
+    .createSignedUrl(path, 300, opts?.download ? { download: opts.download } : undefined)
   if (error || !data) return { error: 'URL 생성 실패' }
   return { url: data.signedUrl }
+}
+
+/** 서식 첨부 이미지를 data URL로 — 화살표 편집기(ImageAnnotator)의 배경 전용.
+ *
+ *  왜 서명 URL이 아니라 바이트인가: 편집기는 배경 위에 화살표를 얹은 SVG를 canvas로 옮겨
+ *  PNG로 내보낸다. 배경이 교차 출처 URL이면 canvas가 오염(tainted)돼 toBlob()이 조용히
+ *  SecurityError로 죽는다 — 버킷 CORS 설정에 결과가 좌우되지 않도록 바이트를 직접 실어 보낸다. */
+export async function getPlanAssetDataUrlAction(
+  customerId: string,
+  path: string,
+): Promise<{ dataUrl?: string; error?: string }> {
+  await requirePermission('customer_manage')
+  if (!path.startsWith(`${customerId}/plan-assets/`)) return { error: '잘못된 경로입니다.' }
+  const admin = createAdminClient()
+  const { data, error } = await admin.storage.from(BUCKET).download(path)
+  if (error || !data) return { error: '이미지를 불러오지 못했습니다.' }
+  const buf = Buffer.from(await data.arrayBuffer())
+  const ext = (path.split('.').pop() ?? '').toLowerCase()
+  const mime = data.type || PLAN_IMAGE_EXTS[ext] || 'image/png'
+  return { dataUrl: `data:${mime};base64,${buf.toString('base64')}` }
 }
 
 // 전자우편 송달 동의 저장(구 saveEmailConsentAction)은 saveFirePlanInfoAction으로 흡수 —

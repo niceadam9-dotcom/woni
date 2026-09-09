@@ -2,31 +2,61 @@
 
 import { useEffect, useRef, useState, useTransition, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
-import { Loader2, Save, ImagePlus, Trash2 } from 'lucide-react'
+import {
+  Loader2, Save, ImagePlus, Trash2, ClipboardPaste, Download, MoveUpRight, X, ImageIcon,
+} from 'lucide-react'
 import {
   saveFirePlanSectionsAction, uploadPlanAssetAction, deletePlanAssetAction, getPlanAssetUrlAction,
   suggestSurroundingsAction,
 } from '@/app/(dashboard)/customers/fire-plan-form-actions'
 import { getFireRouteAction, generateRouteImageAction } from '@/app/(dashboard)/customers/fire-route-actions'
 import { NumField, useUnsavedWarning } from '@/components/ui/fields'
+import { prepareImageFile } from '@/lib/image-prep'
+import { readClipboardImage, CLIPBOARD_EMPTY_MSG } from '@/lib/clipboard-image'
+import { ImageAnnotator, parseAnnots, type AnnotDoc } from '@/components/customers/image-annotator'
 
 /** 서식 1.3 건축물 위치·운영현황 및 소방차 세부진입 계획 — 섹션 카드 2개 (소방계획서_4.md §3)
  *  sections.location(위치도·주변 현황·관할 소방서·거리·도착예상·운영 개요) + sections.fireAccess(진입경로·경로도·진입장소·주변 소방시설) */
 
 export type LocationSection = { mapImage: string | null; surroundings: string; fireStation: string; distance: string; eta: string; operation: string }
-export type FireAccessSection = { routeDesc: string; routeImage: string | null; entryPoint: string; nearbyFacilities: string }
+/** routeImageBase·routeAnnots는 화살표 편집의 되돌림 재료다(2026-09-08) — 인쇄는 종전대로 routeImage만 본다.
+ *  둘 다 선택 항목이라 기존 저장분(없음)도 그대로 열린다. */
+export type FireAccessSection = {
+  routeDesc: string; routeImage: string | null; entryPoint: string; nearbyFacilities: string
+  routeImageBase?: string | null; routeAnnots?: string | null
+}
 
-export function ImageSlot({ customerId, canManage, path, onChange, label }: {
+/** 화살표 편집을 지원하는 슬롯이 부모와 주고받는 짝 — 넘기지 않으면 종전대로 단순 업로드 슬롯이다 */
+export type AnnotBinding = {
+  basePath: string | null
+  annots: string | null
+  onChange: (v: { basePath: string | null; annots: string | null }) => void
+}
+
+/** 라벨 → 파일명. 끝의 괄호(‘(이미지)’)는 화면 안내지 이름이 아니라 떼고, 파일명 금지 문자를 걷어낸다 */
+const safeName = (s: string) => s.replace(/\s*\([^)]*\)\s*$/, '').replace(/[\\/:*?"<>|]/g, '_').trim() || 'image'
+
+/** 서식 첨부 이미지 슬롯 — 업로드·붙여넣기·드래그&드롭·화살표·다운로드·삭제 (1.3 경로도·삽입 사진, 1.5 평면도 공용).
+ *
+ *  2026-09-08: [지도·사진] 슬롯(customer-assets-client)에만 있던 편의를 여기로 맞췄다.
+ *  종전엔 같은 '이미지 넣는 칸'인데 슬롯에선 캡처 붙여넣기가 되고 여기선 안 돼, 사용자가
+ *  칸마다 다른 방법을 외워야 했다. 업로드 전 EXIF 회전 보정·리사이즈(prepareImageFile)도 함께 붙는다. */
+export function ImageSlot({ customerId, canManage, path, onChange, label, annot, testId }: {
   customerId: string
   canManage: boolean
   path: string | null
   onChange: (path: string | null) => void
   label: string
+  annot?: AnnotBinding   // 주면 [화살표] 버튼이 붙고, 원본·주석을 부모 상태에 함께 보관해 재편집이 된다
+  testId?: string
 }) {
   const fileRef = useRef<HTMLInputElement>(null)
   const [signed, setSigned] = useState<{ path: string; url: string } | null>(null)
   const [busy, setBusy] = useState(false)
-  const [err, setErr] = useState('')
+  const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null)
+  const [dragOver, setDragOver] = useState(false)
+  const [lightbox, setLightbox] = useState(false)
+  const [annotOpen, setAnnotOpen] = useState(false)
 
   useEffect(() => {
     if (!path) return
@@ -36,49 +66,202 @@ export function ImageSlot({ customerId, canManage, path, onChange, label }: {
   }, [customerId, path])
   const url = path && signed?.path === path ? signed.url : null
 
-  async function upload(file: File) {
+  // 라이트박스 Esc 닫기 ([지도·사진] 슬롯과 같은 규약)
+  useEffect(() => {
+    if (!lightbox) return
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setLightbox(false) }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [lightbox])
+
+  /** 지금 슬롯이 붙들고 있는 스토리지 파일 전부 — 합성본과 배경 원본은 별개 파일이라 짝으로 지운다 */
+  async function purgeCurrent() {
+    const targets = [path, annot?.basePath].filter((p): p is string => !!p)
+    for (const p of [...new Set(targets)]) await deletePlanAssetAction(customerId, p)
+  }
+
+  async function upload(raw: File) {
     setBusy(true)
-    setErr('')
+    setMsg(null)
+    const file = await prepareImageFile(raw)
     const fd = new FormData()
     fd.set('file', file)
     const res = await uploadPlanAssetAction(customerId, fd)
+    if (res.error || !res.path) { setBusy(false); setMsg({ text: res.error ?? '업로드 실패', ok: false }); return }
+    await purgeCurrent()
     setBusy(false)
-    if (res.error || !res.path) { setErr(res.error ?? '업로드 실패'); return }
-    if (path) await deletePlanAssetAction(customerId, path)
     onChange(res.path)
+    // 새 그림에 옛 화살표 좌표를 물려주면 엉뚱한 곳을 가리킨다 — 주석은 함께 비운다
+    annot?.onChange({ basePath: null, annots: null })
+    setMsg({ text: '등록됨', ok: true })
   }
+
+  function paste() {
+    setMsg(null)
+    void (async () => {
+      const f = await readClipboardImage()
+      if (!f) { setMsg({ text: CLIPBOARD_EMPTY_MSG, ok: false }); return }
+      await upload(f)
+    })()
+  }
+
   async function remove() {
     if (!path) return
     setBusy(true)
-    await deletePlanAssetAction(customerId, path)
+    await purgeCurrent()
     setBusy(false)
     onChange(null)
+    annot?.onChange({ basePath: null, annots: null })
+    setMsg(null)
   }
 
+  /** 저장 이름은 칸 이름 그대로 — '1757…png'로 떨어지면 사진 여러 장을 받았을 때 뭐가 뭔지 알 수 없다.
+   *
+   *  두 경로를 쓴다. 서명 URL을 앵커에 그대로 물리면 교차 출처라 download 속성이 무시되고,
+   *  서명 URL의 ?download= 이름은 storage-js가 퍼센트 인코딩해 보내 한글이 '%EC%A7%84…'으로
+   *  떨어진다(2026-09-08 실측). 그래서 ① 바이트를 받아 동일 출처 blob으로 만들어 내려받고
+   *  ② 그게 막히면(버킷 CORS) 서명 URL에 맡긴다 — 이름은 깨져도 저장은 된다. */
+  async function download() {
+    if (!path) return
+    setMsg(null)
+    const ext = (path.split('.').pop() ?? 'png').toLowerCase()
+    const name = `${safeName(label)}.${ext}`
+    const r = await getPlanAssetUrlAction(customerId, path, { download: name })
+    if (!r.url) { setMsg({ text: r.error ?? '다운로드 주소를 만들지 못했습니다.', ok: false }); return }
+    const click = (href: string) => {
+      const a = document.createElement('a')
+      a.href = href
+      a.download = name
+      a.rel = 'noopener'
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+    }
+    try {
+      const res = await fetch(r.url)
+      if (!res.ok) throw new Error(String(res.status))
+      const obj = URL.createObjectURL(await res.blob())
+      click(obj)
+      setTimeout(() => URL.revokeObjectURL(obj), 30_000)
+    } catch {
+      click(r.url)
+    }
+  }
+
+  /** 편집기가 만들어 온 합성 이미지를 올리고, 원본·주석을 부모에 남긴다 */
+  async function saveAnnot(file: File, doc: AnnotDoc) {
+    if (!annot || !path) return
+    setBusy(true)
+    setMsg(null)
+    const fd = new FormData()
+    fd.set('file', file)
+    const res = await uploadPlanAssetAction(customerId, fd)
+    if (res.error || !res.path) { setBusy(false); setMsg({ text: res.error ?? '업로드 실패', ok: false }); return }
+    // 첫 편집이면 지금 보이던 그림이 곧 원본이 된다 — 지우지 않고 배경으로 남긴다.
+    // 재편집이면 직전 합성본만 버린다(원본은 계속 배경으로 쓰인다).
+    const base = annot.basePath ?? path
+    if (annot.basePath && path !== annot.basePath) await deletePlanAssetAction(customerId, path)
+    setBusy(false)
+    onChange(res.path)
+    annot.onChange({ basePath: base, annots: JSON.stringify(doc) })
+    setAnnotOpen(false)
+    setMsg({ text: '화살표를 넣었습니다 — 아래 [저장]을 눌러야 확정됩니다', ok: true })
+  }
+
+  const dropProps = canManage ? {
+    tabIndex: 0,
+    onDragOver: (e: React.DragEvent) => { e.preventDefault(); setDragOver(true) },
+    onDragLeave: () => setDragOver(false),
+    onDrop: (e: React.DragEvent) => {
+      e.preventDefault(); setDragOver(false)
+      const f = e.dataTransfer.files?.[0]
+      if (f) void upload(f)
+    },
+    onPaste: (e: React.ClipboardEvent) => {
+      const item = Array.from(e.clipboardData.items).find(i => i.type.startsWith('image/'))
+      const f = item?.getAsFile()
+      if (f) { e.preventDefault(); void upload(f) }
+    },
+  } : {}
+
+  const btn = 'inline-flex items-center gap-1 h-form-7 px-2 rounded-lg border border-brand-line text-form-xs text-brand hover:bg-brand-tint transition-colors disabled:opacity-50'
+
   return (
-    <div>
+    <div {...dropProps} data-testid={testId}
+      className={dragOver ? 'rounded-lg border border-dashed border-brand bg-brand-tint p-1.5 -m-1.5' : undefined}>
       <p className="text-form-xs font-medium text-ink-sub mb-1">{label}</p>
       {url ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={url} alt={label} className="max-h-40 rounded-lg border border-brand-line-soft" />
+        <button type="button" onClick={() => setLightbox(true)} title="클릭하면 크게 봅니다" className="block">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={url} alt={label} data-testid={testId ? `${testId}-thumb` : undefined}
+            className="max-h-40 rounded-lg border border-brand-line-soft cursor-zoom-in hover:opacity-90 transition-opacity" />
+        </button>
+      ) : path ? (
+        <p className="text-form-xs text-ink-meta">미리보기 로딩…</p>
       ) : (
-        <p className="text-form-xs text-ink-meta">{path ? '미리보기 로딩…' : '이미지 없음'}</p>
+        <div className="flex h-20 w-full max-w-64 flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-brand-line text-ink-meta">
+          <ImageIcon className="size-4" />
+          <span className="text-form-2xs">{canManage ? '미등록 — 끌어다 놓기·캡처 후 붙여넣기(Ctrl+V) 가능' : '이미지 없음'}</span>
+        </div>
       )}
       {canManage && (
-        <div className="flex items-center gap-2 mt-1">
+        <div className="flex items-center gap-1.5 flex-wrap mt-1">
           <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden"
-            onChange={e => { const f = e.target.files?.[0]; if (f) upload(f); e.target.value = '' }} />
-          <button onClick={() => fileRef.current?.click()} disabled={busy}
-            className="inline-flex items-center gap-1 h-form-7 px-2 rounded-lg border border-brand-line text-form-xs text-brand hover:bg-brand-tint disabled:opacity-50">
+            data-testid={testId ? `${testId}-input` : undefined}
+            onChange={e => { const f = e.target.files?.[0]; if (f) void upload(f); e.target.value = '' }} />
+          <button onClick={() => fileRef.current?.click()} disabled={busy} className={btn}>
             {busy ? <Loader2 className="size-3 animate-spin" /> : <ImagePlus className="size-3" />} {path ? '교체' : '업로드'}
           </button>
+          <button onClick={paste} disabled={busy} className={btn}
+            data-testid={testId ? `${testId}-paste` : undefined}
+            title="지도·화면을 캡처(Win+Shift+S)한 뒤 클릭하면 클립보드 이미지가 등록됩니다">
+            <ClipboardPaste className="size-3" /> 붙여넣기
+          </button>
+          {path && annot && (
+            <button onClick={() => setAnnotOpen(true)} disabled={busy} className={btn}
+              data-testid={testId ? `${testId}-annotate` : undefined}
+              title="이미지 위에 진입 방향 화살표·글자·번호를 얹습니다 (원본은 보존되어 다시 고칠 수 있습니다)">
+              <MoveUpRight className="size-3" /> {annot.annots ? '화살표 고치기' : '화살표 넣기'}
+            </button>
+          )}
           {path && (
-            <button onClick={remove} disabled={busy} className="inline-flex items-center gap-1 h-form-7 px-2 rounded-lg border border-brand-line-soft text-form-xs text-ink-meta hover:text-red-500">
+            <button onClick={() => { void download() }} disabled={busy} className={btn}
+              data-testid={testId ? `${testId}-download` : undefined} title="이 이미지를 파일로 내려받습니다">
+              <Download className="size-3" /> 다운로드
+            </button>
+          )}
+          {path && (
+            <button onClick={() => { void remove() }} disabled={busy}
+              data-testid={testId ? `${testId}-delete` : undefined}
+              className="inline-flex items-center gap-1 h-form-7 px-2 rounded-lg border border-red-200 text-form-xs text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50">
               <Trash2 className="size-3" /> 삭제
             </button>
           )}
-          {err && <span className="text-form-xs text-red-500">{err}</span>}
         </div>
+      )}
+      {msg && <p className={`text-form-xs mt-0.5 ${msg.ok ? 'text-green-600' : 'text-red-600'}`}>{msg.ok ? '✅' : '❌'} {msg.text}</p>}
+
+      {lightbox && url && (
+        <div className="fixed inset-0 z-[80] flex flex-col items-center justify-center bg-black/80 p-4"
+          onClick={() => setLightbox(false)} role="dialog" aria-modal="true" aria-label={`${label} 미리보기`}>
+          <div className="flex w-full max-w-4xl items-center justify-between px-1 pb-2">
+            <span className="text-form-base font-medium text-white">{label}</span>
+            <button onClick={() => setLightbox(false)} aria-label="닫기"
+              className="inline-flex size-8 items-center justify-center rounded-lg text-white/80 hover:bg-surface/10 hover:text-white">
+              <X className="size-5" />
+            </button>
+          </div>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={url} alt={label} onClick={e => e.stopPropagation()}
+            className="max-h-[85vh] max-w-4xl rounded-lg object-contain shadow-2xl" />
+          <p className="mt-2 text-form-xs text-white/60">빈 곳·✕·Esc 로 닫기</p>
+        </div>
+      )}
+
+      {annotOpen && annot && path && (
+        <ImageAnnotator customerId={customerId} basePath={annot.basePath ?? path} label={label}
+          initial={parseAnnots(annot.annots)} saving={busy}
+          onClose={() => setAnnotOpen(false)} onSave={(f, d) => { void saveAnnot(f, d) }} />
       )}
     </div>
   )
@@ -87,7 +270,11 @@ export function ImageSlot({ customerId, canManage, path, onChange, label }: {
 /** 생성 문서 삽입 사진 (§8-1k — 생성 모달 폐지에 따라 1.3으로 이관)
  *  D-5(소방계획서_11): 건물 전경·위치도·피난경로도는 [지도·사진] 슬롯과 중복 입력 경로였다.
  *  신규 추가는 '기타'만 허용하고, 기존에 그 종류로 저장된 사진은 그대로 인쇄한다(하위호환). */
-export type PlanPhotoRow = { path: string | null; kind: string; caption: string }
+export type PlanPhotoRow = {
+  path: string | null; kind: string; caption: string
+  /** 화살표 편집의 되돌림 재료 — 인쇄는 path만 본다 (2026-09-08) */
+  basePath?: string | null; annots?: string | null
+}
 const PHOTO_KIND_OPTIONS = [
   { value: 'building', label: '건물 전경', legacy: true },
   { value: 'map', label: '위치도(지도)', legacy: true },
@@ -264,7 +451,11 @@ export function PlanForm13({
       startTransition(async () => {
         const res = await saveFirePlanSectionsAction(customerId, {
           location: loc, fireAccess: fa,
-          photos: photos.filter(p => p.path).map(p => ({ path: p.path, kind: p.kind || 'etc', caption: p.caption })),
+          // basePath·annots를 여기서 빠뜨리면 저장 후 화살표를 다시 고칠 수 없게 된다(화면엔 멀쩡히 보이는 채로)
+          photos: photos.filter(p => p.path).map(p => ({
+            path: p.path, kind: p.kind || 'etc', caption: p.caption,
+            basePath: p.basePath ?? null, annots: p.annots ?? null,
+          })),
         })
         if (res.error) { setMsg(`❌ ${res.error}`); resolve(false); return }
         setDirty(false)
@@ -466,8 +657,13 @@ export function PlanForm13({
           <textarea value={fa.routeDesc} onChange={e => patchFa({ routeDesc: e.target.value })} disabled={!canManage}
             rows={2} placeholder="예: ○○로에서 정문 방면 진입 후 우측 주차장" className={taCls} />
         </div>
-        <ImageSlot customerId={customerId} canManage={canManage} path={fa.routeImage}
-          onChange={p => patchFa({ routeImage: p })} label="진입 경로도 (이미지)" />
+        <ImageSlot customerId={customerId} canManage={canManage} path={fa.routeImage} testId="form13-route-image"
+          onChange={p => patchFa({ routeImage: p })} label="진입 경로도 (이미지)"
+          annot={{
+            basePath: fa.routeImageBase ?? null,
+            annots: fa.routeAnnots ?? null,
+            onChange: v => patchFa({ routeImageBase: v.basePath, routeAnnots: v.annots }),
+          }} />
         <div>
           <label className="text-form-xs font-medium text-ink-sub block mb-1">진입 장소</label>
           <input value={fa.entryPoint} onChange={e => patchFa({ entryPoint: e.target.value })} disabled={!canManage}
@@ -501,7 +697,12 @@ export function PlanForm13({
               placeholder="사진 설명(캡션)" className={`${inputCls} w-52`} />
             <div className="flex-1 min-w-48">
               <ImageSlot customerId={customerId} canManage={canManage} path={p.path}
-                onChange={path => patchPhoto(i, { path })} label={`사진 ${i + 1}`} />
+                onChange={path => patchPhoto(i, { path })} label={`사진 ${i + 1}`}
+                annot={{
+                  basePath: p.basePath ?? null,
+                  annots: p.annots ?? null,
+                  onChange: v => patchPhoto(i, { basePath: v.basePath, annots: v.annots }),
+                }} />
             </div>
             {canManage && (
               <button onClick={() => { setPhotos(rows => rows.filter((_, j) => j !== i)); setDirty(true) }}

@@ -24,7 +24,11 @@ export type EvacFireSection = {
   smokeControl: { has: boolean; note: string }
   flameRetardant: { has: boolean; note: string }
 }
-export type EvacMapRow = { floor: string; image: string | null; desc: string }
+/** imageBase·annots는 화살표 편집의 되돌림 재료 — 인쇄는 종전대로 image만 본다 (2026-09-08) */
+export type EvacMapRow = {
+  floor: string; image: string | null; desc: string
+  imageBase?: string | null; annots?: string | null
+}
 
 export const EMPTY_EVAC_FIRE: EvacFireSection = {
   stairs: {}, etc: [], etcNote: '',
@@ -220,7 +224,15 @@ export function PlanForm15({ customerId, canManage, initialEvacFire, initialMaps
             </div>
             <ImageSlot customerId={customerId} canManage={canManage} path={m.image}
               onChange={p => { setMaps(prev => prev.map((x, j) => j === i ? { ...x, image: p } : x)); setDirty(true) }}
-              label="평면도" />
+              label="평면도"
+              annot={{
+                basePath: m.imageBase ?? null,
+                annots: m.annots ?? null,
+                onChange: v => {
+                  setMaps(prev => prev.map((x, j) => j === i ? { ...x, imageBase: v.basePath, annots: v.annots } : x))
+                  setDirty(true)
+                },
+              }} />
           </div>
         ))}
       </div>

@@ -6,6 +6,8 @@ import {
   uploadCustomerAssetAction, deleteCustomerAssetAction, generateLocationMapAction, listCustomerAssetsAction,
 } from '@/app/(dashboard)/customers/asset-actions'
 import { EvacMapBuilder } from './evac-map-builder'
+import { prepareImageFile } from '@/lib/image-prep'
+import { readClipboardImage, CLIPBOARD_EMPTY_MSG } from '@/lib/clipboard-image'
 import type { AssetSlot, CustomerAsset } from '@/lib/customer-assets'
 
 /** 지도·사진 카드 (소방계획서_7 §5·§5-1 — H-10) — 2026-08-08부터 서식 1.3 안에 삽입되어 렌더된다.
@@ -14,36 +16,10 @@ import type { AssetSlot, CustomerAsset } from '@/lib/customer-assets'
  *  H-11: 업로드 전 클라이언트에서 EXIF 회전 보정 + 장변 1600px 리사이즈(JPEG q0.85) — 서버 sharp 의존 없음.
  *  업로드는 [서식 1.3 저장]과 무관하게 즉시 스토리지에 확정된다(서식 JSON에 담기지 않음). */
 
-const MAX_EDGE = 1600
-
 const SLOTS: Array<{ slot: 'cover' | 'map_location'; label: string; hint: string }> = [
   { slot: 'cover', label: '표지 건물 사진', hint: '소방계획서 표지에 들어갑니다 (1장)' },
   { slot: 'map_location', label: '위치도·약도', hint: '위치도 페이지에 들어갑니다 (1장)' },
 ]
-
-/** EXIF 회전 보정 + 장변 제한 리사이즈 — 작은 png/webp는 원본 유지, jpeg는 회전 반영 위해 재인코딩 */
-async function prepareFile(file: File): Promise<File> {
-  try {
-    const bmp = await createImageBitmap(file, { imageOrientation: 'from-image' })
-    const long = Math.max(bmp.width, bmp.height)
-    const isJpeg = file.type === 'image/jpeg' || /\.jpe?g$/i.test(file.name)
-    if (long <= MAX_EDGE && !isJpeg) { bmp.close(); return file }
-    const scale = Math.min(1, MAX_EDGE / long)
-    const canvas = document.createElement('canvas')
-    canvas.width = Math.max(1, Math.round(bmp.width * scale))
-    canvas.height = Math.max(1, Math.round(bmp.height * scale))
-    const ctx = canvas.getContext('2d')
-    if (!ctx) { bmp.close(); return file }
-    ctx.drawImage(bmp, 0, 0, canvas.width, canvas.height)
-    bmp.close()
-    const blob = await new Promise<Blob | null>(res => canvas.toBlob(res, 'image/jpeg', 0.85))
-    if (!blob) return file
-    const base = file.name.replace(/\.[^.]+$/, '') || 'image'
-    return new File([blob], `${base}.jpg`, { type: 'image/jpeg' })
-  } catch {
-    return file   // 디코드 실패(손상 파일 등) — 서버 확장자·크기 검증에 맡김
-  }
-}
 
 export function CustomerAssetsClient({ customerId, canManage, initialAssets = [], embedded = false }: {
   customerId: string
@@ -70,7 +46,7 @@ export function CustomerAssetsClient({ customerId, canManage, initialAssets = []
     setMsg(null)
     setBusy(slot)
     startTransition(async () => {
-      const file = await prepareFile(raw)
+      const file = await prepareImageFile(raw)
       const fd = new FormData()
       fd.append('file', file)
       const res = await uploadCustomerAssetAction(customerId, slot, fd)
@@ -95,23 +71,7 @@ export function CustomerAssetsClient({ customerId, canManage, initialAssets = []
     })
   }
 
-  // 클립보드 이미지 읽기 — 지도 캡처(Win+Shift+S) 후 [붙여넣기] 버튼용 (2026-08-05 사용자 확정)
-  async function readClipboardImage(): Promise<File | null> {
-    try {
-      if (!navigator.clipboard?.read) return null
-      for (const item of await navigator.clipboard.read()) {
-        const type = item.types.find(t => t.startsWith('image/'))
-        if (type) {
-          const blob = await item.getType(type)
-          const ext = type === 'image/png' ? 'png' : type === 'image/webp' ? 'webp' : 'jpg'
-          return new File([blob], `clipboard.${ext}`, { type })
-        }
-      }
-      return null
-    } catch {
-      return null   // 권한 거부·미지원 브라우저 — 호출부에서 안내
-    }
-  }
+  // 클립보드 이미지 읽기는 lib/clipboard-image로 공용화(2026-09-08) — 서식 1.3·1.5의 ImageSlot이 같은 함수를 쓴다
 
   // 위치도(일반 지도+마커)·표지(위성 항공뷰) 자동 생성 — 고객 주소 → 네이버 정적 지도 (2026-08-05)
   function generateMap(slot: 'map_location' | 'cover') {
@@ -186,7 +146,7 @@ export function CustomerAssetsClient({ customerId, canManage, initialAssets = []
     void (async () => {
       const f = await readClipboardImage()
       if (!f) {
-        setMsg({ key: slot, text: '❌ 클립보드에 이미지가 없습니다 — 지도 화면을 캡처(Win+Shift+S)한 뒤 다시 눌러주세요.', ok: false })
+        setMsg({ key: slot, text: `❌ ${CLIPBOARD_EMPTY_MSG}`, ok: false })
         return
       }
       upload(slot, f)
