@@ -11,6 +11,7 @@ import { AddressDuplicateDialog } from '@/components/customers/address-duplicate
 import { autoApplyLedgerEmptyAction } from '@/app/(dashboard)/customers/fire-plan-info-actions'
 import { parseParkingSummary } from '@/lib/doc-templates/report9'
 import { findSameNameBuilding, normalizeBuildingName } from '@/lib/building-dup'
+import { initialBuildingPanelTarget } from '@/lib/building-panel-open'
 import { useDaumPostcode } from '@/hooks/use-daum-postcode'
 import { useCustomerTabs } from '@/components/customers/customer-tabs'
 
@@ -153,11 +154,13 @@ export function BuildingListPanel({ customerId, customerName, customerAddress, b
    *  (「규현빌라」가 두 번 생긴 실사고 — 화면·문서는 대표동만 보여 값이 사라진 것처럼 보였다).
    *  ⭐ [+ 건물 등록] 버튼은 원래 있었지만 `editing !== 'new'` 조건이라 **영원히 숨어 있었다** —
    *    폼을 접으니 그 버튼이 드러난다(사용자: "추가하는 버튼은 어디에 있어?").
-   *  ⚠ 단 **건물이 하나도 없으면 열어 둔다** — 그때는 등록 말고 할 일이 없다. */
-  const initialEditing = initialNew
-    ? 'new'
-    : (initialOpenId && buildings.some(b => b.id === initialOpenId) ? initialOpenId
-      : (canManage && buildings.length === 0 ? 'new' : null))
+   *  ⚠ 단 **건물이 하나도 없으면 열어 둔다** — 그때는 등록 말고 할 일이 없다.
+   *
+   *  🚨 그런데 그 변경이 **조회를 함께 지웠다**(2026-09-10 사용자 신고): 건축허가일·주차장은
+   *    목록 표에 없고 **이 폼 안에만** 있어서, 폼이 접히자 볼 방법이 사라졌다. 규칙을
+   *    `lib/building-panel-open`으로 빼고 **1동이면 그 동을 펼치는** 가지를 더했다 —
+   *    거기 주석이 이 축의 정본이다(중복 사고를 되살리지 않는 이유도 거기 적혀 있다). */
+  const initialEditing = initialBuildingPanelTarget({ initialNew, initialOpenId, buildings, canManage })
   const [editing, setEditing] = useState<string | null>(initialEditing)
   const [form, setForm] = useState<FormState>(() =>
     initialEditing && initialEditing !== 'new' ? toForm(buildings.find(b => b.id === initialEditing)) : newForm())
@@ -513,7 +516,8 @@ export function BuildingListPanel({ customerId, customerName, customerAddress, b
           <table className="w-full text-form-base">
             <thead>
               <tr className="border-b border-brand-line-soft">
-                {['건물명', '주소', '용도', '연면적', '층수', '준공', '상태'].map(h => (
+                {/* 마지막 빈 칸은 [보기·수정] 버튼 자리 — 표 폭 계산을 표에 맡긴다 */}
+                {['건물명', '주소', '용도', '연면적', '층수', '준공', '상태', ''].map(h => (
                   <th key={h} className="text-left text-form-sm font-medium text-ink-sub pb-2 pr-4">{h}</th>
                 ))}
               </tr>
@@ -537,10 +541,22 @@ export function BuildingListPanel({ customerId, customerName, customerAddress, b
                     {b.floors_above != null ? `지상 ${b.floors_above}층${b.floors_below ? ` / 지하 ${b.floors_below}층` : ''}` : '-'}
                   </td>
                   <td className="py-3 pr-4 text-form-sm text-ink-sub">{b.year_built ?? '-'}</td>
-                  <td className="py-3">
+                  <td className="py-3 pr-4">
                     <span className={`text-form-sm font-medium px-2 py-0.5 rounded-full ${b.is_active ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
                       {b.is_active ? '활성' : '비활성'}
                     </span>
+                  </td>
+                  {/* 행 전체가 클릭 가능하지만 **그렇게 보이지 않았다** — 커서만 바뀔 뿐 문이 없었다.
+                      건축허가일·주차장이 이 폼 안에만 있으므로, 이 버튼이 사실상 **조회 버튼**이다.
+                      ⚠ 행 onClick과 같은 동작이라 `stopPropagation` 없이는 두 번 토글돼 즉시 닫힌다. */}
+                  <td className="py-3 text-right">
+                    <button
+                      onClick={e => { e.stopPropagation(); if (editing === b.id) close(); else openEdit(b) }}
+                      data-testid="building-open"
+                      title="건축허가일·주차장 등 상세 정보를 봅니다"
+                      className="inline-flex items-center gap-1 h-form-7 px-2 rounded-lg border border-brand-line text-form-sm text-brand hover:bg-brand-tint transition-colors whitespace-nowrap">
+                      {editing === b.id ? '닫기' : '보기·수정'}
+                    </button>
                   </td>
                 </tr>
               ))}
