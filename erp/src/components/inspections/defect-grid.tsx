@@ -5,8 +5,10 @@ import { Camera, Check, Loader2 } from 'lucide-react'
 import {
   updateDefectActionAction, uploadDefectPhotoAction,
   getActionPeriodAction, setDefectCompletionAction, applyActionPeriodToPlansAction,
-  type ActionPeriod,
 } from '@/app/(dashboard)/inspections/defect-actions'
+// ⚠ 타입은 **원천에서** 가져온다 — `'use server'` 파일로 재수출하면 런타임에 값으로 방출된다
+//   (defect-actions.ts의 🚨 주석 참조: 화면 500까지 갔고 tsc는 0이었다)
+import type { ActionPeriod } from '@/lib/annex-total-period'
 import { DateInput } from '@/components/ui/date-input'
 import { dateRangeError, isEndBeforeStart } from '@/lib/date-range'
 
@@ -212,6 +214,13 @@ export function DefectGrid({ defects, inspectionId, canEdit, mode, onSaved, onPh
       setJustSaved(prev => ({ ...prev, [d.id]: true }))
       setTimeout(() => setJustSaved(prev => ({ ...prev, [d.id]: false })), 4000)
       onSaved?.(tallyWith(d.id, savedRow))
+    }).catch(() => {
+      /* 🚨 액션이 **거절이 아니라 예외로** 끝나는 갈래(서버 모듈 평가 실패·네트워크 단절).
+         .then만 있으면 여기서 `saving`이 영영 안 풀려 **체크박스가 잠긴 채 남는다** —
+         실제로 그렇게 됐다(모듈 평가 ReferenceError로 500, 화면은 눌러도 반응 없음). */
+      setSaving(null)
+      setPendingDone(prev => { const next = { ...prev }; delete next[d.id]; return next })
+      setErr('조치 완료 저장에 실패했습니다 — 잠시 후 다시 시도해 주세요.')
     })
   }
 
@@ -232,6 +241,10 @@ export function DefectGrid({ defects, inspectionId, canEdit, mode, onSaved, onPh
         : `${filled}건에 기간을 채웠습니다${skipped > 0 ? ` · ${skipped}건은 이미 값이 있어 건너뛰었습니다` : ''}.`)
       // 서버가 여러 행을 바꿨다 — 편집분·기준선을 믿을 수 없으니 부모가 서버에서 다시 읽게 한다
       ;(onServerChanged ?? onPhotoDone)?.()
+    }).catch(() => {
+      // 위 toggleDone과 같은 갈래 — 예외면 버튼이 영영 '적용 중'으로 잠긴다
+      setBulk(false)
+      setErr('이행기간 일괄 적용에 실패했습니다 — 잠시 후 다시 시도해 주세요.')
     })
   }
 

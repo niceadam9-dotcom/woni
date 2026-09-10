@@ -110,9 +110,23 @@ console.log('\n── C. 서버가 그 규칙을 실제로 부르는가 (배선)
   ok(complete.includes('action_completed_at: null'), '해제하면 null로 되돌린다 — ⑤도 함께 열린다')
   ok(count(ACTIONS, 'syncStepsAndRevalidate') >= 5, '새 경로도 단계 동기화를 부른다', String(count(ACTIONS, 'syncStepsAndRevalidate')))
 
-  /* ⚠ 기간 문자열 파싱을 스스로 하면 화면(annex-fields)과 구분자 규칙이 갈린다 — splitRange가 원천 */
-  ok(ACTIONS.includes('splitRange('), '기간 파싱은 splitRange 공용을 쓴다')
-  ok(!/\.split\(['"]\s*~/.test(ACTIONS), '(음성) 구분자를 직접 쪼개지 않는다')
+  /* 🎯 **문서가 인쇄하는 기간과 같은 결정자를 타는가**(2026-09-10 머지 후 통합).
+     별지 10·11호 PDF와 갑지 엑셀은 `resolveActionPeriod`(수기 > 자동)로 기간을 정한다.
+     저장되는 완료일이 다른 우선순위를 쓰면 **저장값과 인쇄값이 갈리는데, 각자의 산출물만
+     보면 둘 다 옳아 보인다** — 이 스위트가 막아야 하는 형태다. */
+  ok(ACTIONS.includes("from '@/lib/annex-total-period'"), '기간 결정은 문서와 같은 모듈을 쓴다')
+  ok(ACTIONS.includes('resolveActionPeriod('), '수기 > 자동 우선순위를 스스로 다시 적지 않는다')
+  /* ⚠ 자동 산출값을 안 넘기면 수기값이 없는 회차에서만 조용히 갈린다(문서는 자동값을 쓴다) */
+  ok(ACTIONS.includes('actionPlanPeriod('), '자동 산출값도 함께 넘긴다')
+  ok(!/\.split\(['"]?\s*~/.test(ACTIONS), '(음성) 구분자를 직접 쪼개지 않는다')
+  /* 🚨 이 import는 HEAD에 **없는 함수**였다 — 타 세션 미커밋이라 공유 트리 tsc만 초록이었다
+     (격리 워크트리 tsc가 TS2305로 잡았다, [[risk_head_broken_imports]]).
+     ⚠ 단어로 세면 **이 결함을 설명하는 주석 자체**에 걸린다(첫 판에 실제로 걸렸다) —
+       깨뜨리는 것은 import이므로 import 목록만 본다. */
+  const drImport = /import \{([^}]*)\} from '@\/lib\/date-range'/.exec(ACTIONS)?.[1] ?? ''
+  ok(drImport.trim().length > 0, 'date-range import를 찾았다(정규식이 헛돌지 않는다)', drImport.trim())
+  ok(!drImport.includes('splitRange'),
+    '(음성) HEAD에 없던 splitRange 의존이 되돌아오지 않았다', `import={${drImport.trim()}}`)
 }
 
 console.log('\n── D. ⑥ 화면이 날짜 칸을 기본으로 그리지 않는가 (배선) ──')

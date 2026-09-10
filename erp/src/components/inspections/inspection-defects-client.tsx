@@ -247,6 +247,12 @@ function DefectActionSection({ defect, inspectionId, canEdit }: {
       setMsg(checked ? '조치 완료를 저장했습니다.' : '조치 완료를 해제했습니다.')
       // F-24 2차 — 이 카드에는 미러가 없다. ⑤⑥ 표가 같은 값을 보므로 서버에서 다시 읽는다
       setTimeout(() => router.refresh(), 0)
+    }).catch(() => {
+      /* 🚨 거절이 아니라 **예외**로 끝나는 갈래 — .then만 있으면 `doneBusy`가 안 풀려
+         체크박스가 잠긴 채 남는다(⑤⑥ 표에서 실제로 그렇게 됐다). */
+      setDoneBusy(false)
+      setDonePending(null)
+      setMsg('❌ 조치 완료 저장에 실패했습니다 — 잠시 후 다시 시도해 주세요.')
     })
   }
 

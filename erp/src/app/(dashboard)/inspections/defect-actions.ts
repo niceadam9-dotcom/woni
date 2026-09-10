@@ -4,27 +4,41 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { requireRole, getSessionUser, requirePermission } from '@/lib/auth'
 import { syncStepsAndRevalidate, revalidateInspection } from './step-revalidate'
 import { extractStoragePath } from '@/lib/defect-photos'
-import { dateRangeError, splitRange } from '@/lib/date-range'
-import { loadAnnexInputs, fstr } from '@/lib/report9-assemble'
+import { dateRangeError } from '@/lib/date-range'
+import { loadAnnexInputs, actionPlanPeriod } from '@/lib/report9-assemble'
+import { resolveActionPeriod, type ActionPeriod } from '@/lib/annex-total-period'
 import { completionDateFrom, isPlanFillTarget } from '@/lib/action-period-derive'
 
 export type DefectSeverity = '경미' | '보통' | '중대'
 
-export type ActionPeriod = { startISO: string; endISO: string }
+/* 🚨 `export type { ActionPeriod }`로 **재수출하지 않는다**(2026-09-10 실측).
+ *   `'use server'` 파일의 export는 서버 액션 로더가 런타임에 열거하는데, 임포트한 타입을
+ *   재수출하면 그 이름이 **값 바인딩으로 방출**돼 모듈 평가가 통째로 터진다
+ *   (`ReferenceError: ActionPeriod is not defined` → 화면 500, 저장 전멸).
+ *   ⚠ **tsc는 0이었다**(타입은 지워지므로) — 격리 E2E가 아니었으면 못 봤다.
+ *   호출부는 원천인 `@/lib/annex-total-period`에서 직접 가져간다. */
 
-/** ⑤ 계획 기간·⑥ 완료일이 **둘 다 파생되는 원천** — 별지 10호 `totalPeriod`(2026-09-10 사용자 결정).
+/** ⑤ 계획 기간·⑥ 완료일이 **둘 다 파생되는 원천** — 별지 10호 총 이행기간(2026-09-10 사용자 결정).
  *
+ *  🎯 **문서가 인쇄하는 기간과 같은 함수를 쓴다.** `resolveActionPeriod`(수기 > 자동)는
+ *    별지 10호·11호 PDF와 갑지 엑셀이 타는 바로 그 결정자다. 여기서 우선순위를 다시 적으면
+ *    저장된 완료일과 인쇄되는 일자가 갈리는데, **각자의 산출물만 보면 둘 다 옳아 보인다**.
+ *  ⚠ 자동 산출값(`actionPlanPeriod` — 불량들의 최소 시작~최대 종료)까지 같이 넘겨야 한다.
+ *    수기값이 없을 때 문서는 자동값을 쓰는데 여기서 null로 떨어지면 그 회차만 두 값이 갈린다.
  *  ⚠ 클라이언트가 들고 있는 값을 **받지 않는다**. 작업대의 서버 prop은 세션 내내 갱신되지 않아서
- *    (같은 파일 :175 F-21 주석 참조) ④에서 기간을 고친 직후 화면 값이 낡는데, 그 낡은 날짜는
- *    별지 11호 「이행조치 일자」에 **그대로 인쇄된다**. 그래서 쓰기 시점마다 서버가 다시 읽는다.
- *  ⚠ 파싱은 `splitRange` 한 곳에서만 한다 — 구분자 규칙을 여기 다시 적으면 화면과 조용히 갈린다.
- *  ⚠ 읽기도 `loadAnnexInputs` 공용을 쓴다(문서 조립기와 같은 행·같은 키를 보게 하려고). */
+ *    (F-21) ④에서 기간을 고친 직후 화면 값이 낡는데, 그 낡은 날짜가 그대로 인쇄된다.
+ *  🚨 종전엔 `splitRange`(date-range.ts)를 물었는데 **그 함수는 HEAD에 없었다** — 타 세션의
+ *    미커밋이라 공유 트리 tsc만 초록이었다(격리 워크트리가 잡았다, [[risk_head_broken_imports]]). */
 async function loadActionPeriod(
   admin: ReturnType<typeof createAdminClient>, inspectionId: string,
 ): Promise<ActionPeriod | null> {
-  const fields = await loadAnnexInputs(admin, inspectionId, 'report10')
-  const [startISO, endISO] = splitRange(fstr(fields, 'totalPeriod'))
-  return startISO && endISO ? { startISO, endISO } : null
+  const [fields, { data }] = await Promise.all([
+    loadAnnexInputs(admin, inspectionId, 'report10'),
+    admin.from('inspection_defects').select('action_plan, action_start, action_end')
+      .eq('inspection_id', inspectionId),
+  ])
+  const defects = (data ?? []) as Array<{ action_plan: string | null; action_start: string | null; action_end: string | null }>
+  return resolveActionPeriod(fields, actionPlanPeriod(defects))
 }
 
 /** 불량표가 머리글에 띄우는 값. 없으면 null — 호출부가 '아직 없습니다'를 그리게 한다

@@ -24,6 +24,8 @@ const P_START = '2026-08-05'
 const P_END = '2026-08-15'
 const KEEP_START = '2026-07-01'     // D2가 손으로 정해 둔 일정 — 한 클릭에 덮이면 안 된다
 const KEEP_END = '2026-07-20'
+/** 음성 대조용 — 근거가 없을 때 조용히 채워질 수 있는 유일한 값이 오늘이다 */
+const TODAY = new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10)
 let userId = '', cust = '', insp = ''
 let browser: Awaited<ReturnType<typeof launch>>['browser'] | null = null
 
@@ -116,21 +118,48 @@ try {
   check('★ 3-1 해제하면 null로 되돌아간다', await waitCol(D1, 'action_completed_at', null),
     `action_completed_at='${await dbCol(D1, 'action_completed_at')}'`)
 
-  /* ───────── ④ 기간이 없으면 거절한다 (오늘로 떨어지지 않는다) ───────── */
+  /* ───── ④ 수기 기간이 없으면 **자동 산출**(불량들의 계획 기간)로 내려간다 ─────
+     🎯 머지 후 문서와 **같은 `resolveActionPeriod`**(수기 > 자동)를 탄다. 우선순위가 갈리면
+     저장된 완료일과 별지 11호가 인쇄하는 일자가 달라지는데 **각자의 산출물만 보면 둘 다 옳아
+     보인다**. 이 시점에 계획 기간을 가진 불량은 D2뿐이라 자동 종료일 = KEEP_END다. */
   await setPeriodRow('')
   await page.reload()
   await page.waitForLoadState('networkidle').catch(() => {})
   const box3 = page.getByLabel(`${D3} 조치 완료`)
   await box3.waitFor({ state: 'visible' })
-  check('4-1 기간이 없으면 무엇을 먼저 할지 안내한다',
-    (await page.getByText('총 이행기간이 아직 없습니다').count()) > 0)
   await box3.check()
+  check('★ 4-1 수기 기간이 없으면 자동 산출 종료일(=문서가 인쇄하는 값)을 쓴다',
+    await waitCol(D3, 'action_completed_at', KEEP_END), `값='${await dbCol(D3, 'action_completed_at')}'`)
+  /* 🚨 음성 — D3 자기 행엔 계획 종료일이 없다. 값이 들어갔다는 건 자동 산출을 탔다는 뜻이고,
+     만약 오늘이 들어왔다면 그건 근거 없는 날짜다. */
+  check('★ 4-2 (음성) 오늘 날짜가 아니다',
+    (await dbCol(D3, 'action_completed_at')) !== TODAY, `오늘=${TODAY}`)
+  await box3.uncheck()
+  await waitCol(D3, 'action_completed_at', null)
+
+  /* ───── ④-b 근거가 하나도 없으면 **거절한다**(오늘로 떨어지지 않는다) ─────
+     수기 기간도 없고 어떤 불량도 계획 기간이 없는 상태 — 자동 산출조차 불가능한 자리다.
+     ⚠ 이 갈래를 지우면 「오늘로 떨어지지 않는다」를 실증하는 단언이 이 스위트에서 사라진다. */
+  const { error: clrErr } = await raw.from('inspection_defects')
+    .update({ action_start: null, action_end: null }).eq('inspection_id', insp)
+  if (clrErr) throw new Error(`계획 기간 비우기 실패: ${clrErr.message}`)
+  await page.reload()
+  await page.waitForLoadState('networkidle').catch(() => {})
+  await page.getByLabel(`${D3} 조치 완료`).waitFor({ state: 'visible' })
+  check('4-3 근거가 없으면 무엇을 먼저 할지 안내한다',
+    (await page.getByText('총 이행기간이 아직 없습니다').count()) > 0)
+  await page.getByLabel(`${D3} 조치 완료`).check()
   await page.waitForTimeout(3000)
-  /* 🚨🚨 가장 중요한 단언 — 기간도 계획 종료일도 없는데 날짜가 들어가면, 그 값은 **오늘**이고
+  /* 🚨🚨 이 스위트에서 가장 중요한 단언 — 근거가 없는데 날짜가 들어가면 그 값은 **오늘**이고,
      근거 없는 날짜가 별지 11호에 그대로 찍힌다. 화면상으로는 아무 문제가 없어 보인다. */
-  check('★ 4-2 기간도 계획 종료일도 없으면 저장되지 않는다',
+  check('★ 4-4 근거가 하나도 없으면 저장되지 않는다',
     (await dbCol(D3, 'action_completed_at')) === null, `값='${await dbCol(D3, 'action_completed_at')}'`)
-  check('4-3 거절 사유가 화면에 뜬다', (await page.getByText('총 이행기간이 아직 없습니다').count()) > 0)
+  check('4-5 거절 사유가 화면에 뜬다', (await page.getByText('총 이행기간이 아직 없습니다').count()) > 0)
+  // D2의 손입력 일정 복구 — 아래 ⑤ 일괄이 '덮지 않는가'를 이 값으로 판정한다
+  const { error: rstErr } = await raw.from('inspection_defects')
+    .update({ action_start: KEEP_START, action_end: KEEP_END })
+    .eq('inspection_id', insp).eq('defect_name', D2)
+  if (rstErr) throw new Error(`D2 일정 복구 실패: ${rstErr.message}`)
 
   /* ───────────────────── ⑤ 기간 일괄 적용 ───────────────────── */
   await setPeriodRow(`${P_START} ~ ${P_END}`)
@@ -153,15 +182,23 @@ try {
   const msg = await page.getByTestId('apply-period-result').innerText().catch(() => '')
   check('5-5 건너뛴 건수를 말한다(「전건 적용됨」으로 읽히면 안 된다)', /건너뛰/.test(msg), msg)
 
-  /* ─────── ⑥ 폴백: 기간이 없어도 그 행의 계획 종료일이 있으면 그걸 쓴다 ─────── */
+  /* ─────── ⑥ 완료일은 **한 회차에 하나**다 (자기 행 종료일이 아니다) ───────
+     🎯 별지 11호는 `unifyDoneDates`로 전 행에 **같은 날짜**를 인쇄한다(2026-09-10 사용자 지시,
+     「한 서식의 4행이 서로 다른 날짜를 말하지 않게」). 저장값도 같은 규칙을 타야 두 축이 안 갈린다.
+     지금 D1은 P_END(08-15), D2는 KEEP_END(07-20)를 갖고 있으므로 자동 산출 종료일은 **최대인
+     P_END**다 — D2를 체크해도 자기 종료일이 아니라 그 값이 들어가야 한다. */
   await setPeriodRow('')
   await page.goto(`${BASE}/inspections/${insp}?step=6`)
   await page.waitForLoadState('networkidle').catch(() => {})
   const box2 = page.getByLabel(`${D2} 조치 완료`)
   await box2.waitFor({ state: 'visible' })
   await box2.check()
-  check('★ 6-1 기간이 없으면 그 불량의 계획 종료일로 내려간다',
-    await waitCol(D2, 'action_completed_at', KEEP_END), `값='${await dbCol(D2, 'action_completed_at')}'`)
+  check('★ 6-1 완료일은 회차의 이행기간 종료일이다', await waitCol(D2, 'action_completed_at', P_END),
+    `값='${await dbCol(D2, 'action_completed_at')}'`)
+  /* 🚨 음성 — 자기 행의 계획 종료일(07-20)이 들어가면 행마다 날짜가 달라지고, 그건 이 차수가
+     없애러 온 「한 서식이 여러 날짜를 말하는」 상태다. 문서는 통일된 값을 인쇄하므로 갈린다. */
+  check('★ 6-2 (음성) 자기 행의 계획 종료일이 아니다',
+    (await dbCol(D2, 'action_completed_at')) !== KEEP_END, `자기 종료일=${KEEP_END}`)
 
   /* ───── ① 불량 카드 — **이웃 표면**도 같은 규약인가 ─────
      완료일을 쓰는 화면은 둘이다. 한쪽만 체크로 바꾸면 다른 쪽에서 여전히 손으로 치게 되고,
