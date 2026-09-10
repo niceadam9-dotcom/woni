@@ -1,15 +1,24 @@
 'use client'
 
-import { useRef, useState, useTransition } from 'react'
+import { useEffect, useRef, useState, useTransition } from 'react'
 import { Camera, Check, Loader2 } from 'lucide-react'
-import { updateDefectActionAction, uploadDefectPhotoAction } from '@/app/(dashboard)/inspections/defect-actions'
+import {
+  updateDefectActionAction, uploadDefectPhotoAction,
+  getActionPeriodAction, setDefectCompletionAction, applyActionPeriodToPlansAction,
+  type ActionPeriod,
+} from '@/app/(dashboard)/inspections/defect-actions'
 import { DateInput } from '@/components/ui/date-input'
 import { dateRangeError, isEndBeforeStart } from '@/lib/date-range'
 
 /** 불량 표 편집 (소방계획서_21 R6-7) — 불량마다 폼을 펼치지 않고 한 표에서 고친다.
- *  행 = 불량 1건, 칸 = 계획 내용 · 계획 기간 · 완료 내용 · 완료일 · 전/후 사진.
+ *  행 = 불량 1건, 칸 = 계획 내용 · 계획 기간 · 완료 내용 · 완료 · 전/후 사진.
  *  칸을 떠날 때(blur) 저장한다 — 타이핑 중 저장하면 부분 문장이 문서에 실리므로 디바운스가 아니라 blur다.
- *  원본 액션은 불량 카드(inspection-defects-client)와 같은 것을 쓴다 — 저장 경로는 하나다. */
+ *  원본 액션은 불량 카드(inspection-defects-client)와 같은 것을 쓴다 — 저장 경로는 하나다.
+ *
+ *  📌 **날짜는 총 이행기간에서 파생된다**(2026-09-10 사용자 결정). ⑥의 완료일은 손으로 치지 않고
+ *     체크 한 번으로 기간 종료일이 들어가며, ⑤의 계획 기간은 [빈 칸에 일괄 적용]이 채운다.
+ *     ⚠ 파생 규칙 자체는 **서버에 있다**(defect-actions `loadActionPeriod`) — 여기서 날짜를 만들면
+ *     ④에서 기간을 고친 직후 낡은 값이 제출 문서에 인쇄된다(아래 F-21 주석과 같은 계열의 함정). */
 
 export type GridDefect = {
   id: string
@@ -46,7 +55,7 @@ const SEV_CLS: Record<string, string> = {
  *    planned = action_plan 또는 action_start가 있는 건 · done = action_completed_at이 있는 건 */
 export type DefectTally = { planned: number; done: number; total: number }
 
-export function DefectGrid({ defects, inspectionId, canEdit, mode, onSaved, onPhotoDone, edits: editsProp, onEditsChange }: {
+export function DefectGrid({ defects, inspectionId, canEdit, mode, onSaved, onPhotoDone, onServerChanged, edits: editsProp, onEditsChange }: {
   defects: GridDefect[]
   inspectionId: string
   canEdit: boolean
@@ -60,6 +69,12 @@ export function DefectGrid({ defects, inspectionId, canEdit, mode, onSaved, onPh
    *  사진은 planned/done을 바꾸지 않고 photoPairs(서버 계산)만 바꾼다. 희소 경로라
    *  (실측 업로드 8.4초·연 몇 회) 여기서는 서버 갱신을 그대로 두는 편이 옳다. */
   onPhotoDone?: () => void
+  /** 서버가 **여러 행을 한꺼번에** 바꿨다(⑤ 기간 일괄 적용). 이때는 로컬 미러로 따라갈 수 없다 —
+   *  어느 행이 채워졌는지 화면은 모르고, 편집분·기준선도 그 값을 본 적이 없다. 부모가 서버에서
+   *  다시 읽어야 한다.
+   *  ⚠ 주지 않으면 `onPhotoDone`으로 떨어진다 — 그쪽도 '서버가 바꿨으니 다시 읽어라'와 같은 뜻의
+   *    희소 경로라 동작은 옳다. 다만 이름이 사실을 말하도록 자리를 따로 냈다(호출부는 점진 전환). */
+  onServerChanged?: () => void
   /** 🔴 F-21 — 편집분을 **부모가** 들고 있게 한다(제어 컴포넌트).
    *
    *  왜: ⑤·⑥ pane은 `sel === …` 조건부 렌더라 단계를 바꾸면 이 컴포넌트가 **언마운트**된다.
@@ -84,6 +99,31 @@ export function DefectGrid({ defects, inspectionId, canEdit, mode, onSaved, onPh
   const [saving, setSaving] = useState<string | null>(null)
   const [justSaved, setJustSaved] = useState<Record<string, boolean>>({})
   const [err, setErr] = useState('')
+
+  /** 머리글에 띄우는 총 이행기간. **표시 전용**이다 — 저장 값은 서버가 쓰기 시점에 다시 읽는다.
+   *
+   *  ⚠ 부모에게서 prop으로 받지 않는다. 작업대의 서버 prop은 세션 내내 갱신되지 않아(F-21)
+   *    ④에서 기간을 고쳐도 여기가 낡은 채 남는다. ⑤·⑥ pane은 조건부 렌더라 단계를 옮길 때마다
+   *    이 컴포넌트가 다시 마운트되므로, 여기서 직접 읽으면 그 왕래가 곧 갱신이 된다. */
+  const [period, setPeriod] = useState<ActionPeriod | null>(null)
+  const [bulk, setBulk] = useState(false)
+  const [bulkMsg, setBulkMsg] = useState('')
+  /** 🔴 왕복 중인 체크 — **낙관적 반영**이다(라이브 프로브가 잡았다).
+   *
+   *  체크박스는 `action_completed_at`이 있는가로 그려지는데 그 값은 서버가 정한다(날짜를 화면이
+   *  모른다). 그래서 낙관 반영이 없으면 **누른 직후 체크가 그대로 풀린다** — 왕복이 끝날 때까지
+   *  화면상 아무 일도 안 일어난 것과 같고, 사용자는 안 눌렸다고 여겨 다시 누른다.
+   *  실패하면 이 값을 지워 원래 상태로 되돌린다(서버가 참이라는 규약은 그대로다). */
+  const [pendingDone, setPendingDone] = useState<Record<string, boolean>>({})
+  useEffect(() => {
+    let alive = true
+    // ⚠ 이 조회만 catch를 단다 — 저장 경로와 달리 **모든 사용자에게 무조건** 도는 자리라
+    //   실패하면 콘솔이 unhandled rejection으로 덮인다. 실패는 곧 '기간 없음' 안내로 떨어진다.
+    void getActionPeriodAction(inspectionId)
+      .then(p => { if (alive) setPeriod(p) })
+      .catch(() => { if (alive) setPeriod(null) })
+    return () => { alive = false }
+  }, [inspectionId])
 
   const rowOf = (d: GridDefect): Row => ({ ...toRow(d), ...edits[d.id] })
   const set = (id: string, patch: Partial<Row>) =>
@@ -148,6 +188,51 @@ export function DefectGrid({ defects, inspectionId, canEdit, mode, onSaved, onPh
       if (r.actionCompletedAt.trim()) done++
     }
     return { planned, done, total: defects.length }
+  }
+
+  /** ⑥ 완료 체크 — 날짜는 **서버가 정한다**(총 이행기간 종료일 → 그 행의 계획 종료일 → 거절).
+   *
+   *  ⚠ commit()을 타지 않는다. commit은 '화면이 들고 있는 값'을 보내는 경로이고, 여기서 보낼 값은
+   *    화면에 없다(서버가 만든다). 대신 저장이 끝나면 **서버가 돌려준 날짜로** 편집분·기준선·집계를
+   *    맞춘다 — F-28이 말하는 '서버가 갖고 있다고 아는 값'을 갱신하지 않으면 다음 델타가 어긋난다. */
+  function toggleDone(d: GridDefect, checked: boolean) {
+    setPendingDone(prev => ({ ...prev, [d.id]: checked }))
+    setSaving(d.id)
+    setErr('')
+    void setDefectCompletionAction({ defectId: d.id, inspectionId, done: checked }).then(res => {
+      setSaving(null)
+      // 낙관 반영을 걷는다 — 성공이면 아래 set()이 같은 값을 실어 화면이 안 흔들리고,
+      // 실패면 서버 값(원래 상태)으로 되돌아간다. 같은 .then 안이라 한 번에 그려진다.
+      setPendingDone(prev => { const next = { ...prev }; delete next[d.id]; return next })
+      if (res.error) { setErr(res.error); return }
+      const next = res.completedAt ?? ''
+      set(d.id, { actionCompletedAt: next })
+      const savedRow: Row = { ...(knownRef.current[d.id] ?? toRow(d)), actionCompletedAt: next }
+      knownRef.current[d.id] = savedRow
+      setJustSaved(prev => ({ ...prev, [d.id]: true }))
+      setTimeout(() => setJustSaved(prev => ({ ...prev, [d.id]: false })), 4000)
+      onSaved?.(tallyWith(d.id, savedRow))
+    })
+  }
+
+  /** ⑤ 계획 기간 일괄 적용 — **빈 칸만** 채운다(서버가 판정한다).
+   *  건너뛴 건수를 그대로 말한다: 「전건 적용됨」으로 읽히면 손으로 정한 일정이 덮인 줄 모른다. */
+  function applyPeriod() {
+    setBulk(true)
+    setErr('')
+    setBulkMsg('')
+    void applyActionPeriodToPlansAction({ inspectionId }).then(res => {
+      setBulk(false)
+      if (res.error) { setErr(res.error); return }
+      if (res.period) setPeriod(res.period)
+      const filled = res.filled ?? 0
+      const skipped = res.skipped ?? 0
+      setBulkMsg(filled === 0
+        ? `채울 빈 칸이 없습니다 — ${skipped}건은 이미 기간이 있어 그대로 두었습니다.`
+        : `${filled}건에 기간을 채웠습니다${skipped > 0 ? ` · ${skipped}건은 이미 값이 있어 건너뛰었습니다` : ''}.`)
+      // 서버가 여러 행을 바꿨다 — 편집분·기준선을 믿을 수 없으니 부모가 서버에서 다시 읽게 한다
+      ;(onServerChanged ?? onPhotoDone)?.()
+    })
   }
 
   /** 날짜는 값 자체가 완결이라 고르는 즉시 저장한다 — 달력 팝업으로 고르면 blur가 오지 않는다.
@@ -236,6 +321,23 @@ export function DefectGrid({ defects, inspectionId, canEdit, mode, onSaved, onPh
   return (
     <div className="space-y-1">
       {err && <p className="px-1 text-form-xs text-red-600">❌ {err}</p>}
+      {/* 총 이행기간 — ⑤ 계획 기간도 ⑥ 완료일도 **여기서 파생된다**. 원천은 ④ 소방서 제출의
+          「총 이행기간」이라 여기서는 보여만 준다(두 자리에서 고치면 어느 쪽이 참인지 사라진다). */}
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 px-1 text-form-2xs" data-testid="defect-grid-period">
+        {period
+          ? <span className="text-ink-sub">총 이행기간 <b className="text-ink">{period.startISO} ~ {period.endISO}</b></span>
+          /* ⚠ 기간이 없으면 완료 체크도 일괄 적용도 쓸 수 없다 — 무엇을 먼저 해야 하는지 말한다.
+             「—」로 적으면 기간이 정해진 것처럼 읽히므로 문장으로 쓴다. */
+          : <span className="text-amber-700">총 이행기간이 아직 없습니다 — ④ 소방서 제출에서 먼저 정해 주세요.</span>}
+        {mode === 'plan' && canEdit && period && (
+          <button type="button" onClick={applyPeriod} disabled={bulk} data-testid="apply-period-bulk"
+            title="계획 기간이 비어 있는 불량에만 총 이행기간을 채웁니다 — 이미 값이 있는 행은 건드리지 않습니다"
+            className="inline-flex items-center gap-1 h-6 px-2 rounded border border-brand-line text-form-2xs text-ink-sub hover:bg-brand-tint disabled:opacity-50">
+            {bulk && <Loader2 className="size-2.5 animate-spin text-brand" />} 빈 칸에 일괄 적용
+          </button>
+        )}
+      </div>
+      {bulkMsg && <p className="px-1 text-form-2xs text-green-600" data-testid="apply-period-result">{bulkMsg}</p>}
       <table className="w-full table-fixed border-collapse text-form-xs" data-testid="defect-grid">
         <thead>
           <tr className="text-left text-form-2xs text-ink-soft">
@@ -248,7 +350,8 @@ export function DefectGrid({ defects, inspectionId, canEdit, mode, onSaved, onPh
               <th className="w-[32%] px-1 pb-1 font-medium">계획 기간</th>
             </>) : (<>
               <th className="w-[32%] px-1 pb-1 font-medium">조치 내용</th>
-              <th className="w-[32%] px-1 pb-1 font-medium">완료일</th>
+              {/* '완료일'이 아니라 '완료' — 날짜는 체크하면 기간 종료일이 들어간다(2026-09-10) */}
+              <th className="w-[32%] px-1 pb-1 font-medium">완료</th>
             </>)}
             <th className="w-[10%] px-1 pb-1 font-medium">사진 전·후</th>
           </tr>
@@ -290,8 +393,33 @@ export function DefectGrid({ defects, inspectionId, canEdit, mode, onSaved, onPh
                       className={`${cell} resize-y`} />
                   </td>
                   <td className="px-1 py-1">
-                    <DateInput value={r.actionCompletedAt} disabled={!canEdit} aria-label={`${d.defect_name} 완료일`}
-                      onChange={e => setDate(d, { actionCompletedAt: e.target.value })} onBlur={() => commit(d)} className={cell} />
+                    {/* 체크 하나가 곧 완료다 — 날짜는 서버가 총 이행기간에서 파생한다(2026-09-10 사용자 결정).
+                        ⚠ checked는 '체크한 적 있는가'가 아니라 **값이 있는가**로 판정한다. 손으로 적힌
+                          과거 완료일도 그대로 체크로 보여야 한다(두 표면이 같은 규칙을 쓰게 한다). */}
+                    <label className="flex items-center gap-1.5">
+                      <input type="checkbox" disabled={!canEdit || saving === d.id}
+                        checked={pendingDone[d.id] ?? !!r.actionCompletedAt.trim()}
+                        aria-label={`${d.defect_name} 조치 완료`}
+                        onChange={e => toggleDone(d, e.target.checked)}
+                        className="size-3.5 shrink-0 accent-brand disabled:opacity-50" />
+                      {/* 날짜는 서버가 정하므로 왕복 중에는 아직 없다 — 그 사이를 '미완료'라 적으면
+                          체크는 켜졌는데 글씨는 미완료인 화면이 된다(서로 다른 말을 한다) */}
+                      {r.actionCompletedAt.trim()
+                        ? <span className="text-form-xs text-ink">{r.actionCompletedAt.slice(0, 10)}</span>
+                        : pendingDone[d.id]
+                          ? <span className="text-form-xs text-ink-meta">저장 중…</span>
+                          : <span className="text-form-xs text-ink-meta">미완료</span>}
+                    </label>
+                    {/* 예외 창구 — 실제 조치일이 기간 종료일과 다를 때만 편다.
+                        평소에 접어 두는 이유: 펴 두면 '쳐야 하는 칸'으로 읽혀 없앤 일이 되돌아온다. */}
+                    {r.actionCompletedAt.trim() && canEdit && (
+                      <details className="mt-1">
+                        <summary className="cursor-pointer text-form-3xs text-ink-meta hover:text-brand">날짜 수정</summary>
+                        <DateInput value={r.actionCompletedAt} aria-label={`${d.defect_name} 완료일`}
+                          onChange={e => setDate(d, { actionCompletedAt: e.target.value })} onBlur={() => commit(d)}
+                          className={`${cell} mt-1`} />
+                      </details>
+                    )}
                   </td>
                 </>)}
                 {/* 전·후를 한 행에 나란히 — 쌍이 맞는지는 나란히 놓아야 보인다(별지 11호 증빙) */}

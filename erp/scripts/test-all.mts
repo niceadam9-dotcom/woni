@@ -149,6 +149,11 @@ const steps: Step[] = [
   // ① '불량 내역' 칸은 **서버가 그려 준 노드**라 그 미러가 안 닿는다 — 독립 판정이 라이브로
   // 잡은 회귀다. 지적받은 표면만 고치면 이웃이 남는다([[feedback_fix_the_sibling_too]]).
   { name: '불량표 → ① 칸 반영(E2E)',     cmd: 'npx tsx scripts/test-workbench-defect-pane1.mts', needServer: true },
+  // ⑥ 완료 체크·⑤ 기간 일괄 적용(2026-09-10) — **구조 검사로는 닿지 않는 축**이라 따로 둔다.
+  // 같은 차수의 test-action-period-derive는 "체크박스가 그려져 있다"까지만 말한다. 실제로 이
+  // 프로브가 제품 결함을 하나 잡았다: 제어 컴포넌트라 **누른 직후 체크가 그대로 풀렸다**(날짜를
+  // 서버가 정하므로 왕복 전에는 화면에 값이 없다) — 낙관 반영으로 고쳤고 그 회귀를 여기서 막는다.
+  { name: '⑥ 완료 체크·⑤ 일괄(E2E)',    cmd: 'npx tsx scripts/test-defect-completion-checkbox.mts', needServer: true },
   // S4-1 — 저장 속도 회귀 예산. 임의 상수가 아니라 S1 대조군 관측 최댓값(21,918ms)×0.5다.
   // ⚠ 연속 2셀을 잰다: 종전 결함은 셀마다 **누적**되는 종류라 1회만 재면 못 잡는다(F-11).
   { name: '작업대 저장 예산(E2E)',       cmd: 'npx tsx scripts/test-workbench-save-budget.mts', needServer: true },
@@ -239,6 +244,11 @@ const steps: Step[] = [
   // 수식이 살아 있으면 Excel이 열면서 실제 완료일을 계획 종료일로 되돌린다(D-2) — 값맵 검사로는
   // 절대 안 잡히는 축이라 별도 스위트로 둔다.
   { name: '완료보고서 8칸 주입 왕복',   cmd: 'npx tsx --conditions=react-server scripts/test-done-sheet-inject.mts' },
+  // ⑥ 완료일을 **손으로 치지 않게** 한 뒤(2026-09-10 사용자 결정) 그 파생 규칙을 고정한다.
+  // 등재 이유: 이 축의 회귀는 **화면상 아무 문제가 없어 보인다** — 폴백이 오늘로 떨어져도 체크는
+  // 잘 되고, 근거 없는 날짜가 별지 11호 「이행조치 일자」에 그럴듯하게 찍힐 뿐이다. 그리고 위 두
+  // 스위트는 값이 **들어가기만 하면** 초록이라 이 변경을 한 건도 보지 않는다(직접 변이로 확인했다).
+  { name: '이행기간 파생(완료일·일괄)',  cmd: 'npx tsx --conditions=react-server scripts/test-action-period-derive.mts' },
   // 펌프성능시험 실측치(소방계획서_21 R5-9) — 판정자 3인까지 거쳤는데 **등재만 빠져 있었다**
   // (2026-09-08 발견). 이 값은 엑셀 폐지(R5-6) 뒤 **유일한 기록처**라 조용히 깨지면 대안이 없다.
   // 표가 붙는 설비 목록(고시 8개: 2·3·4·5·6·7·8·13)·자동 판정 대상과 비대상(②'규정치'는

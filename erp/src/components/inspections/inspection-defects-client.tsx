@@ -7,6 +7,7 @@ import {
   uploadDefectPhotoAction,
   deleteDefectAction,
   updateDefectActionAction,
+  setDefectCompletionAction,
   getDefectSuggestionsAction,
   type DefectSeverity,
 } from '@/app/(dashboard)/inspections/defect-actions'
@@ -223,6 +224,32 @@ function DefectActionSection({ defect, inspectionId, canEdit }: {
     })
   }
 
+  /** ⑥ 완료 체크 — **날짜를 손으로 치지 않는다**(2026-09-10 사용자 결정). ⑤⑥ 불량표와 같은 규약이다.
+   *
+   *  ⚠ 이 카드는 [저장] 버튼으로 **바뀐 칸만** 보내는 구조라(F-27), 체크가 서버에 직접 쓰면
+   *    기준선 `syncedRef`가 낡는다. 그러면 그 뒤 [저장]이 **낡은 날짜를 되돌려 보낸다** —
+   *    그래서 저장 성공 시 기준선의 date도 함께 옮긴다(save()가 보낸 값을 기준선으로 치는 것과 같다).
+   *  ⚠ 낙관 반영이 필요하다: 날짜를 서버가 정하므로 왕복 전엔 화면에 값이 없어, 없으면
+   *    누른 직후 체크가 그대로 풀린다(불량표에서 라이브 프로브가 실제로 잡은 결함). */
+  const [donePending, setDonePending] = useState<boolean | null>(null)
+  const [doneBusy, setDoneBusy] = useState(false)
+  function toggleDone(checked: boolean) {
+    setDonePending(checked)
+    setDoneBusy(true)
+    setMsg('')
+    void setDefectCompletionAction({ defectId: defect.id, inspectionId, done: checked }).then(res => {
+      setDoneBusy(false)
+      setDonePending(null)
+      if (res.error) { setMsg(`❌ ${res.error}`); return }
+      const next = res.completedAt ?? ''
+      setDate(next)
+      syncedRef.current = { ...syncedRef.current, date: next }
+      setMsg(checked ? '조치 완료를 저장했습니다.' : '조치 완료를 해제했습니다.')
+      // F-24 2차 — 이 카드에는 미러가 없다. ⑤⑥ 표가 같은 값을 보므로 서버에서 다시 읽는다
+      setTimeout(() => router.refresh(), 0)
+    })
+  }
+
   const done = !!defect.action_completed_at
   const planned = !!(defect.action_plan || defect.action_start)
   return (
@@ -250,8 +277,19 @@ function DefectActionSection({ defect, inspectionId, canEdit }: {
             <textarea rows={2} value={taken} onChange={e => setTaken(e.target.value)} disabled={!canEdit}
               placeholder="조치 내용" className="w-full border rounded px-2 py-1.5 text-sm resize-none" />
             <div className="flex items-center gap-2">
-              <span className="text-xs text-gray-500 shrink-0">조치완료일</span>
-              <DateInput value={date} onChange={e => setDate(e.target.value)} disabled={!canEdit} className="text-sm" />
+              <span className="text-xs text-gray-500 shrink-0">조치 완료</span>
+              {/* 체크 하나가 곧 완료다 — 날짜는 서버가 총 이행기간 종료일에서 파생한다.
+                  ⚠ checked는 '체크한 적 있는가'가 아니라 **값이 있는가**로 판정한다
+                    (손으로 적힌 과거 완료일도 그대로 체크로 보여야 두 표면이 같은 말을 한다). */}
+              <label className="flex items-center gap-1.5">
+                <input type="checkbox" disabled={!canEdit || doneBusy}
+                  checked={donePending ?? !!date.trim()} aria-label={`${defect.defect_name} 조치 완료`}
+                  onChange={e => toggleDone(e.target.checked)}
+                  className="size-3.5 shrink-0 accent-brand disabled:opacity-50" />
+                <span className="text-xs text-gray-600">
+                  {date.trim() ? date.slice(0, 10) : donePending ? '저장 중…' : '미완료'}
+                </span>
+              </label>
               {canEdit && (
                 <button onClick={save} disabled={pending || !!rangeErr}
                   title={rangeErr ?? undefined}
@@ -260,6 +298,15 @@ function DefectActionSection({ defect, inspectionId, canEdit }: {
                 </button>
               )}
             </div>
+            {/* 예외 창구 — 실제 조치일이 기간 종료일과 다를 때만 편다(평소 펴 두면 '쳐야 하는 칸'이 된다).
+                이 칸은 위 체크와 달리 [저장]을 거쳐 나간다 — 카드의 부분 송신 규약을 그대로 탄다. */}
+            {date.trim() && canEdit && (
+              <details>
+                <summary className="cursor-pointer text-[11px] text-gray-500 hover:text-brand">날짜 수정</summary>
+                <DateInput value={date} onChange={e => setDate(e.target.value)} aria-label={`${defect.defect_name} 완료일`}
+                  className="text-sm mt-1" />
+              </details>
+            )}
             {msg && <p className={`text-[11px] ${msg.startsWith('❌') ? 'text-red-600' : 'text-green-600'}`}>{msg}</p>}
           </div>
         </div>

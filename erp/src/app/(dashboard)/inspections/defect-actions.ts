@@ -4,9 +4,36 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { requireRole, getSessionUser, requirePermission } from '@/lib/auth'
 import { syncStepsAndRevalidate, revalidateInspection } from './step-revalidate'
 import { extractStoragePath } from '@/lib/defect-photos'
-import { dateRangeError } from '@/lib/date-range'
+import { dateRangeError, splitRange } from '@/lib/date-range'
+import { loadAnnexInputs, fstr } from '@/lib/report9-assemble'
+import { completionDateFrom, isPlanFillTarget } from '@/lib/action-period-derive'
 
 export type DefectSeverity = '경미' | '보통' | '중대'
+
+export type ActionPeriod = { startISO: string; endISO: string }
+
+/** ⑤ 계획 기간·⑥ 완료일이 **둘 다 파생되는 원천** — 별지 10호 `totalPeriod`(2026-09-10 사용자 결정).
+ *
+ *  ⚠ 클라이언트가 들고 있는 값을 **받지 않는다**. 작업대의 서버 prop은 세션 내내 갱신되지 않아서
+ *    (같은 파일 :175 F-21 주석 참조) ④에서 기간을 고친 직후 화면 값이 낡는데, 그 낡은 날짜는
+ *    별지 11호 「이행조치 일자」에 **그대로 인쇄된다**. 그래서 쓰기 시점마다 서버가 다시 읽는다.
+ *  ⚠ 파싱은 `splitRange` 한 곳에서만 한다 — 구분자 규칙을 여기 다시 적으면 화면과 조용히 갈린다.
+ *  ⚠ 읽기도 `loadAnnexInputs` 공용을 쓴다(문서 조립기와 같은 행·같은 키를 보게 하려고). */
+async function loadActionPeriod(
+  admin: ReturnType<typeof createAdminClient>, inspectionId: string,
+): Promise<ActionPeriod | null> {
+  const fields = await loadAnnexInputs(admin, inspectionId, 'report10')
+  const [startISO, endISO] = splitRange(fstr(fields, 'totalPeriod'))
+  return startISO && endISO ? { startISO, endISO } : null
+}
+
+/** 불량표가 머리글에 띄우는 값. 없으면 null — 호출부가 '아직 없습니다'를 그리게 한다
+ *  (「—」로 적으면 기간이 정해진 것처럼 읽힌다). */
+export async function getActionPeriodAction(inspectionId: string): Promise<ActionPeriod | null> {
+  const user = await getSessionUser()
+  if (!user) return null
+  return loadActionPeriod(createAdminClient(), inspectionId)
+}
 
 // 불량내역 추가
 export async function addDefectAction(input: {
@@ -184,6 +211,89 @@ export async function updateDefectActionAction(input: {
   //    router.refresh()를 걷어내며 서버 prop이 세션 내내 갱신되지 않게 됐기 때문).
   await syncStepsAndRevalidate(admin, input.inspectionId, user.id)
   return {}
+}
+
+/** ⑥ 불량 조치 완료 — **날짜를 손으로 치지 않는다**(2026-09-10 사용자 결정).
+ *
+ *  체크 한 번으로 `action_completed_at`을 채운다. 값은 총 이행기간의 **종료일**이고, 기간이 없으면
+ *  그 불량의 계획 종료일(`action_end`)로 한 칸 내려간다. **둘 다 없으면 거절한다** — 오늘 날짜를
+ *  몰래 넣으면 근거 없는 날짜가 별지 11호 「이행조치 일자」에 그대로 찍히고 아무도 모른다.
+ *
+ *  ⚠ **이미 들어 있는 날짜는 덮지 않는다.** 손으로 적은 실제 조치일이 있으면 그게 파생값보다 정확하다
+ *    (체크 상태는 '값이 있는가'이므로 그 행은 이미 체크로 보인다 — 다시 눌러도 바뀔 것이 없다).
+ *  ⚠ 해제는 `null`로 되돌린다. ⑤ 단계 완료 판정이 이 칸 하나에 걸려 있어(inspection-step-sync :108)
+ *    해제하면 ⑤도 함께 열린다 — updateDefectActionAction의 R4-6 규약과 같다. */
+export async function setDefectCompletionAction(input: {
+  defectId: string
+  inspectionId: string
+  done: boolean
+}): Promise<{ error?: string; completedAt?: string | null }> {
+  // 표의 다른 칸과 같은 권한 축 — 'use server' export는 그 자체가 공개 엔드포인트다
+  const user = await requirePermission('inspection_register')
+  const admin = createAdminClient()
+
+  if (!input.done) {
+    const { error } = await admin
+      .from('inspection_defects').update({ action_completed_at: null }).eq('id', input.defectId)
+    if (error) return { error: '완료 해제에 실패했습니다.' }
+    await syncStepsAndRevalidate(admin, input.inspectionId, user.id)
+    return { completedAt: null }
+  }
+
+  // data만 보면 없는 컬럼 하나가 조용한 0행이 된다 — error를 함께 본다
+  const { data: cur, error: curErr } = await admin
+    .from('inspection_defects').select('action_end, action_completed_at').eq('id', input.defectId).single()
+  if (curErr) return { error: '조치 완료 저장에 실패했습니다.' }
+  const row = cur as { action_end: string | null; action_completed_at: string | null }
+  if (row.action_completed_at) return { completedAt: row.action_completed_at.slice(0, 10) }
+
+  const period = await loadActionPeriod(admin, input.inspectionId)
+  // 폴백 사다리는 `action-period-derive`가 단일 원천이다 — 여기 다시 적으면 검사가 닿지 않는다
+  const completedAt = completionDateFrom(period?.endISO, row.action_end)
+  if (!completedAt) {
+    return { error: '총 이행기간이 아직 없습니다 — ④ 소방서 제출의 「총 이행기간」을 먼저 정해 주세요.' }
+  }
+
+  const { error } = await admin
+    .from('inspection_defects').update({ action_completed_at: completedAt }).eq('id', input.defectId)
+  if (error) return { error: '조치 완료 저장에 실패했습니다.' }
+  await syncStepsAndRevalidate(admin, input.inspectionId, user.id)
+  return { completedAt }
+}
+
+/** ⑤ 이행계획 — 총 이행기간을 불량들의 계획 기간에 **빈 칸만** 채운다(2026-09-10 사용자 결정).
+ *
+ *  ⚠ **값이 있는 행은 건너뛴다.** 한 번의 클릭이 손으로 정한 개별 일정을 지우면 되돌릴 방법이 없다.
+ *    건너뛴 건수를 함께 돌려주는 이유도 그것이다 — 화면이 「전건 적용됨」으로 읽히면 거짓말이 된다.
+ *  ⚠ 시작·종료를 **한 쌍으로** 판정한다(둘 중 하나라도 있으면 건너뜀). 한쪽만 채우면
+ *    기간 뒤집힘이 생길 수 있고, 그건 저장 경로가 막는 바로 그 조합이다. */
+export async function applyActionPeriodToPlansAction(input: {
+  inspectionId: string
+}): Promise<{ error?: string; filled?: number; skipped?: number; period?: ActionPeriod }> {
+  const user = await requirePermission('inspection_register')
+  const admin = createAdminClient()
+
+  const period = await loadActionPeriod(admin, input.inspectionId)
+  if (!period) {
+    return { error: '총 이행기간이 아직 없습니다 — ④ 소방서 제출의 「총 이행기간」을 먼저 정해 주세요.' }
+  }
+
+  const { data, error: listErr } = await admin
+    .from('inspection_defects').select('id, action_start, action_end').eq('inspection_id', input.inspectionId)
+  if (listErr) return { error: '불량 목록을 불러오지 못했습니다.' }
+  const rows = (data ?? []) as Array<{ id: string; action_start: string | null; action_end: string | null }>
+
+  const targets = rows.filter(isPlanFillTarget)
+  if (targets.length > 0) {
+    const { error } = await admin
+      .from('inspection_defects')
+      .update({ action_start: period.startISO, action_end: period.endISO })
+      .in('id', targets.map(t => t.id))
+    if (error) return { error: '이행기간 적용에 실패했습니다.' }
+  }
+  // 계획이 생기면 ⑤의 분자가 움직인다 — 목록 진행률까지 바뀌므로 alsoChanged
+  await syncStepsAndRevalidate(admin, input.inspectionId, user.id, { alsoChanged: true })
+  return { filled: targets.length, skipped: rows.length - targets.length, period }
 }
 
 // 불량내역 삭제
