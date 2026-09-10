@@ -189,23 +189,45 @@ export function annexDoneRows(
 
 /** 별지 10호 「이행조치 계획사항」 7행 — 별지 9호 조립본 하나에서 파생시킨다.
  *
- *  ⚠ 문구도 일자도 **여기서 새로 만들지 않는다**: 문구는 8쪽·갑지 현5와 같은 `foldDefectGroups`,
- *  일자는 갑지 `계획서!K·P·O`와 같은 `actionGroupPeriods`다. 규칙을 다시 적으면 PDF와 엑셀이
- *  조용히 갈라진다(D-7 — 이 파일이 존재하는 이유). */
+ *  ⚠ **문구는** 여기서 새로 만들지 않는다 — 8쪽·갑지 현5와 같은 `foldDefectGroups`다
+ *  (규칙을 다시 적으면 PDF와 엑셀이 조용히 갈라진다. D-7 — 이 파일이 존재하는 이유).
+ *
+ *  🎯 **일자 칸 = 「결과참조」**(2026-09-10 사용자 지시). 가리키는 곳은 **같은 서식 아래쪽의
+ *    「이행조치 필요기간」** 한 줄이다(별지 9호가 아니다 — 사용자 확인).
+ *    종전에는 설비 구분마다 `actionGroupPeriods`를 찍어 한 서식이 서로 다른 날짜를 말했다.
+ *    그렇다고 총 이행기간을 7행에 복제하면 이번엔 **같은 기간이 여덟 번**(7행 + 필요기간)
+ *    인쇄된다. 소방서가 승인하는 이행기간은 하나이고 그 자리는 「이행조치 필요기간」이므로,
+ *    7행은 값을 복제하는 대신 그리로 **가리키기만** 한다.
+ *
+ *  ⚠ 법정 서식 원문(`erp_goal/_form/[별지_제10호서식]…홈페이지_게시용.hwp` 실측 2026-09-10)에는
+ *    **작성방법 조항이 없다** — 유의 사항은 과태료(법 제61조제1항 8·9호) 2줄뿐이라 이 표기를
+ *    막는 규정이 없다. 원문 일자 칸은 `.  .  .  ~  .  .  .`(기간 자리표)이고 자유 기재 **4행**이다
+ *    — 설비 구분 7행은 갑지 엑셀 `계획서` 시트에서 온 우리 확장이지 법정 서식 구조가 아니다.
+ *  🚨 **갑지 엑셀은 날짜를 그대로 유지한다 — 통일하지 말 것**(2026-09-10 사용자 결정).
+ *    `계획서!K·P·O` 21칸은 엑셀 날짜 셀(serial)이라 문자열을 못 받는다. **의도된 D-7 예외**이니
+ *    "갈라졌다"며 맞추지 말 것(같은 취지가 `xlsx-workbook.ts`의 그 자리에도 적혀 있다).
+ *  ⚠ 어휘는 `DEFECT_FOLD_TEXT.refer`를 그대로 쓴다 — 새 말을 만들지 않는다(D-7과 같은 이유).
+ *    같은 낱말이 「이행조치 사항」 칸에서는 '불량은 있는데 내용 미입력'을 뜻한다. 뜻이 다르지만
+ *    그 행은 `isNote`라 일자 칸이 `—`이므로 **한 행에서 둘이 겹치지 않는다**.
+ *  ⚠ `actionGroupPeriods`는 **지우지 않는다** — 타입·조립본에 남아 있고, 갑지 엑셀이 「그 구분에
+ *    계획이 있는가」 판정에 계속 쓴다. 여기서 값으로 소비만 하지 않는다. */
 export function annexPlanRows(d: Report9Data): AnnexPlanRow[] {
   // ⚠ 미공급(구 호출부·픽스처·대장 공란)이면 **자동 문구를 쓰지 않는다** — 종전처럼 그 구분의 불량
   //   내용을 그대로 싣는다. 종전 `?? []`는 미공급을 '전 구분 미해당'으로 읽어 7행을 전부
   //   「해당없음」으로 단정했다(2026-09-08 정정 — 8쪽·현5의 미공급 대조군과 축을 맞춘다).
   const folds = d.applicableGroups ? foldDefectGroups(d.defectRows, d.applicableGroups) : null
+  // 이행기간이 **있는가**만 본다 — 값은 「이행조치 필요기간」 한 줄이 싣고 7행은 가리키기만 한다.
+  //   수기 보정(annex_inputs)만 있고 자동 산출이 없는 회차는 조립 뒤 report9-actions가 같은 값을 얹는다.
+  const hasPeriod = !!d.actionPeriod
   return DEFECT_GROUPS.map(group => {
     const f = folds?.get(group)
-    const gp = d.actionGroupPeriods?.[group] ?? null
     return {
       group,
       content: !folds ? d.defectRows.filter(r => r.group === group).map(r => r.content).join('\n')
         : !f ? '' : f.kind === 'rows' ? f.rows.map(r => r.content).join('\n') : DEFECT_FOLD_TEXT[f.kind],
-      period: gp ? `${kdate(gp.startISO)} ~ ${kdate(gp.endISO)}` : '',
-      days: gp ? String(gp.days) : '',
+      period: hasPeriod ? DEFECT_FOLD_TEXT.refer : '',
+      // ⚠ 비운다. 렌더가 값이 있을 때만 `(총 N 일)`을 붙이므로 「결과참조(총  일)」이 되지 않는다.
+      days: '',
       // 자동 문구 줄이면 일자 칸을 자리표 대신 `—`로(Q-5 b안). **생산자가 표시한다** —
       // 렌더가 글자로 알아보면 사용자가 조치 내용에 「해당없음」이라 적었을 때 진짜 이행조치의
       // 날짜가 조용히 사라진다. 미공급(folds 없음)은 종전 렌더 그대로라 표시하지 않는다.

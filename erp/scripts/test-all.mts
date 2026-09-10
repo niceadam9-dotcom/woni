@@ -249,6 +249,17 @@ const steps: Step[] = [
   // 잘 되고, 근거 없는 날짜가 별지 11호 「이행조치 일자」에 그럴듯하게 찍힐 뿐이다. 그리고 위 두
   // 스위트는 값이 **들어가기만 하면** 초록이라 이 변경을 한 건도 보지 않는다(직접 변이로 확인했다).
   { name: '이행기간 파생(완료일·일괄)',  cmd: 'npx tsx --conditions=react-server scripts/test-action-period-derive.mts' },
+  // ④ 「총 이행기간(수동 보정)」이 **갑지 엑셀까지** 닿는가 + 11호 완료 일자 통일(2026-09-10 사용자 지시).
+  // 🚨 등재 이유: 이 축을 단언하는 검사가 **하나도 없었다**. 라우트가 annex_inputs의 report11만
+  //   읽고 report10을 안 읽어서, 사용자가 기간을 고치면 PDF 10호만 바뀌고 엑셀은 자동 산출값을
+  //   찍었다 — 개요!G9·I9·J9·**G10(이행조치일자)**과 계획서 21칸이 통째로 PDF와 다른 날짜였다.
+  //   그런데 `test-report10-plan-rows`는 PDF HTML만 보고 `test-xlsx-anchors`는 칸의 존재만 봐서
+  //   두 스위트 모두 초록이었다.
+  // ⚠ [G][H]가 **두 라우트/액션 소스의 배선**을 따로 센다 — 값 단언만으로는 "포장은 옳은데 요청이
+  //   안 나가는" 형태를 못 본다(직접 변이 3건으로 확인).
+  // ⚠ 위 `별지 11호 완료 축`의 「PDF 무손상」 대조군은 **순수층만** 덮는다(내 변경은 조립 오버레이다) —
+  //   그 초록을 「PDF가 안 바뀌었다」의 근거로 읽으면 틀린다. 조립층은 여기 [H]가 본다.
+  { name: '총 이행기간 → 엑셀·11호 착지', cmd: 'npx tsx --conditions=react-server scripts/test-annex-total-period.mts' },
   // 펌프성능시험 실측치(소방계획서_21 R5-9) — 판정자 3인까지 거쳤는데 **등재만 빠져 있었다**
   // (2026-09-08 발견). 이 값은 엑셀 폐지(R5-6) 뒤 **유일한 기록처**라 조용히 깨지면 대안이 없다.
   // 표가 붙는 설비 목록(고시 8개: 2·3·4·5·6·7·8·13)·자동 판정 대상과 비대상(②'규정치'는
@@ -375,6 +386,11 @@ const steps: Step[] = [
   // 파일 전부가 고아였다. 버킷 목록과 삭제 액션 소스를 대조해 배선을 고정한다.
   { name: '삭제 스토리지 버킷 커버리지', cmd: 'npx tsx scripts/test-storage-purge-coverage.mts' },
   { name: '게이트 정합성(E2E)',        cmd: 'npx tsx scripts/test-gate-consistency.mts', needServer: true },
+  // 모두 합격 회차의 단계 접기·감추기(2026-09-10). 🚨 등재 이유: 형제인 「게이트 정합성」은
+  // 「6단계가 그대로 보이는가」만 물어서 **줄어드는 쪽이 한 번도 실행되지 않았다** — 첫 구현이
+  // 점검표를 안 채운 새 회차까지 4단계로 줄인 결함도, 분자·분모가 갈라져 「3/4」가 되던 결함도
+  // 이 검사가 잡았다. 6 → 4 → 3을 **같은 회차를 굴리며** 차례로 단언한다.
+  { name: '모두합격 단계 접기(E2E)',   cmd: 'npx tsx scripts/test-allpass-step-collapse.mts', needServer: true },
   { name: '일반관리 자체점검 통주행(E2E)', cmd: 'npx tsx scripts/test-general-selfinspection.mts', needServer: true },
   { name: '문서 생성 회귀(E2E)',           cmd: 'npx tsx scripts/test-doc-generation.mts', needServer: true },
   // 갑지 워크북 실주행 — 라우트는 공개 엔드포인트라 인증 차단·실바이트·주입 값까지 실제로 태운다

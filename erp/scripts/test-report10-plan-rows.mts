@@ -95,11 +95,18 @@ console.log('── C-3. Q-5 — 자동 문구 행의 일자 칸(자리표 대�
 //   그래서 여기서는 **실제 조립 함수**를 부른다.
 {
   const PLACEHOLDER = '(총&nbsp;&nbsp;&nbsp;&nbsp;일)'
+  /* 🎯 2026-09-10 — 일자 칸은 **「결과참조」**다(사용자 지시). 종전엔 설비 구분마다 다른 날짜를
+   *   찍었고, 그렇다고 총 이행기간을 복제하면 한 서식이 같은 기간을 여덟 번(7행 + 필요기간) 말한다.
+   *   소방서가 승인하는 이행기간은 하나이고 그 자리는 「이행조치 필요기간」이므로 7행은 가리키기만 한다.
+   *   두 날짜 축에 **일부러 다른 값**을 넣어 둔다 — 어느 쪽이든 7행에 새어 나오면 잡히게.
+   *     actionPeriod(총)       = 8월 5일 ~ 8월 15일 (10일)  ← **필요기간 행에만** 인쇄
+   *     actionGroupPeriods(구) = 8월 18일 ~ 8월 20일 (3일)  ← 어디에도 인쇄되면 안 되는 값 */
+  const TOTAL = { startISO: '2026-08-05', endISO: '2026-08-15', days: 10 }
+  const GROUP_ONLY = { startISO: '2026-08-18', endISO: '2026-08-20', days: 3 }
   const realRows = annexPlanRows({
     defectRows, applicableGroups,
-    actionGroupPeriods: {
-      소화설비: { startISO: '2026-08-18', endISO: '2026-08-20', days: 3 },
-    },
+    actionPeriod: TOTAL,
+    actionGroupPeriods: { 소화설비: GROUP_ONLY },
   } as never)
   ok(realRows.length === DEFECT_GROUPS.length, `annexPlanRows 7행 (실측 ${realRows.length})`)
   // 자동 문구 행에는 isNote가 붙는다 — 생산자가 표시하는 축(렌더가 글자로 알아보지 않는다)
@@ -109,7 +116,7 @@ console.log('── C-3. Q-5 — 자동 문구 행의 일자 칸(자리표 대�
   ok(realRows.filter(r => !r.isNote).every(r => !['결과참조', '이상없음', '해당없음'].includes(r.content)),
     'isNote 없는 행에는 자동 문구가 없다(축이 어긋나지 않았다)')
 
-  const realHtml = renderReport10({ ...base, planRows: realRows, totalPeriod: '2026년 8월 18일 ~ 2026년 8월 20일', totalDays: '3' })
+  const realHtml = renderReport10({ ...base, planRows: realRows, totalPeriod: '2026년 8월 5일 ~ 2026년 8월 15일', totalDays: '10' })
   // 문구 행 옆의 `~(총  일)` 자리표가 사라졌는가 — 「해당없음」에 기간을 적으라는 말이 되던 자리
   const bodyOnly = realHtml.slice(realHtml.indexOf('이행조치<br>계획사항'))
   ok(!bodyOnly.includes(PLACEHOLDER), '문구 행에 빈 기간 자리표가 없다')
@@ -118,9 +125,37 @@ console.log('── C-3. Q-5 — 자동 문구 행의 일자 칸(자리표 대�
     const cell = seg.slice(0, seg.indexOf('</tr>'))
     ok(cell.includes('>—</td>'), `${g.group}(${g.content}) 일자 칸은 —`)
   }
-  // 실이행조치 행은 종전 그대로 — 축이 과하게 넓어지지 않았는가
-  ok(bodyOnly.includes('2026년 8월 18일 ~ 2026년 8월 20일') && bodyOnly.includes('(총 3 일)'),
-    '실기간이 있는 행은 날짜·총일수 그대로')
+  /* 🚨 구간을 **갈라서** 잰다. `bodyOnly`는 7행과 「이행조치 필요기간」 행을 **둘 다** 품는다 —
+   *   통째로 `includes`를 걸면 필요기간 행의 날짜가 7행 단언을 초록으로 만들어, 이 검사가
+   *   '날짜가 어디에 있는가'를 하나도 고정하지 못한다([[feedback_exhaustive_has_an_axis]] 형태). */
+  const totalAt = bodyOnly.indexOf('이행조치 필요기간')
+  ok(totalAt > 0, '필요기간 행을 찾았다(구간 분할 전제)')
+  const rowsOnly = bodyOnly.slice(0, totalAt)
+  const totalOnly = bodyOnly.slice(totalAt)
+
+  // 실이행조치 행의 일자 칸 = 「결과참조」 (2026-09-10 사용자 지시)
+  const dated = realRows.filter(r => !r.isNote)
+  ok(dated.length > 0, `실이행조치 행 ${dated.length}개(양성 표본 선단언)`)
+  for (const g of dated) {
+    const seg = rowsOnly.slice(rowsOnly.indexOf(`>${g.group}<`))
+    const cell = seg.slice(0, seg.indexOf('</tr>'))
+    ok(cell.includes('>결과참조</td>'), `${g.group} 일자 칸 = 결과참조`)
+    // 「결과참조(총  일)」이 인쇄되던 자리 — days가 비면 꼬리를 안 붙인다
+    ok(!cell.includes('row-days'), `${g.group} 일자 칸에 (총 N 일) 꼬리가 없다`)
+  }
+  // 🚨 음성 대조 ① — **총 이행기간이 7행에 새면 안 된다**. 복제 규칙으로 되돌리면 여기가 붉어진다.
+  ok(!rowsOnly.includes('2026년 8월 5일') && !rowsOnly.includes('(총 10 일)'),
+    '(음성) 총 이행기간은 7행에 안 나온다')
+  // 🚨 음성 대조 ② — 그보다 앞선 규칙(설비 구분별 기간)도 어디에도 안 나온다
+  ok(!bodyOnly.includes('2026년 8월 18일') && !bodyOnly.includes('(총 3 일)'),
+    '(음성) 설비 구분별 기간은 어디에도 안 나온다')
+  // 양성 — 날짜는 「이행조치 필요기간」 한 줄이 **단독으로** 싣는다
+  ok(totalOnly.includes('2026년 8월 5일 ~ 2026년 8월 15일') && totalOnly.includes('(총 10일)'),
+    '총 이행기간은 필요기간 행에 그대로')
+  // 7행 중 일자가 있는 행은 전부 같은 값 — 한 서식이 두 가지를 말하지 않는다
+  const periods = new Set(dated.map(r => `${r.period}|${r.days}`))
+  ok(periods.size === 1 && [...periods][0] === '결과참조|',
+    `일자 있는 ${dated.length}행이 전부 한 값 (실측 ${[...periods].join(' / ')})`)
 }
 
 console.log('── D. 하위 호환(planRows 미공급) ──')

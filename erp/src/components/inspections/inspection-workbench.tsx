@@ -28,6 +28,7 @@ import { kstDate } from '@/lib/kst-date'
 import { confirmSheetProtocolAction } from '@/app/(dashboard)/inspections/sheet-actions'
 import { BundleGeneratePanel } from '@/components/inspections/bundle-generate-panel'
 import { GeneratedDocList } from '@/components/inspections/generated-doc-list'
+import { WorkbookXlsxButton } from '@/components/inspections/workbook-xlsx-button'
 import { AnnexMissingChip } from '@/components/inspections/annex-missing-list'
 import { AnnexPrintButton } from '@/components/customers/annex-print-button'
 import { FIELD_DEFS, AnnexFieldInput, type ComposeAnnexNo, type FieldDef } from '@/components/inspections/annex-fields'
@@ -94,6 +95,8 @@ export function InspectionWorkbench({
     () => new Set(files.map(f => /^([a-z0-9]+)_\d+\./i.exec(f.name)?.[1]).filter(Boolean) as string[]),
     [files])
   const [isPending, startTransition] = useTransition()
+  /** ④를 펼쳤는가 — 모두 합격 회차에서만 쓰인다(그 밖엔 늘 펼쳐져 있다). 접힌 상태가 기본. */
+  const [open4, setOpen4] = useState(false)
   const [subDate9, setSubDate9] = useState(data.submit9.submittedAt ?? '')
   const [subDate11, setSubDate11] = useState(data.submit11.submittedAt ?? '')
   /** 서버가 저장을 확인해 준 제출일 — 무거운 재조회가 끝나기 전까지 화면이 쓸 값 */
@@ -249,15 +252,43 @@ export function InspectionWorkbench({
   const forcedNums = new Set<number>(data.evidence?.forced ?? [])
   const activeNums = activeStepNums(isSpecial, needsRepairSteps)
   const activeSteps: StepKey[] = data.steps.filter(k => activeNums.includes(STEP_NUM[k] as StepNum))
-  const prog = stepProgress(doneByNum, activeNums)
+
+  /** 모두 합격(점검표 ✕ 0 ∪ 불량 0) — ⑤⑥은 `activeStepNums`가 이미 뺐고, ④는 **여기서만** 다룬다.
+   *
+   *  🎯 2026-09-10 사용자 지시: 「④⑤⑥이 더 이상 진행되지 않고 종료되어야 하고, 종료가 보이지
+   *    않았으면 좋겠다」. ⑤⑥은 통째로 감추고(종전엔 회색 「해당없음」 행이 남아 '아직 할 일이
+   *    있다'처럼 읽혔다), ④는 **접었다가 제출되면 감춘다**.
+   *
+   *  🚨 ④를 `activeStepNums`에서 빼지 않는 이유. 그 함수는 알림·목록 배지·모바일이 함께 읽는
+   *    조회 계층(`lib/active-steps.ts`)의 판정이고, **별지 9호 보고는 불량 유무와 무관한 법정
+   *    의무**다(시행규칙 제23조제2항 — 15일). 데이터 축에서 지우면 시스템이 '낼 것이 없다'고
+   *    말하게 된다. 여기서 사라지는 것은 **이 작업대의 표시**뿐이고, 문서 생성·제출일 정정은
+   *    헤더의 [별지서식] 링크(고객 별지서식 탭)에 그대로 남는다.
+   *
+   *  ⚠ `doneByNum[1]`(① 완료)을 **반드시 함께 본다.** `needsRepairSteps`는 ✕·불량이 0이기만 하면
+   *    거짓이라, **점검표를 아직 안 채운 새 회차도 '모두 합격'으로 읽힌다**. 그 상태에서 ⑤⑥을
+   *    감추면 "이 점검은 4단계짜리"라고 말하는 셈이 된다 — 아직 아무것도 안 재 봤는데.
+   *    ④ 칸의 안내 문구가 쓰는 것과 **같은 게이트**다. */
+  const allPass = isSpecial && !needsRepairSteps && doneByNum[1]
+  const step4Settled = allPass && !!submit9At
+  const visibleSteps: StepKey[] = activeSteps.filter(k => !(step4Settled && k === 'submit9'))
+  /** 스텝바에 **그릴** 단계.
+   *
+   *  🚨 `visibleSteps`(=activeSteps)를 그대로 쓰면 안 된다. `activeStepNums`는 ✕·불량이 0이기만
+   *    하면 ⑤⑥을 빼므로, **점검표를 아직 안 채운 새 회차에서도 4개만 그려진다**(E2E 게이트
+   *    정합성이 실제로 6→4로 잡아냈다). 그래서 **모두 합격이 확정된 뒤에만** 줄이고, 그 전에는
+   *    종전대로 6개를 그려 ⑤⑥이 회색 `na`로 '불량이 생기면 활성화'라고 말하게 둔다. */
+  const barSteps: StepKey[] = allPass ? visibleSteps : data.steps
+  const prog = stepProgress(doneByNum, visibleSteps.map(k => STEP_NUM[k] as StepNum))
   const doneCount = prog.done
   const progressPct = prog.pct
-  const nextStep = activeSteps.find(k => !done[k])
+  const nextStep = visibleSteps.find(k => !done[k])
 
-  /** 딥링크 `?step=N`이 지정한 단계 — **활성 단계일 때만** 인정한다. 불량 0건이면 ⑤⑥이 해당없음이라
-   *  (activeSteps) 그 칸을 억지로 펼치면 빈 화면이 뜬다. 그럴 땐 조용히 기본값으로 떨어진다. */
+  /** 딥링크 `?step=N`이 지정한 단계 — **보이는 단계일 때만** 인정한다. 불량 0건이면 ⑤⑥이 해당없음이고
+   *  제출까지 끝났으면 ④도 감춰지므로, 그 칸을 억지로 펼치면 빈 화면이 뜬다. 그럴 땐 조용히
+   *  기본값으로 떨어진다. */
   const linkedStep = initialStepNum
-    ? activeSteps.find(k => STEP_NUM[k] === initialStepNum)
+    ? visibleSteps.find(k => STEP_NUM[k] === initialStepNum)
     : undefined
 
   // 진입 화면은 딥링크 → 첫 미완료 단계 순 — '지금 무엇을 해야 하는지'가 곧 초기 화면이다
@@ -540,8 +571,11 @@ export function InspectionWorkbench({
         </span>
         {isSpecial && (
           <>
-            <span className="ml-auto text-form-xs font-semibold text-brand" title="해당없음 단계는 분모에서 제외">
-              {doneCount}/{activeSteps.length} 단계 완료
+            {/* ⚠ 분모는 **보이는 단계 수**여야 한다. 분자(doneCount)는 visibleSteps로 세는데 분모만
+                activeSteps로 두면 ④가 감춰진 뒤 「3/4」가 되어 화면(3칸)과 숫자가 어긋난다
+                (2026-09-10 test-allpass-step-collapse가 잡았다). */}
+            <span className="ml-auto text-form-xs font-semibold text-brand" title="해당없음·종결된 단계는 분모에서 제외">
+              {doneCount}/{visibleSteps.length} 단계 완료
             </span>
             <div className="h-1 w-24 overflow-hidden rounded-full bg-brand-line-soft">
               <div className={`h-full rounded-full transition-all ${progressPct === 100 ? 'bg-green-500' : 'bg-brand'}`}
@@ -559,7 +593,13 @@ export function InspectionWorkbench({
 
       {/* 6단계 가로 스텝바 (R6-1) — 항상 보인다. 월간 건은 ① 하나(R6-11) */}
       <div className="flex items-stretch gap-1 overflow-x-auto rounded-xl border border-line bg-surface p-1.5 shrink-0" data-testid="workbench-stepbar">
-        {data.steps.map(k => {
+        {/* 🎯 2026-09-10 — 모두 합격이 확정되면 해당없음 단계는 **회색으로 남기지 않고 아예 그리지
+            않는다**(모바일 앱과 같은 방식이 됐다). 종전엔 회색 ⑤⑥이 줄에 남아 '아직 할 일이
+            있다'처럼 읽혔다. 줄이는 조건은 `barSteps` 주석 참조 — 점검표를 안 채운 회차는 그대로 6개.
+            ⚠ 지금 열려 있는 칸(`sel`)은 보이지 않는 단계여도 **남긴다**. 불량을 지워 ⑤가 방금
+              해당없음이 된 순간에 버튼만 사라지면, 본문은 그대로인데 어느 칸인지 알 수 없게 된다.
+              그 전환기에는 아래 `na` 가지가 회색·disabled로 받아 준다. */}
+        {data.steps.filter(k => barSteps.includes(k) || k === sel).map(k => {
           // 소방계획서_45 — 축은 needsRepairSteps(✕ ∪ 불량내역)다. hasDefects(등록분)만 보면
           // ✕를 찍고 아직 등록하지 않은 구간에 ⑤⑥이 잠겨 "조치할 것이 없다"고 말한다.
           const na = !needsRepairSteps && (k === 'repair' || k === 'submit11')
@@ -667,7 +707,7 @@ export function InspectionWorkbench({
                 </button>
               )}
             </div>
-            <DocPane files={files} inspectionId={inspectionId} onOpen={download} />
+            <DocPane files={files} inspectionId={inspectionId} onOpen={download} canManage={canManage} />
           </Pane>
         </>)}
 
@@ -781,10 +821,35 @@ export function InspectionWorkbench({
               </div>
             </div>
           </Pane>
-          <Pane title="생성물" cls={paneCls} head={paneHead}><DocPane files={files} inspectionId={inspectionId} onOpen={download} /></Pane>
+          <Pane title="생성물" cls={paneCls} head={paneHead}><DocPane files={files} inspectionId={inspectionId} onOpen={download} canManage={canManage} /></Pane>
         </>)}
 
-        {sel === 'submit9' && (<>
+        {/* ④ 접기 (2026-09-10 사용자 확정) — 모두 합격이면 ④가 할 일은 '별지 9호를 내는 것' 하나뿐이라
+            3칸을 펼쳐 둘 이유가 없다. 접힌 한 줄로 두고, 문서를 만들거나 제출일을 적을 때만 연다.
+            🚨 **감추는 게 아니라 접는 것이다.** 이 3칸 안에 별지 9·4호·공문·표지·위임장 생성,
+              제출 패키지, 소방서 제출일 기록, 별지 10호 문서 값(총 이행기간)이 전부 들어 있다 —
+              없애면 합격 회차에서 **법정 의무인 별지 9호를 만들 수단이 사라진다**(시행규칙 제23조제2항).
+            ⚠ 제출이 기록되면 ④ 자체가 스텝바에서 빠진다(`step4Settled`) — '종료가 보이지 않게'는
+              그 시점에 이뤄지고, 그 뒤의 정정은 헤더 [별지서식] 링크가 받는다. */}
+        {sel === 'submit9' && allPass && !open4 && (
+          <div data-testid="submit9-collapsed"
+            className="flex flex-wrap items-center gap-2 rounded-xl border border-brand-line-soft bg-surface px-3 py-2.5 lg:col-span-3">
+            <CheckCircle2 className="size-4 shrink-0 text-green-600" />
+            <span className="text-form-xs text-ink-sub">
+              {DOC_TERMS.naAllPass} — <b className="text-ink">별지 9호만 제출하면 이 회차는 종결</b>됩니다.
+              별지 10·11호(⑤⑥)는 해당없음입니다.
+            </span>
+            {data.submit9.due && !submit9At && (
+              <span className="text-form-2xs text-ink-meta">기한 {data.submit9.due} (점검 종료일 +15영업일)</span>
+            )}
+            <button onClick={() => setOpen4(true)} data-testid="submit9-expand"
+              title="별지 9·4호·공문·표지 생성과 소방서 제출일 기록을 펼칩니다"
+              className="ml-auto inline-flex h-7 shrink-0 items-center gap-1 rounded-lg border border-brand-line px-2.5 text-form-xs text-brand transition-colors hover:bg-brand-tint">
+              <ChevronRight className="size-3" /> 열기 — 문서 생성·제출일 기록
+            </button>
+          </div>
+        )}
+        {sel === 'submit9' && !(allPass && !open4) && (<>
           <Pane title="제출 전제" cls={paneCls} head={paneHead}>
             <div className="px-3 py-2 space-y-1">
               {data.prereqs.length === 0 && <Empty>전제 항목이 없습니다.</Empty>}
@@ -912,7 +977,7 @@ export function InspectionWorkbench({
                   title="별지 10호 —" only={['reportDate', 'totalPeriod', 'totalDays']} />
               </div>
               <div className="border-t border-brand-line-soft pt-2">
-                <DocPane files={files} inspectionId={inspectionId} onOpen={download} />
+                <DocPane files={files} inspectionId={inspectionId} onOpen={download} canManage={canManage} />
               </div>
               {/* 제출본 파일 — 생성물과 달리 '이미 낸 것'이라 따로 둔다 */}
               {data.reports.length > 0 && (
@@ -1080,7 +1145,7 @@ export function InspectionWorkbench({
                     </span>}
               </div>
               <div className="border-t border-brand-line-soft pt-2">
-                <DocPane files={files} inspectionId={inspectionId} onOpen={download} />
+                <DocPane files={files} inspectionId={inspectionId} onOpen={download} canManage={canManage} />
               </div>
             </div>
           </Pane>
@@ -1163,14 +1228,39 @@ function Summary({ rows }: { rows: Array<[string, string]> }) {
   )
 }
 
-/** R6-8: 생성물은 문서 목록에 쌓인다 — 타임라인과 같은 GeneratedDocList 재사용 */
-function DocPane({ files, inspectionId, onOpen }: {
+/** R6-8: 생성물은 문서 목록에 쌓인다 — 타임라인과 같은 GeneratedDocList 재사용
+ *
+ *  머리에 [엑셀로 받기]를 둔다(2026-09-10 사용자 요청 A안). **행이 아니라 머리**인 이유가 둘 있다:
+ *   ① 엑셀은 문서 1건이 아니라 별지 4·9·10·11호+공문+위임장을 한 파일에 담은 **통합 워크북**이라
+ *      각 행에 붙일 대상 자체가 없다.
+ *   ② 즉석 생성이라 저장되지 않는다(D-5) — 목록은 **저장된 파일**을 그리는 자리이므로 행으로는
+ *      영영 나타날 수 없다. 목록 안에 흉내만 낸 행을 만들면 [최신] 뱃지가 거짓말을 하게 된다.
+ *
+ *  ⚠ 파일이 0건이어도 버튼은 보인다 — 엑셀은 생성물과 무관하게 지금 값으로 만들어진다.
+ *    그래서 빈 상태 문구보다 **먼저** 그린다(종전엔 여기서 early return이라 자리가 없었다). */
+function DocPane({ files, inspectionId, onOpen, canManage }: {
   files: Report9File[]
   inspectionId: string
   onOpen: (path: string, saveName?: string) => void
+  /** 라우트도 `inspection_register`로 막는다(workbook/route.ts) — 여기 가드는 403을 만나기
+   *  전에 없는 길을 안 보여 주기 위한 것이지, 이것이 유일한 방어선은 아니다 */
+  canManage: boolean
 }) {
-  if (files.length === 0) return <Empty>생성된 문서가 없습니다.</Empty>
-  return <GeneratedDocList files={files} onOpen={onOpen} inspectionId={inspectionId} />
+  return (
+    <div className="space-y-1">
+      {canManage && (
+        /* 버튼 컴포넌트는 [버튼 + 고지/오류]를 fragment로 낸다 — 고지 줄이 `w-full`이라
+           flex-wrap 컨테이너의 **직계 자식**이어야 다음 줄로 온전히 떨어진다(감싸면 갇힌다) */
+        <div className="flex flex-wrap items-center gap-1.5 px-1">
+          <span className="mr-auto text-form-2xs text-ink-meta">PDF는 확정본 · 엑셀은 받아서 고쳐 쓰는 본</span>
+          <WorkbookXlsxButton inspectionId={inspectionId} />
+        </div>
+      )}
+      {files.length === 0
+        ? <Empty>생성된 문서가 없습니다.</Empty>
+        : <GeneratedDocList files={files} onOpen={onOpen} inspectionId={inspectionId} />}
+    </div>
+  )
 }
 
 /** 서식 고유값 인라인 (R6-6) — 3단 슬라이드 패널 대신 미리보기 옆 몇 칸.
