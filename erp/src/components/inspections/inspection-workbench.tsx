@@ -28,6 +28,7 @@ import { kstDate } from '@/lib/kst-date'
 import { confirmSheetProtocolAction } from '@/app/(dashboard)/inspections/sheet-actions'
 import { BundleGeneratePanel } from '@/components/inspections/bundle-generate-panel'
 import { GeneratedDocList } from '@/components/inspections/generated-doc-list'
+import { WorkbookXlsxButton } from '@/components/inspections/workbook-xlsx-button'
 import { AnnexMissingChip } from '@/components/inspections/annex-missing-list'
 import { AnnexPrintButton } from '@/components/customers/annex-print-button'
 import { FIELD_DEFS, AnnexFieldInput, type ComposeAnnexNo, type FieldDef } from '@/components/inspections/annex-fields'
@@ -706,7 +707,7 @@ export function InspectionWorkbench({
                 </button>
               )}
             </div>
-            <DocPane files={files} inspectionId={inspectionId} onOpen={download} />
+            <DocPane files={files} inspectionId={inspectionId} onOpen={download} canManage={canManage} />
           </Pane>
         </>)}
 
@@ -820,7 +821,7 @@ export function InspectionWorkbench({
               </div>
             </div>
           </Pane>
-          <Pane title="생성물" cls={paneCls} head={paneHead}><DocPane files={files} inspectionId={inspectionId} onOpen={download} /></Pane>
+          <Pane title="생성물" cls={paneCls} head={paneHead}><DocPane files={files} inspectionId={inspectionId} onOpen={download} canManage={canManage} /></Pane>
         </>)}
 
         {/* ④ 접기 (2026-09-10 사용자 확정) — 모두 합격이면 ④가 할 일은 '별지 9호를 내는 것' 하나뿐이라
@@ -976,7 +977,7 @@ export function InspectionWorkbench({
                   title="별지 10호 —" only={['reportDate', 'totalPeriod', 'totalDays']} />
               </div>
               <div className="border-t border-brand-line-soft pt-2">
-                <DocPane files={files} inspectionId={inspectionId} onOpen={download} />
+                <DocPane files={files} inspectionId={inspectionId} onOpen={download} canManage={canManage} />
               </div>
               {/* 제출본 파일 — 생성물과 달리 '이미 낸 것'이라 따로 둔다 */}
               {data.reports.length > 0 && (
@@ -1144,7 +1145,7 @@ export function InspectionWorkbench({
                     </span>}
               </div>
               <div className="border-t border-brand-line-soft pt-2">
-                <DocPane files={files} inspectionId={inspectionId} onOpen={download} />
+                <DocPane files={files} inspectionId={inspectionId} onOpen={download} canManage={canManage} />
               </div>
             </div>
           </Pane>
@@ -1227,14 +1228,39 @@ function Summary({ rows }: { rows: Array<[string, string]> }) {
   )
 }
 
-/** R6-8: 생성물은 문서 목록에 쌓인다 — 타임라인과 같은 GeneratedDocList 재사용 */
-function DocPane({ files, inspectionId, onOpen }: {
+/** R6-8: 생성물은 문서 목록에 쌓인다 — 타임라인과 같은 GeneratedDocList 재사용
+ *
+ *  머리에 [엑셀로 받기]를 둔다(2026-09-10 사용자 요청 A안). **행이 아니라 머리**인 이유가 둘 있다:
+ *   ① 엑셀은 문서 1건이 아니라 별지 4·9·10·11호+공문+위임장을 한 파일에 담은 **통합 워크북**이라
+ *      각 행에 붙일 대상 자체가 없다.
+ *   ② 즉석 생성이라 저장되지 않는다(D-5) — 목록은 **저장된 파일**을 그리는 자리이므로 행으로는
+ *      영영 나타날 수 없다. 목록 안에 흉내만 낸 행을 만들면 [최신] 뱃지가 거짓말을 하게 된다.
+ *
+ *  ⚠ 파일이 0건이어도 버튼은 보인다 — 엑셀은 생성물과 무관하게 지금 값으로 만들어진다.
+ *    그래서 빈 상태 문구보다 **먼저** 그린다(종전엔 여기서 early return이라 자리가 없었다). */
+function DocPane({ files, inspectionId, onOpen, canManage }: {
   files: Report9File[]
   inspectionId: string
   onOpen: (path: string, saveName?: string) => void
+  /** 라우트도 `inspection_register`로 막는다(workbook/route.ts) — 여기 가드는 403을 만나기
+   *  전에 없는 길을 안 보여 주기 위한 것이지, 이것이 유일한 방어선은 아니다 */
+  canManage: boolean
 }) {
-  if (files.length === 0) return <Empty>생성된 문서가 없습니다.</Empty>
-  return <GeneratedDocList files={files} onOpen={onOpen} inspectionId={inspectionId} />
+  return (
+    <div className="space-y-1">
+      {canManage && (
+        /* 버튼 컴포넌트는 [버튼 + 고지/오류]를 fragment로 낸다 — 고지 줄이 `w-full`이라
+           flex-wrap 컨테이너의 **직계 자식**이어야 다음 줄로 온전히 떨어진다(감싸면 갇힌다) */
+        <div className="flex flex-wrap items-center gap-1.5 px-1">
+          <span className="mr-auto text-form-2xs text-ink-meta">PDF는 확정본 · 엑셀은 받아서 고쳐 쓰는 본</span>
+          <WorkbookXlsxButton inspectionId={inspectionId} />
+        </div>
+      )}
+      {files.length === 0
+        ? <Empty>생성된 문서가 없습니다.</Empty>
+        : <GeneratedDocList files={files} onOpen={onOpen} inspectionId={inspectionId} />}
+    </div>
+  )
 }
 
 /** 서식 고유값 인라인 (R6-6) — 3단 슬라이드 패널 대신 미리보기 옆 몇 칸.

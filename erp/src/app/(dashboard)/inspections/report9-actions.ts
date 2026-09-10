@@ -22,6 +22,7 @@ import { formatBizNo, formatTel } from '@/lib/format-contact'
 import { INSPECTION_DOC_FILE_RE, EXTERIOR_DOC_FILE_RE } from '@/lib/generated-docs'
 import type { ManagerRow } from '@/components/customers/plan-form17'
 import { assembleReport9, annexPlanRows, annexDoneRows, actionPlanPeriod, kdate, pageAll, loadAnnexInputs, fstr, todayKstISO, annexReportDateISO } from '@/lib/report9-assemble'
+import { resolveActionPeriod } from '@/lib/annex-total-period'
 
 /** 별지 9호(자체점검 실시결과 보고서) 생성 — P3 MVP (소방계획서_4.md §9-3·§9-6⑦)
  *  입력은 소유하지 않는 준비 화면 원칙: 공통값=고객 탭, 점검값=점검 상세, 여기는 생성·조회만.
@@ -193,6 +194,21 @@ async function assembleAnnex1011(
     // 완료 보고 문구 — 있을 때만 서명 블록 위 1줄 (report1011.ts note)
     const note = fstr(fields, 'note')
     if (note) data.note = note
+    /* 🎯 「이행완료 사항」 일자 = **총 이행기간 종료일**(2026-09-10 사용자 지시).
+     *   종전엔 불량 건별 `action_completed_at`이라 한 서식의 4행이 서로 다른 날짜를 말했다.
+     *   기간의 원천은 10호와 **같다** — 수기 보정(annex_inputs.report10) > 자동 산출.
+     *   그래서 여기서 report10 칸을 따로 읽는다(`fields`는 이 분기에서 report11이다).
+     * ⚠ 갑지 엑셀 `완료보고서!I19:I22`도 **같은 `unifyDoneDates`**를 탄다(workbook/route.ts) —
+     *   규칙을 여기 한 번 더 적으면 한쪽만 갱신돼 두 문서가 어긋난다(D-7).
+     * ⚠ 기간이 없으면 손대지 않는다 — 건별 완료일이 그대로 남는다(빈 칸으로 내보내지 않는다).
+     * ⚠ isNote(결과참조·이상없음·해당없음) 줄은 제외 — 10호 planRows와 같은 축이다. */
+    const period = resolveActionPeriod(
+      await loadAnnexInputs(admin, inspectionId, 'report10'),
+      actionPlanPeriod(defects),
+    )
+    if (period) {
+      data.rows = data.rows.map(r => (r.isNote ? r : { ...r, period: kdate(period.endISO) }))
+    }
   }
   return { data, missing }
 }

@@ -6,6 +6,7 @@ import { getProfile, can } from '@/lib/auth'
 import type { UserRole } from '@/types'
 import { assembleOfficial, assembleDelegation } from '@/lib/annex-cover-official'
 import { assembleReport9, loadAnnexInputs, annexReportDateISO } from '@/lib/report9-assemble'
+import { resolveActionPeriod, unifyDoneDates } from '@/lib/annex-total-period'
 import { validateAnchors, SCRUB_NEEDLES, DEFECT_SHEET } from '@/lib/xlsx-anchors'
 import { injectWorkbook, type InjectTarget } from '@/lib/xlsx-inject'
 import { buildWorkbookValues, toInjectTargets, defectOverflow, doneOverflow, s31RowOverflow } from '@/lib/xlsx-workbook'
@@ -140,17 +141,31 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
   // r9(별지 9호 조립, S7-0 추출본)는 점검 구분·점검자·동의·등급·교육이수일·점검인력 명단의 원천
   // 별지 11호 보고일 — 작성 패널 수기값(annex_inputs.report11)이 있으면 그것, 없으면 오늘(KST).
   // 판정은 `annexReportDateISO` 단일 원천이라 PDF 11호와 갈라질 수 없다(43 S4 / D-4 수리).
-  const [official, delegation, r9, done11Fields] = await Promise.all([
+  const [official, delegation, r9, done11Fields, plan10Fields] = await Promise.all([
     assembleOfficial(admin, row.customer_id, id),
     assembleDelegation(admin, row.customer_id, id),
     assembleReport9(admin, row.customer_id, id),
     loadAnnexInputs(admin, id, 'report11'),
+    loadAnnexInputs(admin, id, 'report10'),
   ])
+  /* 🎯 총 이행기간 수기 보정(④)을 엑셀에도 (2026-09-10 사용자 지시).
+   *   종전엔 report11(보고일)만 읽어서, ④에서 기간을 고치면 **PDF 10호만 바뀌고 엑셀은
+   *   자동 산출값**이었다 — 개요!G9·I9·J9·G10과 계획서 21칸이 통째로 PDF와 다른 날짜를 말했다.
+   *   위 주석의 「annex_inputs 수동 오버레이까지 그대로 따라온다」는 그때까지 보고일에만 참이었다.
+   * ⚠ 우선순위 규칙은 `resolveActionPeriod` 한 곳에 있다 — 여기 다시 적으면 또 갈라진다(D-7). */
+  const actionPeriod = resolveActionPeriod(plan10Fields, r9.data.actionPeriod)
 
   const values = buildWorkbookValues({
     official: official.data,
     delegation: delegation.data,
-    report9: { ...r9.data, reportDateISO: annexReportDateISO(done11Fields) },
+    report9: {
+      ...r9.data,
+      reportDateISO: annexReportDateISO(done11Fields),
+      actionPeriod,
+      // 「이행완료 사항」 4행 일자 = 총 이행기간 종료일(2026-09-10 사용자 지시).
+      // PDF 11호도 **같은 함수**를 탄다(report9-actions) — 한쪽만 걸면 다시 갈라진다.
+      done: unifyDoneDates(r9.data.done, actionPeriod?.endISO),
+    },
     customerAddress: (cust as { address: string | null } | null)?.address ?? '',
     startISO: row.inspection_start_date,
     endISO: row.inspection_end_date,
