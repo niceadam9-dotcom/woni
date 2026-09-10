@@ -45,14 +45,26 @@ export function GeneratedDocList({ files, onOpen, inspectionId, disabled }: {
   const pdfBtn = 'inline-flex items-center gap-1 h-6 px-2 rounded border border-red-200 text-form-xs text-red-600 hover:bg-red-50 disabled:opacity-50'
   const subBtn = 'inline-flex items-center gap-1 h-6 px-2 rounded border border-brand-line text-form-xs text-brand hover:bg-brand-tint disabled:opacity-50'
 
+  /** 두 줄인 이유 — 한 줄로는 **폭이 물리적으로 모자란다**(2026-09-10 실측).
+   *  작업대 3단 레이아웃의 이 칸은 278px인데 한 줄에 든 것이 314px를 요구했다
+   *  (날짜 118 + [최신] 29 + 버튼 143 + 간격). 날짜·배지·버튼이 전부 `shrink-0`이라
+   *  줄어들 수 있는 건 문서명뿐이어서, 이름이 **0px까지 눌려** 7행이 전부
+   *  「제 · 위 · 보 · 실 · 소 · 이 · 이」로 보였다. `flex-1`만으로는 못 고친다 —
+   *  남는 폭이 없으면 flex-1의 몫도 0이다. 그래서 이름에게 **제 줄**을 준다. */
   const row = (g: DocGroup, isLatest: boolean) => (
-    <div key={g.key} className="flex items-center gap-2 text-xs py-1">
-      <span className="text-ink font-medium truncate" title={g.full}>{g.label}</span>
-      {g.createdAt && <span className="text-form-xs text-ink-meta shrink-0">{fmtTime(g.createdAt)}</span>}
-      {isLatest && g.kind && (
-        <span className="px-1 py-0.5 rounded bg-brand-tint text-brand text-form-2xs font-medium shrink-0">최신</span>
-      )}
-      <span className="ml-auto flex items-center gap-1 shrink-0">
+    <div key={g.key} className="text-xs py-1">
+      <div className="flex items-center gap-1.5">
+        {/* data-testid — 이 이름이 **실제로 폭을 갖는지**는 렌더해 봐야 안다(정적 검사는 0px을
+            초록으로 통과시켰다). test-exterior-ui가 실측 폭을 단언한다. */}
+        <span data-testid="doc-row-name" className="min-w-0 flex-1 truncate text-ink font-medium"
+          title={g.full}>{g.label}</span>
+        {isLatest && g.kind && (
+          <span className="px-1 py-0.5 rounded bg-brand-tint text-brand text-form-2xs font-medium shrink-0">최신</span>
+        )}
+      </div>
+      <div className="mt-0.5 flex items-center gap-1">
+        {g.createdAt && <span className="text-form-xs text-ink-meta shrink-0">{fmtTime(g.createdAt)}</span>}
+        <span className="ml-auto flex items-center gap-1 shrink-0">
         {isLatest ? (<>
           {g.hwp && (
             <button onClick={() => openHwp(g.hwp!)} disabled={disabled}
@@ -90,7 +102,8 @@ export function GeneratedDocList({ files, onOpen, inspectionId, disabled }: {
             </button>
           )}
         </>)}
-      </span>
+        </span>
+      </div>
     </div>
   )
 

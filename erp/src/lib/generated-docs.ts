@@ -21,6 +21,27 @@ export const INSPECTION_DOC_FILE_RE = new RegExp(`^(${INSPECTION_DOC_KINDS.join(
 /** 월간 외관점검 건은 외관점검표만 쌓인다 */
 export const EXTERIOR_DOC_FILE_RE = /^exterior_\d+\./
 
+/** 생성물 파일명 규약 `{종류}_{타임스탬프}.{확장자}` — 종류 판정은 이 한 벌만 쓴다.
+ *  groupFiles와 filesOfKinds가 각자 정규식을 들면 '목록에는 있는데 추림에서 빠지는' 어긋남이 난다. */
+const DOC_NAME_RE = /^([a-z0-9_]+?)_(\d+)\.(hwpx?|pdf|html?)$/i
+
+/** 파일명 → 종류 접두어. 규약 밖 파일은 ''(빈 문자열) — 종류를 지어내지 않는다. */
+export function kindOf(name: string): string {
+  return name.match(DOC_NAME_RE)?.[1] ?? ''
+}
+
+/** 단계 창구용 추림 — 그 단계가 다루는 종류만 남긴다 (STEP_DOC_KINDS, 2026-09-10).
+ *
+ *  ⚠ `undefined`(추림 안 함, 종전 동작)와 `[]`(이 단계엔 생성물이 없음)는 **다른 뜻**이다.
+ *    빈 배열을 falsy로 보고 전체를 흘리면 ②⑤가 다시 7종을 늘어놓는다. */
+export function filesOfKinds(
+  files: GeneratedDocFile[], kinds?: readonly string[],
+): GeneratedDocFile[] {
+  if (!kinds) return files
+  const set = new Set(kinds)
+  return files.filter(f => set.has(kindOf(f.name)))
+}
+
 export type DocGroup = {
   key: string            // kind_stamp
   kind: string           // report9 | report10 | report11 | exterior | … (규칙 밖 파일은 '')
@@ -36,7 +57,7 @@ export type DocGroup = {
 export function groupFiles(files: GeneratedDocFile[]): DocGroup[] {
   const map = new Map<string, DocGroup>()
   for (const f of files) {
-    const m = f.name.match(/^([a-z0-9_]+?)_(\d+)\.(hwpx?|pdf|html?)$/i)
+    const m = f.name.match(DOC_NAME_RE)
     if (!m) {
       // 규칙 밖 파일 — 자체 그룹으로 (업로드 슬롯 등은 호출부에서 이미 제외)
       map.set(f.name, { key: f.name, kind: '', label: f.name, full: f.name, createdAt: f.createdAt, others: [f] })

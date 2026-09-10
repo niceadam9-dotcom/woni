@@ -143,6 +143,26 @@ export function generatedDocRank(kind: string): number {
   return i < 0 ? GENERATED_DOC_ORDER.length : i
 }
 
+/** 단계 창구가 다루는 생성물 종류 (2026-09-10).
+ *
+ *  작업대는 **차수 탭이 곧 단계**인데 어느 탭에서나 생성물 7종을 통째로 늘어놓고 있었다.
+ *  ④(소방서 제출)에서 표지·위임장까지 같이 보이니 목록이 그 단계와 무관해지고, 문서명이
+ *  한 글자로 짜부라진 상태와 겹쳐 「필요 없는 목록」으로 읽혔다. 탭마다 자기 문서만 준다.
+ *
+ *  ⚠ 여기서 빠진 종류는 **어느 탭에도 안 보인다** — 추림이 만드는 새 실패 모드다.
+ *    종류를 새로 만들면 반드시 한 단계 이상에 올려야 하고, 고아 0건은 _probe-doc-order가 고정한다.
+ *  ⚠ fire_plan은 고객 단위 문서라 점검 폴더에 없다(lib/generated-docs 주석) — 여기 대상이 아니다. */
+export const STEP_DOC_KINDS: Record<TimelineStepKey, readonly string[]> = {
+  checklist: ['report4', 'exterior'],
+  cert: [],
+  ownerReport: ['report9'],
+  // ④는 소방서에 내는 자리 — 본문(9·10호)에 첨부(별지 4호)와 제출 앞장 3종이 함께 나간다.
+  // 앞장 3종은 작업대에서 만들어지지만 **대응 단계가 따로 없다**(2026-09-10 사용자 확정: ④에 묶는다).
+  submit9: ['official', 'cover', 'delegation', 'report9', 'report4', 'report10'],
+  repair: [],
+  submit11: ['report11'],
+}
+
 /** 빠른 입력 필수 필드 정의 (§1-1) — 별지 9호 1~2쪽 ∪ 소방계획서 준비율 어휘.
  *  일반관리 포함 전 유형 동일 18개(소방계획서_6 W-14·D-6 — 미입력 노출은 '할 일'로서 정상).
  *  경사로·계단·피난용승강기 등 컬럼 미비 항목은 P4 서식 확장에서 추가. */

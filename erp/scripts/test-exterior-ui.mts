@@ -88,6 +88,14 @@ try {
     await page.waitForSelector('button[title="바로 보기·인쇄"]')
     check('생성물 목록 — PDF 열람 버튼', true)
     check('생성물 목록 — 미리보기(HTML)', await page.isVisible('button:has-text("미리보기")'))
+    // 문서명이 **실제로 폭을 갖는가** (2026-09-10). 좁은 칸에서 날짜·배지·버튼이 전부 shrink-0이라
+    // 이름만 0px까지 눌려 목록 전체가 「제 · 위 · 보 …」 한 글자로 보였다. 정적 검사는 이 상태를
+    // 초록으로 통과시킨다 — 클래스는 멀쩡했고 눌린 것은 **렌더된 폭**이었다. 그래서 여기서 잰다.
+    const nameW = await page.locator('[data-testid="doc-row-name"]').first()
+      .evaluate((el: Element) => Math.round(el.getBoundingClientRect().width))
+    check('생성물 목록 — 문서명이 눌리지 않았다 (폭 > 60px)', nameW > 60, `${nameW}px`)
+    const nameText = await page.locator('[data-testid="doc-row-name"]').first().innerText()
+    check('생성물 목록 — 문서명이 온전하다 (한 글자 아님)', nameText.trim().length > 1, `"${nameText}"`)
   }
 } catch (e) {
   check('예외 없음', false, String(e))

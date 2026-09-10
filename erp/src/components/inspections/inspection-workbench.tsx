@@ -21,7 +21,8 @@ import {
 import { updateInspectionMultidayAction } from '@/app/(dashboard)/inspections/actions'
 import { getReportDownloadUrl } from '@/app/(dashboard)/inspections/report-actions'
 import { DateInput } from '@/components/ui/date-input'
-import { DOC_TERMS, NA_ALL_PASS_REASON, TIMELINE_STEP_LABELS, TIMELINE_STEP_TOOLTIPS, type TimelineStepKey } from '@/lib/doc-requirements'
+import { DOC_TERMS, STEP_DOC_KINDS, NA_ALL_PASS_REASON, TIMELINE_STEP_LABELS, TIMELINE_STEP_TOOLTIPS, type TimelineStepKey } from '@/lib/doc-requirements'
+import { filesOfKinds } from '@/lib/generated-docs'
 import { evidenceDone, activeStepNums, hasSheetDefect, stepProgress, type StepNum } from '@/lib/inspection-step-status'
 import { isRegenBlocked } from '@/lib/annex-regen-policy'
 import { kstDate } from '@/lib/kst-date'
@@ -707,7 +708,7 @@ export function InspectionWorkbench({
                 </button>
               )}
             </div>
-            <DocPane files={files} inspectionId={inspectionId} onOpen={download} canManage={canManage} />
+            <DocPane files={files} inspectionId={inspectionId} onOpen={download} canManage={canManage} kinds={STEP_DOC_KINDS.checklist} />
           </Pane>
         </>)}
 
@@ -821,7 +822,7 @@ export function InspectionWorkbench({
               </div>
             </div>
           </Pane>
-          <Pane title="생성물" cls={paneCls} head={paneHead}><DocPane files={files} inspectionId={inspectionId} onOpen={download} canManage={canManage} /></Pane>
+          <Pane title="생성물" cls={paneCls} head={paneHead}><DocPane files={files} inspectionId={inspectionId} onOpen={download} canManage={canManage} kinds={STEP_DOC_KINDS.ownerReport} /></Pane>
         </>)}
 
         {/* ④ 접기 (2026-09-10 사용자 확정) — 모두 합격이면 ④가 할 일은 '별지 9호를 내는 것' 하나뿐이라
@@ -977,7 +978,7 @@ export function InspectionWorkbench({
                   title="별지 10호 —" only={['reportDate', 'totalPeriod', 'totalDays']} />
               </div>
               <div className="border-t border-brand-line-soft pt-2">
-                <DocPane files={files} inspectionId={inspectionId} onOpen={download} canManage={canManage} />
+                <DocPane files={files} inspectionId={inspectionId} onOpen={download} canManage={canManage} kinds={STEP_DOC_KINDS.submit9} />
               </div>
               {/* 제출본 파일 — 생성물과 달리 '이미 낸 것'이라 따로 둔다 */}
               {data.reports.length > 0 && (
@@ -1145,7 +1146,7 @@ export function InspectionWorkbench({
                     </span>}
               </div>
               <div className="border-t border-brand-line-soft pt-2">
-                <DocPane files={files} inspectionId={inspectionId} onOpen={download} canManage={canManage} />
+                <DocPane files={files} inspectionId={inspectionId} onOpen={download} canManage={canManage} kinds={STEP_DOC_KINDS.submit11} />
               </div>
             </div>
           </Pane>
@@ -1238,14 +1239,18 @@ function Summary({ rows }: { rows: Array<[string, string]> }) {
  *
  *  ⚠ 파일이 0건이어도 버튼은 보인다 — 엑셀은 생성물과 무관하게 지금 값으로 만들어진다.
  *    그래서 빈 상태 문구보다 **먼저** 그린다(종전엔 여기서 early return이라 자리가 없었다). */
-function DocPane({ files, inspectionId, onOpen, canManage }: {
+function DocPane({ files, inspectionId, onOpen, canManage, kinds }: {
   files: Report9File[]
   inspectionId: string
   onOpen: (path: string, saveName?: string) => void
   /** 라우트도 `inspection_register`로 막는다(workbook/route.ts) — 여기 가드는 403을 만나기
    *  전에 없는 길을 안 보여 주기 위한 것이지, 이것이 유일한 방어선은 아니다 */
   canManage: boolean
+  /** 이 차수 탭이 다루는 문서 종류 (STEP_DOC_KINDS). 생략하면 추림 없이 전부 — 종전 동작 */
+  kinds?: readonly string[]
 }) {
+  // 차수 탭이 곧 단계다 — ④에서 표지·위임장까지 늘어놓던 목록을 자기 문서로 좁힌다
+  const shown = filesOfKinds(files, kinds)
   return (
     <div className="space-y-1">
       {canManage && (
@@ -1256,9 +1261,9 @@ function DocPane({ files, inspectionId, onOpen, canManage }: {
           <WorkbookXlsxButton inspectionId={inspectionId} />
         </div>
       )}
-      {files.length === 0
-        ? <Empty>생성된 문서가 없습니다.</Empty>
-        : <GeneratedDocList files={files} onOpen={onOpen} inspectionId={inspectionId} />}
+      {shown.length === 0
+        ? <Empty>{kinds ? '이 단계에서 만든 문서가 없습니다.' : '생성된 문서가 없습니다.'}</Empty>
+        : <GeneratedDocList files={shown} onOpen={onOpen} inspectionId={inspectionId} />}
     </div>
   )
 }
