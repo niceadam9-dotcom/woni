@@ -161,8 +161,11 @@ function planTable(rows: AnnexPlanRow[], summary: AnnexRow | undefined, extraRow
       // 같은 판단으로 자리표 대신 `—`(Q-5 b안). 「해당없음」 옆에 `~(총  일)`이 서면 미대상
       // 설비에 기간을 적으라는 말이 된다. 형제 표를 한쪽만 고치면 두 서식이 갈라진다.
       ? '—'
+      // ⚠ `(총 N 일)` 꼬리는 **총 일수가 있을 때만** 붙인다. 일자 칸이 날짜가 아니라 참조 표기
+      //   (「결과참조」 — annexPlanRows 주석)일 때 days가 비는데, 무조건 붙이면 「결과참조(총  일)」이
+      //   인쇄된다. 값이 없으면 괄호가 허공에 뜨는 것은 총합 행에서 이미 밟은 함정이다(E10-8).
       : r.period
-        ? `${esc(r.period)}<span class="row-days">(총 ${esc(daysText(r.days))} 일)</span>`
+        ? `${esc(r.period)}${daysText(r.days) ? `<span class="row-days">(총 ${esc(daysText(r.days))} 일)</span>` : ''}`
         : '~<span class="row-days">(총&nbsp;&nbsp;&nbsp;&nbsp;일)</span>'}</td>
   </tr>`)
   }

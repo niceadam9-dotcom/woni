@@ -365,6 +365,11 @@ const steps: Step[] = [
   // 파일 전부가 고아였다. 버킷 목록과 삭제 액션 소스를 대조해 배선을 고정한다.
   { name: '삭제 스토리지 버킷 커버리지', cmd: 'npx tsx scripts/test-storage-purge-coverage.mts' },
   { name: '게이트 정합성(E2E)',        cmd: 'npx tsx scripts/test-gate-consistency.mts', needServer: true },
+  // 모두 합격 회차의 단계 접기·감추기(2026-09-10). 🚨 등재 이유: 형제인 「게이트 정합성」은
+  // 「6단계가 그대로 보이는가」만 물어서 **줄어드는 쪽이 한 번도 실행되지 않았다** — 첫 구현이
+  // 점검표를 안 채운 새 회차까지 4단계로 줄인 결함도, 분자·분모가 갈라져 「3/4」가 되던 결함도
+  // 이 검사가 잡았다. 6 → 4 → 3을 **같은 회차를 굴리며** 차례로 단언한다.
+  { name: '모두합격 단계 접기(E2E)',   cmd: 'npx tsx scripts/test-allpass-step-collapse.mts', needServer: true },
   { name: '일반관리 자체점검 통주행(E2E)', cmd: 'npx tsx scripts/test-general-selfinspection.mts', needServer: true },
   { name: '문서 생성 회귀(E2E)',           cmd: 'npx tsx scripts/test-doc-generation.mts', needServer: true },
   // 갑지 워크북 실주행 — 라우트는 공개 엔드포인트라 인증 차단·실바이트·주입 값까지 실제로 태운다
