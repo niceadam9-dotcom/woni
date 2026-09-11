@@ -270,9 +270,27 @@ export async function createCustomerAction(
     } as Record<string, unknown>)
   })()
 
-  // buildings 테이블에 자동 생성 (V9-3: 건물 기본정보 포함)
+  /** buildings 테이블에 자동 생성 (V9-3: 건물 기본정보 포함)
+   *
+   *  🚨 2026-09-11 — **조건을 없앴다**(소방계획서_49 §10-2 ①). 종전 조건은
+   *    `customer_name && (address || zipcode || building_purpose || building_floors_above)`
+   *  였고, 그래서 **주소·용도·층수를 안 적으면 건물이 한 동도 안 생겼다.**
+   *
+   *  그게 왜 결함인가: `fire_facilities.building_id`가 NOT NULL이라(067) 건물 0동 고객은
+   *  **1.4 소방시설 대장을 저장할 수조차 없다**. 1.4는 점검표의 설치 축이므로 그 고객은
+   *  점검표·별지 9호·소방계획서가 연쇄로 막힌다. 화면은 크래시 대신 안내만 띄운다
+   *  (`plan-form14.tsx:559` "등록된 활성 건물이 없습니다").
+   *
+   *  📏 스테이징 실측(2026-09-11, `scripts/_probe-49-buildings.mjs`): 활성 고객 304명 중
+   *    **16명이 건물 행 0건**이었다 — 55사단 6곳·민박점검·와락·명품관 등. 가설이 아니라 관측이다.
+   *    (기존 16명은 이 변경으로 낫지 않는다 — 백필이 따로 필요하다.)
+   *
+   *  ⚠ `customer_name` 가드만 남긴다 — `buildings.building_name`이 NOT NULL이고 그 값의
+   *    원천이 고객명이다. 이름이 없으면 애초에 고객 생성 자체가 성립하지 않는다.
+   *  ⚠ 값이 없는 칸은 그대로 비워 둔다(빈 건물 행). 「정보가 없는 1동」이
+   *    「동이 없음」보다 낫다 — 전자는 채울 수 있고 후자는 저장 경로가 막힌다. */
   const buildingTask = (async () => {
-  if (input.customer_name && (input.address || input.zipcode || input.building_purpose || input.building_floors_above)) {
+  if (input.customer_name) {
     const buildingBase: Record<string, unknown> = {
       customer_id: customerId,
       building_name: input.customer_name,
