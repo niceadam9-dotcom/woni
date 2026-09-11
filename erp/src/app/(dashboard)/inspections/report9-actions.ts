@@ -178,17 +178,20 @@ async function assembleAnnex1011(
     // 종전엔 구분 없이 얹혀 있어 기간이 빈 요약 줄이 '기간 미정인 이행조치 1건'처럼 읽혔다.
     const summary = fstr(fields, 'summary')
     if (summary) data.rows = [{ content: summary, period: '', isSummary: true }, ...data.rows]
-    // 🎯 「이행조치 일자」 7행 = 「결과참조」(2026-09-10 사용자 지시).
-    //   조립본(annexPlanRows)은 **자동 산출이 있을 때만** 참조 표기를 실었다. 여기서 한 번 더 얹는 이유는
+    // 🎯 「이행조치 일자」 7행 = **총 이행기간**(2026-09-11 사용자 지시 — 09-10의 「결과참조」를 대체).
+    //   조립본(annexPlanRows)은 **자동 산출이 있을 때만** 기간을 실었다. 여기서 한 번 더 얹는 이유는
     //   **수기 보정만 있고 자동 산출이 없는 회차** 때문이다 — 불량별 시작·종료가 비었는데 총 이행기간을
     //   손으로 넣은 경우, 조립본의 일자 칸은 비어 `~(총  일)` 자리표가 서 버린다.
-    //   ⚠ 날짜 자체는 아래 「이행조치 필요기간」(totalPeriod)이 **단독으로** 싣는다. 여기서 날짜를
-    //     복제하면 한 서식이 같은 기간을 여덟 번 말한다(2026-09-10 사용자 지적).
-    //   ⚠ 자동 문구 줄(isNote)은 건드리지 않는다: 렌더가 `—`를 찍는 자리이고, 미대상 설비에
-    //     이행기간을 적으라는 말이 되면 안 된다(Q-5 b안).
+    //   ⚠ `data.totalPeriod`를 쓴다 — 수기 보정(annex_inputs)이 반영된 **최종값**이라 아래
+    //     「이행조치 필요기간」 줄과 글자까지 같다. 조립본의 자동 산출로 덮으면 한 서식이
+    //     두 기간을 말한다.
+    //   ⚠ 자동 문구 줄(isNote = 불량 없는 구분)은 건드리지 않는다: 렌더가 `—`를 찍는 자리이고,
+    //     미대상 설비에 이행기간을 적으라는 말이 되면 안 된다(Q-5 b안).
+    //   ⚠ `days`는 계속 비운다 — 총 일수는 「이행조치 필요기간」이 단독으로 싣는다.
     if (data.planRows && data.totalPeriod) {
+      const total = data.totalPeriod
       data.planRows = data.planRows.map(r =>
-        (r.isNote ? r : { ...r, period: DEFECT_FOLD_TEXT.refer, days: '' }))
+        (r.isNote ? r : { ...r, period: total, days: '' }))
     }
   } else {
     // 완료 보고 문구 — 있을 때만 서명 블록 위 1줄 (report1011.ts note)

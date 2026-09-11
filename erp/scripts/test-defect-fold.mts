@@ -195,10 +195,17 @@ console.log('[5] isUserEnteredDefectName — 쓰기 경로 폴백 사슬 대조'
 console.log('[6] annexPlanRows(별지 10호 계획사항)')
 {
   const supplied = annexPlanRows({ ...r9base, defectRows: MIXED, applicableGroups: APPLICABLE })
-  check('공급 시 8쪽과 같은 문구',
+  /* 🎯 2026-09-11 — 10호는 8쪽과 **일부러 다르다**: 불량이 있는 구분(rows·refer)을 「결과참조」로
+   *   접는다(사용자 지시). 종전 계약은 「소화설비 = '소화기 지시압력 미달'」로, 8쪽과 같은 문구였다.
+   *   원문은 8쪽·현5가 계속 싣는다 — 두 축의 갈라짐 자체는 test-applicable-surfaces가 본다. */
+  check('공급 시 불량 있는 구분은 「결과참조」로 접힌다(8쪽과 갈라지는 축)',
     supplied.find(r => r.group === '경보설비')!.content === DEFECT_FOLD_TEXT.refer
     && supplied.find(r => r.group === '기타')!.content === DEFECT_FOLD_TEXT.na
-    && supplied.find(r => r.group === '소화설비')!.content === '소화기 지시압력 미달')
+    && supplied.find(r => r.group === '소화설비')!.content === DEFECT_FOLD_TEXT.refer)
+  // 🚨 음성 — 원문이 10호로 새면 접기가 풀린 것이다(되돌리면 여기가 붉어진다)
+  check('(음성) 불량 내용 원문이 10호 7행에 없다',
+    supplied.every(r => !r.content.includes('소화기 지시압력 미달')),
+    JSON.stringify(supplied.map(r => r.content)))
   const bare = annexPlanRows({ ...r9base, defectRows: MIXED })
   check('미공급이면 자동 문구 0 — 「해당없음」 단정 금지(2026-09-08 정정)',
     bare.every(r => !Object.values(DEFECT_FOLD_TEXT).includes(r.content)),

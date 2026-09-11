@@ -3,6 +3,7 @@
  *  ③그룹별 일자·총일수가 **각자의 기간**으로 찍힌다(총 기간 복제 아님) ④빈 구분은 자리표만
  *  ⑤총합 행(이행조치 필요기간) 존치 ⑥planRows 미공급이면 종전 렌더 그대로(하위 호환)
  *  실행: npx tsx scripts/_probe-r10-plan-rows.mts */
+import { readFileSync } from 'node:fs'
 import { renderReport10, type Annex1011Data, type AnnexPlanRow } from '../src/lib/doc-templates/report1011'
 import { DEFECT_GROUPS, foldDefectGroups, DEFECT_FOLD_TEXT } from '../src/lib/doc-templates/report9'
 import { actionPlanPeriod, annexPlanRows } from '../src/lib/report9-assemble'
@@ -95,12 +96,16 @@ console.log('── C-3. Q-5 — 자동 문구 행의 일자 칸(자리표 대�
 //   그래서 여기서는 **실제 조립 함수**를 부른다.
 {
   const PLACEHOLDER = '(총&nbsp;&nbsp;&nbsp;&nbsp;일)'
-  /* 🎯 2026-09-10 — 일자 칸은 **「결과참조」**다(사용자 지시). 종전엔 설비 구분마다 다른 날짜를
-   *   찍었고, 그렇다고 총 이행기간을 복제하면 한 서식이 같은 기간을 여덟 번(7행 + 필요기간) 말한다.
-   *   소방서가 승인하는 이행기간은 하나이고 그 자리는 「이행조치 필요기간」이므로 7행은 가리키기만 한다.
-   *   두 날짜 축에 **일부러 다른 값**을 넣어 둔다 — 어느 쪽이든 7행에 새어 나오면 잡히게.
-   *     actionPeriod(총)       = 8월 5일 ~ 8월 15일 (10일)  ← **필요기간 행에만** 인쇄
+  /* 🎯 2026-09-11 — **사항 = 「결과참조」 · 일자 = 총 이행기간**(사용자 지시). 이 자리는 네 번 바뀌었다:
+   *     ① 구분마다 다른 날짜 → ② 09-09 총 기간을 7행에 복제(같은 기간 여덟 번) →
+   *     ③ 09-10 일자를 통째로 「결과참조」 → ④ 09-11 **사항·일자를 맞바꿈**.
+   *   ②의 「여덟 번」이 재발하지 않는 이유는 날짜가 붙는 행이 **불량 있는 구분으로 한정**되기
+   *   때문이다(이 픽스처에선 2행). 7행 전체에 붙기 시작하면 ②로 되돌아간 것이니 아래 dated 개수와
+   *   음성 대조가 함께 붉어져야 한다.
+   *   두 날짜 축에 **일부러 다른 값**을 넣어 둔다 — 구분별 기간이 새어 나오면 잡히게.
+   *     actionPeriod(총)       = 8월 5일 ~ 8월 15일 (10일)  ← 필요기간 행 + **불량 있는 7행**에 인쇄
    *     actionGroupPeriods(구) = 8월 18일 ~ 8월 20일 (3일)  ← 어디에도 인쇄되면 안 되는 값 */
+  const TOTAL_TEXT = '2026년 8월 5일 ~ 2026년 8월 15일'
   const TOTAL = { startISO: '2026-08-05', endISO: '2026-08-15', days: 10 }
   const GROUP_ONLY = { startISO: '2026-08-18', endISO: '2026-08-20', days: 3 }
   const realRows = annexPlanRows({
@@ -113,8 +118,13 @@ console.log('── C-3. Q-5 — 자동 문구 행의 일자 칸(자리표 대�
   const notes = realRows.filter(r => r.isNote)
   ok(notes.length > 0, `isNote 붙은 문구 행 ${notes.length}개(개수 하한 선단언)`,
     notes.map(r => `${r.group}:${r.content}`).join(' · '))
-  ok(realRows.filter(r => !r.isNote).every(r => !['결과참조', '이상없음', '해당없음'].includes(r.content)),
-    'isNote 없는 행에는 자동 문구가 없다(축이 어긋나지 않았다)')
+  // 🎯 2026-09-11 — 불량 있는 구분(rows·refer)은 **사항 칸이 「결과참조」 한 낱말**로 접힌다.
+  //   종전 계약은 「isNote 없는 행에는 자동 문구가 **없다**」였다 — 정반대가 됐으므로 갈아끼운다.
+  ok(realRows.filter(r => !r.isNote).every(r => r.content === DEFECT_FOLD_TEXT.refer),
+    'isNote 없는 행(불량 있는 구분)은 사항 칸이 전부 「결과참조」')
+  // 축이 어긋나지 않았는가 — 이상없음·해당없음은 **isNote 행의 몫**이고 그 반대는 없다
+  ok(realRows.filter(r => r.isNote).every(r => r.content === DEFECT_FOLD_TEXT.ok || r.content === DEFECT_FOLD_TEXT.na),
+    'isNote 행은 이상없음/해당없음뿐(축이 어긋나지 않았다)')
 
   const realHtml = renderReport10({ ...base, planRows: realRows, totalPeriod: '2026년 8월 5일 ~ 2026년 8월 15일', totalDays: '10' })
   // 문구 행 옆의 `~(총  일)` 자리표가 사라졌는가 — 「해당없음」에 기간을 적으라는 말이 되던 자리
@@ -133,19 +143,34 @@ console.log('── C-3. Q-5 — 자동 문구 행의 일자 칸(자리표 대�
   const rowsOnly = bodyOnly.slice(0, totalAt)
   const totalOnly = bodyOnly.slice(totalAt)
 
-  // 실이행조치 행의 일자 칸 = 「결과참조」 (2026-09-10 사용자 지시)
+  // 실이행조치 행의 일자 칸 = **총 이행기간** (2026-09-11 사용자 지시)
   const dated = realRows.filter(r => !r.isNote)
   ok(dated.length > 0, `실이행조치 행 ${dated.length}개(양성 표본 선단언)`)
+  // 🚨 날짜가 붙는 행은 **불량 있는 구분뿐**이다 — 7행 전체면 09-09의 「여덟 번」으로 되돌아간 것
+  ok(dated.length < DEFECT_GROUPS.length,
+    `날짜 붙는 행이 7행 전체가 아니다 (${dated.length}/${DEFECT_GROUPS.length})`)
+  /* 🚨 **생산자 층에서** 잰다 — 렌더는 isNote 행에 무조건 `—`를 찍으므로, 7행 전체에 period를
+   *   실어도 **화면으로는 아무 일도 안 일어난다**(변이 실험에서 실제로 그 변이가 전 스위트를
+   *   초록으로 통과했다). 렌더의 `—`에 가려진 값은 다음 사람이 렌더를 고치는 순간 새어 나온다. */
+  ok(realRows.filter(r => r.isNote).every(r => r.period === ''),
+    '(음성) 불량 없는 구분은 period 자체가 비어 있다(렌더의 —에 기대지 않는다)',
+    )
   for (const g of dated) {
     const seg = rowsOnly.slice(rowsOnly.indexOf(`>${g.group}<`))
     const cell = seg.slice(0, seg.indexOf('</tr>'))
-    ok(cell.includes('>결과참조</td>'), `${g.group} 일자 칸 = 결과참조`)
-    // 「결과참조(총  일)」이 인쇄되던 자리 — days가 비면 꼬리를 안 붙인다
+    ok(cell.includes(TOTAL_TEXT), `${g.group} 일자 칸 = 총 이행기간`)
+    // 총 일수는 「이행조치 필요기간」이 단독으로 싣는다 — days가 비면 꼬리를 안 붙인다
     ok(!cell.includes('row-days'), `${g.group} 일자 칸에 (총 N 일) 꼬리가 없다`)
   }
-  // 🚨 음성 대조 ① — **총 이행기간이 7행에 새면 안 된다**. 복제 규칙으로 되돌리면 여기가 붉어진다.
-  ok(!rowsOnly.includes('2026년 8월 5일') && !rowsOnly.includes('(총 10 일)'),
-    '(음성) 총 이행기간은 7행에 안 나온다')
+  /* 🚨 음성 대조 ① — **불량 내용 원문이 10호 7행에 새면 안 된다**. 「결과참조」로 접는 것이
+   *   2026-09-11 변경의 핵심이고, 되돌리면 여기가 붉어진다.
+   *   ⚠ 원문 자체는 8쪽·갑지 현5가 **계속 싣는다**(그래야 「결과참조」가 가리킬 곳이 있다) —
+   *     그 축은 test-defect-fold·test-applicable-surfaces가 본다. 여기서 재는 건 10호뿐이다. */
+  ok(!rowsOnly.includes('거주자 등이 손 쉽게'),
+    '(음성) 불량 내용 원문은 10호 7행에 안 나온다')
+  // 🚨 음성 대조 ①-b — 총 **일수**는 7행에 안 붙는다(필요기간 행이 단독)
+  ok(!rowsOnly.includes('(총 10 일)') && !rowsOnly.includes('row-days'),
+    '(음성) 총 일수 꼬리는 7행에 없다')
   // 🚨 음성 대조 ② — 그보다 앞선 규칙(설비 구분별 기간)도 어디에도 안 나온다
   ok(!bodyOnly.includes('2026년 8월 18일') && !bodyOnly.includes('(총 3 일)'),
     '(음성) 설비 구분별 기간은 어디에도 안 나온다')
@@ -154,8 +179,8 @@ console.log('── C-3. Q-5 — 자동 문구 행의 일자 칸(자리표 대�
     '총 이행기간은 필요기간 행에 그대로')
   // 7행 중 일자가 있는 행은 전부 같은 값 — 한 서식이 두 가지를 말하지 않는다
   const periods = new Set(dated.map(r => `${r.period}|${r.days}`))
-  ok(periods.size === 1 && [...periods][0] === '결과참조|',
-    `일자 있는 ${dated.length}행이 전부 한 값 (실측 ${[...periods].join(' / ')})`)
+  ok(periods.size === 1 && [...periods][0] === `${TOTAL_TEXT}|`,
+    `일자 있는 ${dated.length}행이 전부 총 이행기간 한 값 (실측 ${[...periods].join(' / ')})`)
 }
 
 console.log('── D. 하위 호환(planRows 미공급) ──')
@@ -168,6 +193,26 @@ console.log('── E. 계획 요약(③ 고유값)은 7행 위 한 줄 ──')
 const withSummary = renderReport10({ ...base, planRows, rows: [{ content: '전관 유도등 정비', period: '', isSummary: true }] })
 ok(withSummary.includes('계획 요약') && withSummary.includes('전관 유도등 정비'), '요약 줄 인쇄')
 ok(withSummary.indexOf('전관 유도등 정비') < withSummary.indexOf('>소화설비</td>'), '요약은 7행보다 위')
+
+console.log('── F. 액션 덧칠 배선(소스 축) ──')
+/* 🚨 일자 칸을 쓰는 곳은 **둘**이다: 조립본 `annexPlanRows`와 액션의 덧칠(수기 보정만 있고
+ *   자동 산출이 없는 회차용). **덧칠이 나중에 이기므로** 한쪽만 고치면 다른 쪽이 되돌린다 —
+ *   위 A~E는 조립본만 보기 때문에 그때도 전부 초록이다(이 세션이 실제로 밟을 뻔한 자리).
+ *   `report9-actions.ts`는 'use server'라 import할 수 없어 **소스를 읽어** 배선을 단언한다
+ *   (test-annex-total-period가 라우트·액션에 쓰는 것과 같은 방식).
+ * ⚠ 파일 전체에서 문자열을 세지 않는다 — **덧칠 블록 안**으로 좁힌다. 파일 어딘가에 남아 있는
+ *   `DEFECT_FOLD_TEXT.refer`(11호 축이 쓴다)에 매치돼 음성 단언이 헛도는 것을 막는다. */
+{
+  const ACTIONS = 'src/app/(dashboard)/inspections/report9-actions.ts'
+  const src = readFileSync(new URL(`../${ACTIONS}`, import.meta.url), 'utf8')
+  ok(src.length > 1000, `분모 확인: 액션 소스 ${src.length}자 읽음`)
+  const overlay = /data\.planRows\s*=\s*data\.planRows\.map\(([\s\S]{0,400}?)\n\s*\}/.exec(src)?.[1] ?? ''
+  ok(overlay.length > 0, '덧칠 블록을 찾았다(전제 — 못 찾으면 아래가 공허하다)')
+  ok(/period:\s*total\b/.test(overlay), '덧칠이 일자 칸에 총 이행기간(totalPeriod)을 싣는다')
+  ok(!/DEFECT_FOLD_TEXT\.refer/.test(overlay), '(음성) 덧칠이 「결과참조」로 되돌아가지 않았다')
+  ok(/isNote\s*\?\s*r\s*:/.test(overlay), '덧칠은 불량 없는 줄(isNote)을 건드리지 않는다')
+  ok(/days:\s*''/.test(overlay), "덧칠은 days를 비운다(「(총 N 일)」 중복 인쇄 차단)")
+}
 
 console.log(`\n결과: ${pass} 통과 / ${fail} 실패`)
 process.exit(fail ? 1 : 0)

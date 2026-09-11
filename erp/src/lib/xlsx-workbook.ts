@@ -953,8 +953,11 @@ export function buildWorkbookValues(src: WorkbookSource): Map<string, CellValue>
   //   번호가 붙는다(짝이 어긋난 채로도 인쇄는 멀쩡해 보인다).
   // ⚠ 넘치는 분은 자르되 `defectOverflow`로 남겨 라우트가 missing에 실을 수 있게 한다(S8-2 규약).
   // 41: applicableGroups가 오면 PDF 8쪽과 같은 fold — 사용자 입력 행만 접어 넣고, 빈 그룹은
-  // 결과참조/이상없음/해당없음 문구(번호 칸 공란). 계획서!H12~H24{=현5!C4..C10} 수식으로 이행조치
-  // 사항 칸에도 같은 문구가 전파된다(Q-3 허용 확정, 2026-09-06 — 구조 변경 0이 이 축의 선택 이유).
+  // 결과참조/이상없음/해당없음 문구(번호 칸 공란).
+  // 🚨 종전엔 `계획서!H12~H24{=현5!C4..C10}` 수식으로 이 칸이 이행조치 사항 칸에 **그대로 전파**됐다.
+  //   2026-09-11부터 계획서 쪽은 「결과참조」로 접히므로(아래 planContent 블록) 그 전파를 끊었다.
+  //   **여기(8쪽)는 불량 내용을 그대로 유지한다** — 「결과참조」가 가리키는 그 결과가 여기 남아
+  //   있어야 말이 되기 때문이다(사용자 결정).
   const defectFolds = p.applicableGroups
     ? foldDefectGroups(p.defectRows ?? [], p.applicableGroups) : null
   for (const { group, row } of DEFECT_GROUP_ROWS) {
@@ -969,6 +972,31 @@ export function buildWorkbookValues(src: WorkbookSource): Map<string, CellValue>
       [`defectCode${row}`, kept.length ? kept.map(r => r.code).join('\n') : null],
       [`defectContent${row}`, kept.length ? kept.map(r => r.content).join('\n') : null],
     )
+  }
+  /* ── 계획서(별지 10호) 행별 「이행조치 사항」 ──
+   *
+   * 🎯 **불량이 있는 구분 = 「결과참조」**(2026-09-11 사용자 지시). PDF 10호 7행(`annexPlanRows`)과
+   *   **같은 규칙**이다(D-7) — 불량 내용은 본문에 나열하지 않고 첨부 점검표를 가리키기만 한다.
+   *
+   * ⚠ 이 칸은 여태 **앵커가 없었다** — 서식의 `H{r}{=현5!C{4+i}}` 수식이 8쪽 값을 비추고 있었다
+   *   (실측 2026-09-11 `H12:I13` 병합, 머리줄 `B11="이행조치 사항"`). 이제 값을 직접 쓰고
+   *   앵커의 dropFormula가 그 수식을 끊는다 — 안 끊으면 Excel이 열면서 재계산해 8쪽 값을 되살린다
+   *   (`계획서!K·P·O` 일자 칸이 이미 같은 이유로 dropFormula다).
+   * ⚠ `rows`(입력 있음)와 `refer`(불량은 있는데 입력 없음)를 **한 낱말로 접는다** — 사항 칸이
+   *   어느 쪽이든 「결과참조」이므로 이 표에서는 구별되지 않는다(PDF와 같은 판단).
+   * ⚠ 미공급(applicableGroups 없음)이면 **현5와 같은 텍스트를 그대로 쓴다** — 서식의
+   *   `={현5!C{r}}`가 인쇄하던 것과 같은 결과다(구 호출부·픽스처 대조군 보존).
+   *   `null`로 비워 두는 길은 없다: 라우트가 `unmapped`를 **코드 결함으로 보고 500**을 낸다.
+   *   값이 아예 없으면(그 구분에 불량 0건) null → keepFormulaWhenEmpty가 `=""`를 살려
+   *   `0` 인쇄를 막는다(이미 밟은 함정).
+   * 📌 일자 칸(K·P·O)은 **여기서 건드리지 않는다** — 이미 총 이행기간 날짜이고, 그 판정 축은
+   *   「그 구분에 계획이 있는가」로 2026-09-09에 사용자가 정한 그대로다(위 블록). */
+  for (const { group, row } of PLAN_DATE_ROWS) {
+    const f = defectFolds?.get(group)
+    const raw = (p.defectRows ?? []).filter(r => r.group === group)
+      .slice(0, DEFECT_ROWS_PER_GROUP).map(r => r.content).join('\n')
+    entries.push([`planContent${row}`, !f ? (raw || null)
+      : f.kind === 'rows' || f.kind === 'refer' ? DEFECT_FOLD_TEXT.refer : DEFECT_FOLD_TEXT[f.kind]])
   }
   return new Map<string, CellValue>(entries)
 }

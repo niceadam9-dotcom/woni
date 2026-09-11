@@ -1,9 +1,16 @@
-/** 설비 구분 fold가 **세 표면에서 같은 말을 하는가** (소방계획서_43 S5-6)
+/** 설비 구분 fold가 **표면마다 제 몫의 말을 하는가** (소방계획서_43 S5-6)
  *
- *  원천은 `foldDefectGroups` 하나인데 그것을 읽는 표면은 셋이다:
- *    ① PDF 별지 9호 8쪽 (renderReport9 page8)
- *    ② PDF 별지 10호 「이행조치 계획사항」 7행 (annexPlanRows)
- *    ③ 갑지 엑셀 현5 불량 세부 7행 (buildWorkbookValues defectContent{row})
+ *  원천은 `foldDefectGroups` 하나인데 그것을 읽는 표면은 넷이다:
+ *    ① PDF 별지 9호 8쪽 (renderReport9 page8)                       — 원문 축
+ *    ② 갑지 엑셀 현5 불량 세부 7행 (defectContent{row})              — 원문 축
+ *    ③ PDF 별지 10호 「이행조치 계획사항」 7행 (annexPlanRows)        — 접기 축
+ *    ④ 갑지 엑셀 계획서 「이행조치 사항」 7행 (planContent{row})      — 접기 축
+ *
+ *  🎯 **2026-09-11부터 넷이 두 짝으로 갈린다**(사용자 지시). ①②는 불량 내용 **원문**을 싣고,
+ *    ③④는 불량이 있는 구분을 **「결과참조」 한 낱말**로 접는다. 갈라진 것이 결함이 아니라 계약이다 —
+ *    「결과참조」가 가리키는 그 결과가 ①②에 남아 있어야 말이 되기 때문이다.
+ *    ⚠ 그러므로 "네 표면이 다르다"며 통일하지 말 것. 통일해야 하는 것은 **짝 안에서**다
+ *      (①=② 이고 ③=④ 인가).
  *
  *  원천이 하나여도 **표면마다 fold를 부르는 조건이 다르면** 갈라진다 — 실제로 그런 일이 있었다:
  *  10호는 `applicableGroups ?? []`로 미공급을 '전 구분 미해당'으로 읽어 7행을 전부 「해당없음」으로
@@ -17,7 +24,7 @@ import {
 } from '../src/lib/doc-templates/report9.ts'
 import { annexPlanRows } from '../src/lib/report9-assemble.ts'
 import { buildWorkbookValues } from '../src/lib/xlsx-workbook.ts'
-import { DEFECT_GROUP_ROWS } from '../src/lib/xlsx-anchors.ts'
+import { DEFECT_GROUP_ROWS, PLAN_DATE_ROWS } from '../src/lib/xlsx-anchors.ts'
 import { ETC_CODES } from '../src/lib/facility-codes.ts'
 import { isMultiUseApplicable } from '../src/lib/multi-use.ts'
 
@@ -54,6 +61,8 @@ const xlsxFold = (defectRows: Report9DefectRow[], applicableGroups?: string[]) =
   report9: { ...R9_BLANK, defectRows, applicableGroups } as never,
 })
 const rowOf = (g: string) => DEFECT_GROUP_ROWS.find(r => r.group === g)!.row
+/** 엑셀 계획서(별지 10호) 행 — 현5와 행 번호가 다르다(12행부터 2행 간격) */
+const planRowOf = (g: string) => PLAN_DATE_ROWS.find(r => r.group === g)!.row
 // renderReport9는 3쪽(설치 √)까지 그리므로 8쪽 픽스처보다 넓은 형태가 필요하다 —
 // 목록은 test-defect-fold.mts의 BASE9와 같은 관례(같은 렌더를 재는 이웃)
 const base9 = (defectRows: Report9DefectRow[], applicableGroups?: string[]) =>
@@ -146,9 +155,28 @@ for (const c of CASES) {
     const p8 = page8Text(html, g)
     const p10 = plan.find(r => r.group === g)?.content ?? '(행 없음)'
     const x5 = String(xv.get(`defectContent${rowOf(g)}`) ?? '')
-    const agree = (p8 === want || (want === '' && p8 === '')) && p10 === want && x5 === want
-    ok(agree, `${g}: 세 표면 일치`,
-      agree ? `「${want || '(공란)'}」` : `8쪽="${p8}" / 10호="${p10}" / 현5="${x5}" / 원천="${want}"`)
+    const xPlanRaw = xv.get(`planContent${planRowOf(g)}`)
+    // 🎯 접기 축의 기대값 — 불량이 있는 구분(rows·refer)은 「결과참조」.
+    //   미공급(folds 없음)이면 접기를 타지 않으므로 **원문 축과 같은 값**이다(종전 거울과 같은 결과).
+    //   ⚠ 엑셀 계획서 칸을 비워 둘 수는 없다 — 라우트가 `unmapped`를 코드 결함으로 보고 500을 낸다.
+    const wantFold = !folds ? want
+      : f!.kind === 'rows' || f!.kind === 'refer' ? DEFECT_FOLD_TEXT.refer : DEFECT_FOLD_TEXT[f!.kind]
+    const xPlan = String(xPlanRaw ?? '')
+
+    // 짝 ① — 원문 축: 8쪽 = 현5
+    const rawAgree = p8 === want && x5 === want
+    ok(rawAgree, `${g}: 원문 축 일치(8쪽 = 현5)`,
+      rawAgree ? `「${want || '(공란)'}」` : `8쪽="${p8}" / 현5="${x5}" / 원천="${want}"`)
+    // 짝 ② — 접기 축: 10호 = 계획서
+    const foldAgree = p10 === wantFold && xPlan === wantFold
+    ok(foldAgree, `${g}: 접기 축 일치(10호 = 엑셀 계획서)`,
+      foldAgree ? `「${wantFold || '(공란)'}」` : `10호="${p10}" / 계획서="${xPlan}" / 기대="${wantFold}"`)
+    // 🚨 갈라짐이 **의도대로**인가 — 불량 있는 구분에서만 두 축이 다르고, 나머지는 같아야 한다.
+    //   이게 없으면 양쪽을 같은 값으로 되돌려도(=이 변경을 취소해도) 위 둘이 초록으로 통과한다.
+    const shouldDiffer = !!folds && (f!.kind === 'rows') && want !== DEFECT_FOLD_TEXT.refer
+    ok(shouldDiffer ? p8 !== p10 : p8 === p10,
+      `${g}: 두 축의 갈라짐이 의도대로(${shouldDiffer ? '달라야' : '같아야'} 한다)`,
+      `8쪽="${p8}" / 10호="${p10}"`)
     seen.add(want === '' ? '(공란)' : (Object.values(DEFECT_FOLD_TEXT) as string[]).includes(want) ? want : '(실불량내용)')
   }
 }

@@ -216,6 +216,17 @@ export const ANCHORS: Anchor[] = [
     { field: `planEnd${row}`,   sheet: '계획서', cell: `P${row}`,     labelCell: 'K11', label: '이행조치일자', dropFormula: true },
     { field: `planDays${row}`,  sheet: '계획서', cell: `O${row + 1}`, labelCell: 'K11', label: '이행조치일자', dropFormula: true },
   ]),
+  // ── 계획서(별지 10호) 행별 「이행조치 사항」 7칸 (2026-09-11 사용자 지시) ──
+  // 서식은 H{r}{=현5!C{4+i}}로 별지 9호 8쪽 불량내용을 그대로 비춘다. 이제 계획서 쪽만
+  // 「결과참조」로 접으므로(8쪽은 불량 내용 유지) 그 수식을 끊고 값을 직접 쓴다 —
+  // dropFormula 없이 캐시만 바꾸면 Excel이 열면서 재계산해 8쪽 값을 되살린다(일자 21칸과 같은 축).
+  // ⚠ keepFormulaWhenEmpty: 미공급(applicableGroups 없음)이면 null이 와서 수식이 살아남고
+  //   종전 동작 그대로다 — 빈 셀로 두면 표시 서식에 따라 `0`이 인쇄된다(이미 밟은 함정).
+  // 좌표·라벨은 실측(2026-09-11): H12:I13 병합, 머리줄 B11="이행조치 사항", 12행부터 2행 간격.
+  ...PLAN_DATE_ROWS.map<Anchor>(({ row }) => ({
+    field: `planContent${row}`, sheet: '계획서', cell: `H${row}`,
+    labelCell: 'B11', label: '이행조치 사항', dropFormula: true, keepFormulaWhenEmpty: true,
+  })),
   // ── 완료보고서(별지 11호) 「이행완료 사항」 8칸 (소방계획서_43 S2) ──
   // 여태 **통째로 미배선**이었다: 서식에 B19~B22 셀 자체가 없고 일자는 I20 한 칸만 `=개요!G10`
   // (= 계획 종료일)이었다. PDF 11호는 건별로 내용·완료일을 찍는데 엑셀은 4행이 공란이라
