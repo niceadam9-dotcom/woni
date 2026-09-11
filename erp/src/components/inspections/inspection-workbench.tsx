@@ -38,7 +38,7 @@ import { MessageTemplateModal } from '@/components/settings/message-template-mod
 import { InspectionSmsModal } from '@/components/sms/inspection-sms-modal'
 import { STEP_REPORT_LABELS, STEP_REPORT_TYPES, type StepReportType } from '@/app/(dashboard)/inspections/report-constants'
 import {
-  PANE_BASE, PANE_LABELS, PANE_W_DEFAULT, getPaneWServerSnapshot, getPaneWSnapshot,
+  PANE_BASE, paneLabels, paneWDefault, getPaneWServerSnapshot, getPaneWSnapshot,
   nudgePaneW, paneCols, subscribePaneW, writePaneW,
 } from '@/lib/pane-width'
 import type { TimelineData, TimelineSlots } from '@/components/inspections/inspection-timeline-client'
@@ -128,6 +128,9 @@ export function InspectionWorkbench({
    *  **이미 나 있던 결함**이다(대조군 test-workbench-defect-pane-switch가 현행에서 붉었다). */
   const [defectEdits, setDefectEdits] = useState<DefectEdits>({})
   // R5-8 기산 근거 인라인 수정 — 기한을 보는 자리에서 바로 고칠 수 있어야 한다
+  /** ④ 제출 전제 펼침 — `null`은 "사용자가 아직 안 건드림"이라 ⚠ 유무로 정한다.
+   *  `false`로 초기화하면 ⚠가 있는데도 접힌 채 시작해 "왜 제출이 막히나"를 못 읽는다. */
+  const [prereqOpen, setPrereqOpen] = useState<boolean | null>(null)
   const [anchorEdit, setAnchorEdit] = useState(false)
   const [anchorEnd, setAnchorEnd] = useState(data.period?.end ?? '')
   const [anchorMsg, setAnchorMsg] = useState('')
@@ -538,13 +541,25 @@ export function InspectionWorkbench({
    *  ⑤ 불량목록 / 조치 / 10호 미리보기        ⑥ 완료현황 / 11호 / 11호 미리보기 */
   // 칸 폭 조정치 — 브라우저에 남긴다(사람마다 화면도 일하는 방식도 다르다).
   // 서버 렌더는 기본값, 붙은 뒤 저장값으로 한 번 다시 그린다(lib/pane-width 헤더 참고).
-  const dw = useSyncExternalStore(subscribePaneW, getPaneWSnapshot, getPaneWServerSnapshot)
+  /* 🚨 칸 수가 단계마다 다르다 — ④는 2칸(2026-09-11 사용자 A안), 나머지는 3칸.
+       종전 「제출 전제」 칸은 서버가 보내는 detail·href를 **쓰지도 않고** 라벨 네 줄만 그렸는데
+       폭은 셋 중 둘째로 넓었다(가장 적게 말하는 칸이 가장 넓었다). 전제는 둘째 칸 머리로 접고,
+       기산·기한과 [종료일 고치기]는 의미가 같은 자리인 「소방서 제출일」 옆으로 옮겼다.
+     ⚠ 조정치 배열의 길이는 이 칸 수와 같아야 한다 — 저장값도 칸 수별로 따로 보관한다. */
+  const stepKind = sel === 'submit9' ? 'duo' : PREVIEW_STEPS.has(sel) ? 'preview' : 'normal'
+  const paneCount = PANE_BASE.lg[stepKind].length
+  const dw = useSyncExternalStore(
+    subscribePaneW,
+    useCallback(() => getPaneWSnapshot(paneCount), [paneCount]),
+    useCallback(() => getPaneWServerSnapshot(paneCount), [paneCount]),
+  )
   const nudgePane = useCallback((i: number, dir: 1 | -1) => {
     const next = nudgePaneW(dw, i, dir)
     if (next) writePaneW(next)
   }, [dw])
   const paneAdjusted = dw.some(v => Math.abs(v) > 1e-9)
-  const stepKind = PREVIEW_STEPS.has(sel) ? 'preview' : 'normal'
+  // ④ 기산 줄을 그릴 수 있는가 — 기간 정보가 없으면 못 그리므로, 그때만 제출일 줄이 기한을 대신 말한다
+  const hasAnchorRow = !!(data.period && (data.period.end || data.period.start))
   // 두 breakpoint의 기본값에 각각 조정치를 얹어 CSS 변수로 넘긴다 — 반응형은 Tailwind가 그대로 고른다.
   const paneStyle = {
     '--wb-lg': paneCols(PANE_BASE.lg[stepKind], dw),
@@ -641,10 +656,12 @@ export function InspectionWorkbench({
           칸이 세로로 쌓이는 좁은 화면(lg 미만)에서는 폭 개념이 없으므로 숨긴다. */}
       <div className="hidden shrink-0 gap-2 lg:grid lg:grid-cols-[var(--wb-lg)] 2xl:grid-cols-[var(--wb-2xl)]"
         style={paneStyle} data-testid="workbench-pane-width">
-        {PANE_LABELS.map((label, i) => (
+        {paneLabels(paneCount).map((label, i) => (
           <div key={label} className="flex items-center justify-end gap-0.5 pr-1">
-            {i === 2 && paneAdjusted && (
-              <button onClick={() => writePaneW(PANE_W_DEFAULT)} title="칸 폭을 기본값으로 되돌립니다"
+            {/* 초기화는 **마지막 칸**에 붙인다 — 3칸일 땐 i===2, 2칸일 땐 i===1이다.
+                `i === 2`로 박아 두면 2칸 화면에서 초기화 버튼이 통째로 사라진다. */}
+            {i === paneCount - 1 && paneAdjusted && (
+              <button onClick={() => writePaneW(paneWDefault(paneCount))} title="칸 폭을 기본값으로 되돌립니다"
                 aria-label="칸 폭 초기화" data-testid="pane-w-reset"
                 className="mr-1 inline-flex items-center gap-1 rounded px-1 text-form-2xs text-brand hover:bg-brand-tint">
                 <RotateCcw className="size-3" /> 초기화
@@ -657,7 +674,8 @@ export function InspectionWorkbench({
               <ChevronLeft className="size-3.5" />
             </button>
             <button onClick={() => nudgePane(i, 1)} disabled={!nudgePaneW(dw, i, 1)}
-              title={`${label}을 넓힙니다 — 나머지 두 칸이 절반씩 양보합니다`} aria-label={`${label} 넓게`}
+              title={paneCount === 2 ? `${label}을 넓힙니다 — 나머지 한 칸이 양보합니다`
+                : `${label}을 넓힙니다 — 나머지 두 칸이 절반씩 양보합니다`} aria-label={`${label} 넓게`}
               data-testid={`pane-w-${i}-wide`}
               className="inline-flex size-5 items-center justify-center rounded text-ink-soft hover:bg-brand-tint hover:text-brand disabled:opacity-30 disabled:hover:bg-transparent">
               <ChevronRight className="size-3.5" />
@@ -823,14 +841,46 @@ export function InspectionWorkbench({
             🚨 감춰진 회차의 별지 9호 생성·소방서 제출일 기록은 헤더 [별지서식] 링크(고객 별지서식
               탭)가 받는다 — 법정 의무(시행규칙 제23조제2항)의 창구는 사라지지 않는다. */}
         {sel === 'submit9' && (<>
-          <Pane title="제출 전제" cls={paneCls} head={paneHead}>
-            <div className="px-3 py-2 space-y-1">
-              {data.prereqs.length === 0 && <Empty>전제 항목이 없습니다.</Empty>}
-              {data.prereqs.map((p, i) => (
-                <p key={i} className={`text-form-xs ${p.ok ? 'text-ink-sub' : 'text-amber-600'}`}>
-                  {p.ok ? '✓' : '⚠'} {p.label}
-                </p>
-              ))}
+          <Pane title="별지 9·10호 생성·제출" cls={paneCls} head={paneHead}>
+            <div className="space-y-2 px-3 py-2">
+              {/* 제출 전제 — **접이식 한 줄**(2026-09-11 사용자 A안). 종전엔 이것만으로 칸 하나를
+                  통째로 썼는데, 정작 서버가 보내는 `detail`(무엇이 몇 개 비었는지)과 `href`(고치러
+                  가는 링크)를 **쓰지도 않고** 라벨 네 줄만 그렸다 — 가장 적게 말하는 칸이 가장 넓었다.
+                  ⭐ 접으면서 detail·href를 **살렸다**: 추가 조회 0(이미 `page.tsx`가 보내고 있다).
+                  ⚠ 기본 펼침은 **⚠가 있을 때만**이다. 전부 ✓인데 펼쳐 두면 매번 접어야 하고,
+                    ⚠인데 접혀 있으면 "왜 제출이 막히나"를 못 읽는다. 사용자가 한 번 누르면 그 뜻을 따른다. */}
+              {data.prereqs.length > 0 && (() => {
+                const bad = data.prereqs.filter(p => !p.ok)
+                const open = prereqOpen ?? bad.length > 0
+                return (
+                  <div data-testid="submit9-prereq"
+                    className={`rounded-lg border px-2.5 py-1.5 ${bad.length > 0 ? 'border-amber-300 bg-amber-50' : 'border-brand-line-soft bg-paper'}`}>
+                    <button onClick={() => setPrereqOpen(!open)} aria-expanded={open}
+                      data-testid="submit9-prereq-toggle"
+                      className="flex w-full items-center gap-1.5 text-left text-form-xs">
+                      <span className={bad.length > 0 ? 'text-amber-700' : 'text-ink-sub'}>
+                        {bad.length === 0
+                          ? `✓ 제출 전제 ${data.prereqs.length}/${data.prereqs.length}`
+                          : `⚠ 제출 전제 ${data.prereqs.length - bad.length}/${data.prereqs.length} — ${bad.map(p => p.label).join(' · ')}`}
+                      </span>
+                      <ChevronRight className={`ml-auto size-3 shrink-0 transition-transform ${open ? 'rotate-90' : ''}`} />
+                    </button>
+                    {open && (
+                      <div className="mt-1 space-y-0.5 border-t border-brand-line-soft pt-1">
+                        {data.prereqs.map((p, i) => (
+                          <p key={i} className={`text-form-2xs ${p.ok ? 'text-ink-meta' : 'text-amber-700'}`}>
+                            {p.ok ? '✓' : '⚠'} {p.label}
+                            {p.detail && <span className="text-ink-meta"> — {p.detail}</span>}
+                            {!p.ok && p.href && (
+                              <NextLink href={p.href} className="ml-1 underline hover:text-brand">{p.hrefLabel ?? '입력'}</NextLink>
+                            )}
+                          </p>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )
+              })()}
               {/* 소방계획서_45 — ⑤⑥을 생략해도 ④는 남는다(법정 15일 보고는 불량 유무와 무관).
                   ④를 존치하기로 한 이상 **뒤 단계가 왜 비었는지**가 이 화면에서 읽혀야 한다 —
                   아니면 "합격인데 왜 아직 할 일이 있나"로 읽힌다. 문장은 DOC_TERMS가 단일 원천.
@@ -845,35 +895,6 @@ export function InspectionWorkbench({
                   별지 9호 제출은 불량 유무와 무관하게 <b className="text-ink-sub">점검 후 15일 내</b> 의무입니다.
                 </p>
               )}
-              {/* R5-8 기산 근거 — '기한이 왜 이 날짜인지'를 여기서 보고 여기서 고친다.
-                  종료일이 없으면 시작일이 기산일이다(page.tsx due9 규칙과 동일) */}
-              {data.period && (data.period.end || data.period.start) && (
-                <div className="flex flex-wrap items-center gap-1.5 border-t border-brand-line-soft pt-2 text-form-2xs text-ink-meta">
-                  <span>
-                    기산: {data.period.end
-                      ? <>종료일 <b className="text-ink-sub">{data.period.end}</b></>
-                      : <>시작일 <b className="text-ink-sub">{data.period.start}</b> <span className="text-amber-600">(종료일 미지정 — 다일 점검이면 종료일을 넣어야 기한이 맞습니다)</span></>
-                    } + 15일 = 기한 <b className="text-ink-sub">{data.submit9.due ?? '—'}</b>
-                  </span>
-                  {canManage && !anchorEdit && (
-                    <button onClick={() => { setAnchorEnd(data.period?.end ?? ''); setAnchorEdit(true) }}
-                      className="underline hover:text-brand">종료일 고치기</button>
-                  )}
-                  {canManage && anchorEdit && (
-                    <span className="inline-flex items-center gap-1">
-                      <DateInput value={anchorEnd} onChange={e => setAnchorEnd(e.target.value)}
-                        className="h-6 w-28 rounded-lg border border-brand-line px-1.5 text-form-2xs" />
-                      <button onClick={saveAnchor} disabled={isPending} className={btn}>저장</button>
-                      <button onClick={() => { setAnchorEdit(false); setAnchorMsg('') }} className="underline">취소</button>
-                    </span>
-                  )}
-                  {anchorMsg && <span className={anchorMsg.startsWith('❌') ? 'text-red-600' : 'text-green-600'}>{anchorMsg}</span>}
-                </div>
-              )}
-            </div>
-          </Pane>
-          <Pane title="별지 9·10호 생성·제출" cls={paneCls} head={paneHead}>
-            <div className="space-y-2 px-3 py-2">
               {/* S9-1 — 구규약(legacy_na)·규약 미상+응답 있음은 재생성 차단(서버 가드와 같은 판정 함수).
                   미상 회차는 사실을 아는 관리자가 [신규약 확정]으로 해제한다 — 자동 추정은 쓰지 않는다. */}
               {regenBlocked && (
@@ -945,17 +966,52 @@ export function InspectionWorkbench({
               )}
               {/* 22 S13(Q-13) — 원클릭 번들: stale 자동 판정 + 병렬 생성 + 공란 사전 리포트 + 구성요소 체크리스트 */}
               {canManage && <BundleGeneratePanel inspectionId={inspectionId} disabled={isPending || busy || regenBlocked} />}
-              <div className="flex items-center gap-1.5 flex-wrap border-t border-brand-line-soft pt-2">
-                <span className="text-form-xs text-ink-sub">소방서 제출일</span>
-                <DateInput value={subDate9} onChange={e => setSubDate9(e.target.value)}
-                  className="h-7 rounded-lg border border-brand-line px-2 text-form-xs" />
-                {canManage && <button onClick={() => submit('report9', subDate9)} disabled={isPending} className={btn}>기록</button>}
-                {submit9At
-                  ? <span className="text-form-2xs text-green-600">✓ 기록됨 {submit9At} — ④ 완료</span>
-                  /* S7-1 4차 — **법정 제출 기한**이다. 이 차수에서 가장 읽혀야 하는 값 중 하나 */
-                  : data.submit9.due && (
-                    <span className="text-form-2xs text-ink-meta">기한 {data.submit9.due} (점검 종료일 +15일)</span>
-                  )}
+              {/* 제출일 ↔ 기한 — 2026-09-11 사용자 A안으로 **한 자리에 모았다**. 종전엔 제출일은
+                  이 칸, 기산 근거와 [종료일 고치기]는 첫째 칸이라 「언제까지인가」와 「왜 그 날짜인가」가
+                  화면 양끝에 흩어져 있었다. 의미가 같은 값은 같은 자리에 둔다. */}
+              <div className="space-y-1 border-t border-brand-line-soft pt-2">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="text-form-xs text-ink-sub">소방서 제출일</span>
+                  <DateInput value={subDate9} onChange={e => setSubDate9(e.target.value)}
+                    className="h-7 rounded-lg border border-brand-line px-2 text-form-xs" />
+                  {canManage && <button onClick={() => submit('report9', subDate9)} disabled={isPending} className={btn}>기록</button>}
+                  {submit9At
+                    ? <span className="text-form-2xs text-green-600">✓ 기록됨 {submit9At} — ④ 완료</span>
+                    /* S7-1 4차 — **법정 제출 기한**이다. 이 차수에서 가장 읽혀야 하는 값 중 하나.
+                       ⚠ 아래 기산 줄이 같은 날짜를 근거까지 붙여 말하므로, 그 줄이 없을 때만 띄운다 —
+                         나란히 두 번 말하면 어느 쪽이 정본인지 흐려진다. */
+                    : !hasAnchorRow && data.submit9.due && (
+                      <span className="text-form-2xs text-ink-meta">기한 {data.submit9.due} (점검 종료일 +15일)</span>
+                    )}
+                </div>
+                {/* R5-8 기산 근거 — '기한이 왜 이 날짜인지'를 여기서 보고 여기서 고친다.
+                    종료일이 없으면 시작일이 기산일이다(page.tsx due9 규칙과 동일).
+                    🚨 [종료일 고치기]는 **살아 있는 화면에서 유일한 입구**다(timeline-client는 렌더되지
+                      않는 죽은 UI). 이 버튼을 지우면 기한 자체를 고칠 방법이 사라지고, 기한이 틀리면
+                      법정 15일 판정이 통째로 어긋난다 — 칸을 없앨 때 반드시 함께 옮겨야 하는 이유다. */}
+                {hasAnchorRow && (
+                  <div className="flex flex-wrap items-center gap-1.5 text-form-2xs text-ink-meta">
+                    <span>
+                      기산: {data.period!.end
+                        ? <>종료일 <b className="text-ink-sub">{data.period!.end}</b></>
+                        : <>시작일 <b className="text-ink-sub">{data.period!.start}</b> <span className="text-amber-600">(종료일 미지정 — 다일 점검이면 종료일을 넣어야 기한이 맞습니다)</span></>
+                      } + 15일 = 기한 <b className="text-ink-sub">{data.submit9.due ?? '—'}</b>
+                    </span>
+                    {canManage && !anchorEdit && (
+                      <button onClick={() => { setAnchorEnd(data.period?.end ?? ''); setAnchorEdit(true) }}
+                        className="underline hover:text-brand">종료일 고치기</button>
+                    )}
+                    {canManage && anchorEdit && (
+                      <span className="inline-flex items-center gap-1">
+                        <DateInput value={anchorEnd} onChange={e => setAnchorEnd(e.target.value)}
+                          className="h-6 w-28 rounded-lg border border-brand-line px-1.5 text-form-2xs" />
+                        <button onClick={saveAnchor} disabled={isPending} className={btn}>저장</button>
+                        <button onClick={() => { setAnchorEdit(false); setAnchorMsg('') }} className="underline">취소</button>
+                      </span>
+                    )}
+                    {anchorMsg && <span className={anchorMsg.startsWith('❌') ? 'text-red-600' : 'text-green-600'}>{anchorMsg}</span>}
+                  </div>
+                )}
               </div>
               {/* 별지 10호 문서 축 — 2026-09-07 사용자 지시로 ⑤에서 여기로 옮겼다.
                   제출일·총 이행기간·총 일수는 **제출하는 문서의 값**이라 제출을 다루는 이 차수가 자리다.

@@ -175,6 +175,12 @@ const steps: Step[] = [
   //   [B]가 160 백필 무회귀(표식 없으면 종전 최고참)를, [D]가 과잉 수리 금지를,
   //   [E]가 **액션이 그 규칙을 실제로 부르는지**(규칙만 옳고 아무도 안 부르는 경우)를 본다.
   { name: '대표동 규칙·승계',           cmd: 'npx tsx scripts/test-primary-building.mts' },
+  // 작업대 칸 폭 계산 + ④ 2칸 구조(2026-09-11 사용자 A안).
+  // 🚨 등재 이유: `pane-width.ts` 주석이 "회귀 고정은 _probe-pane-width"라고 적어 두고도
+  //   **test-all에는 없었다** — 그래서 3칸을 타입으로 못 박은 채 아무도 안 재고 있었다.
+  //   합 보존(전체 폭 불변)·최소폭·저장값 검증에 더해, ④가 duo를 고르는지와
+  //   **칸을 없애며 [종료일 고치기]를 잃지 않았는지**를 소스로 센다(유일한 입구라 잃으면 기한을 못 고친다).
+  { name: '작업대 칸 폭·④ 2칸 구조',    cmd: 'npx tsx --conditions=react-server scripts/_probe-pane-width.mts' },
   // 주입 후 서식 무손상(styles.xml 바이트 동일·병합 불변)·값 정확성·폐포 전파.
   // 폐포가 깨지면 옛 값이 스포크에 남는다 — 다른 고객 문서에 남의 상호가 인쇄되는 부류의 결함
   { name: '갑지 워크북 주입',          cmd: 'npx tsx scripts/test-xlsx-inject.mts' },
