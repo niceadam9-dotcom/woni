@@ -183,22 +183,40 @@ export function AnnexFieldInput({ def, value, onChange, rows = 2, baseDate, onPa
     return (
       <span className="flex flex-wrap items-center gap-1.5">
         {/* 총일수가 **맨 앞**이다 — 업무 순서가 그렇다(수리·정비냐 철거·교체냐를 먼저 정한다).
-            옵션 글자가 곧 라벨이라 앞에 「총 일수」를 또 적지 않는다(좁은 칸에서 폭이 곧 줄 수다). */}
-        <select value={selected} disabled={!canAuto}
-          aria-label={`${def.label} 총 일수`} data-testid="legal-period-select"
-          title={canAuto ? '고르면 시작일 기준으로 종료일이 정해집니다' : '제출일을 먼저 정하면 법정 기간이 계산됩니다'}
-          onChange={e => e.target.value && pickDays(Number(e.target.value))}
-          /* 🚨 `bg-surface`가 빠져 있었다(2026-09-10 지적 image-24: 드롭다운을 열면 하이라이트된
-              한 줄 말고는 **흰 바탕에 흰 글씨**라 안 읽혔다). 브라우저는 옵션 팝업을 select의
-              계산된 배경색으로 그리는데, 배경을 안 주면 기본 흰색이 되고 글자는 다크 테마에서
-              상속받은 밝은 색 그대로다. 같은 파일의 형제 select(:278)는 처음부터 `bg-surface`를
-              달고 있었다 — 이 위젯만 빠뜨린 것이라 형제 규약에 맞춘다. */
-          className={`${inputBase} shrink-0 bg-surface px-1.5${canAuto ? '' : ' opacity-50'}`}>
-          <option value="">직접 입력</option>
-          {LEGAL_ACTION_PERIODS.map(p => (
-            <option key={p.kind} value={p.days} title={p.basis}>{p.days}일 {p.label}</option>
-          ))}
-        </select>
+            옵션 글자가 곧 라벨이라 앞에 「총 일수」를 또 적지 않는다(좁은 칸에서 폭이 곧 줄 수다).
+
+            🎯 2026-09-11 사용자 지시 — **드롭다운이 아니라 라디오**다. 법정 선택지가 둘뿐이라
+            (시행규칙 제23조제5항 1호·2호) 열어 봐야 아는 위젯일 이유가 없고, 종전 select는
+            펼치기 전까지 다른 선택지가 있다는 것조차 보이지 않았다.
+            ⚠ 값·저장 계약은 **그대로**다 — 고르면 pickDays로 기간·총일수가 짝으로 나간다.
+            ⚠ 「직접 입력」은 **고르는 칸이 아니라 지금 상태를 비추는 칸**이다: 날짜가 정답이고
+              저장된 총일수는 폴백이라(위 selected 계산), 종료일을 손으로 10·20 아닌 값으로
+              고치면 여기로 **스스로** 떨어진다. 그래서 눌러도 아무것도 바꾸지 않는다 —
+              누르는 것이 곧 '날짜를 직접 고치겠다'는 뜻이고, 그 행위는 아래 두 달력에서 한다. */}
+        <span role="radiogroup" aria-label={`${def.label} 총 일수`} data-testid="legal-period-select"
+          className="inline-flex shrink-0 flex-wrap items-center gap-1">
+          {[{ days: 0, label: '직접 입력', basis: '시작·종료일을 직접 고치면 자동으로 여기로 옵니다' },
+            ...LEGAL_ACTION_PERIODS.map(p => ({ days: p.days as number, label: `${p.days}일 ${p.label}`, basis: p.basis }))]
+            .map(o => {
+              const v = o.days ? String(o.days) : ''
+              const on = selected === v
+              // 법정 기간 둘만 실제 선택지다 — 기산일이 없으면(제출일 미정) 계산할 수 없어 잠근다
+              const off = !!o.days && !canAuto
+              return (
+                <label key={v || 'manual'} title={off ? '제출일을 먼저 정하면 법정 기간이 계산됩니다' : o.basis}
+                  className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-form-2xs transition-colors ${on
+                    ? 'border-brand bg-brand-tint font-semibold text-brand'
+                    : off ? 'border-line text-ink-soft opacity-50'
+                    : 'border-line text-ink-sub hover:border-brand hover:bg-brand-tint'}`}>
+                  <input type="radio" name={`legal-period-${def.key}`} value={v} checked={on} disabled={off}
+                    data-testid={`legal-period-opt-${v || 'manual'}`}
+                    onChange={() => { if (o.days) pickDays(o.days) }}
+                    className="size-3 shrink-0 accent-brand" />
+                  {o.label}
+                </label>
+              )
+            })}
+        </span>
         {/* 🎯 시작·종료는 **한 덩어리**다(nowrap). 원래 지적(image-22)이 이 둘이 세로로 갈라진 것이라,
             폭이 모자라면 이 묶음이 통째로 다음 줄로 내려갈 뿐 둘이 갈라지지는 않는다. */}
         {/* 🚨 폭은 **줄이지 않는다**(2026-09-10 지적 image-23: 「2026-08-」까지만 보였다).

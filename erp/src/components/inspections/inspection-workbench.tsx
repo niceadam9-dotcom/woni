@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, useTransition } from 'react'
 import { createPortal } from 'react-dom'
@@ -63,6 +63,19 @@ const PREVIEW_STEPS = new Set<StepKey>(['submit9', 'repair', 'submit11'])
 
 /** 불량표(DefectGrid)가 사는 단계 — 표 **이탈**을 감지하는 원천(F-24) */
 const DEFECT_PANES = new Set<StepKey>(['repair', 'submit11'])
+
+/** 별지 10호가 **두 자리로 나뉜** 칸 목록 — ④는 문서 축, ⑤는 작업 축(2026-09-07).
+ *
+ *  🚨 **모듈 상수여야 한다. JSX 안 배열 리터럴로 두면 안 된다.**
+ *  AnnexFields는 이 배열을 `useMemo(defs, [all, only])`의 의존으로 쓰고, 그 `defs`를 다시
+ *  로드 effect의 의존으로 쓴다. 리터럴이면 **렌더마다 새 배열**이라 참조가 매번 바뀌어
+ *  effect가 재발화한다 — 부모가 다시 그려질 때마다 서버 액션 두 개(getAnnexInputsAction·
+ *  getAnnexAutoDefaultsAction)가 날아가고, 그 응답이 `setFields`로 **입력 중인 값을 되돌린다**.
+ *  부모는 자주 다시 그려진다: 제출일 한 글자·칩 전환·isPending 토글·생성 중 8초 폴링 전부.
+ *  (2026-09-11 사용자 지적 「④ 조회가 너무 느리다」의 원인이 이 재조회 폭풍이었다.
+ *   변이 실측: 리터럴이면 타이핑 8회에 추가 조회 5회·칩 전환에 3회, 상수면 둘 다 0회.) */
+const ANNEX10_DOC_KEYS = ['reportDate', 'totalPeriod', 'totalDays']
+const ANNEX10_WORK_KEYS = ['summary', 'contractor', 'budget']
 
 export function InspectionWorkbench({
   inspectionId, canManage, canComplete, today, data, initialJob, initialFiles, customerName, customerId, slots, defectRows,
@@ -687,7 +700,7 @@ export function InspectionWorkbench({
                 </button>
               )}
             </div>
-            <DocPane files={files} inspectionId={inspectionId} onOpen={download} canManage={canManage} kinds={STEP_DOC_KINDS.checklist} />
+            <DocPane files={files} inspectionId={inspectionId} onOpen={download} kinds={STEP_DOC_KINDS.checklist} />
           </Pane>
         </>)}
 
@@ -801,7 +814,7 @@ export function InspectionWorkbench({
               </div>
             </div>
           </Pane>
-          <Pane title="생성물" cls={paneCls} head={paneHead}><DocPane files={files} inspectionId={inspectionId} onOpen={download} canManage={canManage} kinds={STEP_DOC_KINDS.ownerReport} /></Pane>
+          <Pane title="생성물" cls={paneCls} head={paneHead}><DocPane files={files} inspectionId={inspectionId} onOpen={download} kinds={STEP_DOC_KINDS.ownerReport} /></Pane>
         </>)}
 
         {/* ④ 3칸 (소방계획서_48로 접기 UI 폐지) — 불량 0이면 ④ 칩 자체가 스텝바에서 빠지므로
@@ -910,10 +923,26 @@ export function InspectionWorkbench({
                     </button>
                   )
                 })}
-                {canManage && (
-                  <button onClick={() => pkg('report9')} disabled={isPending} className={btn}><Package className="size-3" /> 제출 패키지</button>
-                )}
               </div>
+              {/* 🎯 2026-09-11 사용자 지시 — [엑셀로 받기]를 [제출 패키지] **옆**으로.
+                  종전 자리(생성물 목록 머리)는 '문서를 받는 자리'라는 이유로 골랐는데 패널 맨
+                  아래라 스크롤해야 보였다. 받아 가는 창구 둘(ZIP·엑셀)이 나란히 선다.
+
+                  🚨 **칩 줄에 끼워 넣지 않는다.** 처음엔 [제출 패키지] 옆 칩 줄에 넣었는데,
+                  칩 6개가 이미 줄을 채워 엑셀만 **다음 줄 왼쪽으로 접혔다**(실측 제출패키지
+                  y=393·x=791 vs 엑셀 y=427·x=631 — 형제이긴 해도 눈에는 '옆'이 아니다).
+                  줄을 따로 주면 어떤 폭에서도 둘이 붙어 선다. 칩=고르기 / 이 줄=받기로
+                  역할도 갈린다.
+                  ⚠ 이 줄은 flex-wrap이어야 한다 — WorkbookXlsxButton은 [버튼 + 고지/오류]를
+                    fragment로 내고 그 고지 줄이 `w-full`이라, flex-wrap 컨테이너의 **직계
+                    자식**일 때만 다음 줄로 온전히 떨어진다(감싸면 갇힌다). */}
+              {canManage && (
+                <div className="flex flex-wrap items-center gap-1.5" data-testid="annex-take-row">
+                  <button onClick={() => pkg('report9')} disabled={isPending} className={btn}><Package className="size-3" /> 제출 패키지</button>
+                  <WorkbookXlsxButton inspectionId={inspectionId} />
+                  <span className="text-form-2xs text-ink-meta">PDF는 확정본 · 엑셀은 받아서 고쳐 쓰는 본</span>
+                </div>
+              )}
               {/* 22 S13(Q-13) — 원클릭 번들: stale 자동 판정 + 병렬 생성 + 공란 사전 리포트 + 구성요소 체크리스트 */}
               {canManage && <BundleGeneratePanel inspectionId={inspectionId} disabled={isPending || busy || regenBlocked} />}
               <div className="flex items-center gap-1.5 flex-wrap border-t border-brand-line-soft pt-2">
@@ -934,10 +963,10 @@ export function InspectionWorkbench({
                   annex_inputs report10 — 두 자리가 같은 행을 나눠 쓰므로 AnnexFields가 병합 저장한다. */}
               <div className="border-t border-brand-line-soft pt-2">
                 <AnnexFields inspectionId={inspectionId} annexNo="report10" canEdit={canManage} compact
-                  title="별지 10호 —" only={['reportDate', 'totalPeriod', 'totalDays']} />
+                  title="별지 10호 —" only={ANNEX10_DOC_KEYS} />
               </div>
               <div className="border-t border-brand-line-soft pt-2">
-                <DocPane files={files} inspectionId={inspectionId} onOpen={download} canManage={canManage} kinds={STEP_DOC_KINDS.submit9} />
+                <DocPane files={files} inspectionId={inspectionId} onOpen={download} kinds={STEP_DOC_KINDS.submit9} />
               </div>
               {/* 제출본 파일 — 생성물과 달리 '이미 낸 것'이라 따로 둔다 */}
               {data.reports.length > 0 && (
@@ -1038,7 +1067,7 @@ export function InspectionWorkbench({
             <div className="border-t border-brand-line-soft pt-2">
               {/* 제출일·총 이행기간·총 일수는 ④ 소방서 제출로 옮겼다(2026-09-07) — 여기는 작업 축만 */}
               <AnnexFields inspectionId={inspectionId} annexNo="report10" canEdit={canManage}
-                only={['summary', 'contractor', 'budget']}
+                only={ANNEX10_WORK_KEYS}
                 onSaved={() => setDefectRev(v => v + 1)} />
             </div>
             {canManage && (
@@ -1088,6 +1117,10 @@ export function InspectionWorkbench({
                     {busy ? <Loader2 className="size-3 animate-spin" /> : <FileText className="size-3" />} 11호 PDF 생성
                   </button>
                   <button onClick={() => pkg('report11')} disabled={isPending} className={btn}><Package className="size-3" /> 제출 패키지</button>
+                  {/* ④와 **같은 자리 규약**([제출 패키지] 옆). 워크북은 회차 1개짜리 통합 파일이라
+                      ④에서 받든 ⑥에서 받든 같은 것이 나온다 — 형제 자리를 빠뜨리면 ⑥에서만
+                      "엑셀이 사라졌다"가 된다(종전엔 네 DocPane 전부에 있었다) */}
+                  <WorkbookXlsxButton inspectionId={inspectionId} />
                 </>)}
               </div>
               <div className="flex items-center gap-1.5 flex-wrap border-t border-brand-line-soft pt-2">
@@ -1105,7 +1138,7 @@ export function InspectionWorkbench({
                     </span>}
               </div>
               <div className="border-t border-brand-line-soft pt-2">
-                <DocPane files={files} inspectionId={inspectionId} onOpen={download} canManage={canManage} kinds={STEP_DOC_KINDS.submit11} />
+                <DocPane files={files} inspectionId={inspectionId} onOpen={download} kinds={STEP_DOC_KINDS.submit11} />
               </div>
             </div>
           </Pane>
@@ -1190,21 +1223,16 @@ function Summary({ rows }: { rows: Array<[string, string]> }) {
 
 /** R6-8: 생성물은 문서 목록에 쌓인다 — 타임라인과 같은 GeneratedDocList 재사용
  *
- *  머리에 [엑셀로 받기]를 둔다(2026-09-10 사용자 요청 A안). **행이 아니라 머리**인 이유가 둘 있다:
- *   ① 엑셀은 문서 1건이 아니라 별지 4·9·10·11호+공문+위임장을 한 파일에 담은 **통합 워크북**이라
- *      각 행에 붙일 대상 자체가 없다.
- *   ② 즉석 생성이라 저장되지 않는다(D-5) — 목록은 **저장된 파일**을 그리는 자리이므로 행으로는
- *      영영 나타날 수 없다. 목록 안에 흉내만 낸 행을 만들면 [최신] 뱃지가 거짓말을 하게 된다.
- *
- *  ⚠ 파일이 0건이어도 버튼은 보인다 — 엑셀은 생성물과 무관하게 지금 값으로 만들어진다.
- *    그래서 빈 상태 문구보다 **먼저** 그린다(종전엔 여기서 early return이라 자리가 없었다). */
-function DocPane({ files, inspectionId, onOpen, canManage, kinds }: {
+ *  ⚠ [엑셀로 받기]는 **여기 없다**(2026-09-11 사용자 지시로 ④⑥ [제출 패키지] 옆으로 옮겼다).
+ *    한동안 이 목록 머리에 있었는데(2026-09-10 A안), 그 자리는 패널 맨 아래라 스크롤해야 보였다.
+ *    🚨 되돌려 놓지 말 것 — 엑셀은 저장되지 않는 즉석 생성물(D-5)이라 이 목록에 **행으로는**
+ *    영영 나타날 수 없고(별지 4·9·10·11호+공문+위임장을 한 파일에 담은 통합 워크북이라 붙일 행
+ *    자체가 없다), 그래서 종전에 '머리'라는 어정쩡한 자리를 골랐던 것이다. 창구를 둘로 늘리면
+ *    어느 쪽이 최신인지 묻는 질문이 다시 생긴다. */
+function DocPane({ files, inspectionId, onOpen, kinds }: {
   files: Report9File[]
   inspectionId: string
   onOpen: (path: string, saveName?: string) => void
-  /** 라우트도 `inspection_register`로 막는다(workbook/route.ts) — 여기 가드는 403을 만나기
-   *  전에 없는 길을 안 보여 주기 위한 것이지, 이것이 유일한 방어선은 아니다 */
-  canManage: boolean
   /** 이 차수 탭이 다루는 문서 종류 (STEP_DOC_KINDS). 생략하면 추림 없이 전부 — 종전 동작 */
   kinds?: readonly string[]
 }) {
@@ -1212,14 +1240,6 @@ function DocPane({ files, inspectionId, onOpen, canManage, kinds }: {
   const shown = filesOfKinds(files, kinds)
   return (
     <div className="space-y-1">
-      {canManage && (
-        /* 버튼 컴포넌트는 [버튼 + 고지/오류]를 fragment로 낸다 — 고지 줄이 `w-full`이라
-           flex-wrap 컨테이너의 **직계 자식**이어야 다음 줄로 온전히 떨어진다(감싸면 갇힌다) */
-        <div className="flex flex-wrap items-center gap-1.5 px-1">
-          <span className="mr-auto text-form-2xs text-ink-meta">PDF는 확정본 · 엑셀은 받아서 고쳐 쓰는 본</span>
-          <WorkbookXlsxButton inspectionId={inspectionId} />
-        </div>
-      )}
       {shown.length === 0
         ? <Empty>{kinds ? '이 단계에서 만든 문서가 없습니다.' : '생성된 문서가 없습니다.'}</Empty>
         : <GeneratedDocList files={shown} onOpen={onOpen} inspectionId={inspectionId} />}
@@ -1312,8 +1332,12 @@ function AnnexFields({ inspectionId, annexNo, canEdit, onSaved, compact, only, t
   return (
     <div className={compact ? 'flex max-h-48 flex-col gap-1.5 overflow-hidden px-1' : 'space-y-1.5 px-1'}
       data-annex-fields={annexNo} onBlur={commit}>
-      <p className="flex shrink-0 items-center gap-1.5 text-form-2xs text-ink-soft">
-        <span className="inline-flex items-center rounded bg-brand px-1.5 py-0.5 text-form-3xs font-medium text-white">입력</span>
+      <p className="flex shrink-0 flex-wrap items-center gap-1.5 text-form-2xs text-ink-soft">
+        {/* 🚨 `shrink-0`이 없으면 좁은 칸에서 배지가 **글자 단위로 접혀** 「입/력」 두 줄이 된다
+            (2026-09-11 지적 image-4에 그대로 찍혀 있었다). flex 자식은 기본적으로 축소가 허용돼,
+            남는 폭이 없으면 뒤 문장이 아니라 **배지부터** 짓눌린다 — 배지는 줄지 않는 것이 맞고
+            줄여야 할 것은 설명 문장이다(그래서 부모에 flex-wrap을 준다). 아래 「자동」도 한 벌이다. */}
+        <span className="inline-flex shrink-0 items-center whitespace-nowrap rounded bg-brand px-1.5 py-0.5 text-form-3xs font-medium text-white">입력</span>
         {title ? <b className="text-ink-sub">{title}</b> : null}
         이 서식에서만 쓰는 값 — 비우면 자동 계산값으로 출력
         {state === 'saving' && <Loader2 className="size-3 animate-spin text-brand" />}
@@ -1358,8 +1382,9 @@ function AnnexFields({ inspectionId, annexNo, canEdit, onSaved, compact, only, t
               daysValue={fields.totalDays ?? ''}
               onPatch={patch => setFields(prev => ({ ...prev, ...patch }))} />
             {a && !(fields[d.key] ?? '').trim() && (
-              <span className="mt-0.5 flex items-center gap-1 text-form-2xs text-ink-soft">
-                <span className="inline-flex items-center rounded bg-brand-line-soft px-1 py-px text-form-3xs font-medium text-ink-sub">자동</span>
+              <span className="mt-0.5 flex flex-wrap items-center gap-1 text-form-2xs text-ink-soft">
+                {/* 「입력」 배지와 한 벌 — shrink-0이 없으면 「자/동」으로 접힌다(위 머리줄 주석) */}
+                <span className="inline-flex shrink-0 items-center whitespace-nowrap rounded bg-brand-line-soft px-1 py-px text-form-3xs font-medium text-ink-sub">자동</span>
                 이대로 출력됩니다 — 고치면 고친 값이 나갑니다
               </span>
             )}

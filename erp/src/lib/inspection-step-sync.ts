@@ -212,6 +212,12 @@ export async function syncInspectionSteps(
   changed: number; justCompleted?: boolean; error?: string
   /** 39 S3 — 완료 보류 사유(필수 미입력 항목 수·그중 ●). 있으면 status가 completed로 안 올라갔다 */
   completionHeld?: { required: number; comp: number }
+  /** 방금 모은 증거를 **그대로 돌려준다** — 화면(page.tsx)이 `loadStepEvidence`로 똑같은
+   *  7~9회 왕복(점검표 응답 2·스토리지 list·송달·불량·활동로그·보관정리)을 **한 번 더** 하고
+   *  있었다. 증거는 `inspection_steps`를 읽지 않으므로 동기화 전후로 값이 같다 —
+   *  즉 재조회에 신선도 이득이 없고 왕복만 두 배였다(2026-09-11 조회 지연 수리).
+   *  🚨 점검 행을 못 찾으면 없다 — 그때만 호출부가 `loadStepEvidence`로 물러난다. */
+  evidence?: StepEvidence
 }> {
   // 점검 행과 단계 행은 서로 독립 — 병렬 조회로 왕복 1회 절약(저장 경로 최적화, 2026-08-15)
   const [{ data: inspRaw }, { data: stepRaw }] = await Promise.all([
@@ -230,7 +236,8 @@ export async function syncInspectionSteps(
   const active = activeStepNums(isSpecial, hasSheetDefect(evidence))
 
   const steps = (stepRaw ?? []) as Array<{ id: string; step_num: number; status: string }>
-  if (steps.length === 0) return { changed: 0 }
+  // 단계 행이 없어도 증거는 이미 모았다 — 화면이 쓸 수 있게 함께 내준다(재조회 방지)
+  if (steps.length === 0) return { changed: 0, evidence }
 
   const now = new Date().toISOString()
   const newlyCompleted: number[] = []
@@ -286,5 +293,5 @@ export async function syncInspectionSteps(
     allActiveDone, newlyCompleted, completedAtIso: now, holdCompletion,
   })
 
-  return { changed, justCompleted, completionHeld }
+  return { changed, justCompleted, completionHeld, evidence }
 }

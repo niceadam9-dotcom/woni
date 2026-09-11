@@ -102,10 +102,32 @@ export async function buildSheetOverviews(
   const ids = [...new Set(inspectionIds.filter(Boolean))]
   if (ids.length === 0) return { overviews: {} }
 
+  /* 🎯 2026-09-11 — 종전에는 ①②③④⑤⑥⑦이 **한 줄로 직렬**이라 왕복 6회를 순서대로 기다렸다
+     (점검 상세 실측 ~1,060ms = 전체 서버 렌더의 35%. 원격 Supabase 왕복이 건당 ~180ms다).
+     의존 관계를 보면 층이 셋뿐이다:
+       1층 ① 점검 · ②③ 카탈로그(캐시) · ④ 응답  — ④는 `ids`만 있으면 되고 ①을 안 기다려도 된다
+       2층 ⑤ 건물 · ⑦-a 세부제원 · ⑦ 서식       — 셋 다 ①의 customerIds만 본다(서로 무관)
+       3층 ⑥ 시설                                 — ⑤의 building_id가 있어야 한다(유일한 진짜 의존)
+     층 안에서는 함께 던진다. 쿼리·필터는 **한 글자도 바뀌지 않았다** — 순서만 바뀐다.
+     ⚠ 점검이 0건이면 ④가 헛돌지만 그건 드문 길이고, 그 경우 응답도 0행이라 비용이 없다. */
+
   // ① 점검 건 — 판정 축(plan_type·관리유형) + 편집 권한 축(담당자)
-  const { data: inspRaw, error: inspErr } = await admin.from('inspections')
-    .select('id, customer_id, plan_type, assigned_employee_id, customer:customers(inspection_type)')
-    .in('id', ids)
+  // ②③ 시트·항목 카탈로그 — 마스터 데이터라 캐시에서 읽는다(sheet-catalog.ts, 2026-08-20).
+  // ④ 응답 — 전 점검 1회 (회차당 수백 행이라 페이징 필수)
+  const [inspQ, catalogQ, respQ] = await Promise.all([
+    admin.from('inspections')
+      .select('id, customer_id, plan_type, assigned_employee_id, customer:customers(inspection_type)')
+      .in('id', ids),
+    // 캐시 함수는 throw하므로 여기서 종전 error 계약으로 되돌린다 — Promise.all이 통째로
+    // 터지지 않도록 **각자 잡는다**(한 축의 실패가 다른 축의 조회까지 버리게 하지 않는다)
+    Promise.all([getSheets(), getAllSheetItems()])
+      .then(v => ({ ok: true as const, v }))
+      .catch((e: unknown) => ({ ok: false as const, e })),
+    fetchAllRows<{ inspection_id: string; item_code: string; result: SheetResult }>(
+      (from, to) => admin.from('inspection_sheet_responses')
+        .select('inspection_id, item_code, result').in('inspection_id', ids).range(from, to)),
+  ])
+  const { data: inspRaw, error: inspErr } = inspQ
   if (inspErr) return { overviews: {}, error: `점검 조회 실패: ${inspErr.message}` }
   const insps = (inspRaw ?? []) as unknown as Array<{
     id: string; customer_id: string; plan_type: string | null
@@ -117,16 +139,13 @@ export async function buildSheetOverviews(
   const versions = [...new Set([...scopeById.values()].map(s => s.version))]
   const customerIds = [...new Set(insps.map(i => i.customer_id))]
 
-  // ②③ 시트·항목 카탈로그 — 마스터 데이터라 캐시에서 읽는다(sheet-catalog.ts, 2026-08-20).
-  // 종전에는 매 호출마다 시트 1회 + 항목 전건 페이징(860행이라 2왕복)을 다시 읽었다.
-  // 42703 폴백·정렬도 캐시 안으로 옮겼다. 캐시 함수는 throw하므로 여기서 종전 error 계약으로 되돌린다.
-  let sheets: SheetRow[]
-  let allItems: SheetCatalogItem[]
-  try {
-    [sheets, allItems] = await Promise.all([getSheets(), getAllSheetItems()])
-  } catch (e) {
+  // ②③ 카탈로그 — 위 1층에서 이미 받아 왔다(종전엔 매 호출마다 시트 1회 + 항목 전건 페이징
+  // 2왕복을 여기서 다시 읽었고, 지금은 캐시가 그것을 대신한다. 42703 폴백·정렬도 캐시 안이다).
+  if (!catalogQ.ok) {
+    const e = catalogQ.e
     return { overviews: {}, error: e instanceof Error ? e.message : String(e) }
   }
+  let [sheets, allItems]: [SheetRow[], SheetCatalogItem[]] = catalogQ.v
   const versionSet = new Set<string>(versions)
   sheets = sheets.filter(s => versionSet.has(s.version))
 
@@ -150,10 +169,8 @@ export async function buildSheetOverviews(
     }
   }
 
-  // ④ 응답 — 전 점검 1회 (회차당 수백 행이라 페이징 필수)
-  const { rows: resps, error: respErr } = await fetchAllRows<{ inspection_id: string; item_code: string; result: SheetResult }>(
-    (from, to) => admin.from('inspection_sheet_responses')
-      .select('inspection_id, item_code, result').in('inspection_id', ids).range(from, to))
+  // ④ 응답 — 위 1층에서 함께 받아 왔다(`ids`만 있으면 되는 조회라 ①을 기다릴 이유가 없었다)
+  const { rows: resps, error: respErr } = respQ
   if (respErr) return { overviews: {}, error: `응답 조회 실패: ${respErr}` }
   const respByInsp = new Map<string, Map<string, SheetResult>>()
   for (const r of resps) {
@@ -162,10 +179,20 @@ export async function buildSheetOverviews(
     m.set(r.item_code, r.result)
   }
 
-  // ⑤⑥ 설치 시설 — 고객 → 건물 → 시설
-  const { data: bldRaw } = await admin.from('buildings')
-    .select('id, customer_id').in('customer_id', customerIds).eq('is_active', true)
-  const blds = (bldRaw ?? []) as Array<{ id: string; customer_id: string }>
+  /* 2층 — ⑤ 건물 · ⑦-a 세부제원 · ⑦ 서식. 셋 다 customerIds만 보고 서로를 안 본다.
+     ⑦-a 세부제원 조건부 자동 ／(2026-09-07) — 조건이 이름에 박힌 항목을 분모에서 뺀다.
+          입력 화면(sheet-actions inactiveItemCodes)·완료 게이트·인쇄와 **같은 함수**를 쓴다.
+     ⑦ 다중이용업소 판별 (S7-27 — 22 Q-10·S14-4/5 위임) — 인쇄 조립·번들 공란 리포트와 같은 축
+          (서식 1.10.3 sections.multiUse 업종 ≥1, bundle-actions.ts:94-96과 동일식).
+          STD-32는 SHEET_FACILITY_MAP 미등재라 installed 축에 안 잡힌다 — multiUse면 노출 예외. */
+  const [bldQ, specQ, formQ] = await Promise.all([
+    admin.from('buildings').select('id, customer_id').in('customer_id', customerIds).eq('is_active', true),
+    admin.from('customer_facility_specs').select('customer_id, section_key, spec').in('customer_id', customerIds),
+    admin.from('fire_plan_forms').select('customer_id, sections').in('customer_id', customerIds),
+  ])
+
+  // ⑤⑥ 설치 시설 — 고객 → 건물 → 시설. ⑥만 ⑤의 building_id를 기다린다(유일한 진짜 의존)
+  const blds = (bldQ.data ?? []) as Array<{ id: string; customer_id: string }>
   const customerByBld = new Map(blds.map(b => [b.id, b.customer_id]))
   const { data: facRaw } = blds.length > 0
     ? await admin.from('fire_facilities').select('building_id, facility_code')
@@ -180,10 +207,8 @@ export async function buildSheetOverviews(
     else facByCustomer.set(cid, [f.facility_code])
   }
 
-  // ⑦-a 세부제원 조건부 자동 ／(2026-09-07) — 조건이 이름에 박힌 항목을 분모에서 뺀다.
-  //     입력 화면(sheet-actions inactiveItemCodes)·완료 게이트·인쇄와 **같은 함수**를 쓴다.
-  const { data: specRaw } = await admin.from('customer_facility_specs')
-    .select('customer_id, section_key, spec').in('customer_id', customerIds)
+  // ⑦-a 세부제원 — 위 2층에서 함께 받아 왔다
+  const { data: specRaw } = specQ
   const specRowsByCustomer = new Map<string, SpecRow[]>()
   for (const r of (specRaw ?? []) as Array<SpecRow & { customer_id: string }>) {
     const arr = specRowsByCustomer.get(r.customer_id)
@@ -191,11 +216,8 @@ export async function buildSheetOverviews(
     else specRowsByCustomer.set(r.customer_id, [r])
   }
 
-  // ⑦ 다중이용업소 판별 (S7-27 — 22 Q-10·S14-4/5 위임) — 인쇄 조립·번들 공란 리포트와 같은 축
-  //   (서식 1.10.3 sections.multiUse 업종 ≥1, bundle-actions.ts:94-96과 동일식).
-  //   STD-32는 SHEET_FACILITY_MAP 미등재라 installed 축에 안 잡힌다 — multiUse면 노출 예외.
-  const { data: formRaw } = await admin.from('fire_plan_forms')
-    .select('customer_id, sections').in('customer_id', customerIds)
+  // ⑦ 다중이용업소 판별 — 위 2층에서 함께 받아 왔다
+  const { data: formRaw } = formQ
   const multiUseByCustomer = new Map<string, boolean>()
   for (const row of (formRaw ?? []) as Array<{ customer_id: string; sections: Record<string, unknown> | null }>) {
     const mu = (row.sections?.['multiUse'] ?? null) as { applicable?: boolean; categories?: Record<string, string> } | null

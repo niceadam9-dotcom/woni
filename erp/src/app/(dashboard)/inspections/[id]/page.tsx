@@ -130,6 +130,18 @@ export default async function InspectionDetailPage({
   // 판정은 sheet-scope.ts 단일 소스 — 여기선 종류(작동/종합) 폴백이 불필요해 isSpecial·version만 꺼낸다
   const { isSpecial, version: sheetVersion } = sheetScope(inspPlanType)
 
+  /* R4-7 누락 방어(소방계획서_21 B-4) — 증거 동기화 호출 지점이 한 곳만 빠져도 두 갈래가 되살아난다(R-2).
+     상세 진입 시 계산 증거와 저장 status를 맞춘다. **불일치일 때만 쓰기**(syncInspectionSteps 내부에서
+     바뀐 행만 갱신)라 조회 부하가 늘지 않고, 과거 데이터도 열람하는 순간 스스로 정합해진다.
+
+     🎯 2026-09-11 — **여기서 던지고 아래에서 받는다**(종전에는 아래 한 자리에서 통째로 기다렸다).
+     이 함수는 점검 행·단계 행을 스스로 다시 읽으므로 아래 대량 조회의 결과를 하나도 안 본다 —
+     기다릴 이유가 없었는데 ~450ms를 직렬로 잡아먹고 있었다(실측).
+     ⚠ 이 함수는 **쓰기도 한다**(inspection_steps.status). 바로 아래에서 읽는 `steps`와 겹치지만
+       종전에도 `inspection`·`steps`는 이 호출 **이전**에 읽혔고, 바뀐 경우의 재조회(`stepsChanged>0`)가
+       그 자리를 이미 막고 있다 — 신선도 계약은 그대로다. */
+  const syncPromise = syncInspectionSteps(admin, id, profile.id)
+
   // 고객, 관계인, 담당직원, 보고서 병렬 조회
   const [customerRes, contactRes, employeeRes, reportsRes, defectsRes, actionPlanRes, participantsRes, allEmpRes, genReportsRes, sheetsRes, responsesRes] = await Promise.all([
     admin.from('customers').select('id, customer_name, customer_code, inspection_type, address').eq('id', inspection.customer_id).single(),
@@ -239,10 +251,8 @@ export default async function InspectionDetailPage({
 
   const today = new Date(Date.now() + 9 * 3600_000).toISOString().split('T')[0]  // KST 기준 — D-day는 doc-status.ts todayKst()와 동일 기산
 
-  // R4-7 누락 방어(소방계획서_21 B-4) — 증거 동기화 호출 지점이 한 곳만 빠져도 두 갈래가 되살아난다(R-2).
-  // 상세 진입 시 계산 증거와 저장 status를 맞춘다. **불일치일 때만 쓰기**(syncInspectionSteps 내부에서
-  // 바뀐 행만 갱신)라 조회 부하가 늘지 않고, 과거 데이터도 열람하는 순간 스스로 정합해진다.
-  const { changed: stepsChanged, completionHeld } = await syncInspectionSteps(admin, id, profile.id)
+  // 위에서 던져 둔 단계 동기화를 여기서 받는다(호출 자리는 이 파일 앞쪽 `syncPromise`)
+  const { changed: stepsChanged, completionHeld, evidence: syncedEvidence } = await syncPromise
   if (stepsChanged > 0) {
     // 위 Promise.all에서 이미 읽은 steps가 낡았다 — 바뀐 경우에만 다시 읽는다(평시 왕복 0회)
     const { data: fresh } = await admin.from('inspection_steps')
@@ -251,7 +261,13 @@ export default async function InspectionDetailPage({
   }
   // 독립 검증 D3: 화면 ✓도 서버와 **같은 증거·같은 판정 함수**를 써야 한다 —
   // 종전엔 타임라인이 리터럴로 다시 계산해 오프라인 보고·사유 완료가 화면에 반영되지 않았다.
-  const stepEvidence = await loadStepEvidence(admin, id)
+  //
+  // 🚨 2026-09-11 — 종전 `await loadStepEvidence(admin, id)`는 바로 위 syncInspectionSteps가
+  //    방금 모은 것과 **같은 증거를 통째로 다시 모았다**(점검 행 + gatherStepEvidence 7~9 왕복,
+  //    스토리지 list 포함). 증거는 inspection_steps를 읽지 않으므로 동기화 전후 값이 같다 —
+  //    재조회에 신선도 이득이 없었고 이 페이지에서 가장 큰 단일 지연원이었다.
+  //    같은 함수의 반환값을 그대로 쓰므로 "서버와 같은 증거"라는 D3 계약은 오히려 더 강해진다.
+  const stepEvidence = syncedEvidence ?? await loadStepEvidence(admin, id)
   // 전체 진행률 카드는 C1(R5-1)에서 제거했다 — 타임라인 헤더가 같은 값을 보여주고,
   // 그 카드가 읽던 inspection_steps는 월간 건에서 분모가 6으로 고정돼 100%에 닿지 못했다(R4-8에서 교정 예정)
 
@@ -386,6 +402,17 @@ export default async function InspectionDetailPage({
     // 타임라인 데이터 (§9-9) — 기한: ④ 점검 종료+15일 / ⑥ 이행기간 종료일(max action_end)
     const certObj = allObjects.find(o => isCertFileName(o.name)) ?? null
     const contractObj = allObjects.find(o => CONTRACT_FILE_RE.test(o.name)) ?? null
+    /* 🚨 2026-09-11 — ② 종이 보관 기록·신고 표시·보관 정리 판정 셋은 아래 객체 리터럴 **안에서
+       await**되고 있었다. 리터럴 안 await는 위에서 아래로 **직렬**이라, 서로 아무 의존도 없는
+       activity_logs 조회 세 건이 한 줄로 서서 왕복 3회를 순서대로 기다렸다. 함께 던진다.
+       ⚠ certArchived는 `stepEvidence`가 **같은 함수**(findArchivedCertInspections)로 이미 구해 둔
+         값이라 묻지 않는다 — 증거가 없을 때(점검 행 소실)만 직접 조회로 물러난다. */
+    const [certPaper, certReported, archivedFallback] = await Promise.all([
+      loadCertPaperRecord(admin, id),
+      loadCertReported(admin, id),
+      stepEvidence ? Promise.resolve(null) : findArchivedCertInspections(admin, [id]),
+    ])
+    const certArchived = !certObj && (stepEvidence ? stepEvidence.certArchived : !!archivedFallback?.has(id))
     const deliveryRow = (deliveryRes.data?.[0] ?? null) as { recipient_email: string; sent_at: string } | null
     const iRec = inspection as unknown as Record<string, unknown>
     const endDate = (iRec.inspection_end_date as string | null) ?? (iRec.inspection_start_date as string | null)
@@ -404,12 +431,12 @@ export default async function InspectionDetailPage({
       responded: respRows.length,
       certFile: certObj ? { name: certObj.name, path: `${storagePrefix}/${certObj.name}` } : null,
       // 종이 보관 후 정리된 회차는 '업로드 필요'가 아니다 (소방계획서_18 D-7 ⚠)
-      certArchived: !certObj && (await findArchivedCertInspections(admin, [id])).has(id),
+      certArchived,
       // 사람이 남긴 '종이 보관' 기록 — 언제·어디에 두었는지를 그 자리에서 보여준다.
       // ⚠ 폼은 2026-09-07에 걷어냈지만 **읽기는 남긴다** — 과거 회차의 완료 근거이자 표시값이다.
-      certPaper: await loadCertPaperRecord(admin, id),
+      certPaper,
       // 협회 직접 신고 완료 표시(2026-09-07) — ②의 기본 완료 경로
-      certReported: await loadCertReported(admin, id),
+      certReported,
       contractFile: contractObj ? { name: contractObj.name, path: `${storagePrefix}/${contractObj.name}` } : null,
       delivery: deliveryRow ? { sentTo: deliveryRow.recipient_email, sentAt: deliveryRow.sent_at } : null,
       submit9: {
