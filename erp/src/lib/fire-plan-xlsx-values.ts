@@ -24,7 +24,7 @@ import { BRIG_ROWS, FIRE_PLAN_ANCHORS, FP_SHEET, ZONE_ROWS, ZONE_SHEET } from '@
 import { boxGlyphAt, labelAt, tokenTemplateAt } from '@/lib/fire-plan-xlsx-manifest'
 import { purposeCover, purposeShort } from '@/lib/purpose-label'
 /* 주차장 체크 판정 — 별지 9호 2쪽이 쓰는 그 함수(사본 금지). 순수 함수라 클라이언트도 쓴다 */
-import { parseParkingSummary } from '@/lib/doc-templates/report9'
+import { parseParkingSummary, parseParkingByType } from '@/lib/doc-templates/report9'
 import { compartmentApplies, compartmentHasArea, compartmentHasFloor } from '@/lib/evac-compartment'
 import { isMultiUseApplicable, isMultiUseNone } from '@/lib/multi-use'
 
@@ -164,10 +164,17 @@ export function buildFirePlanValues(d: FirePlanGenData): Map<string, CellValue> 
 
   /* 주차장 — 승강기 바로 아래 같은 모양의 체크 행(2026-09-09 배선). 판정은 별지 9호 2쪽과
    * **한 함수**를 쓴다(사본을 만들면 두 서식이 같은 값을 다르게 읽는 날이 온다).
-   * ⚠ 양식 1.1에는 옥내·옥외 두 칸뿐이라 기계식·옥상은 켤 자리가 없다 — PDF만 원문을 함께 보인다. */
+   * ⚠ **옥상**은 양식 1.1에 칸이 없다(별지 9호에만 있다) — 그 값은 PDF의 원문 병기로만 보인다.
+   *   종전 주석은 여기에 「기계식」도 함께 적어 두었는데 **거짓이었다** — 14행에 네 칸이 실재한다. */
   const pk = parseParkingSummary(d.parkingSummary ?? '')
   v.set('parking_indoor', boxLabelCell(FP_SHEET.F1_1, 'L13', pk.pkIn))
   v.set('parking_outdoor', boxLabelCell(FP_SHEET.F1_1, 'AB13', pk.pkOut))
+  // 14행 — 편(옥내/옥외)별 자주식·기계식. 구간 분절 판정이라 「옥내 기계식, 옥외 자주식」이 갈린다
+  const pkt = parseParkingByType(d.parkingSummary ?? '')
+  v.set('parking_in_self', boxLabelCell(FP_SHEET.F1_1, 'L14', pkt.inSelf))
+  v.set('parking_in_mech', boxLabelCell(FP_SHEET.F1_1, 'T14', pkt.inMech))
+  v.set('parking_out_self', boxLabelCell(FP_SHEET.F1_1, 'AB14', pkt.outSelf))
+  v.set('parking_out_mech', boxLabelCell(FP_SHEET.F1_1, 'AJ14', pkt.outMech))
 
   // 계단 — `stairs`는 '종류 → 개소' 지도이고 `''`가 미설치다(plan-form15.tsx). 양식 1.1에는
   //   개소를 적을 자리가 없어 **상자만** 켠다(개소는 서식 1.5.1이 받는다).

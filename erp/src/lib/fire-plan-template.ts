@@ -15,7 +15,7 @@ import { compartmentHasArea, compartmentHasFloor } from '@/lib/evac-compartment'
  *   모듈 적재 시점에 throw 할 수 있어, 엑셀 격자가 밀리면 PDF까지 500이 된다(의존 없는 소모듈). */
 import { purposeCover } from '@/lib/purpose-label'
 /* 주차장 체크 판정 — 별지 9호 2쪽이 쓰는 그 함수를 그대로 쓴다(사본 금지, 순환 없음: report9는 이 파일을 안 문다) */
-import { parseParkingSummary } from '@/lib/doc-templates/report9'
+import { parseParkingSummary, parseParkingByType } from '@/lib/doc-templates/report9'
 import type { EtcFacilitySection } from '@/components/customers/plan-form16'
 import type { ManagerRow } from '@/components/customers/plan-form17'
 import type { InspectionPlanSection, FireHistoryRow, DutyLogRow } from '@/components/customers/plan-form110'
@@ -315,6 +315,9 @@ export function buildFirePlanHtml(
   const stairKinds = ['직통계단', '피난계단', '특별피난계단', '옥외계단']
   // 주차장 체크 — 규칙 사본을 만들지 않는다(별지 9호 2쪽과 **같은 함수**). 값이 없으면 전부 false.
   const pk = parseParkingSummary(d.parkingSummary ?? '')
+  /* 아래 요약 줄의 「기계식」은 `옥내(…)` **괄호 밖**이라 편 무관 '기계식 있음'이 뜻이다.
+   * `pk.pkMech`는 2026-09-11부터 **옥내 기계식**만 뜻하므로 여기 쓰면 옥외 기계식이 사라진다. */
+  const pkt = parseParkingByType(d.parkingSummary ?? '')
   const etcEvacKinds = ['대피공간', '경량칸막이', '피난안전구역', '옥상광장']
   // 방화구획 — 법정 서식과 **같은 상자 축**으로 편다. '면적별·층별'은 새 상자가 아니라
   // 면적별·층별 두 상자를 함께 체크한 것이다(엑셀 1.5.1!C14·F14와 같은 규약).
@@ -474,7 +477,7 @@ ${(d.autoFilled?.length ?? 0) > 0
     ${/* 주차장 — 양식 1.1이 승강기 바로 아래 두는 체크 행. 판정은 낱말 포함(parseParkingSummary
          단일 원천, 별지 9호 2쪽과 같은 규칙)이고 원문을 함께 적어 「옥외 자주식 8대」의 대수를 잃지 않는다.
          값이 없으면 종전처럼 ☐만 나온다(2026-09-09 신설). */''}
-    <tr><td colspan="3" class="l">주차장: ${ck(pk.pkIn, '옥내')} ${ck(pk.pkOut, '옥외')} ${ck(pk.pkMech, '기계식')}${d.parkingSummary ? ` &nbsp;(${esc(d.parkingSummary)})` : ''}</td></tr>
+    <tr><td colspan="3" class="l">주차장: ${ck(pk.pkIn, '옥내')} ${ck(pk.pkOut, '옥외')} ${ck(pkt.inMech || pkt.outMech, '기계식')}${d.parkingSummary ? ` &nbsp;(${esc(d.parkingSummary)})` : ''}</td></tr>
     <tr><th>운영현황</th><td colspan="3" class="l">${opsRow}</td></tr>
     <tr><th>업무대행</th><td colspan="3" class="l">■ 해당 [서식1.8] 작성 &nbsp; ☐ 해당없음</td></tr>
     <tr><th>화재보험<br><span class="small">(관계인 기록)</span></th><td colspan="3" class="l">${insRow}</td></tr>

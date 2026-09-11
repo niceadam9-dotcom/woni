@@ -122,7 +122,9 @@ console.log('\n[3] 백지 불변식 — 템플릿에 표본의 답이 남아 있
   // 🚨 정체 판정 — 상한만 두면 예외가 **0개로 사라져도** 초록이다(1.5.1 3칸 + 1.1 21칸)
   // 2026-09-09: 주차장 2칸(L13 옥내·AB13 옥외) 배선으로 1.1이 19→21이 됐다. 이 숫자는
   // **늘어난 이유가 분명할 때만** 고친다 — 줄어들면 배선이 조용히 빠진 것이다.
-  check('상자칸 예외 수가 그대로(1.5.1 3 + 1.1 21)', boxLabel.length === 24, `${boxLabel.length}칸`)
+  // 2026-09-09(2): 주차장 14행 자주식·기계식 4칸(L14·T14·AB14·AJ14)을 더 배선해 1.1이 21→25.
+  //   법정 양식 hwpx 원문·manifest 양쪽에서 그 네 칸을 확인하고 늘렸다(추측 아님).
+  check('상자칸 예외 수가 그대로(1.5.1 3 + 1.1 25)', boxLabel.length === 28, `${boxLabel.length}칸`)
   check('상자칸은 템플릿에서 전부 미체크', boxLabel.every(a => !/■/.test(cellText(a))),
     boxLabel.filter(a => /■/.test(cellText(a))).map(a => a.cell).join(','))
   const unitCells = FIRE_PLAN_ANCHORS.filter(isUnitLabelAnchor)

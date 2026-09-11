@@ -9,7 +9,9 @@ import { createBuildingAction, updateBuildingAction, deleteBuildingAction, setPr
 import { fetchBuildingLedgerAction, checkAddressAction, type AddressDuplicateCustomer, type AddressDuplicateBuilding } from '@/app/(dashboard)/customers/actions'
 import { AddressDuplicateDialog } from '@/components/customers/address-duplicate-dialog'
 import { autoApplyLedgerEmptyAction } from '@/app/(dashboard)/customers/fire-plan-info-actions'
-import { parseParkingSummary } from '@/lib/doc-templates/report9'
+/* 주차장 축은 별지 9호 모듈이 단일 원천 — 판정(parseParkingSummary)도 칩 토글도 거기 것을 부른다.
+ * ⚠ 여기에 규칙을 다시 적으면 검사가 무는 것과 화면이 하는 것이 갈라진다(2026-09-11 교훈). */
+import { parseParkingSummary, toggleParkingChip, tidyParkingText } from '@/lib/doc-templates/report9'
 import { primaryBuilding, FORM9_MAX_BUILDINGS } from '@/lib/primary-building'
 import { findSameNameBuilding, normalizeBuildingName } from '@/lib/building-dup'
 import { initialBuildingPanelTarget, shouldHideBuildingTable } from '@/lib/building-panel-open'
@@ -99,7 +101,9 @@ const PARKING_CHIPS: Array<{ flag: keyof ReturnType<typeof parseParkingSummary>;
   { flag: 'pkInUg', word: '지하', label: '옥내·지하' },
   { flag: 'pkInGround', word: '지상', label: '옥내·지상' },
   { flag: 'pkInPiloti', word: '필로티', label: '옥내·필로티' },
-  { flag: 'pkMech', word: '기계식', label: '기계식' },
+  /* 별지 9호 2쪽은 기계식을 `옥내(…)` **괄호 안**에 둔다 — 라벨도 그렇게 읽히게 적는다.
+   * 옥외 기계식은 이 칩이 아니라 아래 「옥외 기계식」 대수칸(서식 1.1 `AJ14`)이 받는다. */
+  { flag: 'pkMech', word: '기계식', label: '옥내·기계식' },
   { flag: 'pkRoof', word: '옥상', label: '옥상' },
   { flag: 'pkOut', word: '옥외', label: '옥외' },
 ]
@@ -108,16 +112,6 @@ const PARKING_CHIPS: Array<{ flag: keyof ReturnType<typeof parseParkingSummary>;
  *  숫자칸은 요약 텍스트를 읽고 쓰는 지름길일 뿐(텍스트가 원천) — 별도 저장 컬럼 없음 */
 const PARKING_COUNT_FIELDS = ['옥내 자주식', '옥내 기계식', '옥외 자주식', '옥외 기계식'] as const
 const parkingCountRe = (label: string) => new RegExp(label.replace(' ', '\\s*') + '\\s*(\\d+)\\s*대')
-
-/** 세그먼트 제거 뒤 구분자(`, ` · ` · `) 잔해 정리 — 칩 토글·대수칸이 공용 */
-function tidyParkingText(s: string): string {
-  return s
-    .replace(/\s{2,}/g, ' ')
-    .replace(/\s*,\s*/g, ', ').replace(/(?:, )+/g, ', ')
-    .replace(/\s*·\s*/g, ' · ').replace(/(?: · )+/g, ' · ')
-    .replace(/,\s*·\s*/g, ', ').replace(/·\s*,\s*/g, ', ')
-    .replace(/^[\s,·]+|[\s,·]+$/g, '')
-}
 
 /** 누락 칩(소방계획서 빠른 입력) → 이 폼 입력칸 id — erp:focus-missing 이벤트로 열고 포커스 */
 export const BUILDING_FIELD_IDS: Record<string, string> = {
@@ -364,17 +358,10 @@ export function BuildingListPanel({ customerId, customerName, customerAddress, b
   const num = (s: string) => { const n = parseFloat(s); return isNaN(n) ? undefined : n }
   const int = (s: string) => { const n = parseInt(s, 10); return isNaN(n) ? undefined : n }
 
-  // 주차장 칩 토글 — 요약 텍스트에 단어를 넣고 빼는 것뿐(단어 포함 = 서식 체크, parseParkingSummary 축).
-  // 대수 등 상세("자주식 12대")는 텍스트에 그대로 남는다.
-  function toggleParkingWord(word: string) {
-    const cur = form.parking_summary
-    if (cur.includes(word)) {
-      setField('parking_summary', tidyParkingText(cur.split(word).join('')))
-    } else {
-      // '지상'은 옥내 문맥에서만 옥내·지상으로 인정(parseParkingSummary) — 옥내가 없으면 함께 넣는다
-      const add = word === '지상' && !cur.includes('옥내') ? '옥내 지상' : word
-      setField('parking_summary', cur ? `${cur}, ${add}` : add)
-    }
+  // 주차장 칩 토글 — 규칙은 `toggleParkingChip`(report9) **한 곳**에 있다. 여기는 배선만 한다.
+  //   그래야 검사가 무는 함수와 화면이 부르는 함수가 같다(2026-09-11 드리프트 교훈).
+  function onParkingChip(chip: (typeof PARKING_CHIPS)[number]) {
+    setField('parking_summary', toggleParkingChip(form.parking_summary, chip.flag, chip.word))
   }
 
   // 주차장 대수칸 — 텍스트에서 「옥내 자주식 12대」 세그먼트를 읽고(표시) 고쳐 쓴다(입력).
@@ -774,15 +761,15 @@ export function BuildingListPanel({ customerId, customerName, customerAddress, b
               </div>
               <div className="flex flex-wrap items-center gap-1 mt-1.5">
                 {(() => { const pk = parseParkingSummary(form.parking_summary); return PARKING_CHIPS.map(c => (
-                  <button key={c.word} type="button" disabled={!canManage} onClick={() => toggleParkingWord(c.word)}
-                    title={pk[c.flag] ? `'${c.word}' 단어를 텍스트에서 제거` : `'${c.word}' 단어를 텍스트에 추가`}
+                  <button key={c.word} type="button" disabled={!canManage} onClick={() => onParkingChip(c)}
+                    title={pk[c.flag] ? `'${c.label}' 체크 끄기` : `'${c.label}' 체크 켜기`}
                     className={`h-6 px-2 rounded-full border text-form-xs transition-colors ${pk[c.flag]
                       ? 'bg-brand text-white border-brand'
                       : 'border-brand-line text-ink-sub hover:bg-brand-tint'}`}>
                     {pk[c.flag] ? '✓ ' : ''}{c.label}
                   </button>
                 )) })()}
-                <span className="text-form-xs text-ink-meta ml-1">색칠된 칩 = 별지 9호에 √로 인쇄 (단어 포함 기준)</span>
+                <span className="text-form-xs text-ink-meta ml-1">색칠된 칩 = 별지 9호 2쪽 「옥내(지하 지상 필로티 기계식), 옥상, 옥외」에 √로 인쇄</span>
               </div>
             </div>
           </div>

@@ -549,16 +549,122 @@ function p3Table(groups: P3Group[], opts?: { fillLast?: boolean }): string {
  *  조립(assembleReport9)·프로브가 공용 — 매칭 규칙 사본을 만들지 말 것(드리프트).
  *  지하·필로티는 서식상 옥내의 하위 유형이라 상위(옥내)도 함께 체크해 모순 출력을 막고,
  *  '지상'은 옥외 문맥("옥외 지상 N대")에서도 쓰이므로 옥내 명시가 있을 때만 하위로 인정한다. */
+/** 옥내로 치는 표지 — 아래 두 함수가 **한 벌로** 쓴다(각자 적으면 언젠가 갈라진다) */
+const PK_INDOOR_MARKS = ['옥내', '지하', '필로티'] as const
+
 export function parseParkingSummary(pk: string): Pick<Report9Data, 'pkIn' | 'pkInUg' | 'pkInGround' | 'pkInPiloti' | 'pkMech' | 'pkRoof' | 'pkOut'> {
   return {
-    pkIn: pk.includes('옥내') || pk.includes('지하') || pk.includes('필로티'),
+    pkIn: PK_INDOOR_MARKS.some(m => pk.includes(m)),
     pkInUg: pk.includes('지하'),
     pkInGround: pk.includes('옥내') && pk.includes('지상'),
     pkInPiloti: pk.includes('필로티'),
-    pkMech: pk.includes('기계식'),
+    /* 🚨 2026-09-11: 종전 `pk.includes('기계식')`은 **편을 안 물어** 「옥외 기계식 2대」가
+     *   `[ ]옥내(… [√]기계식), [√]옥외`로 나갔다 — 괄호 안이 켜졌는데 상위 옥내는 꺼진
+     *   모순이고, 무엇보다 **옥외 기계식이 옥내 기계식으로 인쇄**됐다.
+     *   이 플래그를 찍는 세 자리가 전부 `옥내(…)` **괄호 안**이다(별지 9호 2쪽 `:496`,
+     *   갑지 `xlsx-workbook.ts:218·329`) — 그러니 옥내 구간 판정이 정답이다.
+     *   ⚠ 편을 알 수 없는 「기계식 4대」는 어느 상자도 켜지 않는다(서식 1.1 `parseParkingByType`와
+     *     같은 규약: 모르는 것은 인쇄하지 않는다). 그 경우 `report9-assemble.ts:932` 가드가
+     *     "채웠는데 서식에 반영이 안 됨"으로 알린다.
+     *   ⚠ 옥외 기계식은 **별지 9호에 찍을 칸이 없다** — 그 정보는 서식 1.1 `AJ14`가 받는다.
+     *   ⚠ 평면 목록(PDF 1.1 요약 `fire-plan-template.ts:477`)은 이 플래그를 쓰면 안 된다.
+     *     거기 「기계식」은 괄호 밖이라 **편 무관 존재**가 뜻이다(그쪽은 두 편을 OR 한다). */
+    pkMech: parseParkingByType(pk).inMech,
     pkRoof: pk.includes('옥상'),
     pkOut: pk.includes('옥외'),
   }
+}
+
+/** 소방계획서 서식 1.1 주차장 **14행** — 옥내·옥외 각각의 `☐ 자주식 / ☐ 기계식` 네 칸
+ *  (manifest 실측 `L14`·`T14`=옥내, `AB14`·`AJ14`=옥외. 2026-09-09 법정 양식 원문으로 확인).
+ *
+ *  별지 9호 2쪽에는 이 네 칸이 없어(옥내 하위에 기계식 하나뿐) `parseParkingSummary`와 나눈다.
+ *  같은 파일에 두는 이유는 **옥내 어휘를 공유**하기 위해서다 — 사본이 생기면 두 서식이
+ *  같은 값을 다르게 읽는 날이 온다.
+ *
+ *  ⚠ **자주식은 기계식의 여집합이 아니다.** 둘 다 없을 수도(「옥외 8대」), 둘 다 있을 수도 있다.
+ *  ⚠ 편을 알 수 없는 「기계식 8대」는 **어느 칸도 켜지 않는다** — 모르는 것은 인쇄하지 않는다.
+ *
+ *  판정은 **구간**으로 한다: 표지가 나온 자리부터 다음 표지 직전까지가 그 편의 구간이고,
+ *  그 안의 자주식/기계식만 그 편으로 친다. 「옥내 기계식 4대, 옥외 자주식 8대」에서
+ *  네 칸이 전부 켜지는 것을 막으려면 이 분절이 반드시 필요하다(단순 `includes`로는 못 가른다). */
+export function parseParkingByType(pk: string): { inSelf: boolean; inMech: boolean; outSelf: boolean; outMech: boolean } {
+  const res = { inSelf: false, inMech: false, outSelf: false, outMech: false }
+  for (const s of parkingSegments(pk)) {
+    const seg = pk.slice(s.start, s.end)
+    if (seg.includes('자주식')) res[s.indoor ? 'inSelf' : 'outSelf'] = true
+    if (seg.includes('기계식')) res[s.indoor ? 'inMech' : 'outMech'] = true
+  }
+  return res
+}
+
+/** 편(옥내/옥외) 구간 분절 — 위 판정과 건물 폼 주차장 칩이 **한 벌로** 쓴다(사본 금지).
+ *  표지가 나온 자리부터 다음 표지 직전까지가 그 편의 구간이다. */
+export function parkingSegments(pk: string): Array<{ indoor: boolean; start: number; end: number }> {
+  const marks = [...pk.matchAll(new RegExp([...PK_INDOOR_MARKS, '옥외'].join('|'), 'g'))]
+  return marks.map((m, i) => ({
+    indoor: m[0] !== '옥외',
+    start: m.index ?? 0,
+    end: i + 1 < marks.length ? (marks[i + 1].index ?? pk.length) : pk.length,
+  }))
+}
+
+/** 옥내 구간에서만 낱말을 뺀다 — 건물 폼의 「옥내·기계식」 칩 끄기용.
+ *  단순 `split(word).join('')`이면 **옥외 기계식까지 지워져** 서식 1.1 `AJ14`가 함께 꺼진다.
+ *  ⚠ 뒤 구간부터 지운다 — 앞부터 지우면 뒤 구간의 인덱스가 밀려 엉뚱한 자리를 자른다. */
+export function stripParkingWordIndoor(pk: string, word: string): string {
+  let out = pk
+  for (const s of [...parkingSegments(pk)].reverse()) {
+    if (!s.indoor) continue
+    out = out.slice(0, s.start) + pk.slice(s.start, s.end).split(word).join('') + out.slice(s.end)
+  }
+  return out
+}
+
+/** 옥내 하위 낱말 — 별지 9호 2쪽이 `옥내(…)` **괄호 안**에 두는 것들.
+ *  칩으로 켤 때 옥내 문맥을 함께 넣지 않으면 괄호만 켜지는 모순이 난다. */
+export const PK_INDOOR_SUB_WORDS = ['지상', '기계식'] as const
+
+/** 옥내를 켜는 표지 낱말 — 「옥내」 칩을 끌 때 이만큼을 함께 빼야 실제로 꺼진다 */
+export const PK_INDOOR_WORDS = PK_INDOOR_MARKS
+
+/** 구분자(`, ` · ` · `) 잔해 정리 — 칩 토글·대수칸이 공용 */
+export function tidyParkingText(s: string): string {
+  return s
+    .replace(/\s{2,}/g, ' ')
+    .replace(/\s*,\s*/g, ', ').replace(/(?:, )+/g, ', ')
+    .replace(/\s*·\s*/g, ' · ').replace(/(?: · )+/g, ' · ')
+    .replace(/,\s*·\s*/g, ', ').replace(/·\s*,\s*/g, ', ')
+    .replace(/^[\s,·]+|[\s,·]+$/g, '')
+}
+
+/** 건물 폼 주차장 칩 한 번 누르기 — 요약 텍스트를 받아 **뒤집힌 텍스트**를 낸다.
+ *
+ *  🚨 2026-09-11: 종전엔 이 로직이 화면 컴포넌트 안에 있어 **검사가 재현본을 돌렸다**.
+ *    재현본은 언젠가 화면과 갈라진다 — 이 세션이 잡은 결함 자체가 `parseParkingSummary`와
+ *    `parseParkingByType` 두 판정기의 드리프트였다. 그래서 순수 함수로 끌어냈고
+ *    화면도 검사도 **이 함수 하나**를 부른다.
+ *
+ *  규칙 셋:
+ *   · 켜짐 판정은 `parseParkingSummary`가 한다(텍스트를 `includes`로 되묻지 않는다 —
+ *     칩의 √와 어긋나 「지하 10대」의 옥내 칩이 눌러도 안 꺼지던 결함의 원인이었다).
+ *   · 옥내를 끌 때는 하위 표지(지하·필로티)까지 함께 뺀다. 안 빼면 상위만 지워도 다시 켜진다.
+ *   · 옥내 하위(지상·기계식)를 켤 때는 **언제나 '옥내'를 붙여** 넣는다. 안 붙이면 바로 앞
+ *     표지가 '옥외'일 때 그 구간에 딸려 들어간다("…, 옥외 자주식 8대, 기계식").
+ *     끌 때도 옥내 구간에서만 빼야 옥외 기계식(서식 1.1 `AJ14`)이 같이 죽지 않는다.
+ *   ⚠ 반대로 **상위 옥내를 켜도 하위는 승계하지 않는다** — 「옥내 주차장이 있다」와
+ *     「그게 지하다」는 다른 사실이고, 모르는 것을 인쇄하지 않는 것이 이 서식의 규약이다. */
+export function toggleParkingChip(cur: string, flag: keyof ReturnType<typeof parseParkingSummary>, word: string): string {
+  if (parseParkingSummary(cur)[flag]) {
+    const next = flag === 'pkIn'
+      ? PK_INDOOR_WORDS.reduce<string>((s, w) => s.split(w).join(''), cur)
+      : flag === 'pkMech'
+        ? stripParkingWordIndoor(cur, word)
+        : cur.split(word).join('')
+    return tidyParkingText(next)
+  }
+  const add = (PK_INDOOR_SUB_WORDS as readonly string[]).includes(word) ? `옥내 ${word}` : word
+  return cur ? `${cur}, ${add}` : add
 }
 
 /** 1절 소방시설등 점검 결과(설비 √ + ○/×//) 2열 표 — 별지 9호 3쪽 = 별지 4호 1쪽 공용(H-21)

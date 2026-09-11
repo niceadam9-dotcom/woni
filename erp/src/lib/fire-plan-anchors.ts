@@ -130,6 +130,15 @@ const FIXED_SEEDS: Seed[] = [
    * ⚠ `AS13 전기차충전소`는 **여전히 안 세운다** — 그 축이 ERP에 없어 지어내는 셈이 된다. */
   { field: 'parking_indoor', sheet: FP_SHEET.F1_1, cell: 'L13', labelCell: 'D13' },
   { field: 'parking_outdoor', sheet: FP_SHEET.F1_1, cell: 'AB13', labelCell: 'D13' },
+  /* 14행 자주식·기계식 4칸 — 13행 옥내·옥외의 **하위 상자**다(옥내: L14·T14 / 옥외: AB14·AJ14).
+   * 🚨 2026-09-09: 종전 주석이 「양식 1.1에는 옥내·옥외 두 칸뿐이라 기계식은 켤 자리가 없다」였는데
+   *   **manifest에 네 칸이 실재한다**(`184-191`). 법정 양식 hwpx 원문에서도 주차장 줄 아래
+   *   `☐자주식 ☐기계식`이 두 벌 확인됐다 — 주석은 의도이지 증거가 아니었다.
+   *   그래서 「옥외 자주식 8대」가 옥외만 켜고 **자주식은 빈 상자로 나갔다**. */
+  { field: 'parking_in_self', sheet: FP_SHEET.F1_1, cell: 'L14', labelCell: 'D13' },
+  { field: 'parking_in_mech', sheet: FP_SHEET.F1_1, cell: 'T14', labelCell: 'D13' },
+  { field: 'parking_out_self', sheet: FP_SHEET.F1_1, cell: 'AB14', labelCell: 'D13' },
+  { field: 'parking_out_mech', sheet: FP_SHEET.F1_1, cell: 'AJ14', labelCell: 'D13' },
   { field: 'stair_special', sheet: FP_SHEET.F1_1, cell: 'L15', labelCell: 'D15' },
   { field: 'stair_direct', sheet: FP_SHEET.F1_1, cell: 'AJ15', labelCell: 'D15' },
   { field: 'stair_escape', sheet: FP_SHEET.F1_1, cell: 'L16', labelCell: 'D15' },
