@@ -109,8 +109,22 @@ export function InspectionWorkbench({
     () => new Set(files.map(f => /^([a-z0-9]+)_\d+\./i.exec(f.name)?.[1]).filter(Boolean) as string[]),
     [files])
   const [isPending, startTransition] = useTransition()
-  const [subDate9, setSubDate9] = useState(data.submit9.submittedAt ?? '')
-  const [subDate11, setSubDate11] = useState(data.submit11.submittedAt ?? '')
+  /** 이 화면이 쓰는 「오늘」 — 세션 내 고정(렌더마다 다시 재면 라벨이 깜빡인다).
+   *  `todayKst()`는 epoch 기반이라 서버·브라우저 TZ가 달라도 같은 값이다(하이드레이션 안전). */
+  const [todayIso] = useState(todayKst)
+  /* ④⑥ 제출일 기본값 = **오늘** (2026-09-11 사용자 A안).
+   *  종전엔 빈 문자열이라 ⑴달력을 열어 날짜를 고르고 ⑵[기록]을 누르는 **2단계**였다.
+   *  제출은 거의 항상 「오늘 냈다」라서, 기본값 하나로 평시 조작이 버튼 한 번이 된다.
+   *
+   *  ⚠ 달력을 **없애지 않았다.** 이 날짜는 「실행했다」는 표시가 아니라 **법정 일자이자 기산점**이다:
+   *    · 별지 9호·10호에 인쇄된다 (`annexReportDateISO()` — 수기값 > ④ 제출일 > 오늘)
+   *    · ⑤ 총 이행기간의 시작 기준이다 (`annex-fields.tsx` 기산 줄)
+   *    · ⑥ 완료일이 그 기간 종료일에서 파생된다 (`lib/action-period-derive.ts`)
+   *    즉 하루가 틀리면 **문서 3장의 날짜가 함께 밀린다.** 금요일에 내고 월요일에 입력하는 일이
+   *    흔하므로 고칠 수 있어야 한다 — 클릭 시각으로 고정하는 설계는 그래서 채택하지 않았다.
+   *  ⚠ 이미 기록된 값이 있으면 그것을 쓴다(`?? `의 왼쪽) — 기본값이 저장값을 덮으면 정정 이력이 사라진다. */
+  const [subDate9, setSubDate9] = useState(data.submit9.submittedAt ?? todayIso)
+  const [subDate11, setSubDate11] = useState(data.submit11.submittedAt ?? todayIso)
   /** 서버가 저장을 확인해 준 제출일 — 무거운 재조회가 끝나기 전까지 화면이 쓸 값 */
   const [justSubmitted, setJustSubmitted] = useState<{ report9: string | null; report11: string | null }>(
     { report9: null, report11: null },
@@ -974,7 +988,14 @@ export function InspectionWorkbench({
                   <span className="text-form-xs text-ink-sub">소방서 제출일</span>
                   <DateInput value={subDate9} onChange={e => setSubDate9(e.target.value)}
                     className="h-7 rounded-lg border border-brand-line px-2 text-form-xs" />
-                  {canManage && <button onClick={() => submit('report9', subDate9)} disabled={isPending} className={btn}>기록</button>}
+                  {/* 라벨은 **고른 날짜를 따라간다** — 기본값이 오늘이라 평시엔 「오늘 제출로 기록」이지만,
+                      날짜를 바꾼 뒤에도 그 문구가 남으면 버튼이 거짓말을 한다(2026-09-11 A안). */}
+                  {canManage && (
+                    <button onClick={() => submit('report9', subDate9)} disabled={isPending} className={btn}
+                      data-testid="submit9-record">
+                      {subDate9 === todayIso ? '오늘 제출로 기록' : '제출일 기록'}
+                    </button>
+                  )}
                   {submit9At
                     ? <span className="text-form-2xs text-green-600">✓ 기록됨 {submit9At} — ④ 완료</span>
                     /* S7-1 4차 — **법정 제출 기한**이다. 이 차수에서 가장 읽혀야 하는 값 중 하나.
@@ -1183,7 +1204,13 @@ export function InspectionWorkbench({
                 <span className="text-form-xs text-ink-sub">이행완료 제출일</span>
                 <DateInput value={subDate11} onChange={e => setSubDate11(e.target.value)}
                   className="h-7 rounded-lg border border-brand-line px-2 text-form-xs" />
-                {canManage && <button onClick={() => submit('report11', subDate11)} disabled={isPending} className={btn}>기록</button>}
+                {/* ④와 **같은 규약**([[feedback_fix_the_sibling_too]]) — 한쪽만 고치면 ⑥에서만 2단계로 남는다 */}
+                {canManage && (
+                  <button onClick={() => submit('report11', subDate11)} disabled={isPending} className={btn}
+                    data-testid="submit11-record">
+                    {subDate11 === todayIso ? '오늘 제출로 기록' : '제출일 기록'}
+                  </button>
+                )}
                 {/* 기록 여부를 그 자리에서 — ⑥ 완료 조건은 이 날짜뿐이다(위 표의 조치 수가 아니라) */}
                 {submit11At
                   ? <span className="text-form-2xs text-green-600">✓ 기록됨 {submit11At} — ⑥ 완료</span>
