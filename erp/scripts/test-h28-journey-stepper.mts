@@ -80,6 +80,17 @@ try {
   if (eB) throw new Error(`정기점검 생성 실패: ${eB.message}`)
   inspB = iB!.id
 
+  /* 🚨 선재 결함 교정(2026-09-11) — 이 픽스처엔 **불량이 0건**이었다. 소방계획서_48(`3365092`)이
+     「불량 0건이면 ④⑤⑥을 전 표시 표면에서 감춘다」를 넣은 뒤로, 아래 ④ 단언(:96)과 ④ D-day
+     단언(:110)이 **그 커밋 때부터 계속 빨강**이었다(이 파일이 함께 갱신되지 않았다).
+     이 테스트가 보려는 것은 「스텝바가 6단계를 그리는가」이지 「불량 0건의 감춤 규칙」이 아니므로,
+     ④가 보이는 전제를 픽스처에서 만든다 — 단언을 지우면 6단계 축이 통째로 눈먼다.
+     ⚠ 아래 §3이 넣는 `H28불량`과 **다른 행**이다(그건 ⑤ 전/후 사진 축이라 사진 URL이 붙는다). */
+  await raw.from('inspection_defects').insert({
+    inspection_id: inspA, defect_name: 'H28전제불량(④⑤⑥ 표시 전제)', severity: '보통',
+    action_end: kstShift(10),
+  })
+
   const l = await launch()
   browser = l.browser
   const page = l.page
@@ -115,9 +126,14 @@ try {
   check('예외 완료 버튼 = 1개(선택 단계만)', completeButtons === 1, `count=${completeButtons}`)
 
   // ① 클릭 → 점검표 칸으로 전환
+  // 🚨 2026-09-11 — ①이 2칸이 됐다(셋째 칸 「점검 인력·생성물」 제거: 참여자는 ②, 별지 4호는 ④ 칩,
+  //    생성물은 ④·첫째 칸이 이미 들고 있었다). 종전엔 그 칸 제목 하나로 전환을 판정했는데,
+  //    지금은 **남은 두 칸을 둘 다** 물어야 「①이 온전히 떴는가」가 된다.
   await stepbar.locator('button[data-step="checklist"]').click()
   await page.waitForSelector('text=점검표 입력')
-  check('① 클릭 → 점검표 칸 전환', await page.isVisible('text=점검 인력·생성물'))
+  check('① 클릭 → 점검표 칸 전환(2칸 모두)',
+    (await page.isVisible('text=점검표 입력')) && (await page.isVisible('text=/불량 내역/')))
+  check('🚨 ① 셋째 칸(점검 인력·생성물)은 없어졌다', !(await page.isVisible('text=점검 인력·생성물')))
 
   // ── 2) 단계 완료 처리(회귀) — ② 예외 완료 → DB status ──
   await stepbar.locator('button[data-step="cert"]').click()
@@ -143,10 +159,20 @@ try {
   check('⑤ 후 사진 슬롯(전 사진 있음→후 대기)', await page.isVisible('button[aria-label="후 사진 추가"]'))
   check('⑥ 이행완료 행', await page.isVisible('text=⑥ 이행완료'))
 
-  // ── 4) 별지 4호 생성 버튼(① 칸) ──
+  /* ── 4) 별지 4호 생성 — 자리가 ①에서 ④ 칩으로 옮겨졌다(2026-09-11) ──
+     종전 ① 칸의 [별지 4호 생성]은 **만들어봐야 내용을 아는** 버튼이었다. ④ 칩은 고르면 3칸이
+     그 문서의 미리보기로 바뀌고 거기서 만든다(상위호환) — 그래서 ①의 버튼을 없앴다.
+     🚨 「없어졌다」만 단언하면 기능이 통째로 사라져도 초록이다. **새 자리에서 실제로 만들 수
+        있는가**를 함께 묻는다. */
   await stepbar.locator('button[data-step="checklist"]').click()
-  await page.waitForSelector('text=점검 인력·생성물')
-  check('별지 4호 생성 버튼', await page.isVisible('button:has-text("별지 4호 생성")'))
+  await page.waitForSelector('text=점검표 입력')
+  check('🚨 ①에는 [별지 4호 생성] 버튼이 없다', !(await page.isVisible('button:has-text("별지 4호 생성")')))
+  await stepbar.locator('button[data-step="submit9"]').click()
+  await page.waitForSelector('[data-doc-chip="report4"]', { timeout: 30000 })
+  await page.click('[data-doc-chip="report4"]')
+  await page.waitForSelector('[data-testid="annex-generate"]', { timeout: 30000 })
+  check('🎯 별지 4호는 ④ 칩에서 만든다(새 자리가 살아 있다)',
+    await page.isVisible('[data-testid="annex-generate"]'))
 
   // ── 5) 정기 건 = 스텝바 ① 하나 ──
   await page.goto(`${BASE}/inspections/${inspB}`)

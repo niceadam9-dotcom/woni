@@ -101,14 +101,14 @@ console.log('— 단계 창구 추림 (STEP_DOC_KINDS, 2026-09-10)')
   const kinds = (fs2: typeof all) => kindsOf(groupFiles(fs2))
 
   // 양성 — 각 단계가 자기 문서를 **보여준다**
-  ok('① 점검표에 별지 4호가 있다', kinds(filesOfKinds(all, STEP_DOC_KINDS.checklist)).includes('report4'))
   ok('③ 관계인 보고에 별지 9호가 있다', kinds(filesOfKinds(all, STEP_DOC_KINDS.ownerReport)).includes('report9'))
   ok('⑥ 이행완료에 별지 11호가 있다', kinds(filesOfKinds(all, STEP_DOC_KINDS.submit11)).includes('report11'))
+  // 🚨 2026-09-11 — ①은 DocPane을 안 쓴다(셋째 칸 제거). 별지 4호는 ④가 보여준다.
+  ok('🎯 별지 4호는 ④가 보여준다(①에서 옮겨진 자리)',
+    kinds(filesOfKinds(all, STEP_DOC_KINDS.submit9)).includes('report4'))
 
-  // 음성 — 추림이 **실제로 걸러낸다**. 이 대조가 없으면 필터를 통째로 지워도 위 3건이 초록이다.
-  const k1 = kinds(filesOfKinds(all, STEP_DOC_KINDS.checklist))
-  ok('① 점검표에 9·10·11호가 없다', !k1.some(k => ['report9', 'report10', 'report11'].includes(k)), k1.join(' → '))
-  ok('① 점검표에 표지·공문·위임장이 없다', !k1.some(k => ['cover', 'official', 'delegation'].includes(k)), k1.join(' → '))
+  // 음성 — 추림이 **실제로 걸러낸다**. 이 대조가 없으면 필터를 통째로 지워도 위가 초록이다.
+  ok('① 점검표는 0건(생성물 창구가 없다)', filesOfKinds(all, STEP_DOC_KINDS.checklist).length === 0)
   ok('⑥ 이행완료는 11호 한 종류뿐',
     kinds(filesOfKinds(all, STEP_DOC_KINDS.submit11)).join(',') === 'report11')
 
@@ -135,14 +135,30 @@ console.log('— 고아 종류 0건 (추림이 만드는 새 실패 모드)')
   const reaching = [...GENERATED_DOC_ORDER, 'exterior'].filter(k =>
     INSPECTION_DOC_FILE_RE.test(`${k}_20260910090000.pdf`) || EXTERIOR_DOC_FILE_RE.test(`${k}_20260910090000.pdf`))
   const assigned = new Set(Object.values(STEP_DOC_KINDS).flat())
-  const orphans = reaching.filter(k => !assigned.has(k))
-  ok('조회 필터가 통과시키는 종류는 전부 어느 단계엔가 배정돼 있다',
+
+  /* 🚨 2026-09-11 — **DocPane만이 창구는 아니다.** ①의 셋째 칸을 없애면서 `exterior`가 이 표에서
+     빠졌는데, 그 문서는 월간 건 ① 첫째 칸의 `slots.exterior`(InspectionReport9Client)가
+     **자기 GeneratedDocList로 직접** 그린다. 그래서 고아가 아니다.
+     ⚠ 예외를 상수로 적어 두기만 하면 그 창구를 지워도 이 프로브가 초록이다 — **소스로 확인**한다.
+       (이 파일이 지키려는 것은 "만들어도 영영 안 보이는 문서가 없다"이지 "표에 적혀 있다"가 아니다.) */
+  const extSrc = fs.readFileSync(
+    path.resolve(import.meta.dirname, '..', 'src/components/inspections/inspection-report9-client.tsx'), 'utf8')
+  const extHasOwnList = /<GeneratedDocList/.test(extSrc) && /variant === 'exterior'/.test(extSrc)
+  ok('🚨 `exterior`의 창구가 실재한다 — slots.exterior가 자체 생성물 목록을 그린다',
+    extHasOwnList, `GeneratedDocList=${/<GeneratedDocList/.test(extSrc)} exteriorVariant=${/variant === 'exterior'/.test(extSrc)}`)
+  const surfaced = new Set([...assigned, ...(extHasOwnList ? ['exterior'] : [])])
+
+  const orphans = reaching.filter(k => !surfaced.has(k))
+  ok('조회 필터가 통과시키는 종류는 전부 어딘가에서 보인다(단계 표 또는 전용 창구)',
     orphans.length === 0, `고아=${orphans.join(',') || '없음'} / 도달=${reaching.join(',')}`)
   ok('도달 종류를 실제로 세었다(공허 통과 방지)', reaching.length >= 7, `${reaching.length}종`)
 
   // 반대 방향 — 배정표에 도달하지도 않는 종류를 적어 두면 그 줄은 죽은 글자다
   const unreachable = [...assigned].filter(k => !reaching.includes(k))
   ok('배정표에 도달 불가 종류가 없다', unreachable.length === 0, unreachable.join(','))
+  // 🚨 ①을 비운 것이 **의도**임을 못 박는다 — 누가 무심코 되살리면 셋째 칸 중복이 되돌아온다
+  ok('🚨 ① 점검표는 배정이 비어 있다(DocPane 없음이 의도)',
+    STEP_DOC_KINDS.checklist.length === 0, STEP_DOC_KINDS.checklist.join(','))
 }
 
 console.log('— kindOf 규약 (groupFiles와 한 벌)')
@@ -167,10 +183,12 @@ console.log('— 배선 (순수 함수만 보면 호출부를 지워도 위가 �
   ok('DocPane 호출부는 **전부** kinds를 넘긴다', noKinds.length === 0,
     `누락 ${noKinds.length}/${calls.length}건 — 빠진 탭은 다시 7종을 늘어놓는다`)
 
-  // 어느 탭이 걸렸는지까지 고정한다 — 넷 중 하나가 통째로 사라져도 위 단언은 초록이다
-  for (const step of ['checklist', 'ownerReport', 'submit9', 'submit11']) {
+  // 어느 탭이 걸렸는지까지 고정한다 — 셋 중 하나가 통째로 사라져도 위 단언은 초록이다
+  // 🚨 `checklist`는 여기 없다(2026-09-11) — ①에는 DocPane이 없는 것이 의도다. 아래 음성 단언이 그걸 문다.
+  for (const step of ['ownerReport', 'submit9', 'submit11']) {
     ok(`STEP_DOC_KINDS.${step} 배선됨`, wb.includes(`STEP_DOC_KINDS.${step}`))
   }
+  ok('🚨 (음성) ①에 DocPane을 되살리지 않았다', !wb.includes('STEP_DOC_KINDS.checklist'))
   ok('DocPane이 추림 결과(shown)를 그린다', /filesOfKinds\(files, kinds\)/.test(wb) && /files=\{shown\}/.test(wb))
 
   /* 문서명 짜부라짐 — ⚠ **여기서 할 수 있는 건 필요조건까지다**.

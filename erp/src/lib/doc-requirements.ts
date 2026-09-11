@@ -153,7 +153,15 @@ export function generatedDocRank(kind: string): number {
  *    종류를 새로 만들면 반드시 한 단계 이상에 올려야 하고, 고아 0건은 _probe-doc-order가 고정한다.
  *  ⚠ fire_plan은 고객 단위 문서라 점검 폴더에 없다(lib/generated-docs 주석) — 여기 대상이 아니다. */
 export const STEP_DOC_KINDS: Record<TimelineStepKey, readonly string[]> = {
-  checklist: ['report4', 'exterior'],
+  /* 🚨 2026-09-11 — ①은 **DocPane을 쓰지 않는다**(사용자 지시로 셋째 칸 「점검 인력·생성물」을
+   *  없앴다). 그래서 빈 배열이다. ① 문서 두 종류의 창구는 이미 따로 있었고, 그것이 셋째 칸이
+   *  중복이었던 이유다:
+   *    · report4  = ④ 생성물 목록(아래 submit9)에 있고, 만들기도 ④ `report4` 칩이 한다
+   *    · exterior = 월간 건 ① 첫째 칸의 `slots.exterior`가 **자체 GeneratedDocList를 들고 있다**
+   *                 (inspection-report9-client.tsx — files.length > 0일 때 렌더)
+   *  ⚠ 그래서 `exterior`는 이 표 어디에도 없다. 고아로 보이지만 아니다 — `_probe-doc-order`의
+   *    고아 판정이 그 **예외를 소스로 확인**하므로, 저 창구를 지우면 프로브가 먼저 빨개진다. */
+  checklist: [],
   cert: [],
   ownerReport: ['report9'],
   // ④는 소방서에 내는 자리 — 본문(9·10호)에 첨부(별지 4호)와 제출 앞장 3종이 함께 나간다.

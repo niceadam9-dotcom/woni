@@ -38,8 +38,8 @@ import { MessageTemplateModal } from '@/components/settings/message-template-mod
 import { InspectionSmsModal } from '@/components/sms/inspection-sms-modal'
 import { STEP_REPORT_LABELS, STEP_REPORT_TYPES, type StepReportType } from '@/app/(dashboard)/inspections/report-constants'
 import {
-  PANE_BASE, paneLabels, paneWDefault, getPaneWServerSnapshot, getPaneWSnapshot,
-  nudgePaneW, paneCols, subscribePaneW, writePaneW,
+  PANE_BASE, paneLabels, paneWDefault, paneCountOf, getPaneWServerSnapshot, getPaneWSnapshot,
+  nudgePaneW, paneCols, subscribePaneW, writePaneW, type PaneKind,
 } from '@/lib/pane-width'
 import type { TimelineData, TimelineSlots } from '@/components/inspections/inspection-timeline-client'
 
@@ -557,17 +557,19 @@ export function InspectionWorkbench({
        폭은 셋 중 둘째로 넓었다(가장 적게 말하는 칸이 가장 넓었다). 전제는 둘째 칸 머리로 접고,
        기산·기한과 [종료일 고치기]는 의미가 같은 자리인 「소방서 제출일」 옆으로 옮겼다.
      ⚠ 조정치 배열의 길이는 이 칸 수와 같아야 한다 — 저장값도 칸 수별로 따로 보관한다. */
-  const stepKind = sel === 'submit9' ? 'duo' : PREVIEW_STEPS.has(sel) ? 'preview' : 'normal'
-  const paneCount = PANE_BASE.lg[stepKind].length
+  const stepKind: PaneKind = sel === 'submit9' ? 'duo'
+    : sel === 'checklist' ? 'entry'
+    : PREVIEW_STEPS.has(sel) ? 'preview' : 'normal'
+  const paneCount = paneCountOf(stepKind)
   const dw = useSyncExternalStore(
     subscribePaneW,
-    useCallback(() => getPaneWSnapshot(paneCount), [paneCount]),
-    useCallback(() => getPaneWServerSnapshot(paneCount), [paneCount]),
+    useCallback(() => getPaneWSnapshot(stepKind), [stepKind]),
+    useCallback(() => getPaneWServerSnapshot(stepKind), [stepKind]),
   )
   const nudgePane = useCallback((i: number, dir: 1 | -1) => {
-    const next = nudgePaneW(dw, i, dir)
-    if (next) writePaneW(next)
-  }, [dw])
+    const next = nudgePaneW(stepKind, dw, i, dir)
+    if (next) writePaneW(stepKind, next)
+  }, [stepKind, dw])
   const paneAdjusted = dw.some(v => Math.abs(v) > 1e-9)
   // ④ 기산 줄을 그릴 수 있는가 — 기간 정보가 없으면 못 그리므로, 그때만 제출일 줄이 기한을 대신 말한다
   const hasAnchorRow = !!(data.period && (data.period.end || data.period.start))
@@ -672,19 +674,19 @@ export function InspectionWorkbench({
             {/* 초기화는 **마지막 칸**에 붙인다 — 3칸일 땐 i===2, 2칸일 땐 i===1이다.
                 `i === 2`로 박아 두면 2칸 화면에서 초기화 버튼이 통째로 사라진다. */}
             {i === paneCount - 1 && paneAdjusted && (
-              <button onClick={() => writePaneW(paneWDefault(paneCount))} title="칸 폭을 기본값으로 되돌립니다"
+              <button onClick={() => writePaneW(stepKind, paneWDefault(stepKind))} title="칸 폭을 기본값으로 되돌립니다"
                 aria-label="칸 폭 초기화" data-testid="pane-w-reset"
                 className="mr-1 inline-flex items-center gap-1 rounded px-1 text-form-2xs text-brand hover:bg-brand-tint">
                 <RotateCcw className="size-3" /> 초기화
               </button>
             )}
             <span className="text-form-2xs text-ink-meta">{label}</span>
-            <button onClick={() => nudgePane(i, -1)} disabled={!nudgePaneW(dw, i, -1)}
+            <button onClick={() => nudgePane(i, -1)} disabled={!nudgePaneW(stepKind, dw, i, -1)}
               title={`${label}을 좁힙니다`} aria-label={`${label} 좁게`} data-testid={`pane-w-${i}-narrow`}
               className="inline-flex size-5 items-center justify-center rounded text-ink-soft hover:bg-brand-tint hover:text-brand disabled:opacity-30 disabled:hover:bg-transparent">
               <ChevronLeft className="size-3.5" />
             </button>
-            <button onClick={() => nudgePane(i, 1)} disabled={!nudgePaneW(dw, i, 1)}
+            <button onClick={() => nudgePane(i, 1)} disabled={!nudgePaneW(stepKind, dw, i, 1)}
               title={paneCount === 2 ? `${label}을 넓힙니다 — 나머지 한 칸이 양보합니다`
                 : `${label}을 넓힙니다 — 나머지 두 칸이 절반씩 양보합니다`} aria-label={`${label} 넓게`}
               data-testid={`pane-w-${i}-wide`}
@@ -698,8 +700,32 @@ export function InspectionWorkbench({
       <div className="grid min-h-0 flex-1 grid-cols-1 gap-2 lg:grid-cols-[var(--wb-lg)] 2xl:grid-cols-[var(--wb-2xl)]"
         style={paneStyle}
         data-testid="workbench-panes">
+        {/* ① 2칸(2026-09-11 사용자 지시) — 셋째 칸 「점검 인력·생성물」을 없앴다. 셋 다 딴 데 있었다:
+              · 점검 참여자 = ② 「참여 인력」칸과 **같은 슬롯 하나**(slots.participants). 사본이 아니다.
+                ⚠ 월간·일반 건엔 ②가 없지만 **옮기지 않았다** — 외관점검표 템플릿(doc-templates/exterior)은
+                  `inspectorName`(담당 직원) 하나만 받고 보조 참여자를 **인쇄하지 않는다**(실측: aux 0건).
+                  즉 그 건에서 이 카드는 입력해도 아무 데도 안 나가는 칸이었다(실측 178건 중 150건이 이 부류).
+                  담당자 이름은 페이지 머리의 「담당 ○○○」가 이미 말한다.
+              · [별지 4호 생성] = ④ `report4` 칩(미리보기까지 되는 상위호환).
+              · 생성물 목록 = 자체점검이면 ④ DocPane이 `report4`를 포함하고(STEP_DOC_KINDS.submit9),
+                월간이면 첫째 칸 `slots.exterior`가 **자체 GeneratedDocList를 이미 들고 있다**.
+            🚨 [재방문 안내]만은 작업대에서 여기뿐이라 **첫째 칸 머리로 옮겼다**(아래). 같이 지우면
+               그 기능이 고객 상세까지 가야만 닿는 곳으로 밀린다. */}
         {sel === 'checklist' && (<>
           <Pane title="점검표 입력" cls={paneCls} head={paneHead}>
+            {/* 재방문 안내 (소방계획서_24 Q-17) — 부재·문 잠김으로 다시 가야 할 때.
+                계획 항목을 만들지 않으므로 **점검 회차는 그대로**다. 점검하러 갔다가 못 하고
+                돌아서는 순간이 곧 이 칸을 보고 있는 순간이라, 점검표 바로 위가 제 자리다. */}
+            {customerId && canManage && (
+              <div className="flex flex-wrap items-center gap-1.5 px-3 py-2">
+                <button onClick={() => setAdhocSms(true)} className={btn}
+                  data-testid="workbench-adhoc-sms"
+                  title="다시 방문해야 할 때 고객에게 안내 문자를 보냅니다 — 점검 회차로 잡히지 않습니다">
+                  <MessageSquare className="size-3" /> 재방문 안내
+                </button>
+                <span className="text-form-2xs text-ink-meta">부재·문 잠김으로 다시 가야 할 때 — 점검 회차로 잡히지 않습니다</span>
+              </div>
+            )}
             {slots?.multiday}
             {slots?.sheet}
             {/* 펌프성능시험 실측치 — 점검표 바로 아래(같은 ① 안). 별지 4호가 이 값을 읽는다 */}
@@ -709,27 +735,6 @@ export function InspectionWorkbench({
           {/* R6-3: ①에서 점검표와 불량이 동시에 보인다 — ✕ 태깅하면 오른쪽에서 그 자리에 늘어난다 */}
           <Pane title={`불량 내역 ${defectStat.total}건`} cls={paneCls} head={paneHead}>
             {slots?.defects ?? <Empty>불량 목록을 불러올 수 없습니다.</Empty>}
-          </Pane>
-          <Pane title="점검 인력·생성물" cls={paneCls} head={paneHead}>
-            {slots?.participants}
-            <div className="px-3 py-2 flex flex-wrap items-center gap-1.5">
-              {isSpecial && canManage && (
-                <button onClick={() => generate('report4')} disabled={isPending || busy} className={btn}
-                  title="소방시설등점검표(별지 4호) — 점검결과·인력 자동, 3~7쪽은 설비 대장(1.4)">
-                  {busy ? <Loader2 className="size-3 animate-spin" /> : <FileText className="size-3" />} 별지 4호 생성
-                </button>
-              )}
-              {/* 재방문 안내 (소방계획서_24 Q-17) — 부재·문 잠김으로 다시 가야 할 때.
-                  계획 항목을 만들지 않으므로 **점검 회차는 그대로**다. */}
-              {customerId && canManage && (
-                <button onClick={() => setAdhocSms(true)} className={btn}
-                  data-testid="workbench-adhoc-sms"
-                  title="다시 방문해야 할 때 고객에게 안내 문자를 보냅니다 — 점검 회차로 잡히지 않습니다">
-                  <MessageSquare className="size-3" /> 재방문 안내
-                </button>
-              )}
-            </div>
-            <DocPane files={files} inspectionId={inspectionId} onOpen={download} kinds={STEP_DOC_KINDS.checklist} />
           </Pane>
         </>)}
 

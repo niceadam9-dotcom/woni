@@ -88,9 +88,11 @@ async function jobDone(inspectionId: string, reportType: string): Promise<boolea
 /** 생성 버튼 클릭 → 서버 동기 완료 폴링 (잡 done + PDF 파일) */
 async function clickAndWait(
   page: Page, label: string, buttonText: string, inspectionId: string, reportType: string, prefix: string, re: RegExp,
+  /** 버튼을 글자가 아니라 선택자로 집어야 할 때(④ 칩 흐름의 [PDF 생성]은 testid로 집는다) */
+  selector?: string,
 ): Promise<void> {
   // :text-is — '10호 PDF 생성'·'11호 PDF 생성'이 'PDF 생성'을 포함하므로 부분일치면 여러 개가 걸린다
-  await page.click(`button:text-is("${buttonText}")`)
+  await page.click(selector ?? `button:text-is("${buttonText}")`)
   // 소방계획서_41 F-2 — Gotenberg가 없으면 **잡 행 자체가 안 생긴다**(report9-actions.ts:542 insert는
   // 성공 경로에서만 돈다). DB 축만 보면 60초를 헛기다린 끝에 '코드 결함'과 똑같은 모양으로 실패한다.
   // 그래서 UI 오류 문구를 폴링에 함께 태워, 그 문구가 GOTENBERG_MISSING일 때만 조기 이탈해 건너뛴다.
@@ -249,9 +251,15 @@ try {
   await goStep('submit11')
   await clickAndWait(page, '별지 11호', '11호 PDF 생성', inspAid, 'report11', prefA, /^report11_\d+\.pdf$/)
 
-  // 별지 4호 — ① 칸(원천)과 ④ 칸(제출 직전 확인) 양쪽에 있다
-  await goStep('checklist')
-  await clickAndWait(page, '별지 4호', '별지 4호 생성', inspAid, 'report4', prefA, /^report4_\d+\.pdf$/)
+  /* 별지 4호 — 만드는 자리가 ①에서 **④ 칩**으로 옮겨졌다(2026-09-11 ① 2칸 전환).
+     ①의 [별지 4호 생성]은 만들어봐야 내용을 아는 버튼이라 없앴고, ④ 칩은 고르면 미리보기가
+     뜨고 거기서 만든다. 칩을 눌러 3칸을 report4로 바꾼 뒤 그 칸의 [PDF 생성]을 누른다.
+     ⚠ 이 버튼의 글자는 이미 만든 적이 있으면 「재생성」으로 바뀐다 — 글자가 아니라 testid로 집는다. */
+  await goStep('submit9')
+  await page.click('[data-doc-chip="report4"]')
+  await page.waitForSelector('[data-testid="annex-generate"]', { timeout: 30000 })
+  await clickAndWait(page, '별지 4호', 'PDF 생성', inspAid, 'report4', prefA, /^report4_\d+\.pdf$/,
+    '[data-testid="annex-generate"]')
 
   // ── 2) 외관 B 상세 — 외관점검표 생성 ──
   await page.goto(`${BASE}/inspections/${inspBid}`)
