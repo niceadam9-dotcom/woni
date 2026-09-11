@@ -63,7 +63,6 @@ async function loadCertReported(
 import { sheetScope } from '@/lib/sheet-scope'
 import { buildSheetOverviews, type SheetProgress } from '@/lib/sheet-overview'
 import type { Report9Job, Report9File } from '@/app/(dashboard)/inspections/report9-actions'
-import { computeQuickReadiness } from '@/lib/doc-requirements'
 import type { Inspection, InspectionStep, InspectionStatus, InspectionType, UserRole } from '@/types'
 import { inspectionTypeLabel } from '@/types'
 // ⚠ 위 `inspectionTypeLabel`(types)은 **용어 축**이다('일반관리'→'일반'). 아래 컴포넌트가 그리는
@@ -269,7 +268,6 @@ export default async function InspectionDetailPage({
   // 전체 진행률 카드는 C1(R5-1)에서 제거했다 — 타임라인 헤더가 같은 값을 보여주고,
   // 그 카드가 읽던 inspection_steps는 월간 건에서 분모가 6으로 고정돼 100%에 닿지 못했다(R4-8에서 교정 예정)
   // ── 문서 타임라인 (§9-9 / P7) — 특별점검 ①~④(불량 시 ⑤⑥) / 정기·일반 ①(외관점검표) ──
-  let report9Checks: Report9CheckRow[] | null = null
   let report9Job: Report9Job | null = null
   let report9Files: Report9File[] = []
   let exteriorChecks: Report9CheckRow[] | null = null
@@ -320,7 +318,6 @@ export default async function InspectionDetailPage({
       submit11: { due: null, dday: null, submittedAt: null },
       evidence: stepEvidence ?? undefined,   // D3: 화면도 서버와 같은 판정 함수를 쓴다
       defects: { total: defects.length, planned: 0, done: 0, photoPairs: 0 },
-      prereqs: [],
       consentOk: false,
       inspectionSteps: steps,
       defectRows: [],
@@ -331,14 +328,17 @@ export default async function InspectionDetailPage({
     // ④⑥ 기한이 **영업일**이라 공휴일 표가 필요하다(2026-09-09 확정). 점검 연도 ±1년이면
     // 어떤 기한도 덮는다 — ⑥이 가장 멀어야 점검 종료 + 15영업일 + 20일 + 10영업일 남짓이다.
     const dueYear = Number(String((inspection as unknown as Record<string, unknown>).inspection_start_date ?? today).slice(0, 4))
-    const [custFullRes, bldRes9, brigadeRes9, jobRes9, filesRes9, deliveryRes, holidayRes, annex10Res] = await Promise.all([
+    /* 🚨 2026-09-11 — `brigadeRes9`(의용소방대원 1행 조회)를 **뺐다**. 그 값을 읽던 곳은
+       「제출 전제」 체크(`report9Checks`) 하나뿐이었고, 그 UI가 폐지되면서(소방계획서_49 §13)
+       조회만 남아 매 렌더 왕복을 하나 더 쓰고 있었다. 되살리려면 3번째 자리에 함께 넣을 것 —
+       이 배열은 **위치 기반 구조분해**라 질의만 지우거나 이름만 지우면 전부 한 칸씩 밀린다. */
+    const [custFullRes, bldRes9, jobRes9, filesRes9, deliveryRes, holidayRes, annex10Res] = await Promise.all([
       admin.from('customers')
         .select('address, use_approval_date, manager_selected_at, building_grade, insurance_joined, op_hours_weekday, headcount_worker, headcount_resident, headcount_max, email_delivery_consent, report_email')
         .eq('id', inspection.customer_id).single(),
       admin.from('buildings').select('purpose, total_area, building_area, floors_above, floors_below, height, households, building_count, permit_date, parking_summary, elevator_count, emergency_elevator_count, receiver_location, main_structure, roof_structure')
         .eq('customer_id', inspection.customer_id).eq('is_active', true)
         .order('created_at', { ascending: true }).limit(1).maybeSingle(),
-      admin.from('fire_brigade_members').select('id').eq('customer_id', inspection.customer_id).limit(1),
       admin.from('fire_plan_gen_jobs')
         .select('id, status, missing, error, created_at')
         .eq('inspection_id', id).eq('report_type', 'report9')
@@ -356,46 +356,18 @@ export default async function InspectionDetailPage({
     ])
     const cf = (custFullRes.data ?? {}) as Record<string, unknown>
     const b9 = (bldRes9.data ?? null) as Record<string, unknown> | null
-    const quick = computeQuickReadiness({ inspection_type: customer.inspection_type }, {
-      address: !!cf.address, purpose: !!b9?.purpose, useApprovalDate: !!cf.use_approval_date,
-      permitDate: b9?.permit_date != null, totalArea: b9?.total_area != null, buildingArea: b9?.building_area != null,
-      floors: b9?.floors_above != null || b9?.floors_below != null, height: b9?.height != null,
-      households: b9?.households != null, buildingCount: b9?.building_count != null,
-      elevator: b9?.elevator_count != null || b9?.emergency_elevator_count != null, parking: b9?.parking_summary != null,
-      receiverLocation: !!b9?.receiver_location, structure: !!b9?.main_structure, roof: !!b9?.roof_structure,
-      managerSelectedAt: !!cf.manager_selected_at, grade: !!cf.building_grade,
-      insurance: cf.insurance_joined !== null && cf.insurance_joined !== undefined, opHours: !!cf.op_hours_weekday,
-      headcount: cf.headcount_worker != null || cf.headcount_resident != null || cf.headcount_max != null,
-      brigade: (brigadeRes9.data ?? []).length > 0,
-      emailConsent: cf.email_delivery_consent !== null && cf.email_delivery_consent !== undefined,
-    })
-    const missingLicense = [
-      ...(employee && !employee.license_no ? [employee.name] : []),
-      ...auxParticipants.filter(a => !a.license_no).map(a => a.name),
-    ]
+    /* 🚨 「제출 전제」 4줄(①대상물 공통정보 ②점검 인력 ③점검표 응답 ④송달 동의)을 **폐지했다**
+       (2026-09-11 사용자 지시, 소방계획서_49 §13). 그 값을 만들던 `computeQuickReadiness` 호출과
+       `missingLicense` 집계도 여기서 함께 사라진다 — 읽는 곳이 그 UI뿐이었다.
+
+       ⚠ 이건 **막는 장치가 아니었다.** 저장·생성·제출 어디도 이 값으로 가로막지 않았으므로
+         지워도 동작이 바뀌지 않는다(그래서 지울 수 있었다).
+       ⚠ 잃은 것 둘은 알고 지운다: ⑴ 생성 **전에** 「지금 만들면 빈다」를 알던 자리
+         ⑵ 고치러 가는 링크(고객 탭·직원 관리). 특히 **자격번호 누락은 문서가 생성은 되면서
+         칸만 비는** 유형이라, 이제 그 원인은 생성 후 `missing` 리포트로만 드러난다.
+       되살리려면 이 블록과 workbench의 `submit9-prereq`를 함께 복원할 것 — 한쪽만 살리면
+       데이터는 만들어지는데 아무도 안 읽거나, 화면이 없는 값을 읽는다. */
     const consent = cf.email_delivery_consent as boolean | null | undefined
-    report9Checks = [
-      {
-        label: '① 대상물 공통정보', ok: quick.done >= quick.total,
-        detail: `${quick.done}/${quick.total} 입력${quick.missing.length > 0 ? ` — 누락: ${quick.missing.slice(0, 4).join('·')}${quick.missing.length > 4 ? ` 외 ${quick.missing.length - 4}` : ''}` : ''}`,
-        href: `/customers/${inspection.customer_id}?tab=plan`, hrefLabel: '고객 탭에서 입력 →',
-      },
-      {
-        label: '② 점검 인력', ok: !!employee && missingLicense.length === 0,
-        detail: !employee ? '담당(주된 점검인력) 미배정'
-          : missingLicense.length > 0 ? `자격번호 미입력: ${missingLicense.join('·')}` : `주된 1명 + 보조 ${auxParticipants.length}명`,
-        href: '/employees', hrefLabel: '직원 관리 →',
-      },
-      {
-        label: '③ 점검표 응답', ok: respRows.length > 0,
-        detail: respRows.length > 0 ? `응답 ${respRows.length}건 · 불량 ${xCount}건 (3쪽 양호/불량 자동 롤업)` : '응답 없음 — 점검표를 입력해주세요',
-      },
-      {
-        label: '④ 송달 동의', ok: consent !== null && consent !== undefined,
-        detail: consent === true ? '동의' : consent === false ? '미동의' : '미확인',
-        href: `/customers/${inspection.customer_id}?tab=plan`, hrefLabel: '고객 탭에서 입력 →',
-      },
-    ]
     report9Job = (jobRes9.data?.[0] as Report9Job | undefined) ?? null
     const storagePrefix = `${inspection.customer_id}/inspections/${id}`
     const allObjects = (filesRes9.data ?? [])
@@ -484,7 +456,6 @@ export default async function InspectionDetailPage({
         done: defects.filter(d => d.action_completed_at).length,
         photoPairs,
       },
-      prereqs: report9Checks,
       consentOk: consent === true && !!cf.report_email,
       // §4-E H-28: 여정 스텝퍼 통합 — inspection_steps 마감·완료 흡수, ⑤ 전/후 갤러리, 제출 보고서 파일
       inspectionSteps: steps,

@@ -311,10 +311,14 @@ try {
   await p9.locator('textarea[aria-label="비고·보완 문구"]').waitFor({ timeout: 60000 })
   const missingShown = await page.locator('text=/미입력 \\d+곳|빈칸 없음/').first()
     .waitFor({ timeout: 60000 }).then(() => true).catch(() => false)
-  check('④ 미비 항목 안내(전제·미입력)', missingShown)
+  check('④ 미비 항목 안내(미입력 곳수)', missingShown)
   await p9.locator('input[aria-label="보고일"]').fill(SUBMIT_DATE)
-  await p9.locator('textarea[aria-label="비고·보완 문구"]').fill('E2E비고-소화기 위치 보완 권고')
-  await page.click('text=제출 전제')   // blur → 저장
+  const memo9 = p9.locator('textarea[aria-label="비고·보완 문구"]')
+  await memo9.fill('E2E비고-소화기 위치 보완 권고')
+  /* 🚨 blur 대상이 「제출 전제」였다(`page.click('text=제출 전제')`). 그 UI가 폐지되면서
+     (소방계획서_49 §13) 이 줄이 타임아웃으로 죽는다. **다른 요소를 빌리지 않고** 대상 자체를
+     blur한다 — 남의 요소를 클릭해 blur를 얻으면 그 요소가 사라질 때마다 이 검사가 같이 죽는다. */
+  await memo9.blur()
   await p9.locator('text=저장됨').waitFor({ timeout: 30000 })
   await page.locator('iframe[title="별지 9호 미리보기"] >> nth=0').waitFor({ timeout: 60000 })
   await page.click('text=새로고침')

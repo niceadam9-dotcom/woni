@@ -142,9 +142,6 @@ export function InspectionWorkbench({
    *  **이미 나 있던 결함**이다(대조군 test-workbench-defect-pane-switch가 현행에서 붉었다). */
   const [defectEdits, setDefectEdits] = useState<DefectEdits>({})
   // R5-8 기산 근거 인라인 수정 — 기한을 보는 자리에서 바로 고칠 수 있어야 한다
-  /** ④ 제출 전제 펼침 — `null`은 "사용자가 아직 안 건드림"이라 ⚠ 유무로 정한다.
-   *  `false`로 초기화하면 ⚠가 있는데도 접힌 채 시작해 "왜 제출이 막히나"를 못 읽는다. */
-  const [prereqOpen, setPrereqOpen] = useState<boolean | null>(null)
   const [anchorEdit, setAnchorEdit] = useState(false)
   const [anchorEnd, setAnchorEnd] = useState(data.period?.end ?? '')
   const [anchorMsg, setAnchorMsg] = useState('')
@@ -857,44 +854,11 @@ export function InspectionWorkbench({
         {sel === 'submit9' && (<>
           <Pane title="별지 9·10호 생성·제출" cls={paneCls} head={paneHead}>
             <div className="space-y-2 px-3 py-2">
-              {/* 제출 전제 — **접이식 한 줄**(2026-09-11 사용자 A안). 종전엔 이것만으로 칸 하나를
-                  통째로 썼는데, 정작 서버가 보내는 `detail`(무엇이 몇 개 비었는지)과 `href`(고치러
-                  가는 링크)를 **쓰지도 않고** 라벨 네 줄만 그렸다 — 가장 적게 말하는 칸이 가장 넓었다.
-                  ⭐ 접으면서 detail·href를 **살렸다**: 추가 조회 0(이미 `page.tsx`가 보내고 있다).
-                  ⚠ 기본 펼침은 **⚠가 있을 때만**이다. 전부 ✓인데 펼쳐 두면 매번 접어야 하고,
-                    ⚠인데 접혀 있으면 "왜 제출이 막히나"를 못 읽는다. 사용자가 한 번 누르면 그 뜻을 따른다. */}
-              {data.prereqs.length > 0 && (() => {
-                const bad = data.prereqs.filter(p => !p.ok)
-                const open = prereqOpen ?? bad.length > 0
-                return (
-                  <div data-testid="submit9-prereq"
-                    className={`rounded-lg border px-2.5 py-1.5 ${bad.length > 0 ? 'border-amber-300 bg-amber-50' : 'border-brand-line-soft bg-paper'}`}>
-                    <button onClick={() => setPrereqOpen(!open)} aria-expanded={open}
-                      data-testid="submit9-prereq-toggle"
-                      className="flex w-full items-center gap-1.5 text-left text-form-xs">
-                      <span className={bad.length > 0 ? 'text-amber-700' : 'text-ink-sub'}>
-                        {bad.length === 0
-                          ? `✓ 제출 전제 ${data.prereqs.length}/${data.prereqs.length}`
-                          : `⚠ 제출 전제 ${data.prereqs.length - bad.length}/${data.prereqs.length} — ${bad.map(p => p.label).join(' · ')}`}
-                      </span>
-                      <ChevronRight className={`ml-auto size-3 shrink-0 transition-transform ${open ? 'rotate-90' : ''}`} />
-                    </button>
-                    {open && (
-                      <div className="mt-1 space-y-0.5 border-t border-brand-line-soft pt-1">
-                        {data.prereqs.map((p, i) => (
-                          <p key={i} className={`text-form-2xs ${p.ok ? 'text-ink-meta' : 'text-amber-700'}`}>
-                            {p.ok ? '✓' : '⚠'} {p.label}
-                            {p.detail && <span className="text-ink-meta"> — {p.detail}</span>}
-                            {!p.ok && p.href && (
-                              <NextLink href={p.href} className="ml-1 underline hover:text-brand">{p.hrefLabel ?? '입력'}</NextLink>
-                            )}
-                          </p>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )
-              })()}
+              {/* 🚨 「제출 전제」(①대상물 공통정보 ②점검 인력 ③점검표 응답 ④송달 동의)를 여기서
+                  **폐지했다** — 2026-09-11 사용자 지시(소방계획서_49 §13).
+                  이 자리의 변천: 칸 하나를 통째로 씀 → 접이식 한 줄(같은 날 A안) → 제거.
+                  ⚠ 되살리려면 `page.tsx`의 `report9Checks`·`prereqs`와 **함께** 복원할 것.
+                    한쪽만 살리면 데이터는 만들어지는데 아무도 안 읽거나, 화면이 없는 값을 읽는다. */}
               {/* 소방계획서_45 — ⑤⑥을 생략해도 ④는 남는다(법정 15일 보고는 불량 유무와 무관).
                   ④를 존치하기로 한 이상 **뒤 단계가 왜 비었는지**가 이 화면에서 읽혀야 한다 —
                   아니면 "합격인데 왜 아직 할 일이 있나"로 읽힌다. 문장은 DOC_TERMS가 단일 원천.

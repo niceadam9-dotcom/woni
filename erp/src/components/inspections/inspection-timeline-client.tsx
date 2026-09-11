@@ -37,7 +37,6 @@ import type { InspectionStep } from '@/types'
  *  단계 구성은 stepDocs(§9-9a): 자체점검 ①~⑥ 상시 표시(D-4 — 불량 0건이면 ⑤⑥ 해당없음 흐림).
  *  ④ 전제조건 = 종전 별지 9호 준비 체크(§9-6⑦ 흡수). 값 입력은 각 원천 화면에서. */
 
-export type PrereqRow = { label: string; ok: boolean; detail: string; href?: string; hrefLabel?: string }
 
 /** ⑤ 전/후 갤러리용 불량 행 (§4-E-2) — photo_url·after_photo_url 기존 컬럼 그대로 */
 export type TimelineDefect = {
@@ -92,7 +91,6 @@ export type TimelineData = {
    *  ⚠ 비어 있을 수 있다: 이행기간도 없고 불량별 종료일도 없으면 `null`(= 아직 기한이 없다). */
   repair?: { due: string | null }
   defects: { total: number; planned: number; done: number; photoPairs: number }
-  prereqs: PrereqRow[]                  // ④ 전제 체크 (§9-6⑦)
   consentOk: boolean                    // ③ 송달 동의+이메일 보유
   // §4-E H-28: 여정 스텝퍼 통합 — inspection_steps 마감·완료 흡수, ⑤ 전/후 갤러리, 제출 보고서 파일
   inspectionSteps: InspectionStep[]     // step_num 1~6 = ①~⑥ (마감일 D-day·완료 처리)
@@ -735,16 +733,8 @@ export function InspectionTimelineClient({ inspectionId, canManage, canComplete,
                 {anchorMsg && <span className={anchorMsg.startsWith('❌') ? 'text-red-600' : 'text-green-600'}>{anchorMsg}</span>}
               </div>
             )}
-            {/* 전제 체크 (§9-6⑦ 흡수) */}
-            <div className="flex items-center gap-2 flex-wrap text-[10px]">
-              <span className="text-ink-meta">└ 전제:</span>
-              {data.prereqs.map(p => (
-                <span key={p.label} title={p.detail} className={`inline-flex items-center gap-0.5 ${p.ok ? 'text-green-600' : 'text-amber-600'}`}>
-                  {p.ok ? '✓' : '⚠'} {p.label}
-                  {!p.ok && p.href && <NextLink href={p.href} className="underline hover:text-brand">{p.hrefLabel ?? '입력'}</NextLink>}
-                </span>
-              ))}
-            </div>
+            {/* 🚨 전제 체크(§9-6⑦ 흡수)는 2026-09-11 폐지 — 소방계획서_49 §13.
+                아래 `job.missing`(생성 결과의 실제 누락)이 같은 축을 **산출물 기준으로** 말한다. */}
             {job?.status === 'failed' && <p className="text-[11px] text-red-600">❌ 생성 실패: {job.error ?? '알 수 없는 오류'}</p>}
             {job?.status === 'done' && (job.missing?.length ?? 0) > 0 && (
               <p className="text-[10px] text-amber-600">누락: {job.missing!.join(' · ')}</p>
