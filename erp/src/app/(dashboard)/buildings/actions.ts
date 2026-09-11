@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requirePermission, getSessionUser } from '@/lib/auth'
+import { resolvePrimaryRepair, type BuildingLike } from '@/lib/primary-building'
 
 /** 별지 9호 2쪽 "건축물 정보" 항목 — 건축물대장 자동 채움 대상이자 수기 입력 대상 (소방계획서_9 B안).
  *  대장 API가 값을 주지 않는 건물도 서식을 완성할 수 있도록 건물 폼에서 직접 입력한다.
@@ -246,22 +247,74 @@ export async function updateBuildingAction(
 
   if (error) return { error: error.message ?? '건물 수정 실패' }
 
+  // 🎯 재활성화 낙진 정리 — 이 수리 **이전에** 비활성화된 행은 `is_primary=true`를 켠 채 남아 있다.
+  //   그 행을 다시 활성화하면 대표가 둘이 되어 다음 저장부터 유니크 인덱스가 거부한다(23505).
+  //   여기서 한 번 고르면 그 낡은 데이터도 조용히 치유된다(신규 결함 예방이 아니라 **기존 데이터 수리**).
+  const { data: owner } = await admin.from('buildings')
+    .select('customer_id').eq('id', input.id).maybeSingle()
+  const ownerId = (owner as { customer_id?: string } | null)?.customer_id ?? null
+  if (ownerId) {
+    await repairPrimary(admin, ownerId)
+    revalidatePath(`/customers/${ownerId}`)
+  }
   revalidatePath('/buildings')
   revalidatePath(`/buildings/${input.id}`)
   return {}
+}
+
+/** 한 고객의 대표동 표식을 **정확히 하나로** 맞춘다 — 비활성화·재활성화 뒤의 자가 치유.
+ *
+ *  규칙 판단은 `resolvePrimaryRepair`(순수 함수)가 하고, 여기서는 그 답을 DB에 쓰기만 한다.
+ *  ⚠ 유니크 인덱스(`WHERE is_primary AND is_active`) 때문에 **먼저 전부 내리고 하나만 올린다** —
+ *    순서를 바꾸면 잠깐 둘이 되어 인덱스가 거부한다(`setPrimaryBuildingAction`과 같은 규약).
+ *  ⚠ 마이그레이션 160 미적용 DB에서는 컬럼이 없어 42703이 난다. 그때는 **조용히 넘어간다** —
+ *    이 함수는 보조 정리이지 본 작업이 아니고, 폴백(created_at 최고참)이 이미 옳은 답을 준다.
+ *    본 작업(비활성화 자체)까지 실패시키면 컬럼 없는 DB에서 건물을 못 지운다.
+ */
+async function repairPrimary(admin: ReturnType<typeof createAdminClient>, customerId: string): Promise<void> {
+  const { data, error } = await admin.from('buildings')
+    .select('id, is_active, is_primary, created_at').eq('customer_id', customerId)
+  if (error || !data) return
+  const { targetId, needsRepair } = resolvePrimaryRepair(data as BuildingLike[])
+  if (!needsRepair || !targetId) return
+  const down = await admin.from('buildings')
+    .update({ is_primary: false } as Record<string, unknown>)
+    .eq('customer_id', customerId).neq('id', targetId)
+  if (down.error) return
+  await admin.from('buildings')
+    .update({ is_primary: true } as Record<string, unknown>).eq('id', targetId)
 }
 
 export async function deleteBuildingAction(id: string): Promise<{ error?: string }> {
   await requirePermission('building_manage')
   const admin = createAdminClient()
 
-  const { error } = await admin
-    .from('buildings')
-    .update({ is_active: false, updated_at: new Date().toISOString() } as Record<string, unknown>)
-    .eq('id', id)
+  // 어느 고객의 동인지 먼저 알아야 승계를 돌릴 수 있다(비활성화 뒤에는 같은 질의로 못 찾는 게 아니지만,
+  // 한 번만 읽고 쓰는 편이 경합에 강하다)
+  const { data: row } = await admin.from('buildings')
+    .select('customer_id').eq('id', id).maybeSingle()
+  const customerId = (row as { customer_id?: string } | null)?.customer_id ?? null
 
+  // 🎯 비활성화하면서 **대표 표식도 함께 내린다.** 켜 둔 채 두면 나중에 이 동을 다시 활성화할 때
+  //   대표가 둘이 되어 유니크 인덱스가 저장을 거부한다(2026-09-11 사용자 요청의 핵심).
+  let { error } = await admin
+    .from('buildings')
+    .update({ is_active: false, is_primary: false, updated_at: new Date().toISOString() } as Record<string, unknown>)
+    .eq('id', id)
+  // 160 미적용 DB 호환 — 컬럼이 없으면 is_primary를 빼고 다시 시도한다(지우는 것 자체는 되어야 한다)
+  if (error && (error.code === '42703' || error.code === 'PGRST204')) {
+    ({ error } = await admin
+      .from('buildings')
+      .update({ is_active: false, updated_at: new Date().toISOString() } as Record<string, unknown>)
+      .eq('id', id))
+  }
   if (error) return { error: error.message }
 
+  // 🎯 남은 동에게 대표를 넘긴다 — 이것이 "2동을 지우면 1동이 대표가 되어 별지에 실린다"이다.
+  if (customerId) {
+    await repairPrimary(admin, customerId)
+    revalidatePath(`/customers/${customerId}`)
+  }
   revalidatePath('/buildings')
   return {}
 }

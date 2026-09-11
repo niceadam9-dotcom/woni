@@ -52,6 +52,33 @@ export function primaryBuilding<T extends BuildingLike>(rows: readonly T[]): T |
   return sortBuildingsForPrint(rows)[0] ?? null
 }
 
+/** 대표동 표식을 **고쳐야 하는가, 고친다면 누구에게** — 삭제(비활성)·재활성화 뒤의 자가 치유 규칙.
+ *
+ *  🚨 왜 필요한가 (2026-09-11 사용자 요청: "2동이 삭제되면 1동이 대표동이 되어 별지 반영되도록"):
+ *    `deleteBuildingAction`은 완전 삭제가 아니라 `is_active=false`인데, 종전엔 `is_primary`를
+ *    **켜 둔 채로** 두었다. 읽는 쪽은 활성만 보므로 문서는 남은 동으로 자가 치유되지만,
+ *    그 행을 **다시 활성화하는 순간 대표가 둘**이 되어 부분 유니크 인덱스가 저장을 거부한다(23505).
+ *    즉 "지금은 멀쩡한데 나중에 못 살리는" 종류의 결함이다.
+ *
+ *  판정:
+ *   · 활성 동이 없다 → 세울 대상 없음. 표식이 남아 있으면 지워야 하므로 `needsRepair`는 참일 수 있다.
+ *   · 활성 동 중 표식이 **정확히 하나** → 그대로 둔다(무변경이 정답).
+ *   · 0개이거나 2개 이상 → `primaryBuilding` 규칙으로 하나를 고른다. 0개일 때 고르는 답은
+ *     `created_at` 최고참이라 **종전 인쇄 규칙과 같다** — 승계가 문서를 바꾸지 않는다.
+ *
+ *  ⚠ 여기서 「누가 대표인가」를 새로 정의하지 않는다. `primaryBuilding`을 그대로 부른다 —
+ *    규칙을 두 번 적으면 승계가 인쇄와 다른 동을 고르는 날이 온다. */
+export function resolvePrimaryRepair<T extends BuildingLike>(rows: readonly T[]): {
+  targetId: string | null
+  needsRepair: boolean
+} {
+  const actives = rows.filter(b => b.is_active !== false)
+  const flagged = actives.filter(b => b.is_primary === true)
+  if (actives.length === 0) return { targetId: null, needsRepair: false }
+  if (flagged.length === 1) return { targetId: flagged[0].id, needsRepair: false }
+  return { targetId: primaryBuilding(actives)?.id ?? null, needsRepair: true }
+}
+
 /** 대표동을 뺀 나머지 — 별지 9호 「다수동일때」 2·3·4동 블록에 실린다 */
 export function otherBuildings<T extends BuildingLike>(rows: readonly T[]): T[] {
   return sortBuildingsForPrint(rows).slice(1)
