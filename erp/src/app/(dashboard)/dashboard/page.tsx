@@ -17,6 +17,8 @@ import { SmsNoticeWidget } from '@/components/sms/sms-notice-widget'
 import { fetchInputTodo } from '@/lib/customer-list'
 import { fetchAllRows, fetchAllRowsByIds } from '@/lib/supabase/paginate'
 import { activeStepsByInspection, isStepVisible } from '@/lib/active-steps'
+/* 이행기간 종료일 판정 — 작업대·별지 10·11호·갑지 엑셀이 쓰는 그 함수(사본 금지) */
+import { repairEndISO } from '@/lib/annex-due'
 import type { UserRole } from '@/types'
 
 const leaveStatusLabel: Record<string, string> = {
@@ -281,13 +283,13 @@ export default async function DashboardPage() {
       customers: { customer_name: string } | null
     } | null
   }
+  /** 이행 진행 중(불량 있고 ⑥ 미제출) — `completionTargetDate`는 **저장값이 아니라 파생값**이다
+   *  (이행기간 종료일). 종전 `action_plans.completion_target_date`를 대체한다. */
   type PendingActionRow = {
     id: string
-    completion_target_date: string | null
-    inspections: {
-      inspection_start_date: string | null
-      customers: { customer_name: string } | null
-    } | null
+    customerName: string | null
+    inspectionDate: string | null
+    targetDate: string | null
   }
 
   let kpiBills: BillKpi[] = []
@@ -318,25 +320,60 @@ export default async function DashboardPage() {
         .not('inspection_completed_at', 'is', null)
         .order('notification_due_date', { ascending: true })
         .limit(5),
+      /* 🚨 2026-09-11 축 교체 — 종전엔 `action_plans`(옛 체계)를 읽었다. 그 테이블은 「이행계획
+       *   자동생성」 버튼이 만든 **빈 행**만 들고 있었고(운영 실측 2건, 완료목표일 전부 null),
+       *   문서 조립기는 그것을 한 번도 읽지 않는다. 그래서 이 카드가 늘 「기한 미지정」이었다.
+       *
+       *   이제 현행 축을 읽는다: **불량이 있고 ⑥(별지 11호) 미제출인 회차**.
+       *   완료목표일은 저장하지 않고 `repairEndISO`로 **파생**한다 — 별지 10·11호 PDF와 갑지
+       *   엑셀이 쓰는 바로 그 함수라, ④에서 총 이행기간을 고치면 이 카드가 즉시 따라온다.
+       *   (두 곳에 쓰고 맞추는 「동기화」를 하지 않는 이유: 어긋날 수 있는 두 값을 만들지 않는다.)
+       *
+       *   ⚠ 정렬이 파생값이라 DB에서 못 한다 — 넉넉히 받아 아래에서 자른다. */
       admin
-        .from('action_plans')
-        // D-8: 위와 같은 축 — 미제출 이행계획도 비활성 고객 것이 남는다
+        .from('inspections')
+        // D-8: 위와 같은 축 — 비활성 고객 것이 남는다
         .select(`
-          id, completion_target_date,
-          inspections:inspection_id!inner (
-            inspection_start_date,
-            customers:customer_id!inner ( customer_name, is_active )
-          )
+          id, inspection_start_date,
+          customers:customer_id!inner ( customer_name, is_active ),
+          inspection_defects!inner ( action_end )
         `)
-        .eq('inspections.customers.is_active', true)
-        .is('submitted_at', null)
-        .order('completion_target_date', { ascending: true })
-        .limit(5),
+        .eq('customers.is_active', true)
+        .is('report11_submitted_at', null)
+        .order('inspection_start_date', { ascending: false })
+        .limit(60),
     ])
 
     kpiBills = (billsRes.data ?? []) as BillKpi[]
     pendingReports = (reportsRes.data ?? []) as unknown as PendingReportRow[]
-    pendingActions = (actionsRes.data ?? []) as unknown as PendingActionRow[]
+    /* 완료목표일 = 이행기간 종료일. 수기 총 이행기간(④)이 정본이고, 없으면 불량별 action_end의
+     * 최댓값 — 판정은 `repairEndISO` 한 곳이 하고 PDF·엑셀이 같은 함수를 탄다(사본 금지). */
+    type InspRow = {
+      id: string; inspection_start_date: string | null
+      customers: { customer_name: string } | null
+      inspection_defects: { action_end: string | null }[] | null
+    }
+    const rows = (actionsRes.data ?? []) as unknown as InspRow[]
+    const annexRes = rows.length
+      ? await admin.from('annex_inputs').select('inspection_id, fields')
+        .eq('annex_no', 'report10').in('inspection_id', rows.map(r => r.id))
+      : { data: [] }
+    const periodOf = new Map(((annexRes.data ?? []) as { inspection_id: string; fields: Record<string, unknown> | null }[])
+      .map(a => [a.inspection_id, typeof a.fields?.totalPeriod === 'string' ? a.fields.totalPeriod : '']))
+    pendingActions = rows
+      .map(r => ({
+        id: r.id,
+        customerName: r.customers?.customer_name ?? null,
+        inspectionDate: r.inspection_start_date,
+        // '' → null: 기한을 못 구한 것과 「없음」을 섞지 않는다(화면이 '기한 미지정'으로 구분해 말한다)
+        targetDate: repairEndISO({
+          totalPeriod: periodOf.get(r.id) ?? '',
+          actionEnds: (r.inspection_defects ?? []).map(d => d.action_end),
+        }) || null,
+      }))
+      // 기한이 이른 것부터. 기한 미정은 맨 뒤로 — 위쪽은 '지금 급한 것'을 위한 자리다
+      .sort((a, b) => (a.targetDate ?? '9999').localeCompare(b.targetDate ?? '9999'))
+      .slice(0, 5)
   }
 
   // 금년 매출누계 / 금년 미납누계 / 금월 미납건수
@@ -578,20 +615,18 @@ export default async function DashboardPage() {
             ) : (
               <div className="divide-y divide-paper">
                 {pendingActions.map(a => {
-                  type InspJoin = { inspection_start_date: string | null; customers: { customer_name: string } | null } | null
-                  const insp = a.inspections as InspJoin
-                  const isOverdue = a.completion_target_date && a.completion_target_date < todayStr
+                  const isOverdue = a.targetDate && a.targetDate < todayStr
                   return (
                     <div key={a.id} className="flex items-center justify-between px-5 py-3">
                       <div>
-                        <p className="text-sm font-medium">{insp?.customers?.customer_name ?? '—'}</p>
+                        <p className="text-sm font-medium">{a.customerName ?? '—'}</p>
                         <p className="text-xs text-gray-400 mt-0.5">
-                          점검일: {insp?.inspection_start_date ?? '—'}
+                          점검일: {a.inspectionDate ?? '—'}
                         </p>
                       </div>
                       <div className="text-right">
                         <p className={`text-xs font-medium ${isOverdue ? 'text-red-500' : 'text-gray-500'}`}>
-                          {a.completion_target_date ? `완료목표: ${a.completion_target_date}` : '기한 미지정'}
+                          {a.targetDate ? `완료목표: ${a.targetDate}` : '기한 미지정'}
                         </p>
                         {isOverdue && (
                           <span className="text-form-2xs text-red-400 flex items-center justify-end gap-0.5 mt-0.5">

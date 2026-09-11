@@ -141,7 +141,11 @@ export function AnnexFieldInput({ def, value, onChange, rows = 2, baseDate, onPa
     // 지금 걸린 법정 일수 — **날짜가 정답**이고 저장된 총일수는 기간이 없을 때의 폴백이다.
     // (종료일을 손으로 고쳐 10·20 어느 쪽도 아니게 되면 select가 「직접 입력」으로 스스로 떨어진다.)
     const legalDays = LEGAL_ACTION_PERIODS.map(p => p.days as number)
-    const span = ps && pe && !bad ? daysBetween(ps, pe) : null
+    /* 🚨 **양끝 포함**으로 센다(2026-09-11) — 시작일이 1일차다.
+     *   `daysBetween`은 순수 차이(8/19~8/28 = 9)라 `+1`을 해야 「10일」이 된다.
+     *   이 `+1`을 빠뜨리면 `legalActionRange`가 낸 정상 기간이 10·20 어느 쪽도 아니게 보여
+     *   라디오가 **스스로 「직접 입력」으로 떨어진다**(값은 맞는데 화면만 틀리는 형태). */
+    const span = ps && pe && !bad ? daysBetween(ps, pe) + 1 : null
     const selected = span !== null
       ? (legalDays.includes(span) ? String(span) : '')
       : (legalDays.includes(Number(daysValue)) ? String(Number(daysValue)) : '')
@@ -173,9 +177,11 @@ export function AnnexFieldInput({ def, value, onChange, rows = 2, baseDate, onPa
       join(s, pe)
     }
     const changeEnd = (e2: string) => {
-      // 손으로 고친 종료일이 곧 새 총일수다 — 안 맞추면 문서의 「(총 N일)」이 기간과 어긋난다
-      const n = ps && e2 ? daysBetween(ps, e2) : null
-      if (n !== null && n >= 0) { patchBoth(`${ps} ~ ${e2}`, String(n)); return }
+      // 손으로 고친 종료일이 곧 새 총일수다 — 안 맞추면 문서의 「(총 N일)」이 기간과 어긋난다.
+      // ⚠ 여기도 **양끝 포함**(+1) — `manualActionPeriod`가 인쇄 직전에 같은 셈법으로 다시 세므로,
+      //   `+1`이 없으면 저장된 총일수와 인쇄된 총일수가 하루 어긋난다(종전 10 vs 11의 원인).
+      const n = ps && e2 ? daysBetween(ps, e2) + 1 : null
+      if (n !== null && n >= 1) { patchBoth(`${ps} ~ ${e2}`, String(n)); return }
       join(ps, e2)
     }
 

@@ -11,7 +11,6 @@ import {
   getDefectSuggestionsAction,
   type DefectSeverity,
 } from '@/app/(dashboard)/inspections/defect-actions'
-import { createActionPlanAction } from '@/app/(dashboard)/action-plans/actions'
 import { DateInput } from '@/components/ui/date-input'
 import { dateRangeError } from '@/lib/date-range'
 import { PhotoGalleryModal } from '@/components/inspections/photo-gallery-modal'
@@ -530,21 +529,16 @@ export function InspectionDefectsClient({
   initialDefects,
   canEdit,
   canDelete,
-  hasActionPlan = false,
 }: {
   inspectionId: string
   initialDefects: Defect[]
   canEdit: boolean
   canDelete: boolean
-  hasActionPlan?: boolean
 }) {
   const [showForm, setShowForm]   = useState(false)
   const [deleting, setDeleting]   = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
-  const [planCreating, startPlanTransition] = useTransition()
-  const [planMsg, setPlanMsg]     = useState('')
-  const [planCreated, setPlanCreated] = useState(hasActionPlan)
   const [suggestions, setSuggestions] = useState<{ chips: string[]; standard: string[] }>({ chips: [], standard: [] })
   const [addedCount, setAddedCount] = useState(0)   // R13-b: 이번 세션 연속 등록 수
   const [showGallery, setShowGallery] = useState(false)   // R6: 전/후 사진 갤러리
@@ -567,15 +561,6 @@ export function InspectionDefectsClient({
   }, [initialDefects.length])
 
   const photoPairs = initialDefects.filter(d => d.photo_url && d.after_photo_url).length
-
-  function handleCreatePlan() {
-    startPlanTransition(async () => {
-      const res = await createActionPlanAction({ inspectionId })
-      if (res.error) { setPlanMsg(res.error); return }
-      setPlanCreated(true)
-      setPlanMsg('이행계획서가 생성되었습니다.')
-    })
-  }
 
   function handleDelete(defectId: string) {
     setDeleting(defectId)
@@ -646,23 +631,14 @@ export function InspectionDefectsClient({
         </div>
       )}
 
-      {/* 이행계획 생성 버튼 (불량 1건 이상일 때) */}
-      {canDelete && initialDefects.length > 0 && (
-        <div className="mb-3 flex items-center gap-3">
-          {planCreated ? (
-            <span className="text-xs text-green-600 font-medium">✓ 이행계획서 생성됨</span>
-          ) : (
-            <button
-              onClick={handleCreatePlan}
-              disabled={planCreating}
-              className="text-xs bg-orange-500 text-white px-3 py-1.5 rounded-lg disabled:opacity-50"
-            >
-              {planCreating ? '생성 중…' : '이행계획 자동생성'}
-            </button>
-          )}
-          {planMsg && <span className="text-xs text-gray-500">{planMsg}</span>}
-        </div>
-      )}
+      {/* 🚨 2026-09-11 제거 — 「이행계획 자동생성」 버튼은 **아무것도 자동생성하지 않았다**.
+          `action_plans`에 빈 행 하나를 넣을 뿐이고(완료목표일은 언제나 null로 들어갔다),
+          별지 10호 PDF·갑지 엑셀 조립기는 그 테이블을 **한 번도 읽지 않는다**(`src/lib` 참조 0건).
+          운영 실측: 2건 전부 완료목표일·제출일·송부일·파일이 비어 있었고, 그 빈 행들이
+          대시보드 「미제출 이행계획」에 「기한 미지정」으로 영구히 앉아 있었다.
+
+          이행계획은 이제 **불량이 생기면 그 자체로 성립**한다 — ④ 별지 10호의 「총 이행기간」이
+          법정 기간(10·20일)을 잡고 ⑤·⑥·문서가 전부 그 하나에서 파생된다. 누를 것이 없다. */}
 
       {/* 빈 상태 */}
       {initialDefects.length === 0 && !showForm && (

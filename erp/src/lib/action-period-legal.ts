@@ -55,11 +55,26 @@ export function addCalendarDays(baseISO: string, n: number): string {
   return new Date(t + n * 86_400_000).toISOString().slice(0, 10)
 }
 
-/** 보고일 + 법정 일수 → 총 이행기간. 보고일이 날짜꼴이 아니면 null(호출부가 조용히 넘어가지 않게). */
+/** 기산일 + 법정 일수 → 총 이행기간. 기산일이 날짜꼴이 아니면 null(호출부가 조용히 넘어가지 않게).
+ *
+ *  🚨 2026-09-11 사용자 확정 — **시작일이 1일차다**(양끝 포함). 그래서 `종료 = 시작 + (N-1)`이고
+ *    10일이면 `+9`, 20일이면 `+19`다. 종전 `+N`은 **양끝 포함 11일**을 만들고 있었다.
+ *
+ *  ⚠ 이건 새 규칙이 아니라 **기존 단계 마감일과 같은 셈법**이다 — DB 트리거(마이그레이션 111)와
+ *    그 사본인 `step-dates.ts:74`가 이미 `⑤ = ④ +9일(달력, 당일 포함 10일째)`로 세고 있었다.
+ *    이 파일만 `+10`이라 **한 회차 안에서 단계 마감일과 문서 기간이 하루 어긋났다.**
+ *  ⚠ 그리고 `manualActionPeriod`(annex-total-period.ts)는 저장된 기간을 **양끝 포함(diff+1)**으로
+ *    다시 세므로, 종전에는 화면 라디오가 「10일」인데 문서에는 **「총 11일」**이 인쇄됐다.
+ *    (운영 실측: `2026-08-19 ~ 2026-08-29`, totalDays 저장값 "10" → 인쇄 11일.)
+ *    `+9`로 바꾸면 라디오·저장값·인쇄값이 셋 다 10으로 맞는다.
+ *
+ *  ⚠ 종전 주석은 「조문이 '보고일부터 n일 이내'라 하므로 종료일 = 보고일 + n」이라 적었다.
+ *    그 해석을 **양끝 포함으로 정정**한다(사용자 확정). 되돌리려면 여기 한 줄과 아래 검사를 본다. */
 export function legalActionRange(baseISO: string, days: number): { startISO: string; endISO: string; days: number } | null {
   if (!ISO_RE.test((baseISO ?? '').slice(0, 10))) return null
+  if (!Number.isFinite(days) || days < 1) return null   // 0일·음수는 종료<시작을 만든다
   const start = baseISO.slice(0, 10)
-  return { startISO: start, endISO: addCalendarDays(start, days), days }
+  return { startISO: start, endISO: addCalendarDays(start, days - 1), days }
 }
 
 /** 작성 패널 `totalPeriod` 저장 형식("YYYY-MM-DD ~ YYYY-MM-DD")과 `totalDays` 한 벌.

@@ -20,6 +20,7 @@ import { InspectionReport9Client, type Report9CheckRow } from '@/components/insp
 import { type TimelineData } from '@/components/inspections/inspection-timeline-client'
 import { InspectionWorkbench } from '@/components/inspections/inspection-workbench'
 import { stepDocs } from '@/lib/doc-requirements'
+import { report9DueISO, report11DueISO, repairEndISO } from '@/lib/annex-due'
 import {
   CONTRACT_FILE_RE, CERT_PAPER_ACTION, CERT_REPORTED_ACTION, CERT_REPORTED_UNDO_ACTION,
   findArchivedCertInspections, isCertFileName,
@@ -120,7 +121,6 @@ export default async function InspectionDetailPage({
   ])
 
   if (!inspRes.data) notFound()
-
   const inspection = inspRes.data as Inspection
   let steps = (stepsRes.data ?? []) as InspectionStep[]
 
@@ -143,7 +143,9 @@ export default async function InspectionDetailPage({
   const syncPromise = syncInspectionSteps(admin, id, profile.id)
 
   // 고객, 관계인, 담당직원, 보고서 병렬 조회
-  const [customerRes, contactRes, employeeRes, reportsRes, defectsRes, actionPlanRes, participantsRes, allEmpRes, genReportsRes, sheetsRes, responsesRes] = await Promise.all([
+  // 🚨 2026-09-11: `action_plans` 조회를 걷어냈다 — 그 행은 「이행계획 자동생성」 버튼의 마커였을 뿐
+  //   문서 조립기가 한 번도 읽지 않는 옛 축이다. 버튼과 함께 이 왕복도 없앤다.
+  const [customerRes, contactRes, employeeRes, reportsRes, defectsRes, participantsRes, allEmpRes, genReportsRes, sheetsRes, responsesRes] = await Promise.all([
     admin.from('customers').select('id, customer_name, customer_code, inspection_type, address').eq('id', inspection.customer_id).single(),
     inspection.contact_id
       ? admin.from('customer_contacts').select('id, role, name, phone, email').eq('id', inspection.contact_id).single()
@@ -157,7 +159,6 @@ export default async function InspectionDetailPage({
       .select('id, defect_code, defect_name, defect_detail, photo_url, after_photo_url, action_taken, action_completed_at, action_plan, action_start, action_end, severity, created_at')
       .eq('inspection_id', id)
       .order('created_at'),
-    admin.from('action_plans').select('id').eq('inspection_id', id).single(),
     admin.from('inspection_participants')
       .select('id, employee_id, role, sort_order, profiles:employee_id (name, license_no)')
       .eq('inspection_id', id).eq('role', '보조').order('sort_order'),
@@ -171,7 +172,6 @@ export default async function InspectionDetailPage({
       .eq('version', sheetVersion).order('sheet_code'),
     admin.from('inspection_sheet_responses').select('item_code, result, memo').eq('inspection_id', id),
   ])
-
   const sheets = (sheetsRes.data ?? []) as Array<{ id: string; sheet_code: string; sheet_name: string }>
   const respRows = (responsesRes.data ?? []) as Array<{ item_code: string; result: 'O' | 'X' | 'N'; memo: string | null }>
   const responses: Record<string, { result: 'O' | 'X' | 'N'; memo: string | null }> = {}
@@ -219,7 +219,6 @@ export default async function InspectionDetailPage({
   }
   // 사진은 비공개 버킷이라 표시 직전에 서명한다 — DB엔 경로만 있다(lib/defect-photos)
   const defects = await withSignedDefectPhotos(admin, (defectsRes.data ?? []) as DefectRow[])
-  const hasActionPlan = !!actionPlanRes.data
 
   type ReportRow = {
     id: string; report_type: string; file_name: string; file_size: number | null
@@ -242,7 +241,6 @@ export default async function InspectionDetailPage({
     report_type: r.report_type as ReportType,
     submitted_by_name: r.submitted_by ? (submitterMap.get(r.submitted_by) ?? null) : null,
   }))
-
   const userRole = profile.role as UserRole
   const isAssigned = inspection.assigned_employee_id === profile.id
   const canComplete = isAssigned || userRole === 'manager' || userRole === 'admin'
@@ -270,7 +268,6 @@ export default async function InspectionDetailPage({
   const stepEvidence = syncedEvidence ?? await loadStepEvidence(admin, id)
   // 전체 진행률 카드는 C1(R5-1)에서 제거했다 — 타임라인 헤더가 같은 값을 보여주고,
   // 그 카드가 읽던 inspection_steps는 월간 건에서 분모가 6으로 고정돼 100%에 닿지 못했다(R4-8에서 교정 예정)
-
   // ── 문서 타임라인 (§9-9 / P7) — 특별점검 ①~④(불량 시 ⑤⑥) / 정기·일반 ①(외관점검표) ──
   let report9Checks: Report9CheckRow[] | null = null
   let report9Job: Report9Job | null = null
@@ -331,7 +328,10 @@ export default async function InspectionDetailPage({
     }
   }
   if (isSpecial && customer) {
-    const [custFullRes, bldRes9, brigadeRes9, jobRes9, filesRes9, deliveryRes] = await Promise.all([
+    // ④⑥ 기한이 **영업일**이라 공휴일 표가 필요하다(2026-09-09 확정). 점검 연도 ±1년이면
+    // 어떤 기한도 덮는다 — ⑥이 가장 멀어야 점검 종료 + 15영업일 + 20일 + 10영업일 남짓이다.
+    const dueYear = Number(String((inspection as unknown as Record<string, unknown>).inspection_start_date ?? today).slice(0, 4))
+    const [custFullRes, bldRes9, brigadeRes9, jobRes9, filesRes9, deliveryRes, holidayRes, annex10Res] = await Promise.all([
       admin.from('customers')
         .select('address, use_approval_date, manager_selected_at, building_grade, insurance_joined, op_hours_weekday, headcount_worker, headcount_resident, headcount_max, email_delivery_consent, report_email')
         .eq('id', inspection.customer_id).single(),
@@ -347,6 +347,12 @@ export default async function InspectionDetailPage({
       admin.from('report_deliveries').select('recipient_email, sent_at')
         .eq('inspection_id', id).eq('doc_kind', 'report9_owner')
         .order('sent_at', { ascending: false }).limit(1),
+      admin.from('holidays').select('date')
+        .gte('date', `${dueYear - 1}-01-01`).lte('date', `${dueYear + 1}-12-31`),
+      // ⑥ 기한의 기산점은 **총 이행기간 종료일**이다 — 별지 10호에 사람이 적은 그 값이 정본이고,
+      // 불량별 action_end는 그것이 비었을 때의 폴백이다(같은 사슬을 문서 조립도 쓴다).
+      admin.from('annex_inputs').select('fields')
+        .eq('inspection_id', id).eq('annex_no', 'report10').maybeSingle(),
     ])
     const cf = (custFullRes.data ?? {}) as Record<string, unknown>
     const b9 = (bldRes9.data ?? null) as Record<string, unknown> | null
@@ -399,7 +405,13 @@ export default async function InspectionDetailPage({
       .filter(o => INSPECTION_DOC_FILE_RE.test(o.name))
       .map(o => ({ name: o.name, path: `${storagePrefix}/${o.name}`, createdAt: o.created_at ?? null }))
 
-    // 타임라인 데이터 (§9-9) — 기한: ④ 점검 종료+15일 / ⑥ 이행기간 종료일(max action_end)
+    /* 타임라인 데이터 (§9-9) — 기한 두 개. **둘 다 영업일**이다(2026-09-09 사용자 확정):
+     *   ④ 별지 9호  = 점검 종료일 + 15영업일   (「점검이 끝난 날부터 15일」)
+     *   ⑥ 별지 11호 = 이행기간 종료일 + 10영업일 (「이행을 완료한 날부터 10일」)
+     *
+     * 🚨 종전에는 ④가 **달력일**이었고(`addDays(endDate, 15)`) ⑥은 **+10일이 아예 없어**
+     *   이행기간 종료일 당일이 곧 제출 기한이었다 — 보수를 끝낸 날 바로 내라는 화면이었다.
+     * ⚠ ⑤ 이행기간(10·20일)만 달력일이다. 한 화면에 두 기준이 있으니 섞지 말 것. */
     const certObj = allObjects.find(o => isCertFileName(o.name)) ?? null
     const contractObj = allObjects.find(o => CONTRACT_FILE_RE.test(o.name)) ?? null
     /* 🚨 2026-09-11 — ② 종이 보관 기록·신고 표시·보관 정리 판정 셋은 아래 객체 리터럴 **안에서
@@ -416,14 +428,20 @@ export default async function InspectionDetailPage({
     const deliveryRow = (deliveryRes.data?.[0] ?? null) as { recipient_email: string; sent_at: string } | null
     const iRec = inspection as unknown as Record<string, unknown>
     const endDate = (iRec.inspection_end_date as string | null) ?? (iRec.inspection_start_date as string | null)
-    const addDays = (base: string, days: number) => {
-      const d = new Date(base); d.setDate(d.getDate() + days); return d.toISOString().split('T')[0]
-    }
+    /** 공휴일 집합. 조회가 실패하면 **주말만** 제외하고 계산한다 — 조용히 달력일로 떨어지지 않게.
+     *  (기한이 실제보다 이르게 나올 뿐이라 안전한 방향이지만, 그래도 두 축을 섞지는 않는다.) */
+    const holidaySet = new Set((holidayRes.data ?? []).map(h => String((h as { date: string }).date).slice(0, 10)))
     const ddayOf = (due: string | null) => due
       ? Math.round((new Date(due).getTime() - new Date(today).getTime()) / 86400000) : null
-    const due9 = endDate ? addDays(endDate, 15) : null
-    const actionEnds = defects.map(d => d.action_end).filter(Boolean).sort() as string[]
-    const due11 = actionEnds.length > 0 ? actionEnds[actionEnds.length - 1] : null
+    // 산식은 `lib/annex-due`가 단일 원천이다 — 화면에 적으면 검사가 닿지 않아 조용히 낡는다
+    const due9 = report9DueISO(endDate, holidaySet)
+    const annex10Fields = (annex10Res.data?.fields ?? {}) as Record<string, unknown>
+    const repairEnd = repairEndISO({
+      totalPeriod: typeof annex10Fields.totalPeriod === 'string' ? annex10Fields.totalPeriod : '',
+      actionEnds: defects.map(d => d.action_end),
+    })
+    // 불량 0건이면 repairEnd가 ''이라 null이 된다 — 그게 곧 ⑥ 해당없음이다
+    const due11 = report11DueISO(repairEnd, holidaySet)
     const photoPairs = defects.filter(d => d.photo_url && d.after_photo_url).length
     timelineData = {
       steps: stepDocs({ isSpecial: true }), // D-4: ①~⑥ 상시 — ⑤⑥ 해당없음 흐림은 클라이언트가 defects로 판정
@@ -456,6 +474,10 @@ export default async function InspectionDetailPage({
         due: due11, submittedAt: (iRec.report11_submitted_at as string | null) ?? null,
         dday: (iRec.report11_submitted_at as string | null) ? null : ddayOf(due11),
       },
+      // ⑤의 실질 마감은 **이행기간 종료일**이다 — 이미 위에서 ⑥ 기한을 내려고 구한 값을
+      // 화면에도 넘긴다(종전엔 ⑤만 inspection_steps.due_date라는 사본으로 떨어졌다).
+      // 빈 문자열은 '기한 없음'이므로 null로 정규화한다 — ''를 그대로 보내면 화면이 날짜로 읽는다.
+      repair: { due: repairEnd || null },
       defects: {
         total: defects.length,
         planned: defects.filter(d => d.action_plan || d.action_start).length,
@@ -628,7 +650,6 @@ export default async function InspectionDetailPage({
                   initialDefects={defects}
                   canEdit={canEdit}
                   canDelete={canDelete}
-                  hasActionPlan={hasActionPlan}
                 />
               </>
             ),
@@ -638,7 +659,7 @@ export default async function InspectionDetailPage({
 
       {/* 상시 쓰지 않는 도구는 접어 둔다 — 펼치면 작업대가 그만큼 줄어들 뿐 페이지는 스크롤하지 않는다(R6-9) */}
       <details className="shrink-0 rounded-xl border border-brand-line-soft bg-surface">
-        <summary className="cursor-pointer px-3 py-1.5 text-[11px] text-ink-soft hover:text-brand">
+        <summary className="cursor-pointer px-3 py-1.5 text-form-xs text-ink-soft hover:text-brand">
           기타 도구{genHistory.length > 0 ? ' — 과거 엑셀 점검표' : ''}{canDelete ? ' · 점검 삭제' : ''}
         </summary>
         <div className="max-h-[40vh] space-y-3 overflow-y-auto border-t border-brand-line-soft p-3">

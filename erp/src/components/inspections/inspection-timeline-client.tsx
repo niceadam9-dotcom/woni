@@ -83,6 +83,14 @@ export type TimelineData = {
   /** S9-1(149) — 점검표 입력 규약. null=미상(149 도입 전 생성) → 응답 있으면 재생성 차단 */
   sheetProtocol?: 'legacy_na' | 'blank_unanswered' | null
   submit11: { due: string | null; dday: number | null; submittedAt: string | null }
+  /** ⑤ 보수·증빙의 실질 마감 = **이행기간 종료일**(2026-09-10).
+   *
+   *  ④⑥은 이미 법정 산식(`lib/annex-due`)을 원천으로 쓰는데 ⑤만 `inspection_steps.due_date`로
+   *  떨어져 있었다 — 그 값은 트리거가 만든 **사본**이라 공휴일 표가 교정되기 전 값으로 굳은 건이
+   *  실측 19/26건 있다. 정작 ⑤가 지켜야 하는 날짜(이행기간 종료일)는 `repairEndISO()`가
+   *  page.tsx에서 **이미 계산하고 있었고**, ⑥ 기한을 내는 데만 쓰고 화면엔 안 내려줬다.
+   *  ⚠ 비어 있을 수 있다: 이행기간도 없고 불량별 종료일도 없으면 `null`(= 아직 기한이 없다). */
+  repair?: { due: string | null }
   defects: { total: number; planned: number; done: number; photoPairs: number }
   prereqs: PrereqRow[]                  // ④ 전제 체크 (§9-6⑦)
   consentOk: boolean                    // ③ 송달 동의+이메일 보유

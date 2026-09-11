@@ -38,3 +38,15 @@ export function combinedRangeError(value?: string | null, label?: string): strin
   const [s = '', e = ''] = value.split(/\s*~\s*/)
   return dateRangeError(s.trim(), e.trim(), label)
 }
+
+/** 같은 저장 형식을 **읽는** 쪽의 단일 원천 — `[시작, 종료]`, 없거나 날짜꼴이 아니면 ''.
+ *
+ *  ⚠ 구분자 정규식을 호출부마다 다시 적지 않는다. 화면(annex-fields)·서버(별지 기한 산식)가
+ *    같은 문자열을 읽는데 한쪽만 `~` 앞뒤 공백을 다르게 다루면 **한 화면에서만 기간이 사라진다**.
+ *  ⚠ 완성된 `YYYY-MM-DD`만 돌려준다 — 과거 자유 텍스트('8월 중')가 날짜 산술로 새어 들어가면
+ *    `new Date()`가 Invalid Date를 만들고 그게 조용히 NaN 기한이 된다. */
+export function splitRange(value?: string | null): [string, string] {
+  const [s = '', e = ''] = (value ?? '').split(/\s*~\s*/)
+  const ok = (v: string) => (YMD.test(v.trim()) ? v.trim() : '')
+  return [ok(s), ok(e)]
+}
