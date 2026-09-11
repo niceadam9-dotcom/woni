@@ -164,6 +164,11 @@ const steps: Step[] = [
   // 갑지 워크북(소방계획서_27) — 템플릿 지문·앵커 라벨·완전 덮어쓰기 불변식(실고객 흔적 0).
   // 여기가 붉으면 갑지 서식이 갱신된 것 — build-workbook-template 재실행 + 앵커 재실측(Q-4)
   { name: '갑지 워크북 앵커·템플릿',    cmd: 'npx tsx scripts/test-xlsx-anchors.mts' },
+  // 별지 9호 다수동(동별 인쇄) — 작성요령 10 「동별로 나누어 작성」. PDF 「동별」 쪽과 갑지
+  // 「다수동일때」 3블록(2·3·4동)이 **같은 조립본**에서 나오는지 본다.
+  // 🚨 등재 이유: 종전 ERP는 1동만 읽어 2동을 등록해도 어느 문서에도 안 실렸는데, 그 축을
+  //   단언하는 검사가 하나도 없어 전 스위트가 초록이었다. 1동 고객(현재 전원) 무회귀도 여기서 본다.
+  { name: '별지 9호 다수동(동별 인쇄)', cmd: 'npx tsx --conditions=react-server scripts/test-multi-building-form9.mts' },
   // 주입 후 서식 무손상(styles.xml 바이트 동일·병합 불변)·값 정확성·폐포 전파.
   // 폐포가 깨지면 옛 값이 스포크에 남는다 — 다른 고객 문서에 남의 상호가 인쇄되는 부류의 결함
   { name: '갑지 워크북 주입',          cmd: 'npx tsx scripts/test-xlsx-inject.mts' },

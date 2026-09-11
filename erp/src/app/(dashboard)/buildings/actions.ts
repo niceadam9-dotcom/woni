@@ -24,6 +24,47 @@ export type LedgerEditableInput = {
   evac_elevator_count?: number         // 피난용 승강기(대)
 }
 
+/** 대표동 지정 — 「어느 동이 문서에 인쇄되는가」를 사용자가 고른다 (마이그레이션 160).
+ *
+ *  종전 규칙은 `created_at` 최고참이라 **바꿀 방법이 없었다**(등록 순서를 되돌릴 수 없다).
+ *  판정 규칙 자체는 `lib/primary-building`이 단일 원천이고, 여기는 그 규칙이 읽는 값을 쓴다.
+ *
+ *  🚨 160 미적용 DB에서는 컬럼이 없어 실패한다 — **조용히 삼키지 않는다**. 성공한 척하면
+ *    사용자는 '눌렀는데 안 바뀐다'만 보게 되고 원인을 찾을 단서가 없다. */
+export async function setPrimaryBuildingAction(
+  customerId: string,
+  buildingId: string,
+): Promise<{ error?: string }> {
+  await requirePermission('customer_manage')
+  const admin = createAdminClient()
+
+  // 남의 고객 건물을 대표로 세우지 못하게 — id만 믿지 않는다
+  const { data: target } = await admin.from('buildings')
+    .select('id, customer_id, is_active').eq('id', buildingId).maybeSingle()
+  const t = target as { customer_id: string; is_active: boolean } | null
+  if (!t || t.customer_id !== customerId) return { error: '이 고객의 건물이 아닙니다.' }
+  if (!t.is_active) return { error: '비활성 건물은 대표동으로 지정할 수 없습니다.' }
+
+  // ⚠ 유니크 인덱스(고객당 대표 1개)가 있으므로 **먼저 내리고 나서 올린다**.
+  //   순서를 바꾸면 잠깐 둘이 되어 인덱스가 거부한다.
+  const down = await admin.from('buildings')
+    .update({ is_primary: false } as Record<string, unknown>)
+    .eq('customer_id', customerId).neq('id', buildingId)
+  if (down.error) {
+    return {
+      error: down.error.code === '42703' || down.error.message?.includes('column')
+        ? '대표동 기능은 데이터베이스 준비 후 사용할 수 있습니다 (마이그레이션 160 미적용).'
+        : `대표동 지정 실패: ${down.error.message}`,
+    }
+  }
+  const up = await admin.from('buildings')
+    .update({ is_primary: true } as Record<string, unknown>).eq('id', buildingId)
+  if (up.error) return { error: `대표동 지정 실패: ${up.error.message}` }
+
+  revalidatePath(`/customers/${customerId}`)
+  return {}
+}
+
 /** 대장 항목을 update/insert 페이로드로 — undefined(폼 미전송)는 건드리지 않고, 빈 값은 null로 지운다 */
 function ledgerFields(b: LedgerEditableInput): Record<string, unknown> {
   const out: Record<string, unknown> = {}

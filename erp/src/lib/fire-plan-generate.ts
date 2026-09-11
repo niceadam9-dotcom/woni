@@ -14,6 +14,8 @@ import {
   type FirePlanGenData, type FirePlanFormSections, type PlanPhoto,
 } from '@/lib/fire-plan-template'
 import { resolveFireSafetyManager, type ContactLite } from '@/lib/fire-safety-manager'
+/* 대표동 판정 단일 원천 — 화면·별지 9호·갑지가 쓰는 그 함수(사본 금지) */
+import { primaryBuilding } from '@/lib/primary-building'
 import type { ManagerRow } from '@/components/customers/plan-form17'
 import { toStandardCodes } from '@/lib/facility-codes'
 import { formatBizNo, formatTel } from '@/lib/format-contact'
@@ -100,8 +102,12 @@ export async function assembleFirePlan(
       // 🚨 2026-09-09: `parking_summary`가 **이 목록에 없어서** 건물 폼에 주차장을 채워도
       //    소방계획서 PDF·엑셀이 영영 공란이었다(양식 1.1 13행에 칸이 있다). 값 축·앵커를 아무리
       //    봐도 안 나오는 이유가 여기였다 — **조회하지 않은 컬럼은 아래 모든 층에서 없는 값이다.**
-      .select('id, purpose, total_area, building_area, floors_above, floors_below, height, receiver_location, main_structure, roof_structure, '
-        + 'stairs_count, ramp_count, evac_elevator_count, elevator_count, emergency_elevator_count, parking_summary')
+      // 🚨 2026-09-09: 여기만 `lib/primary-building`을 안 쓰는 **유일한 예외**였다. 화면·별지 9호·
+      //    갑지는 전부 그 단일 원천(=`is_primary` 우선, 없으면 최고참)을 쓰는데 소방계획서만
+      //    날것 `created_at` 최고참이라, 160이 적용되는 순간 **두 문서가 다른 동을 인쇄**하게 된다.
+      //    ⚠ `select('*')`인 이유: `is_primary`를 이름으로 지목하면 160 적용 전 DB가 42703으로
+      //      터진다(운영·스테이징 양쪽 미적용 실측). 정렬은 아래 JS가 한다.
+      .select('*')
       .eq('customer_id', customerId).eq('is_active', true)
       .order('created_at', { ascending: true }),
     // M-6(소방계획서_15): 대표자·사업자등록번호 추가 — 1.8 표 유실 복구
@@ -137,8 +143,11 @@ export async function assembleFirePlan(
     stairs_count: number | null; ramp_count: number | null; evac_elevator_count: number | null
     elevator_count: number | null; emergency_elevator_count: number | null
     parking_summary: string | null
+    created_at?: string | null; is_primary?: boolean | null
   }>
-  const b = buildings[0]
+  // 대표동 — 종전 `buildings[0]`을 단일 원천으로 대체. 160 적용 전에는 `is_primary`가 undefined라
+  // 종전과 **같은 답**(최고참)이 나온다. 설비는 계속 전 동을 읽는다(서식 1.4는 대상물 단위).
+  const b = primaryBuilding(buildings)
   const company = companyRes.data as {
     company_name: string; address: string | null; phone: string | null
     representative: string | null; business_number: string | null

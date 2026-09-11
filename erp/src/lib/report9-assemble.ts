@@ -11,7 +11,7 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import {
   DEFECT_GROUPS, DEFECT_FOLD_TEXT, FORM3_ITEMS, foldDefectGroups, form3Group, parseParkingSummary,
-  type Report9Data, type Report9DefectRow, type Report9Person,
+  type Report9Data, type Report9DefectRow, type Report9Person, type Report9MultiBuilding,
   type AnnexDone,
 } from '@/lib/doc-templates/report9'
 import type { AnnexPlanRow } from '@/lib/doc-templates/report1011'
@@ -23,8 +23,10 @@ import type { Report4SheetSection } from '@/lib/doc-templates/report4'
 import type { SpecMap } from '@/lib/doc-templates/spec-sections'
 import { getAllSheetItems, getSheets, type SheetCatalogItem } from '@/lib/sheet-catalog'
 import { isMultiUseApplicable, isMultiUseNone } from '@/lib/multi-use'
+import { ETC_CODES } from '@/lib/facility-codes'
 import { resolveFireSafetyManager, type ContactLite } from '@/lib/fire-safety-manager'
 import { formatTel } from '@/lib/format-contact'
+import { sortBuildingsForPrint, FORM9_MAX_BUILDINGS } from '@/lib/primary-building'
 import { inspectionCheckboxes } from '@/lib/inspection-round'
 import {
   judgePrevYearDutyAuto, resolvePrevYearDuty, type AnnexStatusSection,
@@ -236,6 +238,54 @@ export function annexPlanRows(d: Report9Data): AnnexPlanRow[] {
   })
 }
 
+/** `Report9Data.building`이 실어 나르는 칸 — 종전 `select(…)` 목록 그대로다.
+ *
+ *  조회는 `select('*')`로 넓어졌지만(마이그레이션 160 적용 전에도 안 깨지려고) **문서 쪽으로는
+ *  이만큼만 흘린다**. 넓힐 일이 생기면 그때 이 목록을 늘리되, `created_by`·`customer_id`처럼
+ *  서식과 무관한 식별자는 넣지 않는다. */
+const BUILDING_DERIVED_FIELDS = [
+  'id', 'purpose', 'total_area', 'building_area', 'floors_above', 'floors_below', 'height',
+  'main_structure', 'roof_structure', 'households', 'building_count', 'permit_date',
+  'parking_summary', 'elevator_count', 'emergency_elevator_count', 'evac_elevator_count',
+  'stairs_count', 'ramp_count',
+] as const
+
+function pickBuildingFields(b: Record<string, unknown>): Record<string, number | string | null | undefined> {
+  const out: Record<string, number | string | null | undefined> = {}
+  for (const k of BUILDING_DERIVED_FIELDS) out[k] = b[k] as number | string | null | undefined
+  return out
+}
+
+/** 한 동의 구조·지붕 √ 위치 — 별지 9호 2쪽 「건축물구조」 4칸·「지붕구조」 3칸(+기타)의 **단일 판정**.
+ *
+ *  대표동도 2·3·4동도 이 함수를 탄다. 규칙을 동마다 다시 적으면 같은 값이 동에 따라 다르게
+ *  인쇄되고, 그건 서식이 아니라 버그다.
+ *
+ *  판정은 **배타 분기**다(먼저 맞는 하나만 √). 목록 밖 자유 입력은 전부 「기타」로 떨어지므로
+ *  건물 폼이 직접 입력을 허용해도 안전하다 — 그 성질이 `lib/building-options`가 목록을 제안으로만
+ *  두는 근거이기도 하다. */
+export function buildingMarks(b: { main_structure?: string | null; roof_structure?: string | null } | null): {
+  stCon: boolean; stSteel: boolean; stBrick: boolean; stWood: boolean; stEtc: boolean
+  rfSlab: boolean; rfTile: boolean; rfSlate: boolean; rfEtc: boolean
+} {
+  const ms = b?.main_structure ?? ''
+  const rf = b?.roof_structure ?? ''
+  const stCon = ms.includes('콘크리트')
+  const stSteel = !stCon && ms.includes('철골')
+  // 「벽돌구조」·「블록구조」는 조적조다 — 대장(strcCdNm)이 실제로 쓰는 말인데 '조적'이란 글자가
+  // 없어 **기타로 인쇄되고 있었다**(2026-09-08 실측 4건: 지평1·2·8·가락골떡집).
+  // '콘크리트블록조'류는 위 stCon이 먼저 가른다 — 순서를 바꾸지 않는다.
+  const stBrick = !stCon && !stSteel && /조적|벽돌|블록/.test(ms)
+  const stWood = !stCon && !stSteel && !stBrick && ms.includes('목')
+  const stEtc = !!ms && !stCon && !stSteel && !stBrick && !stWood
+  // 서식 어휘는 '슬라브'인데 대장·폼은 '슬래브'라 둘 다 본다
+  const rfSlab = rf.includes('슬래브') || rf.includes('슬라브')
+  const rfTile = !rfSlab && rf.includes('기와')
+  const rfSlate = !rfSlab && !rfTile && rf.includes('슬레이트')
+  const rfEtc = !!rf && !rfSlab && !rfTile && !rfSlate
+  return { stCon, stSteel, stBrick, stWood, stEtc, rfSlab, rfTile, rfSlate, rfEtc }
+}
+
 export async function assembleReport9(
   admin: Admin,
   customerId: string,
@@ -256,7 +306,9 @@ export async function assembleReport9(
       // plan_type은 점검종류 판정의 **정본**이다(inspection-round S3-2). 종전엔 이걸 안 실어와
       // 아래 3분기 체크가 inspection_type만 봤고, 그래서 일반관리 고객의 별지 9호는 세 칸이
       // 모두 빈칸으로 나갔다 — 같은 묶음의 표지는 plan_type을 봐서 정확했다(F-3).
-      .select('inspection_type, plan_type, is_initial, inspection_start_date, inspection_end_date, inspection_days, year, assigned_employee_id')
+      // 🚨 `report9_submitted_at`은 아래 보고일 오버레이가 쓴다 — select에서 빼면 저장은 멀쩡한데
+      //    조립기만 「없는 값」으로 읽어 보고일이 조용히 오늘로 떨어진다([[project_parking_surface]]).
+      .select('inspection_type, plan_type, is_initial, inspection_start_date, inspection_end_date, inspection_days, year, assigned_employee_id, report9_submitted_at')
       .eq('id', inspectionId).single(),
     admin.from('customers')
       .select('customer_name, address, use_approval_date, fire_station, building_grade,'
@@ -267,11 +319,12 @@ export async function assembleReport9(
         // inspection_sub_type(030·035): 일반관리 고객의 종합/작동 축 — 2쪽 «자체점검(전년도)» 판정에 필요
         + 'manager_contact_id, inspection_sub_type')
       .eq('id', customerId).single(),
+    // ⚠ `limit(1)`을 걷어냈다(2026-09-08). 대표동 선정은 `primary-building.ts` 단일 원천이 하고,
+    //   나머지 동은 별지 9호 「다수동일때」 블록으로 인쇄된다. `select('*')`인 이유는 그 파일 주석 참조
+    //   (`is_primary`를 명시하면 마이그레이션 160 적용 전 DB에서 42703으로 터진다).
     admin.from('buildings')
-      .select('id, purpose, total_area, building_area, floors_above, floors_below, height, main_structure, roof_structure,'
-        + 'households, building_count, permit_date, parking_summary, elevator_count, emergency_elevator_count, evac_elevator_count,'
-        + 'stairs_count, ramp_count')
-      .eq('customer_id', customerId).eq('is_active', true).order('created_at', { ascending: true }).limit(1),
+      .select('*')
+      .eq('customer_id', customerId).eq('is_active', true).order('created_at', { ascending: true }),
     admin.from('customer_contacts').select('id, role, name, phone, position').eq('customer_id', customerId),
     // A4-2(소방계획서_15): 관리업 등록번호(management_reg_no, 마이그레이션 123) — 별지4호 2쪽 주입용
     admin.from('company_profile').select('company_name, phone, management_reg_no').limit(1),
@@ -281,7 +334,7 @@ export async function assembleReport9(
     // fire_plans 파일 행은 더 안 만들어지므로 그 축으로 재면 신규 고객이 전부 '미작성'이 된다
     admin.from('fire_plan_forms').select('sections').eq('customer_id', customerId).limit(1),
     // action_* 3열은 별지 10호(이행계획서)의 총 이행기간 축 — 갑지 엑셀 `개요!G9·I9·J9`가 같은 값을
-    // 받아야 PDF와 갈라지지 않는다(D-7). 계산은 actionPlanPeriod() 단일 원천이 한다
+    // 받아야 PDF와 갈라지지 않는다(D-7). 계산은 actionPlanPeriod() 단일 원천이 한다.
     // action_taken·action_completed_at은 별지 11호(이행완료 보고서) 축 — 갑지 엑셀
     // `완료보고서!B19:B22`·`I19:I22`가 PDF 11호와 같은 값을 받게 한다(소방계획서_43 D-1).
     admin.from('inspection_defects')
@@ -292,6 +345,8 @@ export async function assembleReport9(
     inspection_type: string | null; plan_type: string | null; is_initial: boolean | null
     inspection_start_date: string | null; inspection_end_date: string | null
     inspection_days: number | null; year: number; assigned_employee_id: string | null
+    /** ④ 소방서 제출일(DATE, 마이그레이션 105) — 보고일 오버레이의 두 번째 가지 */
+    report9_submitted_at: string | null
   }
   const insp = inspRes.data as InspRow | null
   if (!insp) throw new Error('점검 건을 찾을 수 없습니다')
@@ -308,14 +363,19 @@ export async function assembleReport9(
   const cust = custRes.data as CustRow | null
   if (!cust) throw new Error('고객을 찾을 수 없습니다')
   type BldRow = {
-    id: string; purpose: string | null; total_area: number | null; building_area: number | null
+    id: string; is_primary?: boolean | null; created_at?: string | null
+    purpose: string | null; total_area: number | null; building_area: number | null
     floors_above: number | null; floors_below: number | null; height: number | null
     main_structure: string | null; roof_structure: string | null; households: number | null
     building_count: number | null; permit_date: string | null; parking_summary: string | null
     elevator_count: number | null; emergency_elevator_count: number | null; evac_elevator_count: number | null
     stairs_count: number | null; ramp_count: number | null
   }
-  const b = (bldRes.data?.[0] as BldRow | undefined) ?? null
+  // 인쇄 순서 정렬 — [0]이 대표동. 종전 `bldRes.data?.[0]`(=created_at 최고참)과 **같은 답**을
+  // 내되(is_primary 미지정 시 폴백), 이제 규칙에 이름이 있고 사용자가 대표를 바꿀 수 있다.
+  const bldRows = sortBuildingsForPrint((bldRes.data ?? []) as BldRow[])
+  const b = bldRows[0] ?? null
+  const bldRest = bldRows.slice(1)
   const contacts = (contactsRes.data ?? []) as ContactLite[]
   const owner = contacts.find(c => c.role === '대표') ?? contacts[0] ?? null
   const company = (companyRes.data?.[0] ?? {}) as {
@@ -361,9 +421,16 @@ export async function assembleReport9(
     result: r.result,
   })))
 
-  const codes = b
-    ? (((await admin.from('fire_facilities').select('facility_code').eq('building_id', b.id).eq('installed', true))
-      .data ?? []) as Array<{ facility_code: string }>).map(f => f.facility_code)
+  // 🚨 설치 설비는 **전 활성 동**에서 모은다(2026-09-08 수리). 종전엔 대표동 하나만 봤는데,
+  //   같은 개념을 읽는 이웃들은 전 동을 보고 있었다 — 갑지 워크북의 점검표 시트 선별
+  //   (`workbook/route.ts` `.in('building_id', …)`)·점검표 현황(`sheet-overview.ts`).
+  //   그래서 2동에만 있는 설비는 **점검표 시트는 동봉되는데 별지 9호 3쪽엔 미설치로 인쇄**됐다
+  //   (한 파일 안 모순). 지금 데이터는 전원 1동이라 이 변경으로 바뀌는 문서는 0건이다 —
+  //   그 '0건'은 `_probe-r9-baseline.mts` 전건 대조로 증명한다.
+  const codes = bldRows.length
+    ? [...new Set((((await admin.from('fire_facilities').select('facility_code')
+      .in('building_id', bldRows.map(x => x.id)).eq('installed', true))
+      .data ?? []) as Array<{ facility_code: string }>).map(f => f.facility_code))]
     : []
 
   // 4~7쪽 세부 현황(H-21) — customer_facility_specs 병합: 대표 건물(building_id) 행 우선, 공통(null) 폴백
@@ -548,18 +615,10 @@ export async function assembleReport9(
   const { ckOp, ckInitial, ckCompEtc } =
     inspectionCheckboxes(insp.inspection_type, !!insp.is_initial, insp.plan_type)
 
-  const ms = b?.main_structure ?? ''
-  const rf = b?.roof_structure ?? ''
+  // 구조·지붕·주차장 판정은 `buildingMarks` 단일 원천 — 대표동과 2·3·4동이 **같은 규칙**을 탄다.
+  // 동마다 규칙을 다시 적으면 「1동은 조적조, 2동은 기타」처럼 같은 값이 다르게 인쇄된다.
+  const { stCon, stSteel, stBrick, stWood, stEtc, rfSlab, rfTile, rfSlate, rfEtc } = buildingMarks(b)
   const pk = b?.parking_summary ?? ''
-  const stCon = ms.includes('콘크리트')
-  const stSteel = !stCon && ms.includes('철골')
-  const stBrick = !stCon && !stSteel && ms.includes('조적')
-  const stWood = !stCon && !stSteel && !stBrick && ms.includes('목')
-  const stEtc = !!ms && !stCon && !stSteel && !stBrick && !stWood
-  const rfSlab = rf.includes('슬래브') || rf.includes('슬라브')
-  const rfTile = !rfSlab && rf.includes('기와')
-  const rfSlate = !rfSlab && !rfTile && rf.includes('슬레이트')
-  const rfEtc = !!rf && !rfSlab && !rfTile && !rfSlate
 
   // 8쪽 불량 세부 — 시트 X 응답의 점검번호 + defects 불량명 조인, 설비 구분 그룹핑 (MD §4-2)
   // action_* 3열은 8쪽 렌더에는 안 쓰이고 **별지 10호 총 이행기간**(actionPlanPeriod)에만 쓰인다.
@@ -627,6 +686,43 @@ export async function assembleReport9(
       : g === '기타' ? false
         : facilityChecks.some(it => form3Group(it) === g))
 
+  // ── 별지 9호 「다수동일때」 2·3·4동 (2026-09-08) ──────────────────────────────
+  //
+  // 법정 작성요령 10: 「둘 이상의 대상물을 같은 기간 내에 점검하여 함께 보고하는 경우 동별
+  // 다중이용업소 입점현황과 건축물정보를 **동별로 나누어** 작성합니다」. 서식은 이미 자리를
+  // 비워 두고 있었다(갑지 `다수동일때` 시트 3블록·최대 4동) — ERP만 1동을 보고 있었을 뿐이다.
+  //
+  // ⚠ 숫자는 **단위 없이** 담는다. 대표동의 `households`는 `12세대`처럼 단위가 붙어 있는데,
+  //   그건 PDF 2쪽 칸에 단위 라벨이 없기 때문이다. 갑지 다수동 블록은 `K4="세대"`가 **따로 있는**
+  //   서식이라 단위를 같이 넣으면 「12세대 세대」가 된다. 단위는 찍는 쪽이 붙인다.
+  // ⚠ 특별피난계단은 세부제원 3-8(전실 제연)이 유일 원천인데 그 값은 대표동 축이다 —
+  //   다른 동의 값을 **지어내지 않고** 빈 채로 둔다(D-7: 모르는 것은 인쇄하지 않는다).
+  const otherBuildings: Report9MultiBuilding[] = bldRest
+    .slice(0, FORM9_MAX_BUILDINGS - 1)
+    .map(x => ({
+      name: String((x as unknown as { building_name?: string }).building_name ?? ''),
+      permitDate: x.permit_date ? kdate(x.permit_date) : '',
+      useApprovalDate: cust.use_approval_date ? kdate(cust.use_approval_date) : '',  // 고객 축(동별 아님)
+      totalArea: String(x.total_area ?? ''),
+      buildingArea: String(x.building_area ?? ''),
+      households: x.households ? String(x.households) : '',
+      floorsAbove: String(x.floors_above ?? ''),
+      floorsBelow: String(x.floors_below ?? ''),
+      heightM: String(x.height ?? ''),
+      buildingCount: String(x.building_count ?? ''),
+      rampCount: x.ramp_count ? String(x.ramp_count) : '',
+      stairsCount: x.stairs_count ? String(x.stairs_count) : '',
+      specialStairCount: '',
+      elvR: x.elevator_count ? String(x.elevator_count) : '',
+      elvE: x.emergency_elevator_count ? String(x.emergency_elevator_count) : '',
+      elvV: x.evac_elevator_count ? String(x.evac_elevator_count) : '',
+      ...buildingMarks(x),
+      ...parseParkingSummary(x.parking_summary ?? ''),
+    }))
+  // 서식이 담지 못하는 동 — **세어서 알린다**. 조용히 자르면 인쇄물은 멀쩡해 보이는데
+  // 한 동이 통째로 빠진 문서가 된다(목차 넘침·구역 행 넘침과 같은 규약).
+  const buildingOverflow = Math.max(0, bldRows.length - FORM9_MAX_BUILDINGS)
+
   const data: Report9Data = {
     ckOp, ckInitial, ckCompEtc,
     customerName: cust.customer_name,
@@ -685,6 +781,7 @@ export async function assembleReport9(
     buildingCount: String(b?.building_count ?? ''),
     stCon, stSteel, stBrick, stWood, stEtc,
     rfSlab, rfTile, rfSlate, rfEtc,
+    otherBuildings, buildingOverflow,
     elvR: b?.elevator_count ? String(b.elevator_count) : '',
     elvE: b?.emergency_elevator_count ? String(b.emergency_elevator_count) : '',
     elvV: b?.evac_elevator_count ? String(b.evac_elevator_count) : '',
@@ -705,7 +802,12 @@ export async function assembleReport9(
     mgrAppointType: cust.manager_appointment_type ?? '',
     // 3쪽 하위 체크칸(소화기구 5종)·세부현황 파생(가스계·유도표지·피난유도선)의 원천 — 필터 전 전체 코드
     ledgerCodes: codes,
-    building: (b ?? undefined) as Record<string, number | string | null | undefined> | undefined,
+    // 🚨 **좁혀서 싣는다.** 조회가 `select('*')`가 된 뒤(is_primary 관용 목적) 이 칸에 buildings 행이
+    //   통째로 들어갔고, 그 안에는 `created_by`(직원 UUID)·`customer_id`·주소·bcode가 있었다.
+    //   렌더는 안 읽지만 **문서 파이프라인에 흘려보낼 이유가 없는 값**이다 — 이 저장소에는 고아
+    //   sharedStrings가 직원 실명·자격번호를 전 산출물에 실어 나른 전례가 있다(소방계획서_27).
+    //   목록은 종전 select 18칸 그대로 = 변경 전과 **바이트 동일**(_probe-r9-diff가 이걸 잡았다).
+    building: b ? pickBuildingFields(b) : undefined,
     resultMarks,
     muResults,
     specs,

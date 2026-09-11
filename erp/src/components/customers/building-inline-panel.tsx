@@ -5,11 +5,12 @@ import { useRouter, usePathname } from 'next/navigation'
 import { Building2, Plus, Search, Loader2, X } from 'lucide-react'
 import { DateInput, isCompleteDate } from '@/components/ui/date-input'
 import { ComboInput } from '@/components/ui/combo-input'
-import { createBuildingAction, updateBuildingAction, deleteBuildingAction } from '@/app/(dashboard)/buildings/actions'
+import { createBuildingAction, updateBuildingAction, deleteBuildingAction, setPrimaryBuildingAction } from '@/app/(dashboard)/buildings/actions'
 import { fetchBuildingLedgerAction, checkAddressAction, type AddressDuplicateCustomer, type AddressDuplicateBuilding } from '@/app/(dashboard)/customers/actions'
 import { AddressDuplicateDialog } from '@/components/customers/address-duplicate-dialog'
 import { autoApplyLedgerEmptyAction } from '@/app/(dashboard)/customers/fire-plan-info-actions'
 import { parseParkingSummary } from '@/lib/doc-templates/report9'
+import { primaryBuilding, FORM9_MAX_BUILDINGS } from '@/lib/primary-building'
 import { findSameNameBuilding, normalizeBuildingName } from '@/lib/building-dup'
 import { initialBuildingPanelTarget, shouldHideBuildingTable } from '@/lib/building-panel-open'
 import { useDaumPostcode } from '@/hooks/use-daum-postcode'
@@ -484,6 +485,25 @@ export function BuildingListPanel({ customerId, customerName, customerAddress, b
     })
   }
 
+  // 대표동 — 규칙은 `lib/primary-building` 단일 원천(is_primary 우선, 없으면 종전 최고참).
+  // 서버가 문서에 싣는 동과 **같은 규칙**이라 배지가 거짓말을 하지 않는다.
+  const activeBuildings = buildings.filter(b => b.is_active)
+  const activeCount = activeBuildings.length
+  const primaryId = primaryBuilding(activeBuildings as unknown as Array<{
+    id: string; is_active?: boolean | null; is_primary?: boolean | null; created_at?: string | null
+  }>)?.id ?? null
+
+  function makePrimary(b: BuildingPanelRow) {
+    if (!window.confirm(`'${b.building_name}'동를 대표동으로 지정할까요?\n\n별지 9호 2쪽·소방계획서 1.1에 이 동의 값이 인쇄됩니다.`)) return
+    startTransition(async () => {
+      const res = await setPrimaryBuildingAction(customerId, b.id)
+      // 마이그레이션 160 미적용 DB에서는 컬럼이 없어 실패한다 — 사용자에게 그대로 알린다
+      // (조용히 삼키면 '눌렀는데 안 바뀐다'가 되고, 원인을 찾을 단서가 사라진다)
+      if (res.error) { setError(res.error); return }
+      router.refresh()
+    })
+  }
+
   function deactivate(b: BuildingPanelRow) {
     if (!window.confirm(`'${b.building_name}' 건물을 비활성화할까요? (목록에는 비활성으로 남습니다)`)) return
     startTransition(async () => {
@@ -508,6 +528,18 @@ export function BuildingListPanel({ customerId, customerName, customerAddress, b
           </button>
         )}
       </div>
+
+      {/* 다동 안내 — 별지 9호 작성요령 10의 「동별로 나누어 작성」이 여기서부터 작동한다.
+          서식이 담는 동 수를 넘으면 **세어서 알린다**(조용히 자르면 인쇄물은 멀쩡해 보인다). */}
+      {activeCount > 1 && (
+        <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-form-sm text-amber-800">
+          활성 건물 {activeCount}동 — <b>대표동</b>의 값이 별지 9호 2쪽·소방계획서 1.1에 인쇄되고,
+          나머지 동은 별지 9호 「동별」 쪽과 갑지 <b>다수동일때</b> 시트에 실립니다.
+          {activeCount > FORM9_MAX_BUILDINGS && (
+            <> <b className="text-amber-900">서식이 담는 {FORM9_MAX_BUILDINGS}동을 넘어 {activeCount - FORM9_MAX_BUILDINGS}개 동은 인쇄되지 않습니다</b> — 서식을 추가하여 작성하세요.</>
+          )}
+        </div>
+      )}
 
       {/* 1동뿐이고 **그 동의 상세가 이미 펼쳐져 있으면** 목록 표를 그리지 않는다 (2026-09-11 사용자 확정:
           "두번 보일 필요는 없어"). 자동 펼침을 넣자 같은 건물명이 목록 행과 폼에 **위아래로 두 번** 나왔다
@@ -536,7 +568,21 @@ export function BuildingListPanel({ customerId, customerName, customerAddress, b
                 <tr key={b.id}
                   onClick={() => editing === b.id ? close() : openEdit(b)}
                   className={`border-b border-paper last:border-0 cursor-pointer transition-colors ${editing === b.id ? 'bg-brand-tint' : 'hover:bg-paper'}`}>
-                  <td className="py-3 pr-4 font-medium text-ink">{b.building_name}</td>
+                  <td className="py-3 pr-4 font-medium text-ink">
+                    {b.building_name}
+                    {/* 대표동 표시 — 종전엔 '등록이 가장 빠른 활성 동'이 암묵 규칙이라, 어느 동의
+                        값이 별지 9호·소방계획서에 실리는지 화면 어디에도 없었다(2026-09-08). */}
+                    {b.id === primaryId && (
+                      <span className="ml-1.5 align-middle text-form-2xs font-medium px-1.5 py-0.5 rounded-full bg-brand-tint text-brand"
+                        title="이 동의 값이 별지 9호 2쪽·소방계획서 1.1에 인쇄됩니다">대표동</span>
+                    )}
+                    {canManage && activeCount > 1 && b.is_active && b.id !== primaryId && (
+                      <button
+                        onClick={e => { e.stopPropagation(); makePrimary(b) }}
+                        className="ml-1.5 align-middle text-form-2xs text-ink-meta underline hover:text-brand"
+                        title="이 동을 문서에 인쇄되는 대표동으로 지정합니다">대표로</button>
+                    )}
+                  </td>
                   <td className="py-3 pr-4 text-form-sm text-ink-sub max-w-[140px] truncate">{b.address ?? '-'}</td>
                   <td className="py-3 pr-4">
                     {b.purpose ? (
@@ -583,30 +629,31 @@ export function BuildingListPanel({ customerId, customerName, customerAddress, b
           </div>
 
           {/* 등록 시점 안내 (2026-09-11 사용자 지시) — **등록을 결정하는 그 순간에** 어디에 실리는지 알린다.
-              🚨🚨 이 문구는 **반드시 배포되는 코드(origin/main)에 대고** 적을 것. 처음 판정을 dev 서버
-                (=공유 작업트리)에 대고 해서 세 줄이 거짓인 채 푸시됐다(`7617b25`). 그 트리에는 타 세션의
-                **미커밋 다동 작업**이 얹혀 있었고, 원격에는 그게 하나도 없었다.
-              📏 origin/main 실측(정정 근거):
-                · 갑지 「다수동일때」 시트 — 앵커가 `mbStructureBlank`·`mbRoofBlank`… 뿐이라
-                  값이 아니라 **빈 서식으로 상시 덮는다**(`xlsx-anchors`·`xlsx-workbook` 주석 명시).
-                · 별지 9호 「동별」 쪽 — `otherBuildings`/`bldRest`가 **아예 없다**(grep 0건).
-                · 별지 9호 3쪽 설비 — `.eq('building_id', b.id)`라 **대표동만**.
-                · 소방계획서 1.1 — `const b = buildings[0]`이라 대표동만.
-                · 유일한 예외가 소방계획서 **1.4 시설현황** — `.in('building_id', …)`로 전 동 합산.
-              ⚠ 그러므로 지금은 "거의 안 실린다"가 참이다. 다동 배선이 원격에 올라오면
-                **그 커밋에서 이 문구도 함께** 고칠 것(동작과 그 동작을 설명하는 문구는 한 커밋에서 움직인다).
-              ⚠ 활성 동수는 `buildings`에서 **직접 센다** — 표가 그리는 것과 같은 배열을 같은 방식으로.
+              🚨🚨 이 문구는 **반드시 배포되는 코드(origin/main)에 대고** 적을 것. 한 번 dev 서버
+                (=공유 작업트리)에 대고 판정해서 세 줄이 거짓인 채 푸시됐다(`7617b25` → `a2d5cc8`로 정정).
+                그 트리에는 타 세션의 **미커밋 다동 작업**이 얹혀 있었고 원격엔 하나도 없었다.
+              📏 이 커밋에서 다동 배선이 실제로 들어왔으므로 문구를 **되돌려** 적는다 —
+                `otherBuildings`(별지 9호 동별)·`mb{i}` 실값 앵커(갑지 다수동일때)·`primaryBuilding`.
+                **동작과 그 동작을 설명하는 문구는 한 커밋에서 함께 움직인다.**
+              ⚠ 여전히 대표동만 읽는 자리가 있다: 소방계획서 1.1(`primaryBuilding(buildings)`) ·
+                별지 9호 2쪽(`bldRows[0]`) · 3쪽 설비(`.eq('building_id', b.id)`) · 갑지 개요·정보 시트.
+                이 비대칭이 화면에 없으면 사용자는 "입력했는데 문서에 없다"를 겪는다.
+              ⚠ 활성 동수는 화면의 `activeCount`와 **같은 값**을 쓴다 — 배너와 안내가 다른 수를 말하면
+                둘 중 하나는 반드시 거짓이다.
               ⚠ 마지막 줄은 규현빌라 실사고(기존 동을 고치려다 새 동을 만든 것) 재발 방지다. */}
           {editing === 'new' && buildings.length > 0 && (
             <div data-testid="building-new-notice"
               className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-form-xs text-amber-800 space-y-1">
-              <p><b>{buildings.filter(b => b.is_active).length + 1}번째 동</b>을 등록합니다 —
-                <b className="text-amber-900"> 지금은 이 동이 문서에 거의 인쇄되지 않습니다.</b></p>
+              <p><b>{activeCount + 1}번째 동</b>을 등록합니다 — 문서마다 실리는 자리가 다릅니다.</p>
+              <p>· <b>실립니다</b>: 별지 9호 <b>동별</b> 쪽 · 갑지 <b>다수동일때</b> 시트 ·
+                소방계획서 <b>1.4 시설현황</b>(설비는 전 동 합산)</p>
               <p>· <b>안 실립니다</b>: 소방계획서 본문 1.1 · 별지 9호 2쪽·3쪽 · 갑지 개요·정보 시트 —
-                이 자리는 <b>대표동</b>(가장 먼저 등록된 활성 동) 값만 인쇄합니다.
-                갑지 <b>다수동일때</b> 시트도 아직 <b>빈 서식</b>으로 인쇄됩니다.</p>
-              <p>· <b>실립니다</b>: 소방계획서 <b>1.4 시설현황</b>(설비는 전 동 합산) — 여기뿐입니다.</p>
-              <p>· 동을 나누어 인쇄해야 한다면 <b>고객을 따로 등록</b>하는 것이 현재 실무입니다.</p>
+                이 자리는 <b>대표동</b> 값만 인쇄합니다(목록에서 [대표로]로 바꿀 수 있습니다).</p>
+              {activeCount + 1 > FORM9_MAX_BUILDINGS && (
+                <p className="font-semibold text-amber-900">
+                  ⚠ 서식이 담는 {FORM9_MAX_BUILDINGS}동을 넘습니다 — 이 동은 인쇄되지 않습니다. 서식을 추가하여 작성하세요.
+                </p>
+              )}
               <p className="text-amber-700">
                 ⚠ 기존 동을 고치려던 것이라면 <b>취소</b>하고 목록에서 [보기·수정]을 누르세요 —
                 여기서 저장하면 <b>새 동이 생기고</b>, 되돌리는 길은 완전 삭제가 아니라 비활성 처리뿐입니다.

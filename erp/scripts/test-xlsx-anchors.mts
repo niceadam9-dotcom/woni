@@ -537,15 +537,39 @@ console.log('[7] 정보 시트 √ 통문자열 — 자구 왕복·오염·닫�
     check('(c) 앵커 칸의 √는 오탐하지 않는다', uncoveredMarks(fwb).length === 0)
   }
 
-  // 다수동일때 — 주입값이 **전부 빈 마크**인가(값을 지어내지 않았다는 단언). 반대로 표본 답이
-  // 하나라도 살아 있으면 붉어진다. `[√]`가 0개, 표본 개소 ' 1 '이 0개
-  const MB_FIELDS = ['mbStructureBlank', 'mbRoofBlank', 'mbStairsBlank', 'mbElevatorBlank', 'mbParkingBlank']
-  const notBlank = MB_FIELDS.filter(f => {
-    const s = oneValue(SAMPLE, f)   // 표본 답을 줘도 빈 서식이어야 한다(입력과 무관한 상수)
+  // 다수동일때 — 2026-09-08까지는 '전부 빈 마크'가 단언이었다(ERP가 1동만 해석했으므로 채울 값이
+  // 없었고, 서식의 표본 답을 지우는 것이 유일한 할 일이었다). 이제 조립이 2·3·4동을 싣는다
+  // (`otherBuildings`) — 그래서 단언을 **조건부**로 바꾼다:
+  //   · 동이 없으면(otherBuildings 미공급·빈 배열) 종전 그대로 **빈 서식**이어야 한다
+  //   · 동이 있으면 그 동의 값이 **그 블록에만** 들어가야 한다(블록 간 누수 0)
+  // 두 번째 축이 없으면 '한 필드를 세 칸이 공유'하던 종전 구조로 되돌아가도 초록이 된다.
+  const MB_ROWS = [0, 1, 2]
+  const MB_KINDS = ['Structure', 'Roof', 'Stairs', 'Elevator', 'Parking']
+  const mbFields = MB_ROWS.flatMap(i => MB_KINDS.map(k => `mb${i}${k}`))
+  const notBlank = mbFields.filter(f => {
+    const s = oneValue(SAMPLE, f)   // 대표동 표본 답을 줘도 다수동 블록은 빈 서식이어야 한다
     return s.includes('[√]') || /\( 1 /.test(s)
   })
-  check(`다수동일때 ${MB_FIELDS.length}필드가 입력과 무관한 빈 서식(값 지어내지 않음)`,
+  check(`다수동일때 ${mbFields.length}필드 — 동이 없으면 빈 서식(대표동 값이 새지 않는다)`,
     notBlank.length === 0, notBlank.join(', '))
+  {
+    // 블록 격리 — 2동에만 값을 주고 3·4동 블록이 비어 있는가. 종전 구조(공유 필드)에서는 실패한다
+    const one = { ...SAMPLE, otherBuildings: [{
+      name: '2동', permitDate: '2011년 2월 2일', useApprovalDate: '', totalArea: '222', buildingArea: '',
+      households: '22', floorsAbove: '2', floorsBelow: '', heightM: '22', buildingCount: '1',
+      rampCount: '2', stairsCount: '3', specialStairCount: '',
+      elvR: '4', elvE: '', elvV: '',
+      stCon: false, stSteel: true, stBrick: false, stWood: false, stEtc: false,
+      rfSlab: false, rfTile: true, rfSlate: false, rfEtc: false,
+      pkIn: false, pkInUg: false, pkInGround: false, pkInPiloti: false,
+      pkMech: false, pkRoof: false, pkOut: true,
+    }] }
+    check('블록1에 2동 구조(철골) √가 들어간다', oneValue(one, 'mb0Structure').includes('[√]철골구조'), oneValue(one, 'mb0Structure'))
+    check('블록1에 2동 지붕(기와) √가 들어간다', oneValue(one, 'mb0Roof').includes('[√]기와'))
+    const leaked = ['mb1Structure', 'mb2Structure', 'mb1Roof', 'mb2Roof', 'mb1Stairs', 'mb2Stairs']
+      .filter(f => oneValue(one, f).includes('[√]'))
+    check('2동 값이 블록2·3으로 새지 않는다', leaked.length === 0, leaked.join(', '))
+  }
 }
 
 // ── ⑧ 별지 4호 1쪽(현황) 설치 체크 · 점검결과 ────────────────────────────────

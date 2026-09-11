@@ -12,6 +12,9 @@ import { renderSpecSections, specNoteTable, type SpecMap } from './spec-sections
 import { annexLabel, annexHasItem, type AnnexForm } from './annex-labels'
 import { EVAC_FORM3_GROUPS, FIRE_SUB_ITEMS, evacTypesFromSpecs } from '../facility-codes'
 import { distributeSubMarks } from '../sheet-facility-map'
+// 서식이 담는 동 수 — 조회(대표동 선정)와 인쇄(넘침 고지)가 **같은 수**를 봐야 하므로
+// 의존성 없는 `primary-building`에 두고 양쪽이 가져간다(사본 금지)
+import { FORM9_MAX_BUILDINGS } from '../primary-building'
 
 /** 3쪽 1절 점검 결과 항목 — scripts/make-report9.py FORM3_ITEMS와 1:1 (순서 = 설비 구분 경계) */
 export const FORM3_ITEMS: string[] = [
@@ -124,6 +127,31 @@ export type Report9Person = { name: string; grade: string; licenseNo: string; pe
  *  폴백 content는 화면 등 다른 소비처 보호를 위해 그대로 두고, 인쇄만 fold가 접는다. */
 export type Report9DefectRow = { group: string; code: string; content: string; userEntered?: boolean }
 
+/** 「다수동일때」 한 블록 = 대표동을 뺀 한 동의 「2. 건축물 정보」.
+ *
+ *  ⭐ 필드를 손으로 다시 적지 않고 `Pick<Report9Data, …>`로 **묶어** 둔다 — 2쪽 표가 늘거나
+ *    타입이 바뀌면 여기가 함께 따라오고, 두 곳이 조용히 갈라지는 일이 구조적으로 막힌다.
+ *
+ *  ⚠ 두 곳만 의미가 다르다:
+ *   · `households` — 여기는 **단위 없는 숫자**다. 대표동 쪽은 `12세대`처럼 단위가 붙어 있는데,
+ *     그건 PDF 2쪽 칸에 단위 라벨이 없어서다. 갑지 다수동 블록은 `K4="세대"`가 따로 있어
+ *     단위를 같이 넣으면 「12세대 세대」가 된다 — 단위는 찍는 쪽이 붙인다.
+ *   · `specialStairCount` — 원천(세부제원 3-8 전실)이 대표동 축이라 **다른 동은 늘 빈 문자열**이다.
+ *     지어내지 않는다. */
+export type Report9MultiBuilding = Pick<Report9Data,
+  | 'permitDate' | 'useApprovalDate' | 'totalArea' | 'buildingArea' | 'households'
+  | 'floorsAbove' | 'floorsBelow' | 'heightM' | 'buildingCount'
+  | 'stCon' | 'stSteel' | 'stBrick' | 'stWood' | 'stEtc'
+  | 'rfSlab' | 'rfTile' | 'rfSlate' | 'rfEtc'
+  | 'rampCount' | 'stairsCount'
+  | 'elvR' | 'elvE' | 'elvV'
+  | 'pkIn' | 'pkMech' | 'pkRoof' | 'pkOut' | 'pkInUg' | 'pkInGround' | 'pkInPiloti'
+> & {
+  /** 건물명 — 서식에 칸은 없지만 화면 고지·검사 식별에 쓴다(어느 동이 실렸는지 말할 수 있어야 한다) */
+  name: string
+  specialStairCount: string
+}
+
 export type Report9Data = {
   // ── 1쪽 표지 ──
   ckOp: boolean               // 작동점검
@@ -176,7 +204,7 @@ export type Report9Data = {
   insProperty: string
   multiUseNone: boolean                  // 해당없음 체크
   multiUseCounts: Record<string, string> // 업종명 → 개소수 (fire_plan_forms sections.multiUse)
-  // ── 2쪽 2. 건축물 정보 ──
+  // ── 2쪽 2. 건축물 정보 ── (대표동. 나머지 동은 아래 otherBuildings)
   permitDate: string
   useApprovalDate: string
   totalArea: string
@@ -198,6 +226,14 @@ export type Report9Data = {
   stairsCount: string    // 계단(개소) — 직통·피난계단 합계로 표기 (buildings.stairs_count)
   /** A9-3(소방계획서_15): 특별피난계단 개소 — 세부제원 3-8 전실(smoke_lobby.stair_count) 연결, 없으면 '' */
   specialStairCount?: string
+  /** 「다수동일때」 2·3·4동 (2026-09-08) — **대표동을 뺀** 나머지. 위 평평한 필드가 대표동이다.
+   *
+   *  법정 작성요령 10이 「둘 이상의 대상물… 동별로 나누어 작성」을 요구하고, 갑지 서식도
+   *  `다수동일때` 시트에 3블록을 이미 갖고 있다. 미공급(1동 고객·구 호출부·픽스처)이면
+   *  종전과 **완전히 같은** 산출물이 나온다 — 그게 이 축을 배열로 갈아엎지 않은 이유다. */
+  otherBuildings?: Report9MultiBuilding[]
+  /** 서식(최대 4동)이 담지 못해 인쇄에서 빠진 동 수 — 0이면 손실 없음. 조용히 자르지 않는다 */
+  buildingOverflow?: number
   // ── 3쪽 ──
   facilityChecks: string[]                    // 설치 설비(√) — FORM3_ITEMS 명칭
   resultMarks: Record<string, 'O' | 'X' | 'N'>  // 항목 → 점검결과 (○/×//)
@@ -409,21 +445,33 @@ ${pageHeader(null, '(8쪽 중 제2쪽)')}
   </tr>
 </table>
 <div class="sec-title"> 2. 건축물 정보</div>
-<table class="form tight">
+${buildingInfoTable(d, h)}`
+}
+
+/** 「2. 건축물 정보」 표 한 벌 — 대표동(2쪽)과 「다수동일때」 2·3·4동이 **같은 함수**를 쓴다.
+ *
+ *  두 벌로 적으면 서식이 개정될 때 한쪽만 고쳐지고, 그러면 같은 문서 안에서 1동과 2동이
+ *  서로 다른 표로 인쇄된다. `Report9MultiBuilding`이 `Pick<Report9Data,…>`인 것과 같은 이유다.
+ *
+ *  ⚠ `highlight`(미입력 강조)는 **대표동에만** 준다. 다수동 블록은 원천이 다른 건물이라
+ *    같은 '미입력' 취급을 하면 없는 결함을 노랗게 칠한다. */
+function buildingInfoTable(d: Report9Data | Report9MultiBuilding, h?: boolean): string {
+  const hl = h ? { highlight: true as const } : undefined
+  return `<table class="form tight">
   <colgroup><col style="width:20mm"><col><col style="width:20mm"><col><col style="width:20mm"><col></colgroup>
   <tr>
-    <th>건축허가일</th><td class="pre"> ${val(d.permitDate, { highlight: h })}</td>
-    <th>사용승인일</th><td colspan="3" class="pre"> ${val(d.useApprovalDate, { highlight: h })}</td>
+    <th>건축허가일</th><td class="pre"> ${val(d.permitDate, hl)}</td>
+    <th>사용승인일</th><td colspan="3" class="pre"> ${val(d.useApprovalDate, hl)}</td>
   </tr>
   <tr>
-    <th>연 면 적</th><td class="pre"> ${val(d.totalArea, { highlight: h })} ㎡</td>
-    <th>건축면적</th><td class="pre"> ${val(d.buildingArea, { highlight: h })} ㎡</td>
-    <th>세 대 수</th><td class="pre">${val(d.households, { highlight: h })}</td>
+    <th>연 면 적</th><td class="pre"> ${val(d.totalArea, hl)} ㎡</td>
+    <th>건축면적</th><td class="pre"> ${val(d.buildingArea, hl)} ㎡</td>
+    <th>세 대 수</th><td class="pre">${val(d.households, hl)}</td>
   </tr>
   <tr>
-    <th>층수</th><td class="pre">  지상 ${val(d.floorsAbove, { highlight: h })} 층 / 지하 ${val(d.floorsBelow, { highlight: h })} 층</td>
-    <th>높    이</th><td class="pre"> ${val(d.heightM, { highlight: h })} m</td>
-    <th>건물동수</th><td class="pre"> ${val(d.buildingCount, { highlight: h })} 개동</td>
+    <th>층수</th><td class="pre">  지상 ${val(d.floorsAbove, hl)} 층 / 지하 ${val(d.floorsBelow, hl)} 층</td>
+    <th>높    이</th><td class="pre"> ${val(d.heightM, hl)} m</td>
+    <th>건물동수</th><td class="pre"> ${val(d.buildingCount, hl)} 개동</td>
   </tr>
   <tr>
     <th>건축물구조</th>
@@ -444,10 +492,37 @@ ${pageHeader(null, '(8쪽 중 제2쪽)')}
   </tr>
   <tr>
     <th>주차장</th>
-    ${/* B-4c(소방계획서_19 A9-5): 옥내 하위 — parking_summary 문자열 매칭(기계식과 동일 방식) */''}
+    ${/* B-4c(소방계획서_19 A9-5): 옥내 하위 — parking_summary 문자열 매칭.
+         ⚠ 기계식은 **같은 방식이 아니다**(2026-09-11 정정) — 괄호 안에 있으니 옥내 구간
+           판정(`parseParkingByType().inMech`)을 탄다. 종전 주석이 「기계식과 동일 방식」이라
+           적혀 있었고, 그 말대로 짜인 `includes('기계식')`이 옥외 기계식을 여기에 찍었다. */''}
     <td colspan="5" class="pre"> ${ck(d.pkIn)}옥내(${ck(!!d.pkInUg)}지하 ${ck(!!d.pkInGround)}지상 ${ck(!!d.pkInPiloti)}필로티 ${ck(d.pkMech)}기계식), ${ck(d.pkRoof)}옥상, ${ck(d.pkOut)}옥외</td>
   </tr>
 </table>`
+}
+
+/** 「다수동일때」 쪽 — 대표동을 뺀 2·3·4동의 「2. 건축물 정보」.
+ *
+ *  법정 작성요령 10: 「둘 이상의 대상물을 같은 기간 내에 점검하여 함께 보고하는 경우 …
+ *  건축물정보를 동별로 나누어 작성합니다」. 갑지 엑셀의 `다수동일때` 시트와 **같은 내용**이어야
+ *  한다(D-7) — 그래서 값은 조립본 하나에서 오고 표는 위 함수 하나에서 온다.
+ *
+ *  🚨 동이 하나뿐이면 **빈 문자열**을 낸다 — 쪽 자체가 생기지 않는다. 현재 전 고객이 1동이므로
+ *    이 함수는 아무것도 바꾸지 않는다(그 '안 바뀜'이 무회귀 대조의 기대값이다). */
+export function renderMultiBuildingPage(d: Report9Data): string {
+  const list = d.otherBuildings ?? []
+  if (list.length === 0) return ''
+  const over = d.buildingOverflow ?? 0
+  return `
+${pageHeader(null, '(8쪽 중 제2쪽)')}
+<h1 class="doc-title">특정소방대상물 정보 (동별)</h1>
+<div class="small">※ [&nbsp;&nbsp;]에는 해당되는 곳에 √ 표기를 합니다.</div>
+${list.map((b, i) => `<div class="sec-title"> 2. 건축물 정보 — ${esc(b.name || `${i + 2}동`)}</div>
+${buildingInfoTable(b)}`).join('\n')}
+${over > 0
+      ? `<div class="small" style="margin-top:6px">※ 이 서식이 담는 동 수(${FORM9_MAX_BUILDINGS}동)를 넘어 ${over}개 동이 인쇄되지 않았습니다 — 서식을 추가하여 작성하세요(작성방법 ※ 4항).</div>`
+      : ''}
+${pageFooter()}`
 }
 
 // ── 3쪽 — 소방시설등의 현황 ────────────────────────────────────────────────
@@ -703,12 +778,16 @@ export function renderReport9(d: Report9Data, opts: Report9RenderOpts = {}): str
     title: `${d.customerName} 별지 9호 자체점검 실시결과 보고서`,
     css: CSS,
     pages: [
-      page1(d, h), page2(d, h), page3(d),
+      // 다수동 쪽은 2동 이상일 때만 생긴다 — 1동이면 빈 문자열이라 아래 filter가 없앤다.
+      // 전 고객이 1동인 지금(2026-09-08 실측 294/294) 이 줄은 쪽 구성을 바꾸지 않는다.
+      page1(d, h), page2(d, h), renderMultiBuildingPage(d), page3(d),
       specPage(4, secs.slice(0, 2), true), specPage(5, secs.slice(2, 4)),
       specPage(6, secs.slice(4, 7)), specPage(7, secs.slice(7)),
       page8(d),
       page9(),
-    ],
+      // 빈 쪽(다수동 미발생)을 걷어낸다 — renderDocument가 빈 문자열도 한 쪽으로 세면
+      // 1동 고객 문서에 백지 한 장이 끼어든다
+    ].filter(p => p.trim() !== ''),
   })
 }
 

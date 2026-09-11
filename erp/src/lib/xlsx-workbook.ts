@@ -6,7 +6,8 @@
 import type { OfficialData } from '@/lib/doc-templates/official'
 import type { DelegationData } from '@/lib/doc-templates/delegation'
 import {
-  DEFECT_FOLD_TEXT, MULTI_USE_COLS, foldDefectGroups, doneCells, type AnnexDone,
+  DEFECT_FOLD_TEXT, MULTI_USE_COLS, foldDefectGroups, doneCells,
+  type Report9MultiBuilding, type AnnexDone,
 } from '@/lib/doc-templates/report9'
 import { resultMark } from '@/lib/doc-templates/base'
 import { ANCHORS, DEFECT_GROUP_ROWS, PLAN_DATE_ROWS, DONE_ROWS, S31_QTY_COLS, S31_DETAIL_ROWS, type Anchor } from '@/lib/xlsx-anchors'
@@ -120,6 +121,10 @@ export type WorkbookSource = {
     elvR: string; elvE: string; elvV: string
     pkIn: boolean; pkMech: boolean; pkRoof: boolean; pkOut: boolean
     pkInUg?: boolean; pkInGround?: boolean; pkInPiloti?: boolean
+    /** 「다수동일때」 2·3·4동 (2026-09-08). **선택 필드**인 이유는 위 주석 그대로다 —
+     *  픽스처 30여 개가 이 축을 모르므로, 미공급이면 종전처럼 세 블록을 **빈 서식으로** 덮는다.
+     *  현재 전 고객이 1동이라 실사용에서도 늘 빈 배열이다(무회귀). */
+    otherBuildings?: Report9MultiBuilding[]
   }
 }
 
@@ -176,6 +181,44 @@ const ck = (on: boolean) => (on ? '[√]' : '[  ]')
 /** 개소·대수 write-in 슬롯 — 빈 칸은 서식 원문의 공백 런(3칸·4칸)을 그대로 남긴다 */
 const slot3 = (v: string) => (v ? ` ${v} ` : '   ')
 const slot4 = (v: string) => (v ? ` ${v} ` : '    ')
+
+/** 「다수동일때」 3블록(2·3·4동) 값 — 앵커 `mb0*`~`mb2*`와 짝.
+ *
+ *  🚨 **빈 블록도 반드시 값을 낸다**(값 없음 = 빈 서식). 키를 빼면 `toInjectTargets`가 그 앵커를
+ *    건너뛰어 **서식의 표본 답이 그대로 인쇄된다** — 이 시트가 2026-08-24에 그 사고를 낸 자리다
+ *    (콘크리트구조 √·기타 지붕 √·직통 ( 1 개소 )·옥외 √가 전 고객 문서에 실려 나갔다).
+ *
+ *  ⚠ 이 시트의 자구는 정보 시트와 다르다 — '콘크리트구조'(정보는 '철근콘크리트구조'), 경사로
+ *    단위 '개'(정보는 '개소'). 서식 원문(`_probe-multibldg-dump.txt`)을 따른다.
+ *  ⚠ 숫자 칸은 **문자열이 아니라 원시 숫자/공란**으로 넣는다(정보 시트 숫자 칸과 같은 축).
+ *    세대수에 단위를 붙이지 않는 이유는 `K4="세대"`가 서식에 따로 있어서다 — 붙이면 「12 세대 세대」.
+ */
+function multiBuildingEntries(list: ReadonlyArray<Report9MultiBuilding>): Array<[string, CellValue]> {
+  const num = (s: string): CellValue => {
+    const n = Number(String(s).trim())
+    return String(s).trim() !== '' && Number.isFinite(n) ? n : null
+  }
+  return [0, 1, 2].flatMap<[string, CellValue]>(i => {
+    const b = list[i]
+    return [
+      [`mb${i}PermitDate`, b?.permitDate || null],
+      [`mb${i}UseApproval`, b?.useApprovalDate || null],
+      [`mb${i}TotalArea`, num(b?.totalArea ?? '')],
+      [`mb${i}BuildingArea`, num(b?.buildingArea ?? '')],
+      [`mb${i}Households`, num(b?.households ?? '')],
+      [`mb${i}FloorsAbove`, num(b?.floorsAbove ?? '')],
+      [`mb${i}FloorsBelow`, num(b?.floorsBelow ?? '')],
+      [`mb${i}Height`, num(b?.heightM ?? '')],
+      [`mb${i}BldCount`, num(b?.buildingCount ?? '')],
+      [`mb${i}RampCount`, num(b?.rampCount ?? '')],
+      [`mb${i}Structure`, ` ${ck(!!b?.stCon)}콘크리트구조, ${ck(!!b?.stSteel)}철골구조, ${ck(!!b?.stBrick)}조적조, ${ck(!!b?.stWood)}목구조, ${ck(!!b?.stEtc)}기타`],
+      [`mb${i}Roof`, ` ${ck(!!b?.rfSlab)}슬라브, ${ck(!!b?.rfTile)}기와, ${ck(!!b?.rfSlate)}슬레이트, ${ck(!!b?.rfEtc)}기타`],
+      [`mb${i}Stairs`, ` ${ck(!!b?.stairsCount)}직통(또는 피난계단) (${slot3(b?.stairsCount ?? '')}개소 ), ${ck(!!b?.specialStairCount)}특별피난계단 (${slot4(b?.specialStairCount ?? '')}개소)`],
+      [`mb${i}Elevator`, ` ${ck(!!b?.elvR)}승용(${slot4(b?.elvR ?? '')}대 ), ${ck(!!b?.elvE)}비상용(${slot4(b?.elvE ?? '')}대), ${ck(!!b?.elvV)}피난용(${slot4(b?.elvV ?? '')}대)`],
+      [`mb${i}Parking`, ` ${ck(!!b?.pkIn)}옥내(${ck(!!b?.pkInUg)}지하 ${ck(!!b?.pkInGround)}지상 ${ck(!!b?.pkInPiloti)}필로티 ${ck(!!b?.pkMech)}기계식), ${ck(!!b?.pkRoof)}옥상, ${ck(!!b?.pkOut)}옥외`],
+    ]
+  })
+}
 
 /** 다중이용업소 한 열(정보!B14·E14·I14) 조립 — 업종 목록·순서는 MULTI_USE_COLS 단일 원천.
  *  '해당없음'은 1열에만 붙고(PDF report9.ts:259와 같은 축), 2·3열은 서식의 높이 맞춤 빈 줄
@@ -284,14 +327,8 @@ export function buildWorkbookValues(src: WorkbookSource): Map<string, CellValue>
     ['stairsLine', ` ${ck(!!p.stairsCount)}직통(또는 피난계단) (${slot3(p.stairsCount)}개소 ), ${ck(!!p.specialStairCount)}특별피난계단 (${slot4(p.specialStairCount ?? '')}개소)`],
     ['elevatorLine', ` ${ck(!!p.elvR)}승용(${slot4(p.elvR)}대 ), ${ck(!!p.elvE)}비상용(${slot4(p.elvE)}대), ${ck(!!p.elvV)}피난용(${slot4(p.elvV)}대)`],
     ['parkingLine', ` ${ck(p.pkIn)}옥내(${ck(!!p.pkInUg)}지하 ${ck(!!p.pkInGround)}지상 ${ck(!!p.pkInPiloti)}필로티 ${ck(p.pkMech)}기계식), ${ck(p.pkRoof)}옥상, ${ck(p.pkOut)}옥외`],
-    // ── 다수동일때(2·3·4동) — 값이 아니라 **빈 서식**을 넣는다(사유는 xlsx-anchors 주석).
-    // 서식 원문에서 마크만 `[  ]`로, 개소 슬롯만 공란으로 바꾼 것 — 어휘는 그 시트의 것을 따른다
-    // ('콘크리트구조'. 정보!B19는 '철근콘크리트구조'로 **다르다** — 시트별 자구를 섞지 않는다)
-    ['mbStructureBlank', ` ${ck(false)}콘크리트구조, ${ck(false)}철골구조, ${ck(false)}조적조, ${ck(false)}목구조, ${ck(false)}기타`],
-    ['mbRoofBlank', ` ${ck(false)}슬라브, ${ck(false)}기와, ${ck(false)}슬레이트, ${ck(false)}기타`],
-    ['mbStairsBlank', ` ${ck(false)}직통(또는 피난계단) (${slot3('')}개소 ), ${ck(false)}특별피난계단 (${slot4('')}개소)`],
-    ['mbElevatorBlank', ` ${ck(false)}승용(${slot4('')}대 ), ${ck(false)}비상용(${slot4('')}대), ${ck(false)}피난용(${slot4('')}대)`],
-    ['mbParkingBlank', ` ${ck(false)}옥내(${ck(false)}지하 ${ck(false)}지상 ${ck(false)}필로티 ${ck(false)}기계식), ${ck(false)}옥상, ${ck(false)}옥외`],
+    // ── 다수동일때(2·3·4동) — 값이 있으면 채우고 없으면 **빈 서식**(사유는 xlsx-anchors 주석) ──
+    ...multiBuildingEntries(p.otherBuildings ?? []),
   ]
   // ── 별지 4호 1쪽(현황) 설비 설치 체크 + 점검결과 ──────────────────────────────
   //

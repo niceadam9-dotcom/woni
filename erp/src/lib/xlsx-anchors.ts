@@ -473,17 +473,34 @@ export const ANCHORS: Anchor[] = [
   // 이미 공란인데 **√ 마크만 표본 답이 남아** 있었다(2026-08-24 실측: 콘크리트구조·기타 지붕·
   // 직통 ( 1 개소 )·옥외 ×3블록 = 12칸). 정보 12칸과 같은 부류이고, 숫자는 비웠는데 마크는
   // 놓쳤다는 점까지 판정 마크 결함과 같다.
-  // ERP는 이 파이프라인에서 **1동(활성·최고참)만** 해석하므로 2·3·4동 값은 없다 — 그러니
-  // 채우는 것이 아니라 **비운다**: 서식 원문의 마크를 전부 `[  ]`로, 개소 슬롯을 공란으로.
-  // 값을 지어내지 않고(D-7), 용도(손으로 고쳐 쓰기)에 맞는 백지 서식이 된다.
-  // 이미 공란인 승강기 행도 앵커에 넣는다 — 그래야 이 시트의 마크 든 리터럴이 **전부** 덮여
-  // 닫힌 덮개(test-xlsx-anchors [7]-c)에 예외가 남지 않는다.
-  ...[0, 10, 20].flatMap<Anchor>(off => [
-    { field: 'mbStructureBlank', sheet: '다수동일때', cell: `B${6 + off}`,  labelCell: `A${6 + off}`,  label: '건축물구조' },
-    { field: 'mbRoofBlank',      sheet: '다수동일때', cell: `B${7 + off}`,  labelCell: `A${7 + off}`,  label: '지붕구조' },
-    { field: 'mbStairsBlank',    sheet: '다수동일때', cell: `B${8 + off}`,  labelCell: `A${8 + off}`,  label: '계단' },
-    { field: 'mbElevatorBlank',  sheet: '다수동일때', cell: `B${9 + off}`,  labelCell: `A${9 + off}`,  label: '승강기' },
-    { field: 'mbParkingBlank',   sheet: '다수동일때', cell: `B${10 + off}`, labelCell: `A${10 + off}`, label: '주차장' },
+  // ⭐ 2026-09-08 — 종전엔 ERP가 **1동만** 해석해서 2·3·4동 값이 아예 없었고, 그래서 이 시트를
+  //   '채우는 것이 아니라 비우는' 것이 정답이었다. 이제 조립이 전 활성 동을 싣는다
+  //   (`report9-assemble` otherBuildings) — 법정 작성요령 10의 「동별로 나누어 작성」 그대로다.
+  //   **값이 있으면 채우고, 없으면 종전처럼 빈 서식으로 덮는다**: 1동 고객(현재 전원)의 파일은
+  //   한 바이트도 안 바뀐다. 그 무회귀가 이 확장의 안전줄이다.
+  //
+  // ⚠ 이 시트의 어휘는 정보 시트와 **다르다**: '콘크리트구조'(정보!B19는 '철근콘크리트구조'),
+  //   경사로 단위가 '개'(정보!K20은 '개소'). 시트별 자구를 섞지 않는다.
+  // ⚠ 블록 3개는 행 오프셋 0/10/20 — 값 칸 좌표는 `_probe-multibldg-dump.txt` 실측이다.
+  ...[0, 10, 20].flatMap<Anchor>((off, i) => [
+    // 숫자·날짜 칸(종전 미배선 — 서식이 이미 공란이라 손댈 이유가 없었다)
+    { field: `mb${i}PermitDate`,  sheet: '다수동일때', cell: `B${3 + off}`,  labelCell: `A${3 + off}`,  label: '건축허가일' },
+    { field: `mb${i}UseApproval`, sheet: '다수동일때', cell: `I${3 + off}`,  labelCell: `F${3 + off}`,  label: '사용승인일' },
+    { field: `mb${i}TotalArea`,   sheet: '다수동일때', cell: `B${4 + off}`,  labelCell: `A${4 + off}`,  label: '연 면 적' },
+    { field: `mb${i}BuildingArea`, sheet: '다수동일때', cell: `E${4 + off}`, labelCell: `D${4 + off}`,  label: '건축면적' },
+    { field: `mb${i}Households`,  sheet: '다수동일때', cell: `J${4 + off}`,  labelCell: `G${4 + off}`,  label: '세대수(세대별점검현황)' },
+    { field: `mb${i}FloorsAbove`, sheet: '다수동일때', cell: `C${5 + off}`,  labelCell: `B${5 + off}`,  label: '지상' },
+    { field: `mb${i}FloorsBelow`, sheet: '다수동일때', cell: `E${5 + off}`,  labelCell: `D${5 + off}`,  label: '지하' },
+    { field: `mb${i}Height`,      sheet: '다수동일때', cell: `H${5 + off}`,  labelCell: `F${5 + off}`,  label: '높 이' },
+    { field: `mb${i}BldCount`,    sheet: '다수동일때', cell: `K${5 + off}`,  labelCell: `J${5 + off}`,  label: '건물동수' },
+    { field: `mb${i}RampCount`,   sheet: '다수동일때', cell: `J${7 + off}`,  labelCell: `I${7 + off}`,  label: '경사로' },
+    // √ 통문자열 5칸(종전 `mb*Blank` — 이름만 블록별로 갈랐다. 값 축이 동별로 달라야 하므로
+    // 한 필드를 세 칸이 공유하던 종전 구조로는 2동과 3동에 같은 값이 찍힌다)
+    { field: `mb${i}Structure`,   sheet: '다수동일때', cell: `B${6 + off}`,  labelCell: `A${6 + off}`,  label: '건축물구조' },
+    { field: `mb${i}Roof`,        sheet: '다수동일때', cell: `B${7 + off}`,  labelCell: `A${7 + off}`,  label: '지붕구조' },
+    { field: `mb${i}Stairs`,      sheet: '다수동일때', cell: `B${8 + off}`,  labelCell: `A${8 + off}`,  label: '계단' },
+    { field: `mb${i}Elevator`,    sheet: '다수동일때', cell: `B${9 + off}`,  labelCell: `A${9 + off}`,  label: '승강기' },
+    { field: `mb${i}Parking`,     sheet: '다수동일때', cell: `B${10 + off}`, labelCell: `A${10 + off}`, label: '주차장' },
   ]),
   // 보고서 점검인력 '주된' 행 — **유일하게 허브 미배선 리터럴**이었다(표본: 김흥준·소방시설관리사·
   // 제2005-60호 = 자사 대표이사라 PII 니들엔 안 걸렸지만, 담당은 건마다 다르다). 직접 앵커로
