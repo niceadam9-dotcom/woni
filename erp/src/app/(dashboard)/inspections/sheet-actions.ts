@@ -12,6 +12,9 @@ import { buildSheetOverviews, canEditInspection, type SheetOverview } from '@/li
 import { specNaReasons, type SpecRow } from '@/lib/sheet-spec-na'
 import { getAllSheetItems, getSheetItems, getSheets, type SheetCatalogItem } from '@/lib/sheet-catalog'
 import { findPrevRoundSource } from '@/lib/prev-round-source'
+import { autoCheckFacilitiesFromSheetAction } from './facility-autocheck-actions'
+// ⚠ 타입은 `'use server'` 파일이 아니라 **일반 모듈**에서 가져온다(위 파일 주석의 500 사고)
+import type { AutoCheckResult } from '@/lib/facility-autocheck'
 import type { UserRole } from '@/types'
 
 /** 점검 건의 시트 범위 판정에 필요한 축 조회 — plan_type 우선, 관리유형은 레거시 폴백용 (sheet-scope.ts) */
@@ -442,7 +445,7 @@ export async function saveSheetResponsesAction(
    *  2026-08-13 기본값이 ／(해당없음)이 되면서 필요해졌다. upsert만으로는 해제가 반영되지 않아
    *  화면에서는 풀렸는데 DB에는 O가 남는다(문서에도 그대로 인쇄된다). */
   clearCodes: string[] = [],
-): Promise<{ error?: string; stepsChanged?: boolean }> {
+): Promise<{ error?: string; stepsChanged?: boolean; autoCheck?: AutoCheckResult }> {
   const profile = await requirePermission('inspection_register')
   const admin = createAdminClient()
   if (!Number.isInteger(month) || month < 0 || month > 12) return { error: '점검 월 값을 확인해주세요.' }
@@ -495,10 +498,23 @@ export async function saveSheetResponsesAction(
   // R4-6: ① 점검표 응답이 곧 근거 — 저장 즉시 단계가 스스로 완료된다(버튼 불필요).
   // 해제만 있어도 근거가 줄었으므로 동기화는 항상 돈다.
   await stampSheetProtocol(admin, inspectionId)   // 첫 입력이 규약을 확정한다 (S9-1)
+
+  /* 1.4 대장 **따라잡기**(소방계획서_49 §9, 2026-09-11 사용자 확정) — 관문이 ⓑ경고만이라
+     사용자가 1.4를 안 채우고 점검표부터 쓸 수 있다. 그때 대장이 응답을 따라잡지 않으면
+     그 설비는 문서에 ／로 인쇄되고(대장이 정본), 필수 미입력 카운터·이탈 팝업·단계 완료 보류·
+     별지 경고가 **동시에 침묵**한다(분모가 0이 되므로).
+     ⚠ best-effort다 — 대장 반영이 실패했다고 **사용자의 점검 입력이 날아가면 안 된다**.
+       실패는 삼키되, 성공 결과(added·ambiguous)는 호출부로 올려 화면이 고지한다(§9-7 미결정 4).
+     ⚠ 순서: 이 뒤에 `syncStepsAndRevalidate`가 온다. 대장이 켜지면 필수 집계 **분모가 늘어나**
+       단계 판정이 달라질 수 있으므로, 따라잡기가 **먼저** 끝나야 한다. */
+  let autoCheck: AutoCheckResult | undefined
+  try { autoCheck = await autoCheckFacilitiesFromSheetAction(inspectionId) }
+  catch { /* 대장 따라잡기 실패는 점검표 저장을 깨뜨리지 않는다 */ }
+
   // 36 S2-2 — 가드째로 헬퍼에 위임. alsoChanged 생략 = 단계가 바뀐 저장에만 무효화(종전과 동일).
   // 이 경로만 가드를 쓸 수 있는 이유는 위 :319-320 주석이 밝힌 전제 때문이다(소비처가 없다).
   const { stepsChanged } = await syncStepsAndRevalidate(admin, inspectionId, profile.id)
-  return { stepsChanged }
+  return { stepsChanged, autoCheck }
 }
 
 /** §9-4 A안: 설치 설비 전체 양호 — 설치 시설(fire_facilities)과 매칭되는 시트의 '미입력' 항목만 ○로 일괄 채움.

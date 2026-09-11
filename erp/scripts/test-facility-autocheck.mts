@@ -9,6 +9,7 @@
  *   [D] 이미 설치된 형제가 있으면 안 켠다
  *
  *  실행: npx tsx --conditions=react-server scripts/test-facility-autocheck.mts */
+import { readFileSync } from 'node:fs'
 import ac from '../src/lib/facility-autocheck.ts'
 import fmap from '../src/lib/sheet-facility-map.ts'
 import r9 from '../src/lib/doc-templates/report9.ts'
@@ -87,6 +88,43 @@ ok(old.length > 1 && amb.confirmed.length === 0,
   `🎯 구·신이 갈린다 — 구=${old.length}건 켬 / 신=0건 켬(물어봄)`, `구=${old.join('·')}`)
 ok(naive([e(SOLO, { o: true })]).length === plan([e(SOLO, { o: true })]).confirmed.length,
   '(대조군) 단독 커버에서는 구·신이 같다 — 바꾼 것은 다중 커버 가지뿐이다')
+
+console.log('\n── G. 배선 — 규칙이 옳아도 아무도 안 부르면 소용없다 ──')
+/* 🚨 순수 함수만 보면 「판정이 옳다」까지만 안다. 실제 쓰기 경로가 규칙을 지키는지는 소스를 읽어야 한다.
+   특히 §9-4는 **이 축에서 가장 중요한 함정**이다 — 자동 체크가 `facilities_verified_at`을 찍으면
+   「사람이 확인했다」가 거짓이 되고 1.4 미확인 경고가 스스로 꺼진다(관문이 조용히 죽는다). */
+/* 🚨 소스 단언은 **주석과 import를 걷어내고** 해야 한다. 오늘 세 번 같은 데서 속았다:
+   ① 「종료일 고치기가 있는가」가 바로 위 주석에 그 말이 있어 버튼을 지워도 초록
+   ② 여기서도 「verified_at을 안 쓴다」가 **그러지 말라는 주석** 때문에 빨강
+   ③ 순서 비교가 맨 위 `import` 줄을 먼저 잡아 빨강
+   설명하는 글과 하는 일은 다르다 — 단언은 **하는 일**만 봐야 한다. */
+const codeOnly = (src: string) => src
+  .replace(/\/\*[\s\S]*?\*\//g, '')          // 블록 주석
+  .split('\n').filter(l => !/^\s*\/\//.test(l) && !/^\s*import\s/.test(l)).join('\n')
+
+const act = codeOnly(readFileSync(new URL('../src/app/(dashboard)/inspections/facility-autocheck-actions.ts', import.meta.url), 'utf8'))
+const save = codeOnly(readFileSync(new URL('../src/app/(dashboard)/inspections/sheet-actions.ts', import.meta.url), 'utf8'))
+
+ok(/planFacilityAutoCheck\(/.test(act), '쓰기 액션이 순수 판정 함수를 부른다(규칙을 다시 적지 않는다)')
+ok(!/facilities_verified_at/.test(act),
+  '🎯🚨 (음성) 자동 체크가 `facilities_verified_at`을 **건드리지 않는다** — 찍으면 경고가 스스로 꺼진다')
+ok(!/saveFacilitiesAction/.test(act),
+  '🚨 (음성) replace 방식 `saveFacilitiesAction`을 재사용하지 않는다 — 한 행 켜려다 대장 전체가 지워진다')
+ok(/\.update\(|\.insert\(/.test(act) && /eq\('facility_code'/.test(act),
+  '행 단위로만 쓴다(설비 코드 지정)')
+ok(/installed: true/.test(act), '`installed`만 켠다')
+ok(/\.\.\.\(prev\?\.detail \?\? \{\}\)/.test(act),
+  '🚨 기존 `detail`(사람이 쓴 비고)을 보존한 채 출처를 얹는다')
+// `'use server'` 파일은 async 함수만 내보내야 한다 — 타입 재수출이 화면을 500으로 죽인 전례(2026-09-10)
+const exports = (act.match(/^export .*/gm) ?? [])
+ok(exports.length > 0 && exports.every(l => l.startsWith('export async function')),
+  `🚨 'use server' 파일이 async 함수만 내보낸다(타입 재수출 = 런타임 500)`, exports.join(' | '))
+
+ok(/autoCheckFacilitiesFromSheetAction\(/.test(save), '🎯 점검표 저장이 따라잡기를 실제로 부른다')
+ok(/try \{ autoCheck = await autoCheckFacilitiesFromSheetAction/.test(save),
+  '🚨 best-effort로 감쌌다 — 대장 반영 실패가 **점검 입력을 날리면 안 된다**')
+ok(save.indexOf('autoCheckFacilitiesFromSheetAction(inspectionId)') < save.indexOf('syncStepsAndRevalidate'),
+  '🚨 단계 동기화 **앞에서** 돈다 — 대장이 켜지면 필수 분모가 늘어 단계 판정이 달라진다')
 
 console.log(`\n${fail === 0 ? '✅' : '❌'} ${pass}/${pass + fail} 통과`)
 process.exit(fail === 0 ? 0 : 1)

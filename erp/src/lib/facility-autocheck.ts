@@ -32,6 +32,21 @@
 
 import { form3ItemsForSheetGroup, form3ItemMatchesFacility, type SheetGroupStat } from '@/lib/sheet-facility-map'
 
+/** 따라잡기 실행 결과 — 화면 고지(§9-7 미결정 4)가 읽는다.
+ *
+ *  🚨 이 타입이 **여기(일반 모듈)에 있는 이유**: 실행 액션은 `'use server'` 파일인데,
+ *  그런 파일에서 타입을 내보내면 **tsc는 0인데 런타임에 화면이 500으로 죽는다**
+ *  (2026-09-10 실사고 — 구조 검사 50/50까지 초록인데 저장이 전멸했고 격리 E2E만 잡았다).
+ *  `'use server'` 모듈의 export는 async 함수만으로 둔다. */
+export type AutoCheckResult = {
+  /** 대장에 새로 켠 설비 */
+  added: string[]
+  /** 후보가 둘 이상이라 **켜지 않은** 갈래 — 화면이 "어느 것입니까?"로 물어야 한다 */
+  ambiguous: AutoCheckPlan['ambiguous']
+  /** 켤 수 없었던 이유(활성 건물 0동·다동 등) — 조용히 넘어가지 않는다 */
+  skipped?: string
+}
+
 /** 자동으로 켤 설비(확정) + 사람에게 물어야 하는 갈래(모호) */
 export type AutoCheckPlan = {
   /** 대장에 `installed=true`로 쓸 항목 — 후보가 정확히 하나로 좁혀진 것만 */
