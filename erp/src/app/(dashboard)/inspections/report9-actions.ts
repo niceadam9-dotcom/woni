@@ -185,13 +185,16 @@ async function assembleAnnex1011(
     //   ⚠ `data.totalPeriod`를 쓴다 — 수기 보정(annex_inputs)이 반영된 **최종값**이라 아래
     //     「이행조치 필요기간」 줄과 글자까지 같다. 조립본의 자동 산출로 덮으면 한 서식이
     //     두 기간을 말한다.
-    //   ⚠ 자동 문구 줄(isNote = 불량 없는 구분)은 건드리지 않는다: 렌더가 `—`를 찍는 자리이고,
-    //     미대상 설비에 이행기간을 적으라는 말이 되면 안 된다(Q-5 b안).
+    //   🚨 2026-09-11(같은 날 두 번째 정정) — **자동 문구 줄(isNote)도 포함한다.** 몇 시간 전 판은
+    //     `r.isNote ? r : …`로 제외했는데, 사용자가 두 안을 미리보기로 보고 **7행 전부**를 택했다.
+    //     조립본(annexPlanRows)과 **같은 축**이어야 한다 — 한쪽만 고치면 자동 산출이 있는 회차와
+    //     수기 보정만 있는 회차가 서로 다른 표를 인쇄한다.
+    //   ⚠ Q-5 b안은 **기간이 없을 때** 산다: 그때는 이 블록이 통째로 안 돌고(`data.totalPeriod` 없음)
+    //     렌더가 isNote 줄에 `—`를 찍는다. 미대상 설비에 빈 자리표가 서는 일은 여전히 없다.
     //   ⚠ `days`는 계속 비운다 — 총 일수는 「이행조치 필요기간」이 단독으로 싣는다.
     if (data.planRows && data.totalPeriod) {
       const total = data.totalPeriod
-      data.planRows = data.planRows.map(r =>
-        (r.isNote ? r : { ...r, period: total, days: '' }))
+      data.planRows = data.planRows.map(r => ({ ...r, period: total, days: '' }))
     }
   } else {
     // 완료 보고 문구 — 있을 때만 서명 블록 위 1줄 (report1011.ts note)

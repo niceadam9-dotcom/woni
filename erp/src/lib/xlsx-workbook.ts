@@ -900,18 +900,22 @@ export function buildWorkbookValues(src: WorkbookSource): Map<string, CellValue>
   //   ⚠ 이건 D-7(두 산출물이 갈라지지 않는다)의 **의도된 예외**다. 갈라진 것을 발견하고
   //     "PDF에 맞춰 통일하자"며 손대면 사용자 결정을 되돌리는 것이 된다. 정말 통일하려면
   //     **엑셀 서식의 셀 타입부터** 바꿔야 하고 그건 별건이다.
-  // 2026-09-07까지는 그룹 축이 없어 **총 기간을 불량 있는 전 행에 복제**했다 — 3개 구분에 불량이
-  // 흩어져 있으면 세 행이 전부 같은 최장 기간으로 찍혔다(사용자 지적 image-77). 미공급(구 호출부·
-  // 픽스처)이면 종전 동작 그대로 — 대조군 보호.
-  // 빈 행은 공백 1칸 — 빈 셀·null은 수식 제거 후에도 표시 서식에 따라 0으로 읽힐 수 있다(assist E열 규약).
-  for (const { group, row } of PLAN_DATE_ROWS) {
-    const gp = p.actionGroupPeriods
-      ? (p.actionGroupPeriods[group] ?? null)
-      : ((p.defectRows ?? []).some(r => r.group === group) ? ap : null)
+  /* 🚨 2026-09-11 사용자 확정("엑셀도 동일합니다") — **21칸 전부 총 이행기간**.
+     PDF 10호 7행과 같은 규칙이다: 불량 유무와 무관하게 7행 모두 같은 기간.
+     ⭐ 위 🚨🚨 블록의 「PDF는 결과참조, 엑셀만 날짜 — 통일하지 말 것」은 **폐기됐다**.
+       그 예외는 PDF가 문자열(「결과참조」)이라 날짜 셀(serial)에 못 담기던 데서 나왔는데,
+       PDF가 다시 기간으로 돌아오면서 셀 타입 충돌 자체가 사라졌다. 이제 갈라진 곳이 없다.
+     🗒 이 자리의 변천: 09-02 불량 있는 구분만 → 09-07 그룹별 기간 → 09-10 PDF만 결과참조
+       (의도된 예외) → 09-11 양쪽 다 총 이행기간.
+     ⚠ `actionGroupPeriods`는 계속 조립본에 실려 온다 — 여기서 값으로 쓰지 않을 뿐이다.
+       그룹별로 되돌리려면 이 루프만 되돌리면 된다.
+     ⚠ 기간이 없으면 종전대로 공백 1칸 — 빈 셀은 표시 서식에 따라 0으로 읽힌다(assist E열 규약).
+       **없는 기간을 지어내지는 않는다.** */
+  for (const { row } of PLAN_DATE_ROWS) {
     entries.push(
-      [`planStart${row}`, gp ? isoToSerial(gp.startISO) : ' '],
-      [`planEnd${row}`, gp ? isoToSerial(gp.endISO) : ' '],
-      [`planDays${row}`, gp ? gp.days : ' '],
+      [`planStart${row}`, ap ? isoToSerial(ap.startISO) : ' '],
+      [`planEnd${row}`, ap ? isoToSerial(ap.endISO) : ' '],
+      [`planDays${row}`, ap ? ap.days : ' '],
     )
   }
   // ── 완료보고서(별지 11호) 「이행완료 사항」 8칸 — 내용 4행 + 일자 4행 (2026-09-08, 43 S3) ──

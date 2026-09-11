@@ -127,13 +127,17 @@ console.log('── C-3. Q-5 — 자동 문구 행의 일자 칸(자리표 대�
     'isNote 행은 이상없음/해당없음뿐(축이 어긋나지 않았다)')
 
   const realHtml = renderReport10({ ...base, planRows: realRows, totalPeriod: '2026년 8월 5일 ~ 2026년 8월 15일', totalDays: '10' })
-  // 문구 행 옆의 `~(총  일)` 자리표가 사라졌는가 — 「해당없음」에 기간을 적으라는 말이 되던 자리
   const bodyOnly = realHtml.slice(realHtml.indexOf('이행조치<br>계획사항'))
   ok(!bodyOnly.includes(PLACEHOLDER), '문구 행에 빈 기간 자리표가 없다')
+  /* 🚨 2026-09-11 **같은 날 두 번째 계약 교체.**
+   *   아침 판: 「불량 있는 구분만 기간 · 이상없음·해당없음은 —」.
+   *   확정 판: **7행 전부 기간.** 사용자가 두 안을 미리보기로 나란히 보고 택했다
+   *   (「같은 기간이 여덟 번째」 경고까지 본 선택이라 중복은 **의도된 것**이다).
+   *   ⚠ 지우지 않고 **반대 방향**으로 세운다 — 지우면 누가 `—`로 되돌려도 스위트가 조용하다. */
   for (const g of notes) {
     const seg = bodyOnly.slice(bodyOnly.indexOf(`>${g.group}<`))
     const cell = seg.slice(0, seg.indexOf('</tr>'))
-    ok(cell.includes('>—</td>'), `${g.group}(${g.content}) 일자 칸은 —`)
+    ok(cell.includes(TOTAL_TEXT), `🎯 ${g.group}(${g.content}) 일자 칸에도 총 이행기간(종전 「—」)`)
   }
   /* 🚨 구간을 **갈라서** 잰다. `bodyOnly`는 7행과 「이행조치 필요기간」 행을 **둘 다** 품는다 —
    *   통째로 `includes`를 걸면 필요기간 행의 날짜가 7행 단언을 초록으로 만들어, 이 검사가
@@ -143,19 +147,18 @@ console.log('── C-3. Q-5 — 자동 문구 행의 일자 칸(자리표 대�
   const rowsOnly = bodyOnly.slice(0, totalAt)
   const totalOnly = bodyOnly.slice(totalAt)
 
-  // 실이행조치 행의 일자 칸 = **총 이행기간** (2026-09-11 사용자 지시)
-  const dated = realRows.filter(r => !r.isNote)
-  ok(dated.length > 0, `실이행조치 행 ${dated.length}개(양성 표본 선단언)`)
-  // 🚨 날짜가 붙는 행은 **불량 있는 구분뿐**이다 — 7행 전체면 09-09의 「여덟 번」으로 되돌아간 것
-  ok(dated.length < DEFECT_GROUPS.length,
-    `날짜 붙는 행이 7행 전체가 아니다 (${dated.length}/${DEFECT_GROUPS.length})`)
-  /* 🚨 **생산자 층에서** 잰다 — 렌더는 isNote 행에 무조건 `—`를 찍으므로, 7행 전체에 period를
-   *   실어도 **화면으로는 아무 일도 안 일어난다**(변이 실험에서 실제로 그 변이가 전 스위트를
-   *   초록으로 통과했다). 렌더의 `—`에 가려진 값은 다음 사람이 렌더를 고치는 순간 새어 나온다. */
-  ok(realRows.filter(r => r.isNote).every(r => r.period === ''),
-    '(음성) 불량 없는 구분은 period 자체가 비어 있다(렌더의 —에 기대지 않는다)',
-    )
-  for (const g of dated) {
+  // 7행 전부의 일자 칸 = **총 이행기간** (2026-09-11 사용자 확정)
+  ok(realRows.length === DEFECT_GROUPS.length,
+    `일자 대상 ${realRows.length}행 = 7행 전부(양성 표본 선단언)`)
+  /* 🚨 **생산자 층에서도** 잰다 — 렌더만 보면 부족하다. 아침 판에서 얻은 교훈이 반대로도 유효하다:
+   *   그때는 렌더가 isNote에 무조건 `—`를 찍어 **생산자에 period가 실려도 화면이 조용했고**,
+   *   그래서 「7행 전체」 변이가 스위트를 통과했다. 지금은 그 가림막을 걷었으므로, 이번엔
+   *   **생산자가 7행 전부에 실었는가**를 직접 물어 렌더 한쪽만 고치는 회귀를 막는다. */
+  ok(realRows.every(r => r.period !== ''),
+    '🎯 (생산자) 7행 전부에 period가 실린다 — 불량 없는 구분도 포함')
+  ok(realRows.every(r => r.days === ''),
+    '(생산자) days는 전부 비어 있다 — 총 일수는 「필요기간」이 단독으로 싣는다')
+  for (const g of realRows) {
     const seg = rowsOnly.slice(rowsOnly.indexOf(`>${g.group}<`))
     const cell = seg.slice(0, seg.indexOf('</tr>'))
     ok(cell.includes(TOTAL_TEXT), `${g.group} 일자 칸 = 총 이행기간`)
@@ -177,10 +180,10 @@ console.log('── C-3. Q-5 — 자동 문구 행의 일자 칸(자리표 대�
   // 양성 — 날짜는 「이행조치 필요기간」 한 줄이 **단독으로** 싣는다
   ok(totalOnly.includes('2026년 8월 5일 ~ 2026년 8월 15일') && totalOnly.includes('(총 10일)'),
     '총 이행기간은 필요기간 행에 그대로')
-  // 7행 중 일자가 있는 행은 전부 같은 값 — 한 서식이 두 가지를 말하지 않는다
-  const periods = new Set(dated.map(r => `${r.period}|${r.days}`))
+  // 7행이 **전부 같은 한 값** — 그룹별 기간으로 되돌아가거나 일부만 실으면 여기가 붉어진다
+  const periods = new Set(realRows.map(r => `${r.period}|${r.days}`))
   ok(periods.size === 1 && [...periods][0] === `${TOTAL_TEXT}|`,
-    `일자 있는 ${dated.length}행이 전부 총 이행기간 한 값 (실측 ${[...periods].join(' / ')})`)
+    `7행 전부가 총 이행기간 한 값 (실측 ${[...periods].join(' / ')})`)
 }
 
 console.log('── D. 하위 호환(planRows 미공급) ──')
@@ -210,7 +213,12 @@ console.log('── F. 액션 덧칠 배선(소스 축) ──')
   ok(overlay.length > 0, '덧칠 블록을 찾았다(전제 — 못 찾으면 아래가 공허하다)')
   ok(/period:\s*total\b/.test(overlay), '덧칠이 일자 칸에 총 이행기간(totalPeriod)을 싣는다')
   ok(!/DEFECT_FOLD_TEXT\.refer/.test(overlay), '(음성) 덧칠이 「결과참조」로 되돌아가지 않았다')
-  ok(/isNote\s*\?\s*r\s*:/.test(overlay), '덧칠은 불량 없는 줄(isNote)을 건드리지 않는다')
+  /* 🚨 2026-09-11 계약 교체 — 종전엔 `덧칠은 isNote 줄을 건드리지 않는다`(`r.isNote ? r : …`)였다.
+   *   **7행 전부 기간**으로 확정되면서 그 제외가 사라졌다. 조립본(annexPlanRows)과 덧칠이
+   *   **같은 축**이어야 한다 — 한쪽만 제외하면 자동 산출이 있는 회차와 수기 보정만 있는 회차가
+   *   서로 다른 표를 인쇄한다. 음성으로 세워 제외가 되살아나면 붉어지게 한다. */
+  ok(!/isNote\s*\?\s*r\s*:/.test(overlay),
+    '🎯 덧칠이 isNote 줄을 제외하지 않는다(7행 전부 같은 축)')
   ok(/days:\s*''/.test(overlay), "덧칠은 days를 비운다(「(총 N 일)」 중복 인쇄 차단)")
 }
 

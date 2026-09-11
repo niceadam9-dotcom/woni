@@ -119,11 +119,23 @@ ok(num(vMan, `planStart${row0}`) === num(vMan, 'actionStartSerial'),
   `계획 있는 행(r${row0})의 일자 = 총 이행기간 (7행이 하나의 기간을 공유한다)`)
 ok(num(vMan, `planDays${row0}`) === MANUAL.days, `계획 있는 행의 일수 = ${MANUAL.days}`)
 ok(num(vMan, `planStart${row0}`) !== num(vAuto, `planStart${row0}`), '🎯 계획서 일자도 수기값을 따른다')
-// 계획 없는 그룹은 공란 유지 — 미대상 설비에 날짜를 적으라는 말이 되면 안 된다
+/* 🚨 2026-09-11 **계약 교체**(지우지 않고 반대로 세운다) — 사용자: "엑셀도 동일합니다".
+ *   종전 계약: 「계획 없는 6개 구분은 공란 그대로」. 이제 PDF 10호 7행과 같이 **불량 유무와
+ *   무관하게 21칸 전부 총 이행기간**이다.
+ *   ⭐ 이로써 2026-09-10의 **의도된 D-7 예외가 해소**됐다 — 그때는 PDF가 「결과참조」(문자열)인데
+ *     이 21칸은 날짜 셀(serial)이라 문자열을 못 받아 둘이 갈라져 있었다. 이제 양쪽 다 기간이다. */
 const otherRows = PLAN_DATE_ROWS.filter(r => r.group !== GROUP)
 ok(otherRows.length === 6, `분모 확인: 계획 없는 그룹 ${otherRows.length}개`)
-ok(otherRows.every(r => vMan.get(`planStart${r.row}`) === ' ' && vMan.get(`planEnd${r.row}`) === ' '),
-  '(음성) 계획 없는 6개 구분은 수기 기간을 넣어도 공란 그대로')
+ok(otherRows.every(r => num(vMan, `planStart${r.row}`) === num(vMan, 'actionStartSerial')
+  && num(vMan, `planEnd${r.row}`) === num(vMan, 'actionEndSerial')),
+  '🎯 계획 없는 6개 구분에도 총 이행기간이 들어간다(종전 공란에서 반전)')
+ok(otherRows.every(r => num(vMan, `planDays${r.row}`) === MANUAL.days),
+  '계획 없는 6개 구분의 일수도 총 일수')
+/* 🎯 대조군 — **기간 자체가 없으면 여전히 공란**이다. 없는 기간을 지어내지는 않는다.
+ *   이 단언이 없으면 「21칸에 무조건 무언가를 넣는다」로 넓혀 놔도 초록이 된다. */
+const vNoPlan = mk(null)
+ok(PLAN_DATE_ROWS.every(r => vNoPlan.get(`planStart${r.row}`) === ' '),
+  '🎯 (대조군) 이행기간이 없으면 21칸 전부 공란')
 
 console.log('  · 미공급 하위 호환')
 const vNone = mk(null)
