@@ -14,6 +14,8 @@ import { sheetShownWhenInstalledOnly, facilitiesForSheet } from '@/lib/sheet-fac
 import { ALL_STANDARD_CODES } from '@/lib/facility-codes'
 import { countRequiredItemBlanks, countCompBlanks } from '@/lib/sheet-blanks'
 import type { SheetOverview, SheetProgress } from '@/lib/sheet-overview'
+import { shouldWarnFacilitiesUnverified, type FacilityVerifyState } from '@/lib/facility-verify-gate'
+import { verifyFacilitiesAction } from '@/app/(dashboard)/customers/facilities-actions'
 
 /** 점검표 입력 전용 화면 (소방계획서_28) — 좌 설비 목록 / 우 항목 입력.
  *
@@ -37,7 +39,10 @@ const numCls = (r: number, t: number) =>
 export function SheetEntryClient({
   inspectionId, customerName, roundLabel, overview,
   canEdit, initialSheetId, initialGroupCode, initialMonth, backHref, prevRoundLabel, loadError,
+  facilityVerify,
 }: {
+  /** 1.4 소방시설 확인 여부(소방계획서_49 §6) — 경고 배너용. 판정은 `facility-verify-gate` 단일 원천 */
+  facilityVerify: FacilityVerifyState & { soleBuildingId: string | null; customerId: string }
   inspectionId: string
   customerName: string
   roundLabel: string
@@ -59,6 +64,21 @@ export function SheetEntryClient({
   const [busy, startBusy] = useTransition()
   const [err, setErr] = useState(loadError ?? '')
   const [notice, setNotice] = useState('')
+  /** [확인했습니다]를 누른 뒤 이 화면에서 바로 경고를 끈다 — 서버 왕복을 기다려 새로고침하지 않는다.
+   *  `verifyFacilitiesAction`이 `verifiedAt`을 돌려주는 규약(소방계획서_12 S1)을 그대로 쓴다. */
+  const [facilityVerified, setFacilityVerified] = useState(false)
+
+  /** 1.4 「확인만 하기」 — `installed`는 건드리지 않고 **확인일만** 찍는다.
+   *  설비가 정말 없는 건물이 이 한 번으로 통과하는 경로이기도 하다(§5-1·§5-2). */
+  function confirmFacilities() {
+    if (!facilityVerify.soleBuildingId) return
+    startBusy(async () => {
+      const res = await verifyFacilitiesAction(facilityVerify.soleBuildingId!, facilityVerify.customerId)
+      if (res.error) { setErr(res.error); return }
+      setFacilityVerified(true)
+      setNotice('소방시설 현황을 확인했습니다 — 이 회차의 완료 보류가 풀립니다.')
+    })
+  }
   const [blankOnly, setBlankOnly] = useState(false)
   const [stale, setStale] = useState(false)   // 편집 중 원격 저장 감지 배너 (16 S5-5와 같은 규약)
   /** ✕ 항목별 등록된 불량내용 — 서버 스냅샷의 memo를 행 아래 상시 표시(2026-09-07).
@@ -452,6 +472,35 @@ export function SheetEntryClient({
           </button>
           <button onClick={() => setPrevHintOff(true)} aria-label="제안 닫기"
             className="text-xs text-ink-meta hover:text-ink-sub shrink-0">✕</button>
+        </div>
+      )}
+      {/* 1.4 소방시설 미확인 경고(소방계획서_49 §6 ②) — **막지 않고 알린다**(2026-09-11 사용자 확정:
+          "ⓐ를 하면 사용자들이 사용에 어려움이 있을 것 같아"). 점검표는 현장에서 쓰고 1.4는 사무실에서
+          정리하는 성격이라, 막으면 그 자리에서 할 수 없는 일을 요구받는다.
+          🚨 그런데 ⓑ에는 함정이 있다 — **경고가 안 꺼진다.** 대장 따라잡기는 `installed`만 쓰고
+            `facilities_verified_at`은 일부러 안 찍으므로(§9-4, 찍으면 관문이 스스로 죽는다),
+            자동 반영이 대장을 다 채워도 이 경고는 계속 뜬다. 상시 켜진 경고는 아무도 안 읽는다.
+            → **[확인했습니다]로 끝낼 수 있게** 한다. 확인은 여전히 사람이 하므로 §9-4가 안 깨진다.
+          ⚠ 「해당 설비 없음」도 같은 버튼이다 — 설비가 정말 없는 건물은 이 한 번으로 통과한다.
+            그 구별이 §5-1의 전부다(「설비 0건」 ≠ 「아직 안 봤다」).
+          ⚠ 다동은 여기서 한 번에 못 끝낸다(어느 동인지 정할 수 없다) — 1.4로 보낸다. */}
+      {shouldWarnFacilitiesUnverified(facilityVerify) && !facilityVerified && (
+        <div className="mb-2 flex flex-wrap items-center gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2"
+          data-testid="sheet-entry-facility-unverified">
+          <span className="text-xs text-amber-800 flex-1 min-w-60">
+            {facilityVerify.unverified === facilityVerify.total
+              ? <><b>1.4 소방시설을 아직 확인하지 않았습니다.</b> 대장에 없는 설비는 점검 결과를 넣어도 문서에 <b>／</b>로 인쇄되고, 이 회차는 <b>완료 처리가 보류</b>됩니다.</>
+              : <>활성 건물 {facilityVerify.total}동 중 <b>{facilityVerify.unverified}동</b>의 소방시설이 미확인입니다.</>}
+          </span>
+          <Link href={`/inspections/${inspectionId}/facilities?from=/inspections/${inspectionId}/sheet`}
+            className="text-xs font-medium text-brand hover:underline shrink-0">1.4 입력하기</Link>
+          {canEdit && facilityVerify.soleBuildingId && (
+            <button onClick={confirmFacilities} disabled={busy} data-testid="sheet-entry-facility-verify"
+              title="설비 현황을 확인했습니다 — 설치된 설비가 없는 건물도 이 버튼으로 확인만 남깁니다"
+              className="h-7 px-2.5 rounded-lg border border-amber-400 bg-surface text-xs font-medium text-amber-800 hover:bg-amber-100 disabled:opacity-50 shrink-0">
+              확인했습니다
+            </button>
+          )}
         </div>
       )}
       {/* 편집 중 원격 저장 감지 — 자동 덮어쓰기 금지, 선택은 사용자가 한다(드로어와 같은 문구·같은 규약).

@@ -6,6 +6,7 @@ import { buildSheetOverviews } from '@/lib/sheet-overview'
 import { pickAutoOpenSheet } from '@/lib/inspection-step-links'
 import { sheetMatchesFacilities } from '@/lib/sheet-facility-map'
 import { SheetEntryClient } from '@/components/inspections/sheet-entry-client'
+import { facilityVerifyState } from '@/lib/facility-verify-gate'
 import { findPrevRoundSource } from '@/lib/prev-round-source'
 
 /** 점검표 입력 전용 화면 (소방계획서_28) — **입력의 정본**.
@@ -90,8 +91,25 @@ export default async function SheetEntryPage({
     : null
   const prevRoundLabel = prevSrc && prevSrc.responseCount > 0 ? prevSrc.label : null
 
+  /** 1.4 소방시설 확인 여부(소방계획서_49 §6) — 관문은 **경고만**이다(2026-09-11 사용자 확정).
+   *  막지 않는 이유: 점검표는 현장에서 쓰고 1.4는 사무실에서 정리하는 성격이라, 막으면
+   *  그 자리에서 할 수 없는 일을 요구받는다. 대신 ① 알리고 ② 대장이 응답을 따라잡고
+   *  ③ 완료를 보류한다(세 층).
+   *  ⚠ 판정식은 `lib/facility-verify-gate` 단일 원천 — 완료 보류와 **같은 술어**를 써야
+   *    「배너는 떴는데 완료는 됐다」가 안 생긴다. */
+  const { data: bldRaw } = await admin.from('buildings')
+    .select('id, facilities_verified_at').eq('customer_id', insp.customer_id).eq('is_active', true)
+  const bldRows = (bldRaw ?? []) as Array<{ id: string; facilities_verified_at: string | null }>
+  const facilityVerify = {
+    ...facilityVerifyState(bldRows),
+    // 「확인만 하기」가 쓸 대상 — 1동일 때만 한 번에 끝낼 수 있다(다동은 각 동을 1.4에서 확인)
+    soleBuildingId: bldRows.length === 1 ? bldRows[0].id : null,
+    customerId: insp.customer_id,
+  }
+
   return (
     <SheetEntryClient
+      facilityVerify={facilityVerify}
       inspectionId={id}
       customerName={insp.customers?.customer_name ?? '—'}
       roundLabel={`${insp.year}년 ${insp.sequence_num}차`}

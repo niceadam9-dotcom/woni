@@ -72,5 +72,22 @@ ok(/facilityVerifyState\(/.test(sync), '판정 재료를 순수 함수로 만든
 ok(/allActiveDone && insp\.status !== 'completed' && isSpecial/.test(sync),
   '🚨 완료 임박 + 자체점검일 때만 조회한다(비용 게이트)')
 
+console.log('\n── F. 경고 배너 배선 — 화면이 사유를 말하는가 ──')
+/* 🚨 서버가 막기만 하고 화면이 이유를 안 말하면 사용자는 「왜 완료가 안 되지」만 겪는다.
+   그리고 ⓑ의 함정 — 따라잡기는 `verified_at`을 일부러 안 찍으므로(§9-4) 경고가 **안 꺼진다**.
+   [확인했습니다]가 없으면 상시 켜진 경고가 되고, 상시 경고는 아무도 안 읽는다. */
+const ui = codeOnly(readFileSync(new URL('../src/components/inspections/sheet-entry-client.tsx', import.meta.url), 'utf8'))
+const pg = codeOnly(readFileSync(new URL('../src/app/(dashboard)/inspections/[id]/sheet/page.tsx', import.meta.url), 'utf8'))
+
+ok(/shouldWarnFacilitiesUnverified\(/.test(ui), '🎯 점검표 화면이 같은 판정 술어를 쓴다(배너와 보류가 안 갈린다)')
+ok(/sheet-entry-facility-unverified/.test(ui), '경고 배너가 있다')
+ok(/verifyFacilitiesAction\(/.test(ui), '🎯🚨 [확인했습니다]가 있다 — 없으면 경고가 영영 안 꺼진다')
+ok(/sheet-entry-facility-verify/.test(ui), '  · 그 버튼에 식별자가 있다')
+ok(/완료 처리가 보류/.test(ui), '🚨 배너가 **보류된다는 사실**을 말한다(막는데 안 알리면 이유를 못 찾는다)')
+ok(/facilities\/\?from=|facilities\?from=/.test(ui), '1.4로 가는 길을 준다')
+ok(/facilityVerifyState\(/.test(pg), '페이지가 판정 재료를 순수 함수로 만든다')
+ok(/soleBuildingId/.test(pg) && /soleBuildingId/.test(ui),
+  '🚨 다동은 여기서 한 번에 못 끝낸다 — 1동일 때만 [확인했습니다]를 준다')
+
 console.log(`\n${fail === 0 ? '✅' : '❌'} ${pass}/${pass + fail} 통과`)
 process.exit(fail === 0 ? 0 : 1)
