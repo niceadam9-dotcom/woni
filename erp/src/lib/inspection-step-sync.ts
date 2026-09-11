@@ -19,6 +19,9 @@ import { dismissInspectionDeadlineNotifications } from '@/lib/inspection-notify-
 import type { createAdminClient } from '@/lib/supabase/admin'
 import { isCertFileName, findArchivedCertInspections } from '@/lib/doc-status'
 import { countInstalledRequiredBlanks } from '@/lib/sheet-overview'
+import {
+  facilityVerifyState, shouldHoldForFacilitiesUnverified, type FacilityVerifyState,
+} from '@/lib/facility-verify-gate'
 import { fetchAllRows } from '@/lib/supabase/paginate'
 import {
   evidenceDone, activeStepNums, hasSheetDefect, isSelfInspection, resolveForcedSteps,
@@ -136,11 +139,20 @@ export async function applyStepSideEffects(
      *  (작동·종합 공통, §0). 판정은 호출자가 임박 시에만 계산해 넘긴다(allActiveDone과 같은 계약).
      *  null/미공급 = 보류 없음(구 호출부 호환). */
     holdCompletion?: { required: number; comp: number } | null
+    /** 49 §6 ③ 완료 보류 — 1.4 소방시설을 **한 번도 확인하지 않았으면**(활성 동 전부 미확인)
+     *  completed 전환을 미룬다. 위 `holdCompletion`과 **축이 다르다**: 대장이 비면 필수 집계의
+     *  분모가 0이라 그쪽은 `required: 0`을 내므로, 그 값으로는 이 상황을 표현할 수 없다.
+     *  ⚠ 실제로 `{ required: 0 }`을 넘겨 대신하려다 잡았다 — 아래 `hold`가 `required > 0`으로
+     *    판정해서 **조용히 보류가 안 걸렸을 것**이다. 사유가 다르면 축도 따로 둔다. */
+    holdFacilitiesUnverified?: boolean
   },
 ): Promise<{ justCompleted: boolean; completionHeld?: { required: number; comp: number } }> {
-  const { inspectionId, actorId, prevStatus, allActiveDone, newlyCompleted, completedAtIso, holdCompletion } = opts
+  const {
+    inspectionId, actorId, prevStatus, allActiveDone, newlyCompleted, completedAtIso,
+    holdCompletion, holdFacilitiesUnverified,
+  } = opts
 
-  const hold = !!holdCompletion && holdCompletion.required > 0
+  const hold = (!!holdCompletion && holdCompletion.required > 0) || !!holdFacilitiesUnverified
   const justCompleted = allActiveDone && !hold && prevStatus !== 'completed'
   if (allActiveDone) {
     if (hold) {
@@ -212,6 +224,9 @@ export async function syncInspectionSteps(
   changed: number; justCompleted?: boolean; error?: string
   /** 39 S3 — 완료 보류 사유(필수 미입력 항목 수·그중 ●). 있으면 status가 completed로 안 올라갔다 */
   completionHeld?: { required: number; comp: number }
+  /** 49 §6 ③ — 1.4 미확인으로 완료를 보류한 경우의 상태(활성 동 수·미확인 동 수).
+   *  `completionHeld`와 **따로** 내준다: 대장이 비면 필수 집계는 0이라 그쪽으로는 이 사유가 안 보인다 */
+  facilitiesHeld?: FacilityVerifyState
   /** 방금 모은 증거를 **그대로 돌려준다** — 화면(page.tsx)이 `loadStepEvidence`로 똑같은
    *  7~9회 왕복(점검표 응답 2·스토리지 list·송달·불량·활동로그·보관정리)을 **한 번 더** 하고
    *  있었다. 증거는 `inspection_steps`를 읽지 않으므로 동기화 전후로 값이 같다 —
@@ -288,10 +303,29 @@ export async function syncInspectionSteps(
   const holdCompletion = (allActiveDone && insp.status !== 'completed' && isSpecial)
     ? await countInstalledRequiredBlanks(admin, inspectionId)
     : null
+
+  /* 🚨 최후 방어(소방계획서_49 §6 ③) — 1.4를 **한 번도 확인하지 않았으면** ① 완료를 보류한다.
+     관문이 ⓑ경고만이라(2026-09-11 사용자 확정) 사용자가 경고를 지나칠 수 있고, 점검표를 전부
+     ／로만 채우면 대장 따라잡기도 안 돈다(／는 트리거가 아니다). 그러면 대장이 빈 채로 남아
+     **분모가 0**이 되고, 위 `countInstalledRequiredBlanks`를 포함한 안전장치가 동시에 침묵한다
+     — 즉 이 층이 없으면 그 회차는 아무 그물에도 안 걸린 채 `completed`로 박힌다.
+     ⚠ 비용 게이트는 위와 **같다**(완료 임박 + 자체점검). 매 저장마다 돌지 않는다.
+     ⚠ 판정은 `lib/facility-verify-gate` 단일 원천 — 경고 배너와 같은 술어를 써야
+       「배너는 떴는데 완료는 됐다」가 안 생긴다. */
+  let facilitiesHeld: FacilityVerifyState | null = null
+  if (allActiveDone && insp.status !== 'completed' && isSpecial) {
+    const { data: bldRaw } = await admin.from('buildings')
+      .select('facilities_verified_at').eq('customer_id', insp.customer_id).eq('is_active', true)
+    const state = facilityVerifyState((bldRaw ?? []) as Array<{ facilities_verified_at: string | null }>)
+    if (shouldHoldForFacilitiesUnverified(state)) facilitiesHeld = state
+  }
   const { justCompleted, completionHeld } = await applyStepSideEffects(admin, {
     inspectionId, actorId: actorId ?? '', prevStatus: insp.status,
-    allActiveDone, newlyCompleted, completedAtIso: now, holdCompletion,
+    allActiveDone, newlyCompleted, completedAtIso: now,
+    // 두 보류 사유는 **축이 다르다** — `holdCompletion`은 필수 미입력, 아래는 1.4 미확인.
+    // 대장이 비면 필수 집계 분모가 0이라 앞쪽은 `required: 0`을 내므로 서로를 대신하지 못한다.
+    holdCompletion, holdFacilitiesUnverified: !!facilitiesHeld,
   })
 
-  return { changed, justCompleted, completionHeld, evidence }
+  return { changed, justCompleted, completionHeld, facilitiesHeld: facilitiesHeld ?? undefined, evidence }
 }
