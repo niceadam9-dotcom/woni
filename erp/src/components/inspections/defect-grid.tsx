@@ -5,6 +5,7 @@ import { Camera, Check, Loader2 } from 'lucide-react'
 import {
   updateDefectActionAction, uploadDefectPhotoAction,
   getActionPeriodAction, setDefectCompletionAction, applyActionPeriodToPlansAction,
+  completeAllDefectsAction,
 } from '@/app/(dashboard)/inspections/defect-actions'
 // ⚠ 타입은 **원천에서** 가져온다 — `'use server'` 파일로 재수출하면 런타임에 값으로 방출된다
 //   (defect-actions.ts의 🚨 주석 참조: 화면 500까지 갔고 tsc는 0이었다)
@@ -130,6 +131,16 @@ export function DefectGrid({ defects, inspectionId, canEdit, mode, onSaved, onPh
   const rowOf = (d: GridDefect): Row => ({ ...toRow(d), ...edits[d.id] })
   const set = (id: string, patch: Partial<Row>) =>
     setEdits(prev => ({ ...prev, [id]: { ...prev[id], ...patch } }))
+  /** 여러 행을 **한 번에** 얹는다(⑥ 전건 완료). `set`을 루프로 부르면 안 된다 —
+   *  제어 모드의 `setEdits`는 함수형이 아니라 렌더가 잡은 `editsProp`에 얹으므로(:103-106)
+   *  N번 부르면 **마지막 한 행만 남는다**. 갱신을 한 번으로 모아 그 함정을 구조로 없앤다.
+   *  (직접 변이로 확인했다: 루프로 바꾸면 A=false·C=true로 마지막 행만 살아남는다.) */
+  const setMany = (patches: Record<string, Partial<Row>>) =>
+    setEdits(prev => {
+      const next = { ...prev }
+      for (const [id, patch] of Object.entries(patches)) next[id] = { ...next[id], ...patch }
+      return next
+    })
 
   /** ⚠ 집계는 **최신 edits**로 세야 한다. commit의 .then은 네트워크 왕복 뒤에 도는데
    *  그 클로저가 잡은 edits는 그 사이 다른 칸이 바뀌었으면 낡는다 — ref로 최신을 본다. */
@@ -161,7 +172,7 @@ export function DefectGrid({ defects, inspectionId, canEdit, mode, onSaved, onPh
    *  그걸 그대로 세면 나중에 **다른 행**이 성공 저장될 때 그 미저장 값이 집계에 섞여
    *  화면이 서버보다 앞선다. 그리고 서버 집계 문자열은 안 바뀌므로 부모의 폐기 effect도
    *  돌지 않아 **새로고침 때까지 어긋난 채 남는다** — 아래 trim 규칙과 같은 계열의 함정이다. */
-  const tallyWith = (overrideId: string, overrideRow: Row): DefectTally => {
+  const tallyWithMany = (overrides: Record<string, Row>): DefectTally => {
     let planned = 0, done = 0
     for (const d of defects) {
       const server = toRow(d)
@@ -178,9 +189,9 @@ export function DefectGrid({ defects, inspectionId, canEdit, mode, onSaved, onPh
        *  제목 2/2 vs 서버 planned=1). 서버 집계 문자열이 안 바뀌니 폐기 effect도 안 돌아
        *  **새로고침 때까지 남는다** — 아래 trim 규칙과 정확히 같은 계열의 함정이다.
        *  호출부가 이제 `base + 보낸 칸`만 넘기지만, 여기서도 값으로 한 번 더 판정한다. */
-      const overrideUsable = !dateRangeError(overrideRow.actionStart, overrideRow.actionEnd, '이행 기간')
-      const r = d.id === overrideId
-        ? (overrideUsable ? overrideRow : server)
+      const ov = overrides[d.id]
+      const r = ov
+        ? (!dateRangeError(ov.actionStart, ov.actionEnd, '이행 기간') ? ov : server)
         : (usable ? edited : server)
       // ⚠ trim은 서버와 맞추기 위한 것이다(독립 판정 지적). 서버는 `actionPlan?.trim() || null`로
       // 저장하므로(defect-actions.ts) 공백만 친 칸은 서버에서 null이 된다. 여기서 트림 없이 세면
@@ -191,6 +202,9 @@ export function DefectGrid({ defects, inspectionId, canEdit, mode, onSaved, onPh
     }
     return { planned, done, total: defects.length }
   }
+  /** 한 행짜리 얇은 껍데기 — 저장 한 건이 확정될 때마다 부르는 자리(commit·toggleDone)는 그대로 둔다 */
+  const tallyWith = (overrideId: string, overrideRow: Row): DefectTally =>
+    tallyWithMany({ [overrideId]: overrideRow })
 
   /** ⑥ 완료 체크 — 날짜는 **서버가 정한다**(총 이행기간 종료일 → 그 행의 계획 종료일 → 거절).
    *
@@ -245,6 +259,51 @@ export function DefectGrid({ defects, inspectionId, canEdit, mode, onSaved, onPh
       // 위 toggleDone과 같은 갈래 — 예외면 버튼이 영영 '적용 중'으로 잠긴다
       setBulk(false)
       setErr('이행기간 일괄 적용에 실패했습니다 — 잠시 후 다시 시도해 주세요.')
+    })
+  }
+
+  /** ⑥ 불량 조치 **전건 완료** — 체크를 불량 수만큼 누르던 자리를 한 번으로 (2026-09-11 사용자 결정).
+   *
+   *  날짜는 단건 체크와 **똑같이 서버가 정한다**(toggleDone 주석 참조) — 화면이 만들면 ④에서 기간을
+   *  고친 직후 낡은 값이 별지 11호에 인쇄된다. 그래서 돌려받은 **행별 날짜로** 편집분·기준선·집계를
+   *  맞춘다(F-28: '서버가 갖고 있다고 아는 값'을 갱신하지 않으면 다음 델타가 어긋난다).
+   *  ⚠ 스텝바 ⑤⑥ 배지는 서버 prop이라 로컬 미러로 못 따라간다 — 부모의 재조회가 받는다. */
+  function completeAll() {
+    setBulk(true)
+    setErr('')
+    setBulkMsg('')
+    void completeAllDefectsAction({ inspectionId }).then(res => {
+      setBulk(false)
+      if (res.error) { setErr(res.error); return }
+      const filled = res.done ?? []
+      const already = res.already ?? 0
+      const blocked = res.blocked ?? 0
+      if (filled.length > 0) {
+        const byId = new Map(defects.map(d => [d.id, d]))
+        const patches: Record<string, Partial<Row>> = {}
+        const overrides: Record<string, Row> = {}
+        for (const { id, completedAt } of filled) {
+          const d = byId.get(id)
+          if (!d) continue   // 화면에 없는 행(다른 세션이 그 사이 추가) — 부모 재조회가 받는다
+          patches[id] = { actionCompletedAt: completedAt }
+          const row: Row = { ...(knownRef.current[id] ?? toRow(d)), actionCompletedAt: completedAt }
+          knownRef.current[id] = row
+          overrides[id] = row
+        }
+        setMany(patches)   // ⚠ set을 루프로 부르면 마지막 한 행만 남는다(setMany 주석)
+        onSaved?.(tallyWithMany(overrides))
+      }
+      // 건수를 그대로 말한다 — 「전건 완료」라 적어 놓고 넘긴 건수를 삼키면 화면이 거짓말을 한다
+      setBulkMsg(filled.length === 0
+        ? `새로 완료할 불량이 없습니다 — ${already}건은 이미 완료 상태입니다.`
+        : `${filled.length}건을 완료 처리했습니다`
+          + (already > 0 ? ` · ${already}건은 이미 완료라 그대로 두었습니다` : '')
+          + (blocked > 0 ? ` · ${blocked}건은 기간이 없어 넘겼습니다` : '') + '.')
+      ;(onServerChanged ?? onPhotoDone)?.()
+    }).catch(() => {
+      // 위 toggleDone·applyPeriod와 같은 갈래 — 예외면 버튼이 영영 '완료 중'으로 잠긴다
+      setBulk(false)
+      setErr('전건 완료에 실패했습니다 — 잠시 후 다시 시도해 주세요.')
     })
   }
 
@@ -349,8 +408,20 @@ export function DefectGrid({ defects, inspectionId, canEdit, mode, onSaved, onPh
             {bulk && <Loader2 className="size-2.5 animate-spin text-brand" />} 빈 칸에 일괄 적용
           </button>
         )}
+        {/* ⑥의 **형제 자리** — ⑤가 계획을 한 번에 채우듯 ⑥은 완료를 한 번에 찍는다(2026-09-11).
+            기간이 없으면 그리지 않는다: 그때는 서버가 어차피 거절하고, 왼쪽 안내가 무엇을 먼저
+            해야 하는지 이미 말한다(버튼이 있는데 늘 실패하면 그게 더 나쁘다). */}
+        {mode === 'complete' && canEdit && period && (
+          <button type="button" onClick={completeAll} disabled={bulk} data-testid="complete-all-defects"
+            title="아직 완료되지 않은 불량을 총 이행기간 종료일로 한 번에 완료 처리합니다 — 이미 완료된 행은 건드리지 않습니다"
+            className="inline-flex items-center gap-1 h-6 px-2 rounded border border-brand-line text-form-2xs text-ink-sub hover:bg-brand-tint disabled:opacity-50">
+            {bulk && <Loader2 className="size-2.5 animate-spin text-brand" />} 전건 완료
+          </button>
+        )}
       </div>
-      {bulkMsg && <p className="px-1 text-form-2xs text-green-600" data-testid="apply-period-result">{bulkMsg}</p>}
+      {/* ⑤·⑥이 같은 칸을 쓰지만 **뜻이 다르다** — 이름이 한쪽만 말하면 다음 사람이 축을 혼동한다 */}
+      {bulkMsg && <p className="px-1 text-form-2xs text-green-600"
+        data-testid={mode === 'plan' ? 'apply-period-result' : 'complete-all-result'}>{bulkMsg}</p>}
       <table className="w-full table-fixed border-collapse text-form-xs" data-testid="defect-grid">
         <thead>
           <tr className="text-left text-form-2xs text-ink-soft">

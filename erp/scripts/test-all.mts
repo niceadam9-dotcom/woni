@@ -154,6 +154,11 @@ const steps: Step[] = [
   // 프로브가 제품 결함을 하나 잡았다: 제어 컴포넌트라 **누른 직후 체크가 그대로 풀렸다**(날짜를
   // 서버가 정하므로 왕복 전에는 화면에 값이 없다) — 낙관 반영으로 고쳤고 그 회귀를 여기서 막는다.
   { name: '⑥ 완료 체크·⑤ 일괄(E2E)',    cmd: 'npx tsx scripts/test-defect-completion-checkbox.mts', needServer: true },
+  // ⑥ 불량 조치 **전건 완료**(2026-09-11) — 위 스위트의 단순 반복이 아니라 **다중 행** 축이다.
+  // 등재 이유: 한 번의 왕복이 여러 행을 바꾸는데, 제어 컴포넌트의 편집분은 **한 번의 갱신**으로
+  // 얹어야 한다. 행마다 set()을 부르면 마지막 한 행만 남아 **DB는 초록인데 화면만 틀리다** —
+  // 직접 변이로 확인했다: 그때 집계(3/3)는 **그대로 초록**이었고 행 단위 체크 단언만이 잡았다.
+  { name: '⑥ 불량 전건 완료(E2E)',      cmd: 'npx tsx scripts/test-defect-complete-all.mts', needServer: true },
   // S4-1 — 저장 속도 회귀 예산. 임의 상수가 아니라 S1 대조군 관측 최댓값(21,918ms)×0.5다.
   // ⚠ 연속 2셀을 잰다: 종전 결함은 셀마다 **누적**되는 종류라 1회만 재면 못 잡는다(F-11).
   { name: '작업대 저장 예산(E2E)',       cmd: 'npx tsx scripts/test-workbench-save-budget.mts', needServer: true },

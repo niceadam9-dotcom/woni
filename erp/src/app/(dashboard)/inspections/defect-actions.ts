@@ -275,6 +275,67 @@ export async function setDefectCompletionAction(input: {
   return { completedAt }
 }
 
+/** ⑥ 불량 조치 **전건 완료** — 체크를 N번 누르던 자리를 한 번으로 (2026-09-11 사용자 결정).
+ *
+ *  ⚠ 날짜를 여기서 **다시 짓지 않는다.** 행마다 `setDefectCompletionAction`과 **같은 사다리**를
+ *    태운다(`completionDateFrom` = 총 이행기간 종료일 → 그 행의 계획 종료일 → 없음). 여기 규칙을
+ *    베껴 적으면 단건 체크와 일괄이 같은 회차에 **서로 다른 날짜**를 찍고, 그건 별지 11호
+ *    「이행조치 일자」에 인쇄된 뒤에야 보인다.
+ *  ⚠ **이미 완료된 행은 덮지 않는다**(setDefectCompletionAction의 같은 규약) — 손으로 적은 실제
+ *    조치일이 파생값보다 정확하다. 건드리지 않은 건수(`already`)를 돌려주는 것은 화면이 그것을
+ *    말해야 하기 때문이다(직접 변이로 확인했다: 이 필터를 빼면 손입력 날짜가 조용히 덮인다).
+ *  ⚠ **날짜를 못 만든 행을 조용히 넘기지 않는다.** 버튼 이름이 「전건」이라, 넘긴 건수(`blocked`)를
+ *    말하지 않으면 다 끝난 것으로 읽힌다. 한 건도 못 했으면 아예 거절한다(단건 체크와 같은 문구).
+ *  ⚠ UI는 기간이 있을 때만 이 버튼을 그리지만 여기서 그 전제에 기대지 않는다 —
+ *    'use server' export는 그 자체가 공개 엔드포인트다. */
+export async function completeAllDefectsAction(input: {
+  inspectionId: string
+}): Promise<{
+  error?: string
+  /** 이번에 완료로 바뀐 행 — 화면이 **서버가 정한 날짜**로 체크·집계를 맞추는 데 쓴다 */
+  done?: Array<{ id: string; completedAt: string }>
+  already?: number
+  blocked?: number
+}> {
+  const user = await requirePermission('inspection_register')
+  const admin = createAdminClient()
+
+  const { data, error: listErr } = await admin
+    .from('inspection_defects').select('id, action_end, action_completed_at').eq('inspection_id', input.inspectionId)
+  if (listErr) return { error: '불량 목록을 불러오지 못했습니다.' }
+  const rows = (data ?? []) as Array<{ id: string; action_end: string | null; action_completed_at: string | null }>
+
+  const period = await loadActionPeriod(admin, input.inspectionId)
+  const already = rows.filter(r => r.action_completed_at).length
+
+  const done: Array<{ id: string; completedAt: string }> = []
+  let blocked = 0
+  for (const r of rows.filter(r => !r.action_completed_at)) {
+    const at = completionDateFrom(period?.endISO, r.action_end)
+    if (at) done.push({ id: r.id, completedAt: at })
+    else blocked++
+  }
+  // 한 건도 못 하는데 못 할 행만 남았다 — 단건 체크와 **같은 문구**로 무엇을 먼저 할지 말한다
+  if (done.length === 0 && blocked > 0) {
+    return { error: '총 이행기간이 아직 없습니다 — ④ 소방서 제출의 「총 이행기간」을 먼저 정해 주세요.' }
+  }
+
+  // 기간이 있으면 전 행이 같은 날짜지만, 없는 회차는 행마다 자기 계획 종료일로 내려가 갈린다 —
+  // 같은 날짜끼리 묶어 쓴다. 100개씩 끊는 것은 `.in()`이 URL 길이로 400을 내는 자리이기 때문이다.
+  const byDate = new Map<string, string[]>()
+  for (const d of done) byDate.set(d.completedAt, [...(byDate.get(d.completedAt) ?? []), d.id])
+  for (const [at, ids] of byDate) {
+    for (let i = 0; i < ids.length; i += 100) {
+      const { error } = await admin
+        .from('inspection_defects').update({ action_completed_at: at }).in('id', ids.slice(i, i + 100))
+      if (error) return { error: '조치 완료 저장에 실패했습니다.' }
+    }
+  }
+  // 여러 행 + ⑤⑥ 전이 — 목록 진행률까지 바뀐다(applyActionPeriodToPlansAction과 같은 이유)
+  await syncStepsAndRevalidate(admin, input.inspectionId, user.id, { alsoChanged: true })
+  return { done, already, blocked }
+}
+
 /** ⑤ 이행계획 — 총 이행기간을 불량들의 계획 기간에 **빈 칸만** 채운다(2026-09-10 사용자 결정).
  *
  *  ⚠ **값이 있는 행은 건너뛴다.** 한 번의 클릭이 손으로 정한 개별 일정을 지우면 되돌릴 방법이 없다.
