@@ -70,42 +70,19 @@ try {
   const BAD_START = kstShift(3), BAD_END = kstShift(1)
   const GOOD_START = kstShift(1), GOOD_END = kstShift(3)
 
-  // ① 작업대 ⑤ 불량 표에서 뒤집힌 기간 입력 → 저장 안 됨 + 오류 노출
-  const startBox = page.getByLabel('유도등 불량 계획 시작일')
-  const endBox = page.getByLabel('유도등 불량 계획 종료일')
-  await startBox.waitFor({ state: 'visible', timeout: 25000 })
-  await startBox.fill(BAD_START)
-  await page.waitForTimeout(800)
-  await endBox.fill(BAD_END)
-  await page.waitForTimeout(2000)
-
-  const shownErr = await page.getByText('종료일이 시작일보다 빠를 수 없습니다').count()
-  check('작업대 표 — 뒤집힌 기간에 오류 문구가 뜬다', shownErr > 0)
-  check('종료일 칸이 오류 표시(aria-invalid)', await endBox.getAttribute('aria-invalid') === 'true')
-
-  const { data: afterBad } = await raw.from('inspection_defects')
-    .select('action_start, action_end').eq('id', defectId).single()
-  const ab = afterBad as { action_start: string | null; action_end: string | null }
-  check('★ 뒤집힌 기간이 DB에 저장되지 않았다', ab.action_end !== BAD_END || ab.action_start !== BAD_START,
-    `start=${ab.action_start} end=${ab.action_end}`)
-
-  // ② 정상 순서로 고치면 저장된다 — 막기만 하고 못 쓰게 되면 안 된다.
-  //    이 표는 저장 성공 시 router.refresh()로 재렌더되므로 고정 대기가 아니라 DB를 폴링한다
-  //    (고정 대기는 RSC 커밋 타이밍에 따라 흔들린다 — project_e2e_flake_patterns).
-  await startBox.fill(GOOD_START)
-  await page.waitForTimeout(1200)
-  await endBox.fill(GOOD_END)
-  let ag: { action_start: string | null; action_end: string | null } = { action_start: null, action_end: null }
-  for (let i = 0; i < 20; i++) {
-    const { data } = await raw.from('inspection_defects')
-      .select('action_start, action_end').eq('id', defectId).single()
-    ag = data as typeof ag
-    if (ag.action_start === GOOD_START && ag.action_end === GOOD_END) break
-    await new Promise(r => setTimeout(r, 700))
-  }
-  check('정상 순서는 그대로 저장된다', ag.action_start === GOOD_START && ag.action_end === GOOD_END,
-    `start=${ag.action_start} end=${ag.action_end}`)
-  check('오류 문구가 사라진다', await page.getByText('종료일이 시작일보다 빠를 수 없습니다').count() === 0)
+  /* ① 작업대 ⑤ — 2026-09-11 계약 반전: 불량별 계획 기간 입력이 **폐지됐다**(기간은 ④ 총
+     이행기간 하나 — 중복 입력이었다). 종전에는 여기서 뒤집힌 기간을 쳐서 선차단을 확인했는데,
+     칠 칸이 사라졌으므로 「칸이 없다」가 새 계약이다. 뒤집힘 방어 자체는 죽지 않았다 —
+     서버 방어(아래 ③)와 서버 저장 검사(defect-actions dateRangeError)가 최종 방어선으로 남는다. */
+  await page.getByTestId('defect-grid').waitFor({ state: 'visible', timeout: 25000 })
+  check('★ (음성) ⑤에 불량별 계획 시작일 입력이 없다',
+    (await page.getByLabel('유도등 불량 계획 시작일').count()) === 0)
+  check('★ (음성) ⑤에 불량별 계획 종료일 입력이 없다',
+    (await page.getByLabel('유도등 불량 계획 종료일').count()) === 0)
+  // 공허 통과 방지 — 화면 자체가 안 떴으면 위 0건은 아무 증명도 아니다
+  check('⑤ 표가 실제로 떠 있다(조치 계획 칸 존재)',
+    (await page.getByLabel('유도등 불량 조치 계획').count()) === 1)
+  void BAD_START; void BAD_END; void GOOD_START; void GOOD_END
 
   // ③ 서버 방어 배선 — 화면 검사만으로는 부족하다. 'use server' export는 그 자체로 공개
   //    엔드포인트라, 화면을 우회한 요청은 액션의 검사에만 걸린다. 브라우저에서 액션을 직접
@@ -114,7 +91,9 @@ try {
   const code = (p: string) => readFileSync(new URL(`../src/${p}`, import.meta.url), 'utf8')
     .replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')
   const GUARDS: Array<[string, string, RegExp]> = [
-    ['불량 이행기간', 'app/(dashboard)/inspections/defect-actions.ts', /dateRangeError\(input\.actionStart, input\.actionEnd/],
+    // ⚠ 가드가 「보낸 칸 + DB의 나머지 칸」을 **병합해** 판정한다(부분 전송 F-27과 한 벌) —
+    //   `input.` 직접 인자를 찾는 옛 정규식은 그 병합판을 못 알아봐 거짓 빨강을 냈다.
+    ['불량 이행기간', 'app/(dashboard)/inspections/defect-actions.ts', /dateRangeError\(start, end, '이행 기간'\)/],
     ['별지 서식 기간', 'app/(dashboard)/customers/facility-spec-actions.ts', /combinedRangeError\(v, key\)/],
     ['보험 가입기간', 'app/(dashboard)/customers/fire-plan-info-actions.ts', /combinedRangeError\(input\.insurancePeriod/],
     ['발주 입고예정일', 'app/(dashboard)/purchase-orders/actions.ts', /dateRangeError\(input\.order_date, input\.expected_date/],
@@ -124,33 +103,19 @@ try {
     check(`서버 방어 — ${name}`, re.test(code(file)))
   }
 
-  // ④ 사용자가 실제로 보고한 자리 — ① 불량 카드(작업대 표와 다른 컴포넌트)
-  console.log('— 3부 불량 카드(사용자 보고 화면)')
-  await raw.from('inspection_defects').update({ action_start: null, action_end: null }).eq('id', defectId)
+  // ④ ① 불량 카드 — 여기 「이행 기간」 짝도 같은 날 폐지됐다(같은 중복). 음성으로 갈아끼운다.
+  console.log('— 3부 불량 카드(입력 폐지 확인)')
   await page.goto(`${BASE}/inspections/${inspId}?step=1`)
   await page.waitForLoadState('networkidle')
   const toggle = page.getByText('이행계획·조치 완료').first()
   await toggle.waitFor({ state: 'visible', timeout: 25000 })
   await toggle.click()
   await page.waitForTimeout(1000)
-  // '이행 기간' 라벨의 형제 두 칸만 — 같은 페이지에 다일기간·조치완료일 등 다른 날짜칸이 있다
-  const cardBoxes = page.getByText('이행 기간', { exact: true }).locator('xpath=..')
-    .locator('input[placeholder="YYYY-MM-DD"]')
-  await cardBoxes.nth(0).fill(BAD_START)
-  await page.waitForTimeout(400)
-  await cardBoxes.nth(1).fill(BAD_END)
-  await page.waitForTimeout(1000)
-  check('불량 카드 — 뒤집힘 오류 노출',
-    await page.locator('[data-testid="defect-range-error"]').count() > 0)
-  // 같은 카드 안의 [저장]만 — 페이지에는 점검표 등 다른 [저장]도 있다
-  const cardSave = page.locator('[data-testid="defect-range-error"]')
-    .locator('xpath=ancestor::div[1]').getByRole('button', { name: '저장', exact: true }).first()
-  check('불량 카드 — [저장] 버튼이 잠긴다', await cardSave.isDisabled())
-  const { data: stillNull } = await raw.from('inspection_defects')
-    .select('action_start, action_end').eq('id', defectId).single()
-  const sn = stillNull as { action_start: string | null; action_end: string | null }
-  check('불량 카드 — DB에 그대로 반영되지 않았다', !sn.action_start && !sn.action_end,
-    `start=${sn.action_start} end=${sn.action_end}`)
+  check('★ (음성) ① 카드에 「이행 기간」 입력 짝이 없다',
+    (await page.getByText('이행 기간', { exact: true }).count()) === 0)
+  // 공허 통과 방지 — 카드가 실제로 펴져 있어야 위 0건이 증명이 된다
+  check('① 카드가 실제로 펴져 있다(조치 완료 체크 존재)',
+    (await page.getByLabel('유도등 불량 조치 완료').count()) === 1)
 } finally {
   if (browser) await browser.close()
   if (inspId) {

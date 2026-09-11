@@ -82,7 +82,8 @@ let idA = '', idB = '', idC = '', idD = '', idE = '', idF = ''
  *  말해 그 사실이 안 남는다 — 실제로 기준선 실행 1회가 17 중 8만 돌고도 그렇게 보고됐다
  *  (4차 판정 H-5). 마지막에 총수를 못박아 조용한 축소를 붉게 만든다. */
 let ran = 0
-const EXPECTED = 39
+// 2026-09-11 39→36 — ⑤ 계획 기간 입력 폐지로 7-0a/b가 7-0 하나로, 9축이 5→3개로 줄었다
+const EXPECTED = 36
 // @ts-expect-error mjs 헬퍼 시그니처
 const ck = (name: string, ok: boolean, detail = '') => { ran++; check(name, ok, detail) }
 let browser: Awaited<ReturnType<typeof launch>>['browser'] | null = null
@@ -356,35 +357,27 @@ try {
     await staysFor(DD, D_IN_CARD, 'action_taken', 9000),
     `DB='${await dbCol(DD, 'action_taken')}' / 기대='${D_IN_CARD}'`)
 
-  /* ── ★ 7축 — 4차 판정이 라이브로 잡은 제품 결함 2건을 상시 검사로 못박는다.
-     ⓐ ⑤에서 **뒤집힌 이행 기간**을 치면 저장이 차단되는데 그 값이 편집 버퍼에 남는다.
-        ⑤·⑥이 버퍼를 공유하므로 ⑥의 저장이 통째로 막혔다(⑥엔 그 칸이 없는데 그 오류가 떴다).
+  /* ── ★ 7축 — 4차 판정이 라이브로 잡은 제품 결함의 상시 검사.
+     ⓐ(⑤의 뒤집힌 기간이 공유 버퍼에 남아 ⑥ 저장을 막던 결함)는 **2026-09-11 검사 대상이
+       사라졌다** — ⑤의 계획 기간 입력 자체가 폐지됐다(기간은 ④ 총 이행기간 하나). 뒤집힌
+       기간을 만들 창구가 없으니 그 시나리오는 구조적으로 불가능하고, 여기서는 그 구조
+       (**칸이 정말 없는가**)를 음성으로 못박는다. ⑥ 부분 전송 자체는 6축·8축이 계속 지킨다.
      ⓑ ⑤에서 저장한 뒤 갱신 도착 **전에** ① 카드의 [저장]만 눌러도 그 값이 지워졌다. */
   await toStep(4).click()
-  const eStart = page.getByLabel(`${DE} 계획 시작일`)
-  const eEnd = page.getByLabel(`${DE} 계획 종료일`)
-  await eStart.waitFor({ state: 'visible' })
-  await eStart.fill('2026-09-20')
-  await eEnd.fill('2026-09-10')   // 뒤집힌 기간 — 저장은 차단되고 편집분만 남는다
-  await eEnd.blur()
-  /** ⚠ **모집단 단언**(5차 판정 지적) — 종전엔 "⑤에서 차단됐고 그 값이 공유 버퍼에 남았다"를
-   *  아무도 확인하지 않아, ⑤ 차단이 구조적으로 사라진 절제에서도 7-1이 초록이었다.
-   *  ⓐ DB에 안 실렸고 ⓑ 화면엔 그 값이 남아 있다 — 둘 다 봐야 '버퍼에 남았다'가 성립한다. */
-  await page.waitForTimeout(2000)
-  ck('7-0a [모집단] 뒤집힌 기간은 DB에 안 실렸다',
-    (await dbCol(DE, 'action_end')) === null, `end='${await dbCol(DE, 'action_end')}'`)
-  ck('7-0b [모집단] 그런데 화면(편집분)에는 남아 있다',
-    (await eEnd.inputValue()) === '2026-09-10', `⑤ 종료일='${await eEnd.inputValue()}'`)
+  await page.getByLabel(`${DE} 조치 계획`).waitFor({ state: 'visible' })
+  ck('★ 7-0 (음성) ⑤에 불량별 계획 기간 입력이 없다',
+    (await page.getByLabel(`${DE} 계획 시작일`).count()) === 0
+    && (await page.getByLabel(`${DE} 계획 종료일`).count()) === 0)
 
   await toStep(5).click()
   const eTaken = page.getByLabel(`${DE} 조치 내용`)
   await eTaken.waitFor({ state: 'visible' })
   await eTaken.fill('E 조치 완료')
   await eTaken.blur()
-  ck('★ 7-1 ⑤의 뒤집힌 기간이 ⑥의 조치 내용 저장을 막지 않는다',
+  ck('★ 7-1 ⑥ 조치 내용 저장이 막히지 않는다',
     await waitCol(DE, 'E 조치 완료', 'action_taken'),
     `DB action_taken='${await dbCol(DE, 'action_taken')}'`)
-  ck('★ 7-2 ⑥ 화면에 "이행 기간" 오류가 뜨지 않는다(⑥엔 그 칸이 없다)',
+  ck('★ 7-2 ⑥ 화면에 "이행 기간" 오류가 뜨지 않는다(그 칸 자체가 없다)',
     (await page.getByText('이행 기간').count()) === 0,
     `오류 표시 ${await page.getByText('이행 기간').count()}개`)
 
@@ -409,32 +402,24 @@ try {
     await staysFor(DF, 'F 계획 표에서 저장', 'action_plan', 9000),
     `DB='${await dbPlan(DF)}' / 기대='F 계획 표에서 저장'`)
 
-  /* ── ★ 9축 — **날짜 즉시저장**과 **지우기**. 5차 판정이 절제로 실증한 공백이다:
-     `OWNED.plan`을 `['actionPlan']`로 줄여 **⑤의 계획 기간 저장을 통째로 죽여도 32/0 초록**이었다.
-     32단언이 5칸 중 3칸만 지키고 `action_start`/`action_end`의 **저장 경로는 한 칸도** 안 봤다.
-     날짜는 텍스트와 경로가 다르다 — `setDate`가 blur가 아니라 **고르는 즉시** commit한다.
-     '값→빈(지우기)'도 5칸×3표면이 전부 비어 있었다(`row[k] || null`이 유일한 지우기 경로). */
+  /* ── ★ 9축 — **지우기**(값→빈 → DB null, `row[k] || null` 경로).
+     종전 이 축은 계획 기간 날짜의 즉시저장·지우기를 지켰는데(5차 판정이 절제로 실증한 공백),
+     2026-09-11 ⑤의 날짜 입력이 **폐지**되며 검사 대상이 사라졌다 — ⑤에 남은 소유 칸은
+     `actionPlan` 하나이고(OWNED.plan), 지우기 경로는 그 칸으로 계속 지킨다.
+     ⑥ 완료일의 즉시저장(setDate)은 「날짜 수정」 접이식으로 살아 있어 그쪽 검사가 본다. */
   await toStep(4).click()
-  const hStart = page.getByLabel(`${DF} 계획 시작일`)
-  const hEnd = page.getByLabel(`${DF} 계획 종료일`)
-  await hStart.waitFor({ state: 'visible' })
-  ck('9-0 [모집단] F의 계획 기간은 비어 있다', (await hStart.inputValue()) === '' && (await hEnd.inputValue()) === '')
-
-  await hStart.fill('2026-10-01')
-  await hEnd.fill('2026-10-31')
-  await hEnd.blur()
-  ck('★ 9-1 날짜 즉시저장 — 계획 시작일이 DB에 실린다',
-    await waitCol(DF, '2026-10-01', 'action_start'), `start='${await dbCol(DF, 'action_start')}'`)
-  ck('★ 9-2 날짜 즉시저장 — 계획 종료일이 DB에 실린다',
-    await waitCol(DF, '2026-10-31', 'action_end'), `end='${await dbCol(DF, 'action_end')}'`)
+  const hPlan = page.getByLabel(`${DF} 조치 계획`)
+  await hPlan.waitFor({ state: 'visible' })
+  ck('9-0 (음성) ⑤ 어느 행에도 날짜 입력이 없다',
+    (await page.locator('[data-defect-row] input[placeholder="YYYY-MM-DD"]').count()) === 0)
+  ck('9-1 [모집단] F의 계획에 값이 있다(7-3에서 저장) — 지우기 실험이 성립한다',
+    (await dbPlan(DF)) === 'F 계획 표에서 저장', `plan='${await dbPlan(DF)}'`)
 
   // ★ 지우기 — 값이 있던 칸을 비우면 DB도 비어야 한다(`|| null` 경로)
-  await hEnd.fill('')
-  await hEnd.blur()
-  ck('★ 9-3 값→빈(지우기)이 DB에 반영된다',
-    await waitNull(DF, 'action_end'), `end='${await dbCol(DF, 'action_end')}' (null이어야 한다)`)
-  ck('9-4 지우기가 이웃 칸을 건드리지 않았다',
-    (await dbCol(DF, 'action_start')) === '2026-10-01', `start='${await dbCol(DF, 'action_start')}'`)
+  await hPlan.fill('')
+  await hPlan.blur()
+  ck('★ 9-2 값→빈(지우기)이 DB에 반영된다',
+    await waitNull(DF, 'action_plan'), `plan='${await dbPlan(DF)}' (null이어야 한다)`)
 
   /* ── ★ 8축 — **서버 계층**. 클라이언트를 부분 전송으로 고친 것만으로는 서버의
      '항상 덮어쓰기'가 드러나지 않는다(안 보낸 칸이 없으니 덮을 일이 없다). ⑤에서 계획만

@@ -110,21 +110,22 @@ try {
   await page.waitForSelector('iframe[title="별지 10호 미리보기"]', { timeout: 60000 })
   const planCell = page.locator(`[data-defect-row="${defectId}"] textarea`).first()
   await planCell.fill('E2E 이행계획 — 밸브 교체')
-  await page.locator(`[data-defect-row="${defectId}"] input[placeholder="YYYY-MM-DD"]`).first().fill(kstShift(1))
   await page.click('text=이행계획')  // blur
   await page.waitForSelector(`[data-defect-row="${defectId}"] >> text=저장됨`, { timeout: 30000 })
 
-  // 칸마다 저장이 따로 날아간다 — 마지막 칸의 왕복까지 기다린다
-  let dRow: { action_plan?: string; action_start?: string } | null = null
+  let dRow: { action_plan?: string } | null = null
   for (let i = 0; i < 20; i++) {
     const { data } = await raw.from('inspection_defects')
-      .select('action_plan, action_start').eq('id', defectId).maybeSingle()
+      .select('action_plan').eq('id', defectId).maybeSingle()
     dRow = data as typeof dRow
-    if (dRow?.action_plan && dRow?.action_start) break
+    if (dRow?.action_plan) break
     await new Promise(r => setTimeout(r, 500))
   }
   check('표 편집 저장 — action_plan DB 반영', dRow?.action_plan === 'E2E 이행계획 — 밸브 교체', JSON.stringify(dRow))
-  check('표 편집 저장 — 계획 시작일 DB 반영', dRow?.action_start === kstShift(1), JSON.stringify(dRow))
+  // 2026-09-11 계약 반전 — ⑤ 불량별 계획 기간 입력은 폐지됐다(기간은 ④ 총 이행기간 하나).
+  // 종전 「계획 시작일 DB 반영」 양성 단언을 음성으로 갈아끼운다.
+  check('(음성) ⑤ 행에 날짜 입력칸이 없다',
+    (await page.locator(`[data-defect-row="${defectId}"] input[placeholder="YYYY-MM-DD"]`).count()) === 0)
 
   // 미리보기는 디바운스 후 다시 그려진다 — 내용에 방금 넣은 계획이 실려야 한다
   const previewHasPlan = await page.waitForFunction(`(() => {

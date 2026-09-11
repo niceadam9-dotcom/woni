@@ -4,14 +4,14 @@ import { useEffect, useRef, useState, useTransition } from 'react'
 import { Camera, Check, Loader2 } from 'lucide-react'
 import {
   updateDefectActionAction, uploadDefectPhotoAction,
-  getActionPeriodAction, setDefectCompletionAction, applyActionPeriodToPlansAction,
+  getActionPeriodAction, setDefectCompletionAction,
   completeAllDefectsAction,
 } from '@/app/(dashboard)/inspections/defect-actions'
 // ⚠ 타입은 **원천에서** 가져온다 — `'use server'` 파일로 재수출하면 런타임에 값으로 방출된다
 //   (defect-actions.ts의 🚨 주석 참조: 화면 500까지 갔고 tsc는 0이었다)
 import type { ActionPeriod } from '@/lib/annex-total-period'
 import { DateInput } from '@/components/ui/date-input'
-import { dateRangeError, isEndBeforeStart } from '@/lib/date-range'
+import { dateRangeError } from '@/lib/date-range'
 
 /** 불량 표 편집 (소방계획서_21 R6-7) — 불량마다 폼을 펼치지 않고 한 표에서 고친다.
  *  행 = 불량 1건, 칸 = 계획 내용 · 계획 기간 · 완료 내용 · 완료 · 전/후 사진.
@@ -19,9 +19,16 @@ import { dateRangeError, isEndBeforeStart } from '@/lib/date-range'
  *  원본 액션은 불량 카드(inspection-defects-client)와 같은 것을 쓴다 — 저장 경로는 하나다.
  *
  *  📌 **날짜는 총 이행기간에서 파생된다**(2026-09-10 사용자 결정). ⑥의 완료일은 손으로 치지 않고
- *     체크 한 번으로 기간 종료일이 들어가며, ⑤의 계획 기간은 [빈 칸에 일괄 적용]이 채운다.
+ *     체크 한 번으로 기간 종료일이 들어간다.
  *     ⚠ 파생 규칙 자체는 **서버에 있다**(defect-actions `loadActionPeriod`) — 여기서 날짜를 만들면
- *     ④에서 기간을 고친 직후 낡은 값이 제출 문서에 인쇄된다(아래 F-21 주석과 같은 계열의 함정). */
+ *     ④에서 기간을 고친 직후 낡은 값이 제출 문서에 인쇄된다(아래 F-21 주석과 같은 계열의 함정).
+ *
+ *  🚨 2026-09-11 — **⑤의 「계획 기간」 입력 열과 [빈 칸에 일괄 적용]을 없앴다**(사용자 지시:
+ *     계획 기간 = 총 이행기간이라 중복이다). 불량별 기간은 이제 어디서도 입력하지 않는다 —
+ *     기간은 ④ 별지 10호의 「총 이행기간」 하나뿐이고, 문서(별지 10호)도 그 한 줄만 인쇄한다.
+ *     ⚠ `action_start`·`action_end` **컬럼은 남는다** — 과거 회차의 값이 실려 있고,
+ *       ⑥ 완료일 폴백(기간 없으면 그 행의 계획 종료일)과 planned 집계가 그 값을 **읽기만** 한다.
+ *       여기서 새로 쓰는 경로만 없앤 것이다(두 자리에서 고치면 어느 쪽이 참인지 사라진다). */
 
 export type GridDefect = {
   id: string
@@ -238,30 +245,6 @@ export function DefectGrid({ defects, inspectionId, canEdit, mode, onSaved, onPh
     })
   }
 
-  /** ⑤ 계획 기간 일괄 적용 — **빈 칸만** 채운다(서버가 판정한다).
-   *  건너뛴 건수를 그대로 말한다: 「전건 적용됨」으로 읽히면 손으로 정한 일정이 덮인 줄 모른다. */
-  function applyPeriod() {
-    setBulk(true)
-    setErr('')
-    setBulkMsg('')
-    void applyActionPeriodToPlansAction({ inspectionId }).then(res => {
-      setBulk(false)
-      if (res.error) { setErr(res.error); return }
-      if (res.period) setPeriod(res.period)
-      const filled = res.filled ?? 0
-      const skipped = res.skipped ?? 0
-      setBulkMsg(filled === 0
-        ? `채울 빈 칸이 없습니다 — ${skipped}건은 이미 기간이 있어 그대로 두었습니다.`
-        : `${filled}건에 기간을 채웠습니다${skipped > 0 ? ` · ${skipped}건은 이미 값이 있어 건너뛰었습니다` : ''}.`)
-      // 서버가 여러 행을 바꿨다 — 편집분·기준선을 믿을 수 없으니 부모가 서버에서 다시 읽게 한다
-      ;(onServerChanged ?? onPhotoDone)?.()
-    }).catch(() => {
-      // 위 toggleDone과 같은 갈래 — 예외면 버튼이 영영 '적용 중'으로 잠긴다
-      setBulk(false)
-      setErr('이행기간 일괄 적용에 실패했습니다 — 잠시 후 다시 시도해 주세요.')
-    })
-  }
-
   /** ⑥ 불량 조치 **전건 완료** — 체크를 불량 수만큼 누르던 자리를 한 번으로 (2026-09-11 사용자 결정).
    *
    *  날짜는 단건 체크와 **똑같이 서버가 정한다**(toggleDone 주석 참조) — 화면이 만들면 ④에서 기간을
@@ -321,8 +304,10 @@ export function DefectGrid({ defects, inspectionId, canEdit, mode, onSaved, onPh
    *  ⑤·⑥이 **공유**하게 된 뒤로, ⑤에서 친 뒤집힌 이행 기간이 편집분에 남아
    *  **⑥의 저장을 통째로 막았다** — ⑥엔 그 칸이 없는데 그 칸의 오류가 떴다(독립 판정 실측:
    *  완료일·조치내용이 `null`로 남고 화면엔 '이행 기간' 오류). 안 그리는 칸은 안 보낸다. */
+  /* ⚠ ⑤의 actionStart·actionEnd는 2026-09-11 입력 열 제거와 함께 소유 목록에서도 뺐다 —
+   *    입력이 없는데 소유만 남기면 「보낼 수 있는데 그릴 수 없는」 유령 칸이 된다. */
   const OWNED: Record<'plan' | 'complete', Array<keyof Row>> = {
-    plan: ['actionPlan', 'actionStart', 'actionEnd'],
+    plan: ['actionPlan'],
     complete: ['actionTaken', 'actionCompletedAt'],
   }
   const FIELD_KEY: Record<keyof Row, 'actionPlan' | 'actionStart' | 'actionEnd' | 'actionTaken' | 'actionCompletedAt'> = {
@@ -345,13 +330,8 @@ export function DefectGrid({ defects, inspectionId, canEdit, mode, onSaved, onPh
     // 내가 소유한 칸 중 **아는 값과 실제로 달라진 것만** 보낸다(부분 업데이트)
     const changed = OWNED[mode].filter(k => row[k] !== base[k])
     if (changed.length === 0) return
-    // 기간 뒤집힘은 보내지 않는다(2026-08-19). 이 표는 날짜를 고르는 즉시 저장하므로
-    // 서버 거절만 믿으면 왕복 뒤에야 알게 된다 — 서버 검사는 그대로 남아 최종 방어선이다.
-    // ⚠ 기간은 ⑤의 칸이다 — ⑥에서는 검사하지 않는다(안 보내므로 판정할 것도 없다).
-    if (mode === 'plan') {
-      const rangeErr = dateRangeError(row.actionStart, row.actionEnd, '이행 기간')
-      if (rangeErr) { setErr(rangeErr); return }
-    }
+    // (기간 뒤집힘 선차단은 계획 기간 입력 열과 함께 제거 — 이제 이 표에서 기간을 보내지 않는다.
+    //  서버 검사는 그대로 남아 있어, 다른 경로가 보내도 최종 방어선은 산다.)
     rejectedRef.current.delete(d.id)
     setSaving(d.id)
     setErr('')
@@ -401,13 +381,7 @@ export function DefectGrid({ defects, inspectionId, canEdit, mode, onSaved, onPh
           /* ⚠ 기간이 없으면 완료 체크도 일괄 적용도 쓸 수 없다 — 무엇을 먼저 해야 하는지 말한다.
              「—」로 적으면 기간이 정해진 것처럼 읽히므로 문장으로 쓴다. */
           : <span className="text-amber-700">총 이행기간이 아직 없습니다 — ④ 소방서 제출에서 먼저 정해 주세요.</span>}
-        {mode === 'plan' && canEdit && period && (
-          <button type="button" onClick={applyPeriod} disabled={bulk} data-testid="apply-period-bulk"
-            title="계획 기간이 비어 있는 불량에만 총 이행기간을 채웁니다 — 이미 값이 있는 행은 건드리지 않습니다"
-            className="inline-flex items-center gap-1 h-6 px-2 rounded border border-brand-line text-form-2xs text-ink-sub hover:bg-brand-tint disabled:opacity-50">
-            {bulk && <Loader2 className="size-2.5 animate-spin text-brand" />} 빈 칸에 일괄 적용
-          </button>
-        )}
+        {/* ⑤의 [빈 칸에 일괄 적용]은 2026-09-11 제거 — 불량별 계획 기간 입력이 사라져 채울 칸이 없다(파일 머리 주석) */}
         {/* ⑥의 **형제 자리** — ⑤가 계획을 한 번에 채우듯 ⑥은 완료를 한 번에 찍는다(2026-09-11).
             기간이 없으면 그리지 않는다: 그때는 서버가 어차피 거절하고, 왼쪽 안내가 무엇을 먼저
             해야 하는지 이미 말한다(버튼이 있는데 늘 실패하면 그게 더 나쁘다). */}
@@ -419,20 +393,15 @@ export function DefectGrid({ defects, inspectionId, canEdit, mode, onSaved, onPh
           </button>
         )}
       </div>
-      {/* ⑤·⑥이 같은 칸을 쓰지만 **뜻이 다르다** — 이름이 한쪽만 말하면 다음 사람이 축을 혼동한다 */}
-      {bulkMsg && <p className="px-1 text-form-2xs text-green-600"
-        data-testid={mode === 'plan' ? 'apply-period-result' : 'complete-all-result'}>{bulkMsg}</p>}
+      {bulkMsg && <p className="px-1 text-form-2xs text-green-600" data-testid="complete-all-result">{bulkMsg}</p>}
       <table className="w-full table-fixed border-collapse text-form-xs" data-testid="defect-grid">
         <thead>
           <tr className="text-left text-form-2xs text-ink-soft">
-            {/* 날짜 열은 'YYYY-MM-DD'(약 78px) + 달력 버튼(28px)이 들어가야 글자가 안 잘린다.
-                종전 26%로는 칸이 좁아지면 날짜가 잘렸다 — 작업대 3칸 폭 재배분의 병목(실측 2026-08-18).
-                불량명은 잘려도 줄바꿈으로 읽히므로 여기서 폭을 내준다. */}
             <th className="w-[26%] px-1 pb-1 font-medium">불량</th>
-            {mode === 'plan' ? (<>
-              <th className="w-[32%] px-1 pb-1 font-medium">조치 계획</th>
-              <th className="w-[32%] px-1 pb-1 font-medium">계획 기간</th>
-            </>) : (<>
+            {mode === 'plan' ? (
+              /* 「계획 기간」 열은 2026-09-11 제거(파일 머리 주석) — 조치 계획이 그 폭을 받는다 */
+              <th className="w-[64%] px-1 pb-1 font-medium">조치 계획</th>
+            ) : (<>
               <th className="w-[32%] px-1 pb-1 font-medium">조치 내용</th>
               {/* '완료일'이 아니라 '완료' — 날짜는 체크하면 기간 종료일이 들어간다(2026-09-10) */}
               <th className="w-[32%] px-1 pb-1 font-medium">완료</th>
@@ -456,21 +425,14 @@ export function DefectGrid({ defects, inspectionId, canEdit, mode, onSaved, onPh
                     {justSaved[d.id] && saving !== d.id && <span className="text-form-3xs text-green-600 inline-flex items-center gap-0.5"><Check className="size-2.5" /> 저장됨</span>}
                   </span>
                 </td>
-                {mode === 'plan' ? (<>
+                {mode === 'plan' ? (
+                  /* 「계획 기간」 입력은 2026-09-11 제거 — 기간은 ④의 총 이행기간 하나다(파일 머리 주석) */
                   <td className="px-1 py-1">
                     <textarea rows={2} disabled={!canEdit} value={r.actionPlan} aria-label={`${d.defect_name} 조치 계획`}
                       onChange={e => set(d.id, { actionPlan: e.target.value })} onBlur={() => commit(d)}
                       className={`${cell} resize-y`} />
                   </td>
-                  <td className="px-1 py-1 space-y-1">
-                    <DateInput value={r.actionStart} disabled={!canEdit} aria-label={`${d.defect_name} 계획 시작일`}
-                      onChange={e => setDate(d, { actionStart: e.target.value })} onBlur={() => commit(d)} className={cell} />
-                    <DateInput value={r.actionEnd} disabled={!canEdit} aria-label={`${d.defect_name} 계획 종료일`}
-                      onChange={e => setDate(d, { actionEnd: e.target.value })} onBlur={() => commit(d)}
-                      aria-invalid={isEndBeforeStart(r.actionStart, r.actionEnd)}
-                      className={`${cell}${isEndBeforeStart(r.actionStart, r.actionEnd) ? ' !border-red-400' : ''}`} />
-                  </td>
-                </>) : (<>
+                ) : (<>
                   <td className="px-1 py-1">
                     <textarea rows={2} disabled={!canEdit} value={r.actionTaken} aria-label={`${d.defect_name} 조치 내용`}
                       onChange={e => set(d.id, { actionTaken: e.target.value })} onBlur={() => commit(d)}

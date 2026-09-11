@@ -88,12 +88,14 @@ console.log('\n── B. ⑤ 일괄 적용은 빈 칸만 채운다 ──')
 console.log('\n── C. 서버가 그 규칙을 실제로 부르는가 (배선) ──')
 {
   const complete = inFn(ACTIONS, 'setDefectCompletionAction')
-  const bulk = inFn(ACTIONS, 'applyActionPeriodToPlansAction')
   ok(complete.length > 0, 'setDefectCompletionAction이 있다')
-  ok(bulk.length > 0, 'applyActionPeriodToPlansAction이 있다')
+  /* 🚨 2026-09-11 계약 반전 — ⑤ 「기간 일괄 적용」은 **폐지됐다**(불량별 계획 기간 입력 자체가
+     사라졌다 — 기간은 ④ 총 이행기간 하나다). 종전 이 자리의 양성 단언을 음성으로 갈아끼운다:
+     이 액션이 되살아나면 「불량 행에 기간 복사본을 쓰는」 경로가 되돌아온 것이다. */
+  ok(inFn(ACTIONS, 'applyActionPeriodToPlansAction').length === 0,
+    '(음성) applyActionPeriodToPlansAction이 폐지됐다 — 기간 복사 경로가 없다')
 
   ok(complete.includes('completionDateFrom('), '⑥ 완료 경로가 파생 규칙을 부른다')
-  ok(bulk.includes('isPlanFillTarget'), '⑤ 일괄 경로가 대상 판정 규칙을 부른다')
 
   /* 🚨 오늘 날짜를 만드는 코드가 완료 경로에 있으면 위 A의 음성 대조가 무의미해진다 —
      규칙은 ''를 돌려주는데 호출부가 거기서 오늘을 채워 넣으면 결과는 같기 때문이다. */
@@ -102,31 +104,18 @@ console.log('\n── C. 서버가 그 규칙을 실제로 부르는가 (배선)
   }
   ok(/return \{ error: '총 이행기간이 아직 없습니다/.test(complete),
     '기간도 계획 종료일도 없으면 저장을 거절한다')
-  ok(/return \{ error: '총 이행기간이 아직 없습니다/.test(bulk),
-    '기간이 없으면 일괄 적용도 거절한다')
 
   // 칸을 지운 게 아니다 — 값은 여전히 들어가야 ⑤ 판정·별지 11호·갑지 엑셀이 산다
   ok(complete.includes('action_completed_at'), '완료일 칸에 여전히 값을 쓴다(칸을 없앤 게 아니다)')
   ok(complete.includes('action_completed_at: null'), '해제하면 null로 되돌린다 — ⑤도 함께 열린다')
   ok(count(ACTIONS, 'syncStepsAndRevalidate') >= 5, '새 경로도 단계 동기화를 부른다', String(count(ACTIONS, 'syncStepsAndRevalidate')))
 
-  /* 🎯 **문서가 인쇄하는 기간과 같은 결정자를 타는가**(2026-09-10 머지 후 통합).
-     별지 10·11호 PDF와 갑지 엑셀은 `resolveActionPeriod`(수기 > 자동)로 기간을 정한다.
-     저장되는 완료일이 다른 우선순위를 쓰면 **저장값과 인쇄값이 갈리는데, 각자의 산출물만
-     보면 둘 다 옳아 보인다** — 이 스위트가 막아야 하는 형태다. */
-  ok(ACTIONS.includes("from '@/lib/annex-total-period'"), '기간 결정은 문서와 같은 모듈을 쓴다')
-  ok(ACTIONS.includes('resolveActionPeriod('), '수기 > 자동 우선순위를 스스로 다시 적지 않는다')
-  /* ⚠ 자동 산출값을 안 넘기면 수기값이 없는 회차에서만 조용히 갈린다(문서는 자동값을 쓴다) */
-  ok(ACTIONS.includes('actionPlanPeriod('), '자동 산출값도 함께 넘긴다')
-  ok(!/\.split\(['"]?\s*~/.test(ACTIONS), '(음성) 구분자를 직접 쪼개지 않는다')
-  /* 🚨 이 import는 HEAD에 **없는 함수**였다 — 타 세션 미커밋이라 공유 트리 tsc만 초록이었다
-     (격리 워크트리 tsc가 TS2305로 잡았다, [[risk_head_broken_imports]]).
-     ⚠ 단어로 세면 **이 결함을 설명하는 주석 자체**에 걸린다(첫 판에 실제로 걸렸다) —
-       깨뜨리는 것은 import이므로 import 목록만 본다. */
-  const drImport = /import \{([^}]*)\} from '@\/lib\/date-range'/.exec(ACTIONS)?.[1] ?? ''
-  ok(drImport.trim().length > 0, 'date-range import를 찾았다(정규식이 헛돌지 않는다)', drImport.trim())
-  ok(!drImport.includes('splitRange'),
-    '(음성) HEAD에 없던 splitRange 의존이 되돌아오지 않았다', `import={${drImport.trim()}}`)
+  /* ⚠ 기간의 결정(수기>자동)과 파싱을 스스로 하면 문서와 갈린다 — `resolveActionPeriod`가 원천이다
+     (별지 10·11호 PDF·갑지 엑셀이 타는 그 결정자. 파싱은 그 안의 manualActionPeriod가 한다).
+     종전 단언은 splitRange 직접 호출을 물었는데, 액션이 더 위 계층(resolveActionPeriod)으로
+     재배선되면서(6197d5c) 과녁이 옮겨졌다 — 단언도 그 계층을 본다. */
+  ok(ACTIONS.includes('resolveActionPeriod('), '기간 결정은 resolveActionPeriod 공용을 쓴다(문서와 같은 결정자)')
+  ok(!/\.split\(['"]\s*~/.test(ACTIONS), '(음성) 구분자를 직접 쪼개지 않는다')
 }
 
 console.log('\n── D. ⑥ 화면이 날짜 칸을 기본으로 그리지 않는가 (배선) ──')
@@ -146,8 +135,12 @@ console.log('\n── D. ⑥ 화면이 날짜 칸을 기본으로 그리지 않�
 
   ok(GRID.includes('getActionPeriodAction('), '표가 총 이행기간을 스스로 읽는다(부모 prop이 낡는 자리)')
   ok(GRID.includes('총 이행기간이 아직 없습니다'), '기간이 없으면 무엇을 먼저 해야 하는지 말한다')
-  ok(GRID.includes('applyActionPeriodToPlansAction('), '⑤에 일괄 적용 버튼이 배선돼 있다')
-  ok(/건너뛰었습니다/.test(GRID), '건너뛴 건수를 말한다 — 「전건 적용됨」으로 읽히면 안 된다')
+  /* 🚨 2026-09-11 계약 반전 — ⑤의 계획 기간 열·[빈 칸에 일괄 적용]이 폐지됐다(중복 입력).
+     되살아나면 「두 자리에서 기간을 고치는」 상태로 돌아간 것이다. */
+  ok(!GRID.includes('applyActionPeriodToPlansAction('), '(음성) ⑤ 일괄 적용 배선이 없다')
+  ok(!GRID.includes('계획 기간</th>'), '(음성) ⑤에 계획 기간 열이 없다')
+  ok(!GRID.includes('계획 시작일`}'), '(음성) ⑤에 불량별 시작일 입력이 없다')
+  ok(!GRID.includes('계획 종료일`}'), '(음성) ⑤에 불량별 종료일 입력이 없다')
 }
 
 console.log('\n── E. 이웃 표면(① 불량 카드)도 같은 규약인가 ──')

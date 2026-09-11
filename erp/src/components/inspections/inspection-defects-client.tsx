@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import { useState, useRef, useEffect, useTransition } from 'react'
 import { Plus, Trash2, Camera, AlertTriangle, X, Upload, Wrench, Check, Images, ArrowRight } from 'lucide-react'
@@ -12,8 +12,8 @@ import {
   type DefectSeverity,
 } from '@/app/(dashboard)/inspections/defect-actions'
 import { DateInput } from '@/components/ui/date-input'
-import { dateRangeError } from '@/lib/date-range'
 import { PhotoGalleryModal } from '@/components/inspections/photo-gallery-modal'
+import { prepareImageFile } from '@/lib/image-prep'
 import { useRouter } from 'next/navigation'
 
 // ── types ──────────────────────────────────────────────────────────────────
@@ -69,7 +69,8 @@ function PhotoUploadButton({
       const fd = new FormData()
       fd.append('defectId',     defectId)
       fd.append('inspectionId', inspectionId)
-      fd.append('file',         file)
+      // 휴대폰 원본(5~12MB)이 버킷 5MB 제한에 거절되던 것 — 업로드 전 축소(EXIF 보정 포함)
+      fd.append('file',         await prepareImageFile(file))
       fd.append('field',        field)
       const res = await uploadDefectPhotoAction(fd)
       if (res.error) { setErr(res.error); setPreview(currentUrl) }
@@ -125,8 +126,8 @@ function DefectActionSection({ defect, inspectionId, canEdit }: {
   const [taken, setTaken] = useState(defect.action_taken ?? '')
   const [date, setDate] = useState(defect.action_completed_at ?? '')
   const [plan, setPlan] = useState(defect.action_plan ?? '')
-  const [planStart, setPlanStart] = useState(defect.action_start ?? '')
-  const [planEnd, setPlanEnd] = useState(defect.action_end ?? '')
+  // 「이행 기간」 입력 짝은 2026-09-11 제거 — 기간은 ④ 총 이행기간 하나다(defect-grid 머리 주석과 같은 결정).
+  // action_start/end 컬럼은 과거 값 읽기(⑥ 폴백·planned 집계)용으로만 남는다.
   const [pending, startTransition] = useTransition()
   const [msg, setMsg] = useState('')
   const router = useRouter()
@@ -147,11 +148,11 @@ function DefectActionSection({ defect, inspectionId, canEdit }: {
    *  ⚠ dirty는 **칸 단위**다. 카드 단위로 내리면 '조치 내용'을 타이핑하는 순간 '이행계획'
    *  동기화까지 막혀, ⑤에서 저장한 계획이 ①에 영영 안 들어온다 — 고치려던 결함이 되살아난다. */
   const sv = () => ({
-    plan: defect.action_plan ?? '', start: defect.action_start ?? '', end: defect.action_end ?? '',
+    plan: defect.action_plan ?? '',
     taken: defect.action_taken ?? '', date: defect.action_completed_at ?? '',
   })
   const serverSig = Object.values(sv()).join('')
-  const localSig = [plan, planStart, planEnd, taken, date].join('')
+  const localSig = [plan, taken, date].join('')
   const syncedRef = useRef(sv())
   useEffect(() => {
     const s = syncedRef.current
@@ -165,8 +166,6 @@ function DefectActionSection({ defect, inspectionId, canEdit }: {
       set(next[k])
     }
     sync('plan', plan, setPlan)
-    sync('start', planStart, setPlanStart)
-    sync('end', planEnd, setPlanEnd)
     sync('taken', taken, setTaken)
     sync('date', date, setDate)
     // 서버가 값을 실어 왔으면 접혀 있어도 펼친다 — 안 그러면 '들어왔는데 안 보인다'가 된다
@@ -174,15 +173,9 @@ function DefectActionSection({ defect, inspectionId, canEdit }: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [serverSig, localSig])
 
-  // 기간이 뒤집혔는지는 타이핑 중에도 보여준다 — 저장을 눌러야 알게 되면 이미 늦다
-  const rangeErr = dateRangeError(planStart, planEnd, '이행 기간')
-
   function save() {
     setMsg('')
-    // 서버(defect-actions)에도 같은 검사가 있다. 여기서 먼저 막는 건 왕복을 아끼려는 것일 뿐이라
-    // 이 줄을 지워도 저장은 되지 않는다.
-    if (rangeErr) { setMsg(`❌ ${rangeErr}`); return }
-    const sent = { plan, start: planStart, end: planEnd, taken, date }
+    const sent = { plan, taken, date }
 
     /** F-27 — **내가 실제로 바꾼 칸만 보낸다.**
      *
@@ -197,8 +190,6 @@ function DefectActionSection({ defect, inspectionId, canEdit }: {
     const s = syncedRef.current
     const payload: Record<string, string | null> = {}
     if (plan !== s.plan) payload.actionPlan = plan
-    if (planStart !== s.start) payload.actionStart = planStart || null
-    if (planEnd !== s.end) payload.actionEnd = planEnd || null
     if (taken !== s.taken) payload.actionTaken = taken
     if (date !== s.date) payload.actionCompletedAt = date || null
     if (Object.keys(payload).length === 0) {
@@ -246,12 +237,6 @@ function DefectActionSection({ defect, inspectionId, canEdit }: {
       setMsg(checked ? '조치 완료를 저장했습니다.' : '조치 완료를 해제했습니다.')
       // F-24 2차 — 이 카드에는 미러가 없다. ⑤⑥ 표가 같은 값을 보므로 서버에서 다시 읽는다
       setTimeout(() => router.refresh(), 0)
-    }).catch(() => {
-      /* 🚨 거절이 아니라 **예외**로 끝나는 갈래 — .then만 있으면 `doneBusy`가 안 풀려
-         체크박스가 잠긴 채 남는다(⑤⑥ 표에서 실제로 그렇게 됐다). */
-      setDoneBusy(false)
-      setDonePending(null)
-      setMsg('❌ 조치 완료 저장에 실패했습니다 — 잠시 후 다시 시도해 주세요.')
     })
   }
 
@@ -271,14 +256,8 @@ function DefectActionSection({ defect, inspectionId, canEdit }: {
             {/* 이행계획 (별지 10호 — §9-7) */}
             <textarea rows={1} value={plan} onChange={e => setPlan(e.target.value)} disabled={!canEdit}
               placeholder="이행조치 계획 (별지 10호 — 예: 유도등 램프 교체)" className="w-full border rounded px-2 py-1.5 text-sm resize-none" />
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-xs text-gray-500 shrink-0">이행 기간</span>
-              <DateInput value={planStart} onChange={e => setPlanStart(e.target.value)} disabled={!canEdit} className="text-sm w-32" />
-              <span className="text-xs text-gray-400">~</span>
-              <DateInput value={planEnd} onChange={e => setPlanEnd(e.target.value)} disabled={!canEdit}
-                aria-invalid={!!rangeErr} className={`text-sm w-32${rangeErr ? ' !border-red-400' : ''}`} />
-            </div>
-            {rangeErr && <p className="text-[11px] text-red-600" data-testid="defect-range-error">❌ {rangeErr}</p>}
+            {/* 「이행 기간」 입력 짝은 2026-09-11 제거 — 기간은 ④ 총 이행기간 하나다(중복 입력이었다).
+                기간 뒤집힘 선차단(rangeErr)도 함께 갔다 — 이 카드는 이제 날짜를 보내지 않는다. */}
             <textarea rows={2} value={taken} onChange={e => setTaken(e.target.value)} disabled={!canEdit}
               placeholder="조치 내용" className="w-full border rounded px-2 py-1.5 text-sm resize-none" />
             <div className="flex items-center gap-2">
@@ -296,8 +275,7 @@ function DefectActionSection({ defect, inspectionId, canEdit }: {
                 </span>
               </label>
               {canEdit && (
-                <button onClick={save} disabled={pending || !!rangeErr}
-                  title={rangeErr ?? undefined}
+                <button onClick={save} disabled={pending}
                   className="ml-auto text-xs bg-brand text-white px-3 py-1.5 rounded disabled:opacity-50">
                   {pending ? '저장…' : '저장'}
                 </button>
@@ -373,7 +351,7 @@ function AddDefectForm({
     if (file) {
       const fd = new FormData()
       fd.append('defectId', res.id); fd.append('inspectionId', inspectionId)
-      fd.append('file', file); fd.append('field', 'before')
+      fd.append('file', await prepareImageFile(file)); fd.append('field', 'before')
       await uploadDefectPhotoAction(fd)
     }
     if (detail) { pushRecentMemo(detail); setRecentMemos(loadRecentMemos()) }

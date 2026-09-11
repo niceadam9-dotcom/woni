@@ -7,7 +7,7 @@ import { extractStoragePath } from '@/lib/defect-photos'
 import { dateRangeError } from '@/lib/date-range'
 import { loadAnnexInputs, actionPlanPeriod } from '@/lib/report9-assemble'
 import { resolveActionPeriod, type ActionPeriod } from '@/lib/annex-total-period'
-import { completionDateFrom, isPlanFillTarget } from '@/lib/action-period-derive'
+import { completionDateFrom } from '@/lib/action-period-derive'
 
 export type DefectSeverity = '경미' | '보통' | '중대'
 
@@ -331,45 +331,17 @@ export async function completeAllDefectsAction(input: {
       if (error) return { error: '조치 완료 저장에 실패했습니다.' }
     }
   }
-  // 여러 행 + ⑤⑥ 전이 — 목록 진행률까지 바뀐다(applyActionPeriodToPlansAction과 같은 이유)
+  // 여러 행 + ⑤⑥ 전이 — 목록 진행률까지 바뀐다
   await syncStepsAndRevalidate(admin, input.inspectionId, user.id, { alsoChanged: true })
   return { done, already, blocked }
 }
 
-/** ⑤ 이행계획 — 총 이행기간을 불량들의 계획 기간에 **빈 칸만** 채운다(2026-09-10 사용자 결정).
- *
- *  ⚠ **값이 있는 행은 건너뛴다.** 한 번의 클릭이 손으로 정한 개별 일정을 지우면 되돌릴 방법이 없다.
- *    건너뛴 건수를 함께 돌려주는 이유도 그것이다 — 화면이 「전건 적용됨」으로 읽히면 거짓말이 된다.
- *  ⚠ 시작·종료를 **한 쌍으로** 판정한다(둘 중 하나라도 있으면 건너뜀). 한쪽만 채우면
- *    기간 뒤집힘이 생길 수 있고, 그건 저장 경로가 막는 바로 그 조합이다. */
-export async function applyActionPeriodToPlansAction(input: {
-  inspectionId: string
-}): Promise<{ error?: string; filled?: number; skipped?: number; period?: ActionPeriod }> {
-  const user = await requirePermission('inspection_register')
-  const admin = createAdminClient()
-
-  const period = await loadActionPeriod(admin, input.inspectionId)
-  if (!period) {
-    return { error: '총 이행기간이 아직 없습니다 — ④ 소방서 제출의 「총 이행기간」을 먼저 정해 주세요.' }
-  }
-
-  const { data, error: listErr } = await admin
-    .from('inspection_defects').select('id, action_start, action_end').eq('inspection_id', input.inspectionId)
-  if (listErr) return { error: '불량 목록을 불러오지 못했습니다.' }
-  const rows = (data ?? []) as Array<{ id: string; action_start: string | null; action_end: string | null }>
-
-  const targets = rows.filter(isPlanFillTarget)
-  if (targets.length > 0) {
-    const { error } = await admin
-      .from('inspection_defects')
-      .update({ action_start: period.startISO, action_end: period.endISO })
-      .in('id', targets.map(t => t.id))
-    if (error) return { error: '이행기간 적용에 실패했습니다.' }
-  }
-  // 계획이 생기면 ⑤의 분자가 움직인다 — 목록 진행률까지 바뀌므로 alsoChanged
-  await syncStepsAndRevalidate(admin, input.inspectionId, user.id, { alsoChanged: true })
-  return { filled: targets.length, skipped: rows.length - targets.length, period }
-}
+/* 🚨 2026-09-11 — `applyActionPeriodToPlansAction`(⑤ 기간 일괄 적용)을 **폐지했다**.
+ *   불량별 계획 기간 입력 자체가 사라졌기 때문이다(사용자 지시: 계획 기간 = 총 이행기간의
+ *   중복). 기간은 ④ 별지 10호의 「총 이행기간」 하나이고, 문서·⑥ 완료일·대시보드가 전부
+ *   그 값에서 파생된다 — 불량 행에 복사해 둘 이유가 없다(복사본은 ④를 고치면 낡는다).
+ *   ⚠ `action_start`·`action_end` 컬럼과 `isPlanFillTarget`(lib/action-period-derive)은 남는다 —
+ *     과거 회차의 값이 실려 있고 ⑥ 폴백(completionDateFrom)이 읽는다. 쓰는 경로만 없앴다. */
 
 // 불량내역 삭제
 export async function deleteDefectAction(defectId: string, inspectionId: string): Promise<{ error?: string }> {
