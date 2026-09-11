@@ -141,6 +141,31 @@ export function PlanForm14({ customerId, buildings, canManage, canRegister = fal
 
   // 2026-08-05 사용자 확정: 토글마다 자동 저장 폐지 — 최종 [저장] 1회 + 이탈 가드. 제원 입력은 우측 슬라이드 패널
   const [specsOpen, setSpecsOpen] = useState(false)
+  /** 설비 대장 패널 여닫기 — **브라우저 뒤로가기로 닫힌다** (2026-09-11 사용자 보고).
+   *
+   *  종전엔 열림이 순수 상태라 URL에 흔적이 없었다. 패널은 화면을 최대 96vw까지 덮는데(아래 슬라이드 패널)
+   *  그 상태에서 뒤로가기를 누르면 패널이 아니라 **고객 상세를 통째로 떠나** 고객 목록(/customers)으로
+   *  나갔다 — 헤더 ←는 오버레이에 가려 못 누르므로 사용자가 쓸 수 있는 '뒤로'가 그것뿐이었다.
+   *
+   *  열 때 **같은 URL로** 항목을 하나 쌓고 popstate로 받는다. URL이 그대로라 라우터가 서버를
+   *  다시 부르지 않아(pushState는 Next 라우터와 통합된다) 화면은 소방계획서 탭에 그대로 남는다.
+   *  ⚠ X·Esc·오버레이로 닫을 때는 쌓은 항목을 history.back()으로 되감아야 한다. 안 그러면
+   *    여닫은 횟수만큼 찌꺼기가 쌓여 페이지를 벗어나려면 뒤로가기를 그 횟수만큼 눌러야 한다.
+   *  입력값은 패널이 항상 마운트라 어느 경로로 닫아도 유실되지 않는다(아래 :912 주석과 같은 축). */
+  const specsPushedRef = useRef(false)
+  const openSpecs = useCallback(() => {
+    if (!specsPushedRef.current) {
+      specsPushedRef.current = true
+      window.history.pushState(null, '', window.location.href)
+    }
+    setSpecsOpen(true)
+  }, [])
+  const closeSpecs = useCallback(() => {
+    setSpecsOpen(false)
+    if (!specsPushedRef.current) return
+    specsPushedRef.current = false
+    window.history.back()
+  }, [])
   // [넓게] — 패널 폭 2단(900px / 1400px, 둘 다 배율을 곱한다). 실값은 globals.css [data-spec-panel].
   // ⚠ 초기값에서 localStorage를 읽으면 안 된다 — 서버 렌더엔 없어서 하이드레이션이 어긋난다.
   //   첫 렌더는 항상 false로 두고 마운트 뒤 한 번 교정한다(깜빡임은 폭 전환 한 번뿐).
@@ -363,15 +388,24 @@ export function PlanForm14({ customerId, buildings, canManage, canRegister = fal
   // 별지 9호發 진입(?from=report9)은 설비 대장 패널 자동 오픈 (D-17 흐름 유지)
   useEffect(() => {
     if (new URLSearchParams(window.location.search).get('from') !== 'report9') return
-    const t = setTimeout(() => setSpecsOpen(true), 0)
+    const t = setTimeout(() => openSpecs(), 0)
     return () => clearTimeout(t)
-  }, [])
+  }, [openSpecs])
   // 패널 Esc 닫기
   useEffect(() => {
     if (!specsOpen) return
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setSpecsOpen(false) }
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') closeSpecs() }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
+  }, [specsOpen, closeSpecs])
+  // 패널 뒤로가기 닫기 — openSpecs가 쌓은 항목이 popstate로 돌아온다.
+  // ⚠ 여기서는 history.back()을 부르지 않는다(이미 그 항목이 소멸한 뒤다) — 플래그만 내린다.
+  //   closeSpecs가 부른 back()의 popstate도 여기로 오지만, 그땐 플래그가 이미 false라 무해하다.
+  useEffect(() => {
+    if (!specsOpen) return
+    const onPop = () => { specsPushedRef.current = false; setSpecsOpen(false) }
+    window.addEventListener('popstate', onPop)
+    return () => window.removeEventListener('popstate', onPop)
   }, [specsOpen])
 
   // 설비 대장은 key 리마운트로 초기화되므로 미저장 편집이 조용히 유실됨 — 전환 전 확인 (소방계획서_9)
@@ -441,7 +475,7 @@ export function PlanForm14({ customerId, buildings, canManage, canRegister = fal
    *  듣고 있으므로(아래 슬라이드 패널) 새 배선은 없다. */
   function openLedger(code: string) {
     const specCode = FIRE_SUB_ITEMS.includes(code) ? '소화기구 및 자동소화장치' : code
-    setSpecsOpen(true)
+    openSpecs()
     setTimeout(() => window.dispatchEvent(new CustomEvent('erp:open-spec-section', { detail: { code: specCode } })), 120)
   }
   function autoFloors() {
@@ -890,7 +924,7 @@ export function PlanForm14({ customerId, buildings, canManage, canRegister = fal
             ) : (
               <span data-testid="form14-clean-badge" className="text-form-xs text-ink-meta">변경 없음</span>
             )}
-            <button onClick={() => setSpecsOpen(true)}
+            <button onClick={openSpecs} data-testid="specs-open"
               className="inline-flex items-center gap-1 h-form-8 px-3 rounded-lg border border-brand-line text-form-sm text-brand hover:bg-brand-tint">
               <PanelRightOpen className="size-3.5" /> 설비 대장
             </button>
@@ -912,7 +946,7 @@ export function PlanForm14({ customerId, buildings, canManage, canRegister = fal
           항상 마운트 — erp:open-spec-section 수신·입력 상태 유지, 닫힘은 CSS 슬라이드. 건물 축은 대상명 선택(bidx)과 동일(key 재적재) */}
       <div className={`fixed inset-0 z-40 ${specsOpen ? '' : 'pointer-events-none'}`}>
         <div className={`absolute inset-0 bg-black/20 dark:bg-black/60 transition-opacity ${specsOpen ? 'opacity-100' : 'opacity-0'}`}
-          onClick={() => setSpecsOpen(false)} />
+          onClick={closeSpecs} />
         {/* ⚠ 패널 폭도 배율을 탄다 (소방계획서_35 S6-7). 폭에서 p-4를 빼면 실가용이 32px 줄어드는데
             세부제원 표의 숫자열이 배율과 함께 넓어지므로, 폭이 고정이면 xl에서 표가 패널을
             넘겨 가로 스크롤이 생긴다. 그래서 실값(--fs-panel-w)에 --fs-scale을 곱한다.
@@ -930,7 +964,7 @@ export function PlanForm14({ customerId, buildings, canManage, canRegister = fal
               {specsWide ? <Minimize2 className="size-3" /> : <Maximize2 className="size-3" />}
               {specsWide ? '기본 폭' : '넓게'}
             </button>
-            <button onClick={() => setSpecsOpen(false)} className="shrink-0 text-ink-meta hover:text-ink-sub" aria-label="닫기">
+            <button onClick={closeSpecs} data-testid="specs-close" className="shrink-0 text-ink-meta hover:text-ink-sub" aria-label="닫기">
               <X className="size-4" />
             </button>
           </div>
