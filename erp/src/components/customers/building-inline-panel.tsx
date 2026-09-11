@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState, useTransition } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
-import { Building2, Plus, Search, Loader2, X } from 'lucide-react'
+// `Plus`는 [+ 건물 등록] 버튼과 함께 빠졌다(소방계획서_49 §10-2 ②) — 버튼을 되살리면 같이 복원한다
+import { Building2, Search, Loader2, X } from 'lucide-react'
 import { DateInput, isCompleteDate } from '@/components/ui/date-input'
 import { ComboInput } from '@/components/ui/combo-input'
 import { createBuildingAction, updateBuildingAction, deleteBuildingAction, setPrimaryBuildingAction } from '@/app/(dashboard)/buildings/actions'
@@ -264,6 +265,11 @@ export function BuildingListPanel({ customerId, customerName, customerAddress, b
     // 저장 차단에 걸리기 전에 채워준다(등록 폼 openNew와 같은 동작, 수기 값은 덮지 않음)
     if (canManage && !f.permit_date && b.bcode && b.address_jibun) fetchLedger(b.bcode, b.address_jibun, f)
   }
+  /** ⚠ 2026-09-11부터 **버튼에서 호출되지 않는다**([+ 건물 등록] 제거, §10-2 ②).
+   *  지우지 않고 남기는 이유 둘:
+   *   ① 되살릴 때 필요하다 — 버튼 JSX만 복원하면 그대로 동작한다(다동이 실제로 오면 그게 정답).
+   *   ② `initialNew`(URL 딥링크)로 `editing='new'`가 되는 경로가 살아 있어, 등록 폼 자체는
+   *      여전히 도달 가능하다 — 화면에 문을 두지 않을 뿐 기능을 없앤 것은 아니다. */
   function openNew() {
     const f = newForm()
     setForm(f); setEditing('new'); setSameAsCustomer(!!customerAddress)
@@ -503,21 +509,40 @@ export function BuildingListPanel({ customerId, customerName, customerAddress, b
 
   return (
     <div id="buildings-panel" className="scroll-mt-4 bg-surface rounded-xl border border-line shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-5">
+      {/* 「건물 목록」 → 「건물정보」 (2026-09-11 사용자 확정: "다동 고객은 없어, 별지와 소방계획서와
+          동일하게 건물정보만 추가가 되면 돼"). 고객 1 : 활성 건물 1이 **UI 불변식**이 됐으므로
+          여기는 「목록」이 아니라 그 한 동의 **정보를 채우는 자리**다. 소방계획서_49 §10.
+
+          🚨 [+ 건물 등록] 버튼을 **의도적으로 없앴다.** 되살리려면 아래 주석 블록을 복원하면 된다:
+            {canManage && editing !== 'new' && (
+              <button onClick={openNew} …><Plus className="size-3" />건물 등록</button>
+            )}
+          ⚠ 이 버튼은 과거에 `editing !== 'new'` 조건 탓에 **영원히 숨어 있었고** 그게 「규현빌라」
+            2중 등록 사고의 배경이었다. 그래서 「조건에 가려 숨는 것」과 「의도적으로 없앤 것」은
+            **다르다** — 전자는 결함이고 후자는 결정이다. 조건을 붙여 되살리지 말 것.
+          ⚠ 없애도 첫 동은 만들 수 있다: `initialBuildingPanelTarget`이 건물 0개 + 등록 권한이면
+            `'new'` 폼을 자동으로 연다(`lib/building-panel-open.ts`). 게다가 커밋 `0039484` 이후
+            고객을 만들면 건물 1동이 **반드시** 생긴다(§10-2 ①).
+          ⚠ 잃는 것: **2번째 동을 추가하는 경로가 없다.** 기존 다동 고객의 수정은 되지만(행이 2개면
+            표가 보인다) 추가는 불가하다. 📏 실측(2026-09-11) 운영·스테이징 **다동 고객 0명**,
+            「건물동수」 2 이상 **0건** — 그래서 지금은 잃는 것이 없다. 다동이 실제로 오면
+            §10-4대로 이 버튼을 복원하는 것이 정답이다. */}
       <div className="flex items-center gap-2 mb-4">
         <Building2 className="size-4 text-brand" />
-        <h2 className="text-form-base-title font-semibold text-ink">건물 목록</h2>
+        <h2 className="text-form-base-title font-semibold text-ink">건물정보</h2>
         <span className="text-form-sm text-ink-meta ml-auto">{buildings.length}개</span>
-        {canManage && editing !== 'new' && (
-          <button onClick={openNew}
-            className="inline-flex items-center gap-1 h-form-7 px-2.5 rounded-lg border border-brand-line text-form-sm text-brand hover:bg-brand-tint transition-colors">
-            <Plus className="size-3" />
-            건물 등록
-          </button>
-        )}
       </div>
 
-      {/* 다동 안내 — 별지 9호 작성요령 10의 「동별로 나누어 작성」이 여기서부터 작동한다.
-          서식이 담는 동 수를 넘으면 **세어서 알린다**(조용히 자르면 인쇄물은 멀쩡해 보인다). */}
+      {/* 다동 안내 — 서식이 담는 동 수를 넘으면 **세어서 알린다**(조용히 자르면 인쇄물은 멀쩡해 보인다).
+          🚨 종전 주석은 근거를 「별지 9호 작성요령 10의 **동별로 나누어 작성**」이라고 적었다. **틀렸다.**
+            법제처 원문(`erp_goal/_form/별지9호_법제처API_20260701.hwp`) 실측: 「나누어」 0회,
+            「작성요령」 0회(절 이름은 **작성방법**). 그리고 조건이 「한 대상물의 여러 동」이 아니라
+            **「둘 이상의 대상물을 같은 기간 내에 점검하여 함께 보고하는 경우」**다(작성방법 ※·10).
+          ⭐ 서식에서 「동」은 두 뜻이다 — ① **「건물동수 N 개동」 한 칸**(한 대상물이 여러 동일 때,
+            `building_count` 필드) ② **동별 건축물정보 표 반복**(여러 대상물을 한 서식에 함께 보고할 때).
+            ②는 의무가 아니라 선택이고(작성방법 12는 「설비별로 작성할 수 있다」고 명시), 대상물을
+            별개 고객으로 두고 각각 보고하면 해당되지 않는다. 이 배너는 ② 축이다.
+          근거 전문은 소방계획서_49 §10-7. */}
       {activeCount > 1 && (
         <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-form-sm text-amber-800">
           활성 건물 {activeCount}동 — <b>대표동</b>의 값이 별지 9호 2쪽·소방계획서 1.1에 인쇄되고,
@@ -531,9 +556,11 @@ export function BuildingListPanel({ customerId, customerName, customerAddress, b
       {/* 1동뿐이고 **그 동의 상세가 이미 펼쳐져 있으면** 목록 표를 그리지 않는다 (2026-09-11 사용자 확정:
           "두번 보일 필요는 없어"). 자동 펼침을 넣자 같은 건물명이 목록 행과 폼에 **위아래로 두 번** 나왔다
           — 행 1개와 그 행의 상세는 같은 한 건이라, 표는 「고를 것이 있을 때」만 쓸모가 있다.
-          ⚠ 머리줄(「건물 목록 · N개 · [+ 건물 등록]」)은 **남긴다** — 거기에 2번째 동을 추가하는 문이 있다.
-            표까지 통째로 감추면 그 버튼이 함께 사라져, 이번에 고친 그 결함(문이 조건에 가려 숨는 것)이
-            모양만 바꿔 되살아난다.
+          ⚠ 머리줄(「건물정보 · N개」)은 남긴다 — 개수가 거기서만 보인다.
+            🚨 2026-09-11 이전 이 자리엔 「거기에 2번째 동을 추가하는 문([+ 건물 등록])이 있으니
+              표째 감추면 그 결함이 모양만 바꿔 되살아난다」고 적혀 있었다. 그 버튼은 이제 **의도적으로
+              없다**(위 머리줄 주석) — 따라서 그 논거는 더 이상 성립하지 않는다. 남기는 이유가
+              바뀌었다는 것을 적어 두지 않으면, 다음 사람이 「버튼이 없으니 머리줄도 지우자」로 읽는다.
           ⚠ 규칙 본문은 `lib/building-panel-open`의 `shouldHideBuildingTable`에 있다 — 여기 JSX에
             묻어 두면 아무도 단언하지 못한다(그게 이 결함이 처음 새어 나온 경로였다). */}
       {shouldHideBuildingTable({ buildings, editing }) ? null

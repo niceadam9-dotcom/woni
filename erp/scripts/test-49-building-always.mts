@@ -93,5 +93,48 @@ check('[F1] plan-form14에 건물 부재 조기 반환 가드가 있다', /if\s*
   check('[G1] 변이(조건 되살리기)를 이 검사가 잡는다', caught, caught ? '빨강으로 전환됨' : '🚨 변이가 살아남았다')
 }
 
+// ── H. §10-2 ②③ 「건물정보」 전환 ───────────────────────────────────────────────
+// 🚨 주석 안에 **복원용 스니펫**이 있어 `건물 등록`·`Plus` 문자열이 남아 있다. 날 것 그대로
+//    grep하면 버튼이 없는데도 「있다」로 읽는다 → **주석을 걷어낸 뒤** 판정한다.
+const PANEL_RAW = read('src', 'components', 'customers', 'building-inline-panel.tsx')
+const PANEL = PANEL_RAW.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')
+check('[H0] 주석 제거가 실제로 줄였다 (계측기 자기검증)', PANEL.length < PANEL_RAW.length,
+  `${PANEL_RAW.length} → ${PANEL.length}자`)
+check('[H1] 제목이 「건물정보」', /<h2[^>]*>건물정보<\/h2>/.test(PANEL))
+check('[H2] 「건물 목록」 제목이 남아 있지 않다', !/<h2[^>]*>건물 목록<\/h2>/.test(PANEL))
+check('[H3] [+ 건물 등록] 버튼 JSX가 없다 (주석 밖)', !/onClick=\{openNew\}/.test(PANEL))
+check('[H4] lucide import에 Plus가 없다',
+  !/\bPlus\b/.test(PANEL.match(/^import .*lucide-react.*$/m)?.[0] ?? ''))
+// 되살릴 길이 남아 있는가 — 「지웠다」와 「못 되살린다」는 다르다
+check('[H5] openNew는 남아 있다 (복원·딥링크 경로)', /function openNew\(\)/.test(PANEL))
+
+// ── I. 순수 함수를 **실제로 호출**한다 — 정규식이 아니라 동작을 문다 ───────────
+const { shouldHideBuildingTable, initialBuildingPanelTarget } =
+  await import('../src/lib/building-panel-open.ts')
+const { primaryBuilding } = await import('../src/lib/primary-building.ts')
+
+const one = [{ id: 'b1' }]
+const two = [{ id: 'b1' }, { id: 'b2' }]
+check('[I1] 1동 + 그 동 펼침 → 표 감춤', shouldHideBuildingTable({ buildings: one, editing: 'b1' }) === true)
+// 🎯 이 차수에서 가장 중요한 단언 — 「감추는가」가 아니라 **「감추면 안 될 때 안 감추는가」**.
+//    버튼이 없어졌으므로 2동 고객에게는 **표가 유일한 편집 경로**다. 여기가 물면 그들이 갇힌다.
+check('[I2] 🎯 2동 → 표 감추지 않음 (기존 다동 고객의 유일한 편집 경로)',
+  shouldHideBuildingTable({ buildings: two, editing: 'b1' }) === false)
+check('[I3] 등록 폼(new) → 표 감추지 않음', shouldHideBuildingTable({ buildings: one, editing: 'new' }) === false)
+check('[I4] 닫힘 → 표 감추지 않음', shouldHideBuildingTable({ buildings: one, editing: null }) === false)
+// 버튼이 없어도 첫 동을 만들 수 있다는 근거 — 깨지면 0동 고객이 영원히 막힌다
+check('[I5] 0동 + 등록권한 → 등록 폼 자동 열림 (버튼 없이 첫 동을 만드는 경로)',
+  initialBuildingPanelTarget({ buildings: [], canManage: true }) === 'new')
+check('[I6] 0동 + 권한 없음 → 열지 않음', initialBuildingPanelTarget({ buildings: [], canManage: false }) === null)
+check('[I7] 1동 → 그 동을 펼친다', initialBuildingPanelTarget({ buildings: one, canManage: true }) === 'b1')
+
+// ── J. 두 문서가 같은 동을 인쇄한다 (§10-3) ────────────────────────────────────
+// 소방계획서 생성기는 `buildings[0]`을, 별지 9호 2쪽·1.1은 `primaryBuilding`을 쓴다.
+// 1동이면 두 식이 같은 답을 내야 한다 — 갈라지면 한 대상물이 두 얼굴로 인쇄된다.
+{
+  const solo = [{ id: 'b1', is_active: true, is_primary: null, created_at: '2026-01-01' }]
+  check('[J1] 1동이면 buildings[0] === primaryBuilding', primaryBuilding(solo)?.id === solo[0].id)
+}
+
 console.log(`\n결과: ${pass} pass / ${fail} fail`)
 process.exit(fail > 0 ? 1 : 0)
