@@ -47,3 +47,24 @@ export function initialBuildingPanelTarget(opts: {
   if (buildings.length === 1) return buildings[0].id
   return null
 }
+
+/** 목록 표를 **감출 것인가** (2026-09-11 사용자: "두번 보일 필요는 없어").
+ *
+ *  위 자동 펼침을 넣자 1동 고객 화면에 같은 건물명이 **목록 행과 폼에 위아래로 두 번** 나왔다.
+ *  행 하나와 그 행의 상세는 같은 한 건이므로, 표는 「고를 것이 있을 때」만 쓸모가 있다.
+ *
+ *  ⚠ 감추는 것은 **표(tbody)뿐이고 머리줄은 남는다** — 「건물 목록 · N개 · [+ 건물 등록]」의
+ *    그 버튼이 2번째 동을 추가하는 유일한 문이다. 표째로 감추면 문이 함께 사라져,
+ *    이번에 고친 결함(문이 조건에 가려 영원히 숨는 것)이 모양만 바꿔 되살아난다.
+ *  ⚠ `editing === 'new'`면 **감추지 않는다**. 등록 폼으로 넘어갔을 때 기존 동이 목록에서
+ *    사라지면 「내 건물이 없어졌나」가 된다 — 감추기는 되돌릴 수 있어야 한다.
+ *  ⚠ 2동 이상은 감추지 않는다 — 그때 표는 **어느 동을 볼지 고르는 자리**라 중복이 아니다. */
+export function shouldHideBuildingTable(opts: {
+  /** 표에 그려지는 그 배열 그대로 */
+  buildings: ReadonlyArray<{ id: string }>
+  /** 현재 펼쳐진 대상 — `'new'` · 건물 id · `null`(닫힘) */
+  editing: string | null
+}): boolean {
+  const { buildings, editing } = opts
+  return buildings.length === 1 && editing === buildings[0].id
+}

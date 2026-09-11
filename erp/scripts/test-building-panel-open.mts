@@ -13,7 +13,7 @@
  *   E. 화면과 같은 배열을 센다(비활성 동도 행이면 센다)
  *
  *  실행: npx tsx scripts/test-building-panel-open.mts */
-import { initialBuildingPanelTarget as target } from '../src/lib/building-panel-open'
+import { initialBuildingPanelTarget as target, shouldHideBuildingTable as hide } from '../src/lib/building-panel-open'
 
 let pass = 0, fail = 0
 const ok = (c: boolean, m: string) => { if (c) { pass++; console.log(`  ✅ ${m}`) } else { fail++; console.log(`  ❌ ${m}`) } }
@@ -64,6 +64,25 @@ const one = { buildings: B('only'), canManage: true }
 ok(old(one) !== target(one), `🎯 1동에서 구·신 규칙이 갈린다 (구=${old(one)} / 신=${target(one)})`)
 const two = { buildings: B('a', 'b'), canManage: true }
 ok(old(two) === target(two), '(대조군) 2동에서는 구·신이 같다 — 바꾼 것은 1동 가지뿐이다')
+
+console.log('── G. 목록 표를 감추는가 (2026-09-11 "두번 보일 필요는 없어") ──')
+// 자동 펼침의 부작용: 1동 고객 화면에 같은 이름이 목록 행과 폼에 **두 번** 나왔다.
+// 🚨 여기 핵심 단언은 「감추는가」가 아니라 **「감추면 안 될 때 안 감추는가」**다 —
+//   과잉 감추기는 목록을 잃는 것이라 중복보다 나쁘다(1동 고객이 표를 영영 못 본다).
+ok(hide({ buildings: B('only'), editing: 'only' }) === true,
+  '🎯 1동 + 그 동이 열려 있으면 감춘다(중복 제거)')
+ok(hide({ buildings: B('only'), editing: null }) === false,
+  '🚨 (음성) 폼을 닫으면 표가 돌아온다 — 감추기는 편도가 아니다')
+ok(hide({ buildings: B('only'), editing: 'new' }) === false,
+  '🚨 (음성) 등록 폼일 땐 안 감춘다 — 기존 동이 사라지면 「내 건물이 없어졌나」가 된다')
+ok(hide({ buildings: B('a', 'b'), editing: 'a' }) === false,
+  '🚨 (음성) 2동은 안 감춘다 — 표가 어느 동을 볼지 고르는 자리다')
+ok(hide({ buildings: [], editing: 'new' }) === false,
+  '(음성) 0동에서는 감출 표가 없다')
+// 자동 펼침과 **짝이 맞는가** — 자동으로 연 그 동이 곧 감추기 대상이어야 화면이 어긋나지 않는다.
+const solo = { buildings: B('only'), canManage: true }
+ok(hide({ buildings: solo.buildings, editing: target(solo) }) === true,
+  '🎯 자동 펼침이 연 동과 감추기 대상이 일치한다(두 규칙이 한 벌)')
 
 console.log(`\n${fail === 0 ? '✅' : '❌'} ${pass}/${pass + fail} 통과`)
 process.exit(fail === 0 ? 0 : 1)

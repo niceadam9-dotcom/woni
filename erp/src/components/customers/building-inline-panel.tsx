@@ -11,7 +11,7 @@ import { AddressDuplicateDialog } from '@/components/customers/address-duplicate
 import { autoApplyLedgerEmptyAction } from '@/app/(dashboard)/customers/fire-plan-info-actions'
 import { parseParkingSummary } from '@/lib/doc-templates/report9'
 import { findSameNameBuilding, normalizeBuildingName } from '@/lib/building-dup'
-import { initialBuildingPanelTarget } from '@/lib/building-panel-open'
+import { initialBuildingPanelTarget, shouldHideBuildingTable } from '@/lib/building-panel-open'
 import { useDaumPostcode } from '@/hooks/use-daum-postcode'
 import { useCustomerTabs } from '@/components/customers/customer-tabs'
 
@@ -509,7 +509,16 @@ export function BuildingListPanel({ customerId, customerName, customerAddress, b
         )}
       </div>
 
-      {buildings.length === 0 && editing !== 'new' ? (
+      {/* 1동뿐이고 **그 동의 상세가 이미 펼쳐져 있으면** 목록 표를 그리지 않는다 (2026-09-11 사용자 확정:
+          "두번 보일 필요는 없어"). 자동 펼침을 넣자 같은 건물명이 목록 행과 폼에 **위아래로 두 번** 나왔다
+          — 행 1개와 그 행의 상세는 같은 한 건이라, 표는 「고를 것이 있을 때」만 쓸모가 있다.
+          ⚠ 머리줄(「건물 목록 · N개 · [+ 건물 등록]」)은 **남긴다** — 거기에 2번째 동을 추가하는 문이 있다.
+            표까지 통째로 감추면 그 버튼이 함께 사라져, 이번에 고친 그 결함(문이 조건에 가려 숨는 것)이
+            모양만 바꿔 되살아난다.
+          ⚠ 규칙 본문은 `lib/building-panel-open`의 `shouldHideBuildingTable`에 있다 — 여기 JSX에
+            묻어 두면 아무도 단언하지 못한다(그게 이 결함이 처음 새어 나온 경로였다). */}
+      {shouldHideBuildingTable({ buildings, editing }) ? null
+        : buildings.length === 0 && editing !== 'new' ? (
         <p className="text-form-base text-ink-sub py-6 text-center">등록된 건물이 없습니다</p>
       ) : (
         <div className="overflow-x-auto">
@@ -572,6 +581,32 @@ export function BuildingListPanel({ customerId, customerName, customerAddress, b
             <p className="text-form-sm font-bold text-brand">{editing === 'new' ? '건물 등록' : '건물 수정'}</p>
             <button onClick={close} className="text-ink-faint hover:text-ink-sub"><X className="size-4" /></button>
           </div>
+
+          {/* 등록 시점 안내 (2026-09-11 사용자 지시) — **등록을 결정하는 그 순간에** 어디에 실리는지 알린다.
+              🚨 2동을 더해도 문서가 전부 따라오지 않는다. 실측으로 갈라 본 결과:
+                · 실린다  — 갑지 「다수동일때」 시트(report-workbook*.xlsx에 실재하는 시트,
+                            `xlsx-anchors`가 행 오프셋 0/10/20 세 블록 = 2·3·4동을 배선) ·
+                            별지 9호 「동별」 쪽 · 설비 현황(조회가 `.in('building_id', …)`라 전 동 합산)
+                · 안 실린다 — 소방계획서 본문 1.1 · 별지 9호 2쪽 · 갑지 개요·정보 시트
+                            (이 자리들은 대표동 한 동만 읽는다)
+                이 비대칭이 화면에 없으면 사용자는 "입력했는데 문서에 없다"를 겪는다.
+              ⚠ 활성 동수는 `buildings`에서 **직접 센다** — 표가 그리는 것과 같은 배열을 같은 방식으로
+                세어야 화면과 어긋나지 않는다.
+              ⚠ 마지막 줄은 규현빌라 실사고(기존 동을 고치려다 새 동을 만든 것) 재발 방지다.
+                `deleteBuildingAction`이 완전 삭제가 아니라 `is_active:false`라서 사후 정정 비용이 크다. */}
+          {editing === 'new' && buildings.length > 0 && (
+            <div data-testid="building-new-notice"
+              className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-form-xs text-amber-800 space-y-1">
+              <p><b>{buildings.filter(b => b.is_active).length + 1}번째 동</b>을 등록합니다 — 문서마다 실리는 자리가 다릅니다.</p>
+              <p>· <b>실립니다</b>: 갑지 <b>다수동일때</b> 시트 · 별지 9호 <b>동별</b> 쪽 · 설비 현황(전 동 합산)</p>
+              <p>· <b>안 실립니다</b>: 소방계획서 본문 1.1 · 별지 9호 2쪽 · 갑지 개요·정보 시트 —
+                이 자리는 <b>대표동</b>(가장 먼저 등록된 활성 동) 값만 인쇄합니다.</p>
+              <p className="text-amber-700">
+                ⚠ 기존 동을 고치려던 것이라면 <b>취소</b>하고 목록에서 [보기·수정]을 누르세요 —
+                여기서 저장하면 <b>새 동이 생기고</b>, 되돌리는 길은 완전 삭제가 아니라 비활성 처리뿐입니다.
+              </p>
+            </div>
+          )}
 
           <div className="flex flex-wrap gap-2 items-end">
             <div className="w-52"><label className={labelCls}>건물명<span className="text-red-500 ml-0.5">*</span></label>
