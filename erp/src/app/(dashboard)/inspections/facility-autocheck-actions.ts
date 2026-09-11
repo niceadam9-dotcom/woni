@@ -36,6 +36,45 @@ export async function autoCheckFacilitiesFromSheetAction(
   inspectionId: string,
 ): Promise<AutoCheckResult> {
   await requirePermission('inspection_register')
+  return runAutoCheck(inspectionId, { write: true })
+}
+
+/** 지금 상태만 읽는다 — **아무것도 쓰지 않는다**. 화면이 「어느 것입니까?」를 계속 띄우기 위해서다.
+ *
+ *  🚨 모호한 갈래는 저장 응답에만 실어 보내면 **새로고침 한 번에 사라진다**. 그러면 사용자는
+ *  「스프링클러인지 화재조기진압용인지 못 정했다」는 사실조차 모른 채 [확인했습니다]를 눌러
+ *  **빈 대장을 확인 처리**하게 된다 — 이 축에 남아 있던 마지막 구멍이었다.
+ *  판정은 쓰기 경로와 **같은 함수**를 탄다(사본 금지 — 보이는 것과 켜지는 것이 갈리면 안 된다). */
+export async function getFacilityAutoCheckStateAction(
+  inspectionId: string,
+): Promise<AutoCheckResult> {
+  await requirePermission('inspection_register')
+  return runAutoCheck(inspectionId, { write: false })
+}
+
+/** 사람이 고른 한 설비를 대장에 켠다 — 「어느 것입니까?」의 답.
+ *
+ *  ⚠ **후보 목록 안에 있는 코드만** 받는다. `'use server'`는 공개 엔드포인트라 인자를 믿지 않는다 —
+ *    아무 코드나 켤 수 있으면 이 화면이 대장 전체를 쓰는 창구가 된다.
+ *  ⚠ 여기서도 `facilities_verified_at`은 건드리지 않는다(§9-4). 고르는 것은 설치 사실이고,
+ *    「대장 전체를 확인했다」는 별개의 행위다. */
+export async function resolveAmbiguousFacilityAction(
+  inspectionId: string, facilityCode: string,
+): Promise<{ error?: string; added?: string }> {
+  await requirePermission('inspection_register')
+  const state = await runAutoCheck(inspectionId, { write: false })
+  const allowed = new Set(state.ambiguous.flatMap(a => a.candidates))
+  if (!allowed.has(facilityCode)) return { error: '지금 고를 수 있는 설비가 아닙니다.' }
+  const done = await runAutoCheck(inspectionId, { write: true, only: [facilityCode] })
+  if (done.skipped) return { error: done.skipped }
+  return { added: done.added[0] }
+}
+
+/** 읽기·쓰기 공용 — 판정은 한 번만 정의한다(보이는 것과 켜지는 것이 갈리면 안 된다) */
+async function runAutoCheck(
+  inspectionId: string,
+  opts: { write: boolean; only?: string[] },
+): Promise<AutoCheckResult> {
   const admin = createAdminClient()
 
   const { data: insp } = await admin.from('inspections')
@@ -78,13 +117,17 @@ export async function autoCheckFacilitiesFromSheetAction(
   })))
 
   const plan = planFacilityAutoCheck({ entries, form3Items: FORM3_ITEMS, installedCodes })
-  if (plan.confirmed.length === 0) return { added: [], ambiguous: plan.ambiguous }
+  // 읽기 전용 호출은 여기서 끝 — **아무것도 쓰지 않는다**(화면이 갈래를 계속 띄우기 위한 경로)
+  if (!opts.write) return { added: [], ambiguous: plan.ambiguous }
+  // `only`가 오면 사람이 고른 그 하나만 — 자동 확정분은 건드리지 않는다
+  const targets = opts.only ?? plan.confirmed
+  if (targets.length === 0) return { added: [], ambiguous: plan.ambiguous }
 
   // 행 단위로만 손댄다. 기존 행이 있으면 `installed`만 올리고 **`detail.note`(사람이 쓴 비고)는 보존**한다.
   const byCode = new Map(facRows.map(f => [f.facility_code, f]))
   const stamp = { auto: new Date().toISOString().slice(0, 10) }
   const added: string[] = []
-  for (const code of plan.confirmed) {
+  for (const code of targets) {
     const prev = byCode.get(code)
     // ③ 이미 설치면 쓰지 않는다 — 판정 함수가 이미 걸렀지만, 경합으로 그 사이 켜졌을 수 있다
     if (prev?.installed) continue

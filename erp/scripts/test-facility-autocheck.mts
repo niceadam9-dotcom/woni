@@ -126,5 +126,28 @@ ok(/try \{ autoCheck = await autoCheckFacilitiesFromSheetAction/.test(save),
 ok(save.indexOf('autoCheckFacilitiesFromSheetAction(inspectionId)') < save.indexOf('syncStepsAndRevalidate'),
   '🚨 단계 동기화 **앞에서** 돈다 — 대장이 켜지면 필수 분모가 늘어 단계 판정이 달라진다')
 
+console.log('\n── H. 「어느 것입니까?」 배선 — 못 정한 갈래가 화면에 남는가 ──')
+/* 🚨 모호한 갈래를 **저장 응답에만** 실어 보내면 새로고침 한 번에 사라진다. 그러면 사용자는
+   못 정했다는 사실조차 모른 채 [확인했습니다]를 눌러 **빈 대장을 확인 처리**한다 —
+   이 축에 마지막까지 남아 있던 구멍이다. 화면이 직접 읽어 오는지 소스로 센다. */
+const ui = codeOnly(readFileSync(new URL('../src/components/inspections/sheet-entry-client.tsx', import.meta.url), 'utf8'))
+
+ok(/getFacilityAutoCheckStateAction\(inspectionId\)/.test(ui),
+  '🎯 화면이 상태를 **직접 읽는다**(저장 응답에만 기대지 않는다)')
+ok(/useEffect\(\(\) => \{ if \(canEdit\) refreshAutoCheck\(\)/.test(ui),
+  '  · 화면에 들어올 때 한 번 읽는다(새로고침해도 갈래가 남는다)')
+ok(/sheet-entry-facility-ambiguous/.test(ui), '갈래 패널이 있다')
+ok(/resolveAmbiguousFacilityAction\(/.test(ui), '🎯 고르면 그 하나를 대장에 반영한다')
+ok(/sheet-entry-facility-pick/.test(ui), '  · 후보 버튼에 식별자가 있다')
+ok(/refreshAutoCheck\(\)/.test(ui), '  · 고른 뒤 목록을 다시 읽는다(고른 갈래가 사라져야 한다)')
+// 공개 엔드포인트라 인자를 믿지 않는다 — 아무 코드나 켜지면 이 화면이 대장 전체를 쓰는 창구가 된다
+ok(/allowed\.has\(facilityCode\)/.test(act),
+  '🚨 후보 목록에 있는 코드만 받는다(임의 코드로 대장을 못 쓴다)')
+ok(!/facilities_verified_at/.test(act),
+  '🚨 (음성) 고르는 경로도 확인일을 건드리지 않는다 — 설치 사실과 「전체를 확인했다」는 별개다')
+// 읽기 전용 경로가 정말 안 쓰는가 — 이게 깨지면 화면을 여는 것만으로 대장이 바뀐다
+ok(/if \(!opts\.write\) return/.test(act),
+  '🚨 읽기 전용 호출은 **아무것도 쓰지 않는다**(화면 진입이 대장을 바꾸면 안 된다)')
+
 console.log(`\n${fail === 0 ? '✅' : '❌'} ${pass}/${pass + fail} 통과`)
 process.exit(fail === 0 ? 0 : 1)

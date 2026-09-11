@@ -16,6 +16,9 @@ import { countRequiredItemBlanks, countCompBlanks } from '@/lib/sheet-blanks'
 import type { SheetOverview, SheetProgress } from '@/lib/sheet-overview'
 import { shouldWarnFacilitiesUnverified, type FacilityVerifyState } from '@/lib/facility-verify-gate'
 import { verifyFacilitiesAction } from '@/app/(dashboard)/customers/facilities-actions'
+import {
+  getFacilityAutoCheckStateAction, resolveAmbiguousFacilityAction,
+} from '@/app/(dashboard)/inspections/facility-autocheck-actions'
 
 /** 점검표 입력 전용 화면 (소방계획서_28) — 좌 설비 목록 / 우 항목 입력.
  *
@@ -67,6 +70,28 @@ export function SheetEntryClient({
   /** [확인했습니다]를 누른 뒤 이 화면에서 바로 경고를 끈다 — 서버 왕복을 기다려 새로고침하지 않는다.
    *  `verifyFacilitiesAction`이 `verifiedAt`을 돌려주는 규약(소방계획서_12 S1)을 그대로 쓴다. */
   const [facilityVerified, setFacilityVerified] = useState(false)
+
+  /** 자동 반영이 **못 정한** 갈래(소방계획서_49 §9-3 ②) — 예: 「스프링클러설비」 응답 하나로는
+   *  스프링클러인지 화재조기진압용(ESFR)인지 알 수 없다. 법정 대장에 추측해 적을 수 없으므로
+   *  켜지 않고 **여기서 묻는다**.
+   *  🚨 저장 응답에만 실어 보내면 새로고침 한 번에 사라진다 — 그러면 사용자는 못 정했다는 사실조차
+   *    모른 채 [확인했습니다]를 눌러 **빈 대장을 확인 처리**한다. 그래서 화면이 직접 읽어 온다. */
+  const [ambiguous, setAmbiguous] = useState<Array<{ sheet: string; group: string | null; candidates: string[] }>>([])
+  const refreshAutoCheck = useCallback(() => {
+    getFacilityAutoCheckStateAction(inspectionId)
+      .then(r => setAmbiguous(r.ambiguous))
+      .catch(() => { /* 고지 실패가 입력을 막지 않는다 */ })
+  }, [inspectionId])
+  useEffect(() => { if (canEdit) refreshAutoCheck() }, [canEdit, refreshAutoCheck])
+
+  function pickFacility(code: string) {
+    startBusy(async () => {
+      const res = await resolveAmbiguousFacilityAction(inspectionId, code)
+      if (res.error) { setErr(res.error); return }
+      setNotice(`「${code}」을(를) 1.4 대장에 반영했습니다 — 이 설비의 필수 항목이 집계에 들어옵니다.`)
+      refreshAutoCheck()
+    })
+  }
 
   /** 1.4 「확인만 하기」 — `installed`는 건드리지 않고 **확인일만** 찍는다.
    *  설비가 정말 없는 건물이 이 한 번으로 통과하는 경로이기도 하다(§5-1·§5-2). */
@@ -501,6 +526,30 @@ export function SheetEntryClient({
               확인했습니다
             </button>
           )}
+        </div>
+      )}
+      {/* 「어느 것입니까?」(소방계획서_49 §9-3 ②) — 한 점검표가 설비 둘을 덮을 때 자동 반영이
+          **켜지 않고 묻는다**. 스프링클러 ○ 하나로 화재조기진압용(ESFR)까지 켜면 법정 대장에
+          없는 설비를 적는 것이고, 그건 안 적는 것보다 나쁘다(안 적으면 경고가 남아 사람이 처리한다).
+          ⚠ 「둘 다 아님」은 버튼을 안 만든다 — 진짜 없으면 위 [확인했습니다]가 그 경로다. */}
+      {canEdit && ambiguous.length > 0 && (
+        <div className="mb-2 rounded-lg border border-brand-line bg-brand-tint px-3 py-2 space-y-1.5"
+          data-testid="sheet-entry-facility-ambiguous">
+          <p className="text-xs text-ink-sub">
+            점검 기록은 있는데 <b>어느 설비인지 정할 수 없어</b> 1.4 대장에 반영하지 못했습니다 — 골라주세요.
+          </p>
+          {ambiguous.map(a => (
+            <div key={`${a.sheet}|${a.group ?? ''}`} className="flex flex-wrap items-center gap-1.5">
+              <span className="text-xs text-ink-meta">「{a.sheet}」 →</span>
+              {a.candidates.map(c => (
+                <button key={c} onClick={() => pickFacility(c)} disabled={busy}
+                  data-testid="sheet-entry-facility-pick"
+                  className="h-7 px-2.5 rounded-lg border border-brand-line bg-surface text-xs font-medium text-brand hover:bg-brand-tint disabled:opacity-50">
+                  {c}
+                </button>
+              ))}
+            </div>
+          ))}
         </div>
       )}
       {/* 편집 중 원격 저장 감지 — 자동 덮어쓰기 금지, 선택은 사용자가 한다(드로어와 같은 문구·같은 규약).
