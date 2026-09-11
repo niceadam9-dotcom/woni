@@ -143,6 +143,12 @@ export function AnnexComposePanel({ inspectionId, annexNo, customerId, from, onC
     setDirty(true)
   }
 
+  /** 여러 칸 동시 갱신 — 법정 기간 빠른 채움(총 이행기간 + 총 일수)처럼 짝으로만 뜻이 있는 값용 */
+  function patchFields(patch: Record<string, string>) {
+    setFields(prev => ({ ...prev, ...patch }))
+    setDirty(true)
+  }
+
   async function doSave(): Promise<boolean> {
     // 이 패널이 그리는 키만 덮고 나머지는 불러온 그대로 되돌려 보낸다 — 서버 upsert는 통째 교체다
     const merged = { ...allRef.current, ...fields }
@@ -286,7 +292,9 @@ export function AnnexComposePanel({ inspectionId, annexNo, customerId, from, onC
                   {dirty && <span className="text-form-2xs text-amber-600 font-medium ml-auto">미저장</span>}
                 </div>
                 <div className="space-y-3 pl-7">
-                  {defs.map(d => {
+                  {/* hidden 칸은 그리지 않는다 — 다른 위젯이 onPatch로 대신 쓰는 짝 값(총 일수).
+                      정의에는 남아 있어야 저장·이어받기 분모에서 빠지지 않는다. */}
+                  {defs.filter(d => !d.hidden).map(d => {
                     // 자동 계산값을 빈 칸에 회색으로 비춘다 — 작업대(AnnexFields)와 같은 규약.
                     // 채워 넣지는 않는다: 저장되면 원천이 바뀌어도 옛 값이 굳는다.
                     const a = auto[d.key]?.trim()
@@ -297,7 +305,8 @@ export function AnnexComposePanel({ inspectionId, annexNo, customerId, from, onC
                           <span className={badgeInput}>입력</span> {d.label}
                         </label>
                         <AnnexFieldInput def={a ? { ...d, placeholder: a } : d} value={fields[d.key] ?? ''}
-                          onChange={v => setField(d.key, v)} />
+                          onChange={v => setField(d.key, v)} daysValue={fields.totalDays ?? ''}
+                          baseDate={(fields.reportDate ?? '').trim() || todayKst()} onPatch={patchFields} />
                         {a && !filled && (
                           <p className="text-form-2xs text-ink-soft mt-0.5">
                             <span className="inline-flex items-center rounded bg-brand-line-soft px-1 py-px text-form-3xs font-medium text-ink-sub mr-1">자동</span>

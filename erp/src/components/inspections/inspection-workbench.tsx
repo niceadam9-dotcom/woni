@@ -25,7 +25,7 @@ import { DOC_TERMS, STEP_DOC_KINDS, NA_ALL_PASS_REASON, TIMELINE_STEP_LABELS, TI
 import { filesOfKinds } from '@/lib/generated-docs'
 import { evidenceDone, activeStepNums, hasSheetDefect, stepProgress, type StepNum } from '@/lib/inspection-step-status'
 import { isRegenBlocked } from '@/lib/annex-regen-policy'
-import { kstDate } from '@/lib/kst-date'
+import { kstDate, todayKst } from '@/lib/kst-date'
 import { confirmSheetProtocolAction } from '@/app/(dashboard)/inspections/sheet-actions'
 import { BundleGeneratePanel } from '@/components/inspections/bundle-generate-panel'
 import { GeneratedDocList } from '@/components/inspections/generated-doc-list'
@@ -1380,16 +1380,24 @@ function AnnexFields({ inspectionId, annexNo, canEdit, onSaved, compact, only, t
       <div className={compact
         ? 'grid min-h-0 grid-cols-2 gap-x-2 gap-y-1.5 overflow-y-auto pr-0.5'
         : 'space-y-1.5'}>
-      {defs.map(d => {
+      {/* hidden 칸은 그리지 않는다 — 다른 위젯이 onPatch로 대신 쓰는 짝 값(총 일수)이다.
+          🚨 defs 배열에서는 빼지 않았다: 빼면 commit()의 변경 감지 분모에서도 빠져 저장이 안 된다. */}
+      {defs.filter(d => !d.hidden).map(d => {
         // 자동값은 **빈 칸일 때만** 회색으로 비춘다(placeholder). 값을 넣는 순간 그 값이 이긴다.
         // 칸에 미리 채워 넣지 않는 이유: 저장되어 원천 변경을 따라가지 못하게 된다.
         const a = auto[d.key]?.trim()
         const shown = a ? { ...d, placeholder: a } : d
         return (
-          <label key={d.key} className="block">
+          // fullRow — 한 줄에 위젯이 셋(총일수·시작·종료)인 칸은 2열 그리드에서 행을 통째로 쓴다.
+          // 안 그러면 ~280px 칸에 315px가 들어가 종료일이 다음 줄로 접힌다(원래 결함).
+          <label key={d.key} className={`block${d.fullRow ? ' col-span-2' : ''}`}>
             <span className="block text-form-2xs font-medium text-ink-sub">{d.label}</span>
             <AnnexFieldInput def={shown} value={fields[d.key] ?? ''} rows={1}
-              onChange={v => setFields(prev => ({ ...prev, [d.key]: v }))} />
+              onChange={v => setFields(prev => ({ ...prev, [d.key]: v }))}
+              // 법정 기간 빠른 채움(총 이행기간+총 일수)은 짝으로만 뜻이 있어 한 번에 넣는다
+              baseDate={(fields.reportDate ?? '').trim() || todayKst()}
+              daysValue={fields.totalDays ?? ''}
+              onPatch={patch => setFields(prev => ({ ...prev, ...patch }))} />
             {a && !(fields[d.key] ?? '').trim() && (
               <span className="mt-0.5 flex items-center gap-1 text-form-2xs text-ink-soft">
                 <span className="inline-flex items-center rounded bg-brand-line-soft px-1 py-px text-form-3xs font-medium text-ink-sub">자동</span>
