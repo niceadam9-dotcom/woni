@@ -12,7 +12,7 @@ import { readProfileFontScale } from '@/lib/font-scale'
 import type { UserRole } from '@/types'
 import { todayKst } from '@/lib/kst-date'
 import { fetchAllRows } from '@/lib/supabase/paginate'
-import { activeStepsByInspection, isStepNa, NA_CANDIDATE_STEP_NUMS } from '@/lib/active-steps'
+import { activeStepsByInspection, isStepHidden, NA_DISPLAY_STEP_NUMS } from '@/lib/active-steps'
 
 /** 사이드바 뱃지: 미완료 6단계 중 지연/D-Day(빨강), D-1~3(주황) 건수 (Victory10 §6)
  *
@@ -23,8 +23,8 @@ import { activeStepsByInspection, isStepNa, NA_CANDIDATE_STEP_NUMS } from '@/lib
  *
  *  ⚠ 이 조회는 `count:'exact', head:true`라 **행을 안 받는다**(모든 화면이 지나는 레이아웃이라
  *  성능이 값이다 — 종전 주석 참조). 그래서 전 단계를 행으로 받아 거르지 않고,
- *  **'해당없음이 될 수 있는 단계'만**(⑤⑥ — activeStepNums는 ①~④를 두 분기의 공통 접두로 갖는다)
- *  행으로 받아 빼야 할 건수를 센다. 자체점검 1건당 최대 2행이라 비용이 유계다. */
+ *  **'감춰질 수 있는 단계'만**(④⑤⑥ — visibleStepNums는 ①~③만 공통 접두로 갖는다, 소방계획서_48)
+ *  행으로 받아 빼야 할 건수를 센다. 자체점검 1건당 최대 3행이라 비용이 유계다. */
 async function getStepBadgeCounts(profileId: string, role: string) {
   const admin = createAdminClient()
   // F-14 잔여 축 — 둘 다 KST로 **함께** 옮긴다. 한쪽만 바꾸면 '오늘'과 'D+3'의 기준이
@@ -44,7 +44,9 @@ async function getStepBadgeCounts(profileId: string, role: string) {
     return q
   }
 
-  /** ⑤⑥ 후보 행만 받아온다 — 같은 필터·같은 창(窓)이라야 뺀 수가 센 수와 짝이 맞는다 */
+  /** ④⑤⑥ 후보 행만 받아온다 — 같은 필터·같은 창(窓)이라야 뺀 수가 센 수와 짝이 맞는다.
+   *  소방계획서_48: 표시 축은 불량 0이면 ④도 감추므로 후보가 [5,6]에서 [4,5,6]으로 넓어졌다
+   *  (자체점검 1건당 최대 3행 — 여전히 유계). */
   function naCandidates() {
     let q = admin
       .from('inspection_steps')
@@ -52,7 +54,7 @@ async function getStepBadgeCounts(profileId: string, role: string) {
       .eq('status', 'pending')
       .neq('inspections.status', 'completed')
       .eq('inspections.customers.is_active', true)
-      .in('step_num', [...NA_CANDIDATE_STEP_NUMS])
+      .in('step_num', [...NA_DISPLAY_STEP_NUMS])
     if (role === 'employee') q = q.eq('inspections.assigned_employee_id', profileId)
     return q
   }
@@ -75,7 +77,7 @@ async function getStepBadgeCounts(profileId: string, role: string) {
   const active = await activeStepsByInspection(
     admin, [...new Set(naRows.map(r => r.inspection_id))], 'sidebar-badge')
   const naCount = (rows: typeof naRows) =>
-    rows.filter(r => isStepNa(active, r.inspection_id, r.step_num)).length
+    rows.filter(r => isStepHidden(active, r.inspection_id, r.step_num)).length
 
   // ⚠ 뺄셈은 **0에서 멈춘다**. 두 조회 사이에 단계가 완료되면 뺀 수가 센 수를 넘을 수 있는데,
   // 음수 뱃지는 화면이 깨진 것으로 보인다(빼는 쪽이 더 나중이라 실무상 드물지만 유계로 둔다).

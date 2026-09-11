@@ -178,6 +178,18 @@ export function activeStepNums(isSpecial: boolean, needsRepairSteps: boolean): S
   return needsRepairSteps ? [1, 2, 3, 4, 5, 6] : [1, 2, 3, 4]
 }
 
+/** 화면에 **그릴** 단계 — activeStepNums와 갈라지는 유일한 지점은 ④다(소방계획서_48).
+ *  불량 0건이면 ④를 **즉시** 감춘다 — 제출 여부·점검표 작성 완료를 묻지 않는다(2026-09-11 사용자 확정,
+ *  「즉시 감춤으로 통일」 — 작업대의 종전 제출 후 접힘 정책을 이 축이 대체한다).
+ *
+ *  ⚠ 완료 판정·크론 알림에 쓰지 말 것. 별지 9호는 불량 유무와 무관한 법정 의무라(시행규칙 제23조제2항)
+ *  의무 축(activeStepNums)에서 ④를 지우면 sync가 ①②③만으로 completed를 DB에 써 버리고
+ *  법정 15일 보고 알림이 꺼진다. 표시가 줄어도 완료·알림의 분모는 activeStepNums다.
+ *  파생(filter)으로 구현해 visible ⊆ active가 구조로 보장된다 — 독립 리터럴로 바꾸지 말 것. */
+export function visibleStepNums(isSpecial: boolean, needsRepairSteps: boolean): StepNum[] {
+  return activeStepNums(isSpecial, needsRepairSteps).filter(n => needsRepairSteps || n !== 4)
+}
+
 /** ⑤⑥이 필요한가 = **점검표 모두 합격이 아닌가** (소방계획서_45 — 판정축 단일 원천).
  *
  *  두 축을 OR로 본다. `defectsTotal`은 등록된 불량내역, `sheetX`는 아직 등록되지 않은 ✕ 응답이다.

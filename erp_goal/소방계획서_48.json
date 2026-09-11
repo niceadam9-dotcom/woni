@@ -1,0 +1,148 @@
+{
+  "doc": "소방계획서_48",
+  "title": "점검달력 — 불량 0건이면 ④⑤⑥을 감춘다 (표시 축과 법정 의무 축을 가른다)",
+  "created": "2026-09-11",
+  "updated": "2026-09-11",
+  "source_md": "erp_goal/소방계획서_48.md",
+  "state": "구현·검증 완료 · 실측 검증과 커밋·푸시·배포 대기",
+  "principle": "⑤⑥ 숨김은 이미 달력에 있었고 남은 것은 ④ 하나였다. 그런데 ④를 `activeStepNums`에서 빼면 화면만 바뀌는 것이 아니다 — 그 배열이 `inspection-step-sync.ts:230→277`에서 `allActiveDone`이 되어 **`inspections.status='completed'`를 DB에 쓴다**. 별지 9호를 한 번도 안 낸 점검이 ①②③만으로 완료로 굳고, 마감 알림 크론에서 법정 15일 보고가 꺼진다. 사용자가 요청한 것은 **표시**이므로 **표시 축(`visibleStepNums`)을 새로 만들고 의무 축은 한 글자도 건드리지 않는다.**",
+  "principle_2": "⭐⭐**워크트리를 읽고 「이미 되어 있다」고 결론지었다가 반증당했다.** 작업대에 날짜와 사용자 지시까지 적힌 주석(`2026-09-10 ④⑤⑥ 감추기`)이 있어 「어제 이미 반영됨」을 전제로 계획을 세웠는데, `git grep HEAD`가 rc=1이었다 — 타 세션의 미커밋 216줄로 판정했다. 파일에 적힌 것은 누군가의 진행 중인 생각이지 제품의 상태가 아니다.",
+  "principle_3": "🚨⭐⭐**그 principle_2의 결론이 다시 뒤집혔다 — 「HEAD에 대고 판정하라」로는 부족했다.** 작업대의 ④감추기는 미커밋 진행분이 아니라 **커밋 `d34ad7c`로 origin/main에 실려 운영 배포(25회차)까지 끝난 코드**였다. `git grep … HEAD`가 「없음」이라 답한 이유는 **로컬 `main`이 origin과 갈라져 있었기** 때문이다 — 그 HEAD는 내 과거지 제품이 아니었다. **갈라진 저장소에서 부재 판정은 `origin/main`에도 대고 해야 한다**(`merge-base --is-ancestor`로 갈라짐부터 재고 시작). 그래서 진짜 쟁점은 「충돌」이 아니라 **정책 충돌**이었다 — 배포된 작업대는 「①완료+제출 후」에 접었고 달력은 「즉시」 감췄다. 같은 값을 두 규칙이 그리고 있었다.",
+  "principle_4": "⭐⭐**값 축과 구조 축은 상보적이다.** 표시 축을 「같은 값을 내는 독립 리터럴」로 되돌리는 변이(9-3 ④)는 네 조합 모두에서 값이 동일해 값 단언으로는 안 잡힌다 — `_probe-45-neighbors`의 **파생 구조 단언 2건**만이 잡았다. 반대로 filter를 아예 지우는 변이(①)는 값 단언 4건이 잡았다. 한쪽만 두면 언젠가 의무 축과 조용히 갈라진다.",
+  "related": [
+    { "doc": "project_allpass_skip56", "why": "이 축의 원 설계(45차수) — `activeStepNums`·`hasSheetDefect`·`lib/active-steps.ts` 조회 계층. 「순수 함수만 공유하면 부족하다」·「보수 판정을 한 필드에만 걸면 형제가 0으로 접힌다」가 이 차수의 전제. 표면 전수(R-8)도 같은 형태로 재발했다 — 설계가 센 4곳이 실제로는 9곳이었다" },
+    { "doc": "risk_shared_tree_two_sessions", "why": "미커밋 1,160건 위에서 작업했다. 변이 실험은 제품 파일을 직접 건드리므로 try/finally 복원 + sha256 대조로만 수행했다" },
+    { "doc": "feedback_ruler_changed_between_revisions", "why": "§2-1 — 계측 대상(워크트리)이 판정 기준이 될 수 없다. 그리고 §2-1-a — 갈라진 HEAD도 기준이 될 수 없다" },
+    { "doc": "risk_worktree_copy_reverts", "why": "남의 미커밋 위에 얹으면 그쪽 작업을 되돌린다 — 커밋 시 origin/main blob 재적용이 필요한 이유" },
+    { "doc": "reference_git_path", "why": "`_judge2-r4-static.mjs`가 `git grep`을 execSync로 부른다. PATH에 git이 없으면 `catch → []`라 **제품과 무관하게 빨개진다**(실측: PATH를 대니 19/19). 판정 전에 계측기의 환경부터 확인할 것" },
+    { "doc": "feedback_no_auto_proceed", "why": "커밋·푸시·배포·DB 변경은 명시적 지시 후에만" }
+  ],
+  "status_legend": {
+    "pending_order": "미구현·지시 대기",
+    "code_present": "코드 존재(구현자 자기 신고) — 검증 전",
+    "partial": "부분 구현 — criteria 참조",
+    "implemented": "독립 검증 통과 + verified 증거 동반"
+  },
+  "open_questions": [
+    { "id": "Q-1", "q": "④ 별지 9호 칩을 언제 감추나 — 제출 후인가 즉시인가", "status": "resolved", "resolution": "**불량 0건이면 즉시**(2026-09-11 사용자 확정). 제출 여부를 묻지 않는다.", "cost": "④ 미제출인데 달력·목록 진행률이 3/3 100%로 보인다(B-3). 다만 **DB는 completed로 가지 않으므로** 이력에 거짓이 남지는 않는다 — 축을 가른 이유가 이것이고, 변이 ③으로 **그 단언이 실제로 문다는 것을 실증**했다" },
+    { "id": "Q-2", "q": "「종합/작동만」의 범위 — 일반관리 자체점검(6단계)은", "status": "resolved", "resolution": "**자체점검 전체에 적용**(일반관리 포함, 2026-09-11 사용자 확정). 판정 축은 `isSelfInspection(plan_type)`이지 `inspection_type`이 아니다.", "note": "사용자의 최초 표현은 「종합/작동만」(= 달력 탭의 `inspection_type` 축)이었다. 그대로 가르면 **지금 일반관리에 걸려 있는 ⑤⑥ 숨김을 되살리는** 역방향 변경이 된다는 것을 제시하고 되물어 넓혔다" },
+    { "id": "Q-3", "q": "① 점검표 작성 완료를 게이트로 걸까 — 「모두 합격」과 「아직 안 쟀다」의 구별", "status": "resolved", "resolution": "**걸지 않는다 — 불량 0건이면 바로 줄인다**(2026-09-11 사용자 확정, 「바로」를 두 번 말했다).", "cost": "점검표를 아직 안 채운 새 회차도 3단계로 보인다. 이것이 `test-allpass-step-collapse`의 **종전 계약(「점검표 전 6단계 그대로」)을 뒤집은 자리**다 — 단언을 지우지 않고 새 계약으로 교체했다(S8-1)" },
+    { "id": "Q-4", "q": "작업대(inspection-workbench.tsx)도 이번에 고칠 것인가 — 배포된 작업대는 「①완료+제출 후」에 접는데 달력은 「즉시」 감춘다", "status": "resolved", "resolution": "**즉시 감춤으로 통일**(2026-09-11 사용자 확정). 작업대·모바일 포함 전 표시 표면이 한 규칙(`visibleStepNums`)을 쓴다. 종전 게이트 `allPass`/`step4Settled`/접힌 ④ 폼은 폐지.", "note": "종전 판단(「타 세션 미커밋과 충돌하니 뺀다」)은 **전제가 틀려서 철회됐다** — principle_3 참조. 인계할 상대가 애초에 없었다" }
+  ],
+  "sections": [
+    {
+      "id": "S0", "title": "정본 문서", "status": "implemented",
+      "criteria": [
+        { "id": "S0-1", "desc": "채번 — `erp_goal/` 최고 번호가 47이라 48을 잡는다", "status": "implemented", "evidence": "Glob `소방계획서_4[89]*` → 0건(48·49 둘 다 비어 있음)", "verified": "2026-09-11 실측" },
+        { "id": "S0-2", "desc": "`.md`(서사) + `.json`(추적) 두 벌. `.json`이 `source_md`로 `.md`를 가리킨다", "status": "implemented", "evidence": "erp_goal/소방계획서_48.md · .json" },
+        { "id": "S0-3", "desc": "🚨 뒤집힌 판단은 **지우지 않고 정정 층으로** 남긴다 — §2-1-a·§4-1 정정·§4-4 정정·§9. 초록으로 덮으면 다음 사람이 같은 길을 되짚는다", "status": "implemented", "evidence": "md 머리말이 「층으로 읽는다」를 명시하고 §9를 최종 정본으로 지정" }
+      ]
+    },
+    {
+      "id": "S1", "title": "표시 축 신설 — 의무 축과 가른다", "status": "implemented",
+      "criteria": [
+        { "id": "S1-1", "desc": "`visibleStepNums(isSpecial, needsRepairSteps)` 신설 — 불량 0이면 `[1,2,3]`, 아니면 `[1,2,3,4,5,6]`, 정기는 `[1]`", "status": "implemented", "evidence": "erp/src/lib/inspection-step-status.ts:189", "verified": "test-inspection-steps-sync 4조합 단언 초록(103/103)" },
+        { "id": "S1-2", "desc": "🚨**`activeStepNums`는 한 글자도 고치지 않는다** — 그것이 완료 판정(`inspection-step-sync.ts:230→277`)과 크론 알림의 분모다. 기존 21단언의 무수정 통과가 **의무 축이 안 움직였다는 증거**가 된다", "status": "implemented", "evidence": "inspection-step-status.ts:173-179 무수정", "verified": "test-inspection-steps-sync 103/103 (기존 단언 전건 무수정 통과) · `git diff`에 activeStepNums 본문 변경 0" },
+        { "id": "S1-3", "desc": "`NA_DISPLAY_STEP_NUMS = [4,5,6]` 발행 — `NA_CANDIDATE_STEP_NUMS=[5,6]`의 표시용 짝. 사이드바가 count 질의로 **뺄 건수만** 세도록", "status": "implemented", "evidence": "erp/src/lib/active-steps.ts:101", "verified": "probe-45가 상수 값과 사이드바 질의 배선을 함께 단언" },
+        { "id": "S1-4", "desc": "🚨**설계 초안(독립 리터럴)을 버리고 파생으로 구현했다** — `activeStepNums(...).filter(n => needsRepairSteps || n !== 4)`. `visible ⊆ active`가 값이 아니라 **구조**로 보장된다", "status": "implemented", "evidence": "inspection-step-status.ts:190", "verified": "전 조합 부분집합 단언 + 「갈라지는 단계는 ④ 하나뿐」 단언 · **변이 ④(같은 값 내는 리터럴)가 구조 단언 2건으로 빨강**" }
+      ]
+    },
+    {
+      "id": "S2", "title": "조회 계층에 표시 지도", "status": "implemented",
+      "criteria": [
+        { "id": "S2-1", "desc": "`ActiveSteps`에 `visibleMap` 추가 + `isStepVisible()` — **추가 질의 0회**(이미 만든 `needsRepair` 집합을 한 번 더 투영)", "status": "implemented", "evidence": "erp/src/lib/active-steps.ts:26,37,66,90", "verified": "probe-45가 `visibleMap.set(i.id, new Set(visibleStepNums(isSpecial, needs)))`를 `activeStepsByInspection` **본문 안에서** 단언 — 같은 `needs` 값에서 파생됨이 고정" },
+        { "id": "S2-2", "desc": "기울기는 `isStepActive`와 같다 — **모르면 참**(조회 불완전이면 전 단계를 보인다). 닫는 쪽으로 기울지 않는다", "status": "implemented", "evidence": "active-steps.ts:91 `?? true`", "verified": "probe-45 inFn 단언" },
+        { "id": "S2-3", "desc": "`isStepActive`/`isStepNa`/`NA_CANDIDATE_STEP_NUMS`는 그대로 둔다 — 크론이 계속 쓴다", "status": "implemented", "verified": "probe-45가 상수 잔존 + 크론의 `isStepActive` 유지를 단언 · **변이 ⑥(크론을 표시 축으로)이 2빨강**" },
+        { "id": "S2-4", "desc": "`isStepHidden` = `!isStepVisible` — 사본 규칙을 따로 갖지 않는다(사이드바 차감용)", "status": "implemented", "evidence": "active-steps.ts:96", "verified": "probe-45 inFn이 본문이 부정 위임임을 단언" }
+      ]
+    },
+    {
+      "id": "S3", "title": "달력 — 한 줄이 네 곳을 고친다", "status": "implemented",
+      "criteria": [
+        { "id": "S3-1", "desc": "`calendar/page.tsx:133`의 `isStepActive` → `isStepVisible`", "status": "implemented", "verified": "probe-45 count 1회 + 옛 축 0건 · **변이 ②가 2빨강**" },
+        { "id": "S3-2", "desc": "서버가 거른 `insp.steps`를 아래가 그대로 쓰므로 **그리드 칩·데이 패널·슬라이드 패널 목록·패널 진행률**이 한꺼번에 따라온다", "status": "implemented", "evidence": "inspection-calendar-client.tsx:456 · :1958 · :637-639(분모가 steps.length)", "verified": "구조는 실측 확인. **착지는 S6-1이 아직 안 쟀다**" },
+        { "id": "S3-3", "desc": "🎯 image.png의 증상 — 패널 `1/4 단계 (25%)` → **`1/3 단계`**", "status": "code_present", "note": "코드 경로는 닫혔으나 **화면 실측 전**(S6-1)" }
+      ]
+    },
+    {
+      "id": "S4", "title": "「관련된 것 모두」 — 형제 표시 표면 (설계 4곳 → 실제 9곳)", "status": "implemented",
+      "criteria": [
+        { "id": "S4-1", "desc": "사이드바 뱃지 — `layout.tsx` 질의를 `NA_DISPLAY_STEP_NUMS`로, 차감을 `isStepHidden`으로", "status": "implemented", "evidence": ":57, :80", "verified": "probe-45 count 1회 + 질의 배선 단언" },
+        { "id": "S4-2", "desc": "개인 일정 달력 — `my/schedules/page.tsx:92`", "status": "implemented", "verified": "probe-45 count 1회 + 옛 축 0건" },
+        { "id": "S4-3", "desc": "점검 목록 진행 열 — `inspections/page.tsx:181`", "status": "implemented", "verified": "probe-45 count 1회" },
+        { "id": "S4-4", "desc": "🚨**바꾸지 않는 것** — `inspection-step-sync.ts:230`(완료 판정) · 마감 알림 크론(`isStepActive`) · 모바일 완료 판정. 이것이 안전장치다", "status": "implemented", "verified": "probe-45 **의무 축 회귀 가드 6단언**(inFn/notInFn) · **변이 ③·⑥이 빨강** · E2E가 `inspections.status` 실측" },
+        { "id": "S4-5", "desc": "⚠ 사이드바·개인일정에서 ④가 빠지면 불량 0건 회차의 별지 9호 경보는 **크론 알림과 [별지서식] 탭만** 남는다. 되돌리려면 그 두 줄만 `isStepActive`로", "status": "implemented", "note": "받아들인 대가 — 명시만 한다. E2E가 「[별지서식] 창구는 남는다」를 단언한다" },
+        { "id": "S4-6", "desc": "모바일 — `visibleStepNums` 사본을 따로 추가해 **렌더에만** 쓰고, `activeStepNums`는 [완료] 버튼(= `inspections.status='completed'` 직접 쓰기)용으로 남긴다", "status": "implemented", "evidence": "mobile/lib/inspection-steps.ts:41 · mobile/app/(app)/inspections/[id].tsx:243(렌더) / :262(완료 판정)", "verified": "probe-45가 **두 축이 각각 1회씩 총 2회** 쓰임을 count로 단언 + 모바일 사본도 파생임을 inFn으로 · **변이 ⑦이 빨강**", "note": "⚠ 모바일 `tsc`는 TS2339(`Inspection`에 `plan_type` 없음)로 붉다 — **origin/main 판으로 대조 실험해 기존 결함으로 확정**(내 변경 탓 아님)" },
+        { "id": "S4-7", "desc": "**신규 발견** 대시보드 기한초과·오늘·임박 — `dashboard/page.tsx:215,219,222` **3곳**", "status": "implemented", "verified": "probe-45 count **3회**(「셋 중 둘」은 개수로만 잡힌다) + 옛 축 0건" },
+        { "id": "S4-8", "desc": "**신규 발견** 계획 항목 슬라이드 패널 — `inspection-plans/actions.ts:861` `getInspectionStepsForItemAction`", "status": "implemented", "verified": "probe-45 count 1회 + 옛 축 0건" },
+        { "id": "S4-9", "desc": "**신규 발견** 고객 상세 진행 집계 — `customers/[id]/page.tsx:286`", "status": "implemented", "verified": "probe-45 count 1회", "note": "⚠ 같은 파일 :305-330에 타 세션 미커밋 +16/−2(대표동 영역) — 겹침 없음 확인. 커밋 시 origin/main blob 재적용 대상" }
+      ]
+    },
+    {
+      "id": "S5", "title": "검사", "status": "implemented",
+      "criteria": [
+        { "id": "S5-1", "desc": "`visibleStepNums` 단언 신설 — 4조합 + 진행률 분모 3 + 의무 축이 같은 입력에서 ④를 유지하는가", "status": "implemented", "evidence": "test-inspection-steps-sync.mts 「1부 표시 축(소방계획서_48)」 10단언", "verified": "103/103 (기존 93 + 신규 10)" },
+        { "id": "S5-2", "desc": "**양성·음성 짝** — 「불량 있으면 ④가 남는가」를 함께 단언. ⭐전례: 형제 검사가 음성만 물어 양성 경로가 한 번도 안 돌았다", "status": "implemented", "evidence": "단위(음성/양성 2단언) + E2E(**3 → 6 → 3** 세 상태를 같은 회차로 굴린다)" },
+        { "id": "S5-3", "desc": "정적 검사 — 표면 9곳이 표시 축을 읽는가(**count로 정확 횟수**) · **sync가 여전히 `activeStepNums`를 쓰는가(의무 축 회귀 가드)** · 크론이 `isStepActive`를 유지하는가. 문자열 존재가 아니라 함수 본문 절단으로", "status": "implemented", "evidence": "_probe-45-neighbors.mjs 신규 35단언 (81 → **116/116**)", "verified": "`inFn`이 `export async function`도 잡도록 고쳤다 — 종전 판으로는 `syncInspectionSteps`에 「함수 없음」이라 **가드를 걸 수 없었다**. `notInFn` 신설(의무 축 함수에 표시 축이 새어드는지)" },
+        { "id": "S5-4", "desc": "**변이 실험** — 계획의 3종을 **7종으로 넓혀 전부 빨강 확인**. ⭐전례: 제품을 되돌린 37 변이 중 24개가 초록이었다", "status": "implemented", "evidence": "scripts/_mut48.mjs (try/finally 복원 + sha256 대조 + 「대상 문자열 부재」를 실패로)", "verified": "①filter제거=steps-sync 4빨강 ②달력되돌림=2빨강 ③**sync를 표시축으로=probe 2빨강 + E2E `status=completed` 1빨강** ④같은값 독립리터럴=2빨강 ⑤작업대되돌림=1빨강 ⑥크론=2빨강 ⑦모바일렌더=1빨강. **7/7 복원 sha256 동일**" },
+        { "id": "S5-5", "desc": "`tsc --noEmit` rc=0 · `npm run test:all` · 신규 스위트 test-all 등재", "status": "partial", "evidence": "erp `npx tsc --noEmit` **rc=0** 실측. 등재는 **불필요**(신규 스크립트 0개 — 네 검사가 이미 test-all.mts:81,84,405,410에 있다)", "note": "🚧 `npm run test:all`(126 스위트) **완주 안 했다 — 12스위트에서 중단**. 공유 트리 전체 회귀는 수 시간이고 **커밋 트리를 증명하지도 못한다**(정본 게이트는 커밋 시 격리 워크트리 — S9-3). 중단 전 구간에서 내 축 빨강 0건이었고, 관측된 빨강 2건(`서식 가독성 항등` 7 · `서식 인쇄 격리` 1)은 **내 축이 아니며 「가독성 항등 7빨강은 낡은 기준선」이 기존 기록에 있다**(인쇄 1빨강은 대조군 미측정 — 초록이라 말하지 않는다). 내 축 4스위트는 개별 전건 초록" },
+        { "id": "S5-6", "desc": "🚨 `_judge2-r4-static.mjs`의 「단일 기록자」 단언이 붉게 나오면 **제품이 아니라 PATH를 먼저 의심할 것** — 그 스크립트는 `execSync('git grep …')`를 쓰고 실패를 `catch → []`로 삼킨다", "status": "implemented", "evidence": "PATH에 git 없음 → 18/19(빨강) · `F:\\AI\\tools\\MinGit\\cmd` 추가 → **19/19**", "verified": "2026-09-11 대조 실측. 제품 파일은 그 사이 한 글자도 안 바뀌었다" }
+      ]
+    },
+    {
+      "id": "S6", "title": "실측 검증 — 스테이징 실데이터·실화면 24/0", "status": "implemented",
+      "criteria": [
+        { "id": "S6-1", "desc": "리워시양평세척센터 2026년 2차(작동) — 패널 분모 **3** · 4단계 행 없음", "status": "implemented", "evidence": "scripts/_probe-48-surfaces.mts + 스크린샷 scripts/_out-48-panel-riwash.png", "verified": "패널에 ①②③만 그려진 것을 **육안 확인**. `4단계:`·`5단계:` 행 부재 단언 초록", "note": "⭐ **분자가 아니라 분모로 판정했다** — 상세를 여는 순간 sync가 증거 없는 ①을 pending으로 되돌려 `1/3`이 `0/3`이 됐다(리워시는 점검표 응답 **0건**인데 `[점검 시작]`이 ①을 완료로 찍어 둔 상태였다). **기존 단일 기록자 동작이고 이 차수 축이 아니다** — 계측기가 남의 축에 흔들리면 내 축을 못 잰다" },
+        { "id": "S6-2", "desc": "**대조군** — 불량이 등록된 회차는 6단계 그대로. 하나만 보면 「무언가 사라졌다」만 알 뿐 「이것만 사라졌다」를 모른다", "status": "implemented", "evidence": "**같은 달력 화면(2026년 9월)**에서 나란히: 리워시 칩 2개(`3단계`+`정기 1건`) vs 송학떡집(✕2 불량2) 칩 4개에 `4단계`·`5단계`·`6단계` 전건 잔존", "verified": "합성 픽스처(E2E 3→6→3)와 **실데이터 대조** 둘 다" },
+        { "id": "S6-3", "desc": "그리드 `[작동] 4단계…` 칩 소멸", "status": "implemented", "verified": "리워시 칩 전수에 `4단계`·`5단계`·`6단계` 문자열 0건 · 양성 표본 선단언(칩이 0개면 부재 단언이 공허해진다)과 **검색이 실제로 걸렸는지**(`cal-clear-search` 가시성) 선단언 동반" },
+        { "id": "S6-4", "desc": "🎯**의무 축 무손상** — 그 회차 상세를 연 뒤 `inspections.status`가 `completed`로 **안 바뀌었는지**. **이 차수에서 가장 중요한 단언**", "status": "implemented", "evidence": "합성: test-allpass-step-collapse.mts(보이는 3단계를 전부 채워 화면 3/3 100%인 상태를 만든 뒤 DB를 읽는다) · 실데이터: _probe-48-surfaces.mts(리워시 상세 진입 전후 status 대조)", "verified": "🎯 **공허하지 않음을 변이로 실증**: sync의 분모를 표시 축으로 바꾸자 그 단언 **하나만** 빨개지며 `status=completed`가 실제로 DB에 박혔다(완료 보류 holdCompletion이 가려 주지 않았다). 실데이터에서도 `in_progress` → `in_progress` 무변 · `inspection_steps` **6행 전부 잔존**" },
+        { "id": "S6-5", "desc": "형제 표면 — 작업대 3단계 · `[별지서식]` 잔존 · 고객 상세 분모 `/3`", "status": "partial", "evidence": "작업대·고객상세(점검 이력 탭)는 실측 초록", "note": "🚧 **사이드바 뱃지 감소·`/my/schedules`·대시보드·계획 패널은 화면 실측 미실시** — 정적 축(probe-45 count)과 코드 경로만 닫혔다. 초록이라 말하지 않는다" },
+        { "id": "S6-6", "desc": "실측이 잡은 **계측기** 결함 둘 — 기록해 두지 않으면 다음 사람이 같은 타임아웃을 겪는다", "status": "implemented", "evidence": "① 달력 검색을 입력창으로 몰면 공용 `SearchInput`의 placeholder가 데이 패널과 겹쳐 타임아웃 → 정본은 `?cust=` URL + `cal-clear-search` 가시성 선단언 ② 고객 상세 진행바는 **`?tab=history`에만** 있다 — 기본 탭에서 재면 「문구 없음」으로 조용히 빨개진다" },
+        { "id": "S6-7", "desc": "⚠ 이 실측은 스테이징 데이터를 **한 줄 바꿨다** — 리워시 ①이 `completed` → `pending`. 제품의 설계된 보정이지만 화면을 연 것만으로 일어났으므로 적어 둔다", "status": "implemented" }
+      ]
+    },
+    {
+      "id": "S7", "title": "작업대 통일 — 종전 게이트 폐지 (Q-4 확정분)", "status": "implemented",
+      "criteria": [
+        { "id": "S7-1", "desc": "`allPass`·`step4Settled`·`barSteps` 3분기 특례를 폐지하고 `visibleStepNums` 한 벌로 단순화", "status": "implemented", "evidence": "inspection-workbench.tsx:263", "verified": "probe-45가 세 심볼의 **부재**를 단언(잔재가 남으면 같은 회차가 화면마다 다르게 보인다) · **변이 ⑤가 빨강**" },
+        { "id": "S7-2", "desc": "도달 불가가 되는 접힌 ④ 폼(`submit9-collapsed`/`submit9-expand`) 제거", "status": "implemented", "verified": "probe-45 부재 단언 + `test-allpass-step-collapse`에서 해당 단언을 **폐기하고 새 계약으로 교체**" },
+        { "id": "S7-3", "desc": "분모도 **보이는 것**으로 센다 — 3개만 보이는데 4/4라고 말하면 화면과 숫자가 어긋난다", "status": "implemented", "evidence": "stepProgress(doneByNum, visibleSteps)", "verified": "E2E가 `\\d/3 단계 완료`·`\\d/6 단계 완료`를 상태별로 단언" },
+        { "id": "S7-4", "desc": "딥링크 `?step=N`은 **보이는 단계일 때만** 인정 — 감춰진 칸을 억지로 펼치면 빈 화면이 된다", "status": "code_present", "evidence": "inspection-workbench.tsx:272-274", "note": "단언 없음 — 이 축을 묻는 검사가 0건이다(B-6)" },
+        { "id": "S7-5", "desc": "🚨 이 파일에는 타 세션 미커밋 **마감기일 칩 +128/−37**이 얹혀 있다 — 커밋 시 **origin/main blob 위에 재적용**해야 한다", "status": "pending_order", "note": "커밋 절차(S9)의 전제" }
+      ]
+    },
+    {
+      "id": "S8", "title": "구계약 검사 3건 — 지우지 않고 갈아끼웠다", "status": "implemented",
+      "criteria": [
+        { "id": "S8-1", "desc": "`test-allpass-step-collapse.mts` — 종전 「6 → 4 → 3」은 **폐지된 게이트의 계약**이다. **「3 → 6 → 3」**(즉시 감춤 · ✕로 복귀 · 정정으로 재감춤)으로 재작성 + 의무 축 4단언 추가", "status": "implemented", "evidence": "22/0", "verified": "원래 이 파일이 존재한 이유(양성 경로가 한 번도 안 돌던 사고)를 그대로 살려 **같은 회차를 세 상태로 굴린다**" },
+        { "id": "S8-2", "desc": "`test-gate-consistency.mts` — 이 파일의 축은 **게이트 정합성**이지 표시 축이 아니다. 단언을 고치는 대신 **픽스처에 ✕ 응답을 선삽입**해 ④⑤⑥을 띄우고 기존 단언을 그대로 유지", "status": "implemented", "evidence": "17/0 (선단언 2건 추가)", "verified": "단언을 지웠으면 게이트 축이 사라졌을 자리" },
+        { "id": "S8-3", "desc": "`_judge2-r4-static.mjs:62` — `activeStepNums\\(isSpecial, needsRepairSteps\\)` 정규식이 작업대에서 안 맞음 → `(?:visible|active)StepNums`로. 이 단언의 축은 「공용 판정 함수를 쓰는가」이지 「어느 축인가」가 아니다(그건 probe-45가 개수로 본다)", "status": "implemented", "evidence": "19/19 (PATH에 git 있을 때)" },
+        { "id": "S8-4", "desc": "🚨**공유 E2E 헬퍼의 공허 통과 경로를 발견** — `_e2e-helpers.mjs:16` `summary()`가 `process.exit(_fail > 0 ? 1 : 0)`이라, 셋업 예외로 `check()`가 한 번도 안 불리면 **「0 통과 / 0 실패」로 exit 0**이다(`catch`의 `process.exitCode = 1`을 덮는다)", "status": "partial", "evidence": "변이 실험 중 실측 — 제품을 깨뜨려 화면이 안 뜨는데 스위트가 초록이었다", "verified": "**내 파일만** 고쳤다(`catch`에서 `check(…, false)`). 공유 헬퍼는 수십 스위트가 함께 쓰므로 **손대지 않았다** — 고치면 다른 세션의 초록이 붉어질 수 있고 그 판정은 그쪽 몫(B-5)" }
+      ]
+    },
+    {
+      "id": "S9", "title": "커밋·푸시·배포", "status": "pending_order",
+      "criteria": [
+        { "id": "S9-1", "desc": "🚨 **기준선은 `origin/main`** — 로컬 `main`(`1a8fb78`)은 origin(`1d5f0aa`)의 조상이 아니다. 재개 시 `merge-base --is-ancestor`로 **재측정**할 것", "status": "pending_order" },
+        { "id": "S9-2", "desc": "전용 인덱스(`GIT_INDEX_FILE` + `apply --cached`)로 **내 헌크만**. `inspection-workbench.tsx`·`customers/[id]/page.tsx`(·`test-all.mts`)는 **origin/main blob 위에 재적용**", "status": "pending_order" },
+        { "id": "S9-3", "desc": "격리 워크트리 게이트(`npm ci` — 터보팩이 정션을 거부 · `.env.local` 복사 — 없으면 `/login` prerender 사망) → `push origin <sha>:main`", "status": "pending_order" },
+        { "id": "S9-4", "desc": "커밋 전 `--numstat`에 **의도치 않은 삭제 줄**이 있으면 중단", "status": "pending_order" },
+        { "id": "S9-5", "desc": "`scripts/_mut48.mjs`는 **일회성 프로브라 커밋 대상이 아니다**(`_` 접두 관례)", "status": "pending_order" }
+      ]
+    }
+  ],
+  "backlog": [
+    { "id": "B-1", "desc": "작업대 — 달력과 갈라진 상태 존속", "status": "resolved", "resolution": "**해소**. 전제가 틀렸다(principle_3) — 충돌이 아니라 정책 충돌이었고, 사용자 확정으로 즉시 감춤 통일(S7)" },
+    { "id": "B-2", "desc": "모바일 `visibleStepNums` 분리 + `_probe-45-neighbors.mjs` 대조 갱신", "status": "resolved", "resolution": "**해소** — S4-6. 렌더/완료 두 축이 각각 1회씩 쓰임을 count로 고정" },
+    { "id": "B-3", "desc": "④ 미제출인데 표시 진행률 100%로 보이는 「거짓 초록」 — 표시로 보완할지 미결", "status": "open", "note": "🚨 **열린 채로 둔다.** DB에는 거짓이 안 남는다는 것이 축을 가른 이유이고(Q-1 cost), E2E가 그 상태를 **의도된 것으로 단언**하고 있다 — 보완하려면 그 단언부터 바꿔야 한다" },
+    { "id": "B-4", "desc": "`test-all.mts` 등재", "status": "resolved", "resolution": "**불필요** — 신규 스크립트 0개. 네 검사 전부 이미 등재(test-all.mts:81,84,405,410 실측)" },
+    { "id": "B-5", "desc": "**신규** `_e2e-helpers.mjs`의 `summary()`가 0건 실행을 exit 0으로 보고한다 — 전 E2E 스위트 공통의 공허 통과 경로", "status": "open", "note": "고치면(`_fail > 0 || _pass === 0`) 다른 세션의 현재 초록이 붉어질 수 있다. **별도 차수에서 전수 영향과 함께** 판정할 것" },
+    { "id": "B-6", "desc": "**신규** 딥링크 `?step=N`이 감춰진 단계일 때 조용히 기본값으로 떨어지는 축(S7-4)을 묻는 검사가 0건", "status": "open" }
+  ],
+  "constraints": [
+    "커밋·푸시·배포·DB 변경 금지 — 사용자의 명시적 「진행」 지시 후에만",
+    "공유 작업트리 미커밋 1,160건 — 파일별 `git status` 확인 후 착수, **부재 판정은 origin/main에도 대고**",
+    "변이 실험은 제품 파일을 직접 건드린다 — try/finally 복원 + **복원 후 sha256 대조**가 아니면 하지 말 것",
+    "PowerShell 5.1 — 한글은 Edit/Write 도구로만. `[id]` 경로는 `Copy-Item`이 와일드카드로 해석한다(git/Edit 도구로만)"
+  ]
+}

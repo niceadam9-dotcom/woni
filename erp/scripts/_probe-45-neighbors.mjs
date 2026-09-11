@@ -57,15 +57,28 @@ function atLeast(name, path, re, n, detail = '') {
 }
 /** `export function <이름>` 부터 다음 `\nexport ` 까지를 잘라 **그 함수 본문 안에서만** 본다 —
  *  형제 함수의 동일한 줄에 매치해 공허 통과하던 것을 막는다 */
-function inFn(name, path, fnName, re, detail = '') {
+function fnBody(path, fnName) {
   const src = read(path)
-  if (src === null) { fail++; console.log(`  ❌ ${name} — 파일 없음: ${path}`); return }
-  const start = src.search(new RegExp(`export function ${fnName}\\b`))
-  if (start < 0) { fail++; console.log(`  ❌ ${name} — 함수 없음: ${fnName}`); return }
+  if (src === null) return { err: `파일 없음: ${path}` }
+  // ⚠ `export async function`도 잡는다 — 종전 `export function`만 보던 판은 syncInspectionSteps
+  //   같은 async 함수에 걸면 「함수 없음」으로 붉어져, 의무 축 가드를 이 헬퍼로 못 걸었다(48차수)
+  const start = src.search(new RegExp(`export (?:async )?function ${fnName}\\b`))
+  if (start < 0) return { err: `함수 없음: ${fnName}` }
   const rest = src.slice(start + 1)
   const end = rest.search(/\nexport /)
-  const body = end < 0 ? rest : rest.slice(0, end)
+  return { body: end < 0 ? rest : rest.slice(0, end) }
+}
+function inFn(name, path, fnName, re, detail = '') {
+  const { body, err } = fnBody(path, fnName)
+  if (err) { fail++; console.log(`  ❌ ${name} — ${err}`); return }
   ok(name, re.test(body), detail)
+}
+/** 그 함수 본문 안에 패턴이 **없는가** — 의무 축 함수에 표시 축이 새어 들어오는 것을 막는다.
+ *  파일 전체로 보면 형제 함수의 정당한 사용에 매치해 영원히 붉으므로 본문으로 좁힌다. */
+function notInFn(name, path, fnName, re, detail = '') {
+  const { body, err } = fnBody(path, fnName)
+  if (err) { fail++; console.log(`  ❌ ${name} — ${err}`); return }
+  ok(name, !re.test(body), detail)
 }
 
 const SRC = 'src'
@@ -239,6 +252,82 @@ has('절단·오류를 화면 신호로 올린다', P.list, /truncated: !!r\.err
 has('그 신호가 실제로 렌더된다', P.list, /\{listTruncated && \(/)
 has('못 받았으면 화면이 말한다', P.list, /전체가 아닙니다/)
 lacks('「전체」가 range 단발로 되돌아가지 않았다', P.list, /const to = pageSize > 0 \? from \+ pageSize - 1 : 99999/)
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 소방계획서_48 — 표시 축(visibleStepNums)과 의무 축(activeStepNums)의 분리
+//
+// 45차수가 가르친 것: 순수 함수는 공유돼 있었는데 **그 값을 쓰는 표면이 공유되지 않아** 화면
+// 다섯이 눈멀었다. 48차수는 축을 **하나 더** 만드는 변경이라 같은 사고의 표면적이 두 배다 —
+// 표시 표면이 하나라도 옛 축에 남으면 화면이 갈라지고, 반대로 의무 축 자리에 표시 축이 새어
+// 들어가면 **법정 의무인 별지 9호를 건너뛴 채 `inspections.status='completed'`가 DB에 박힌다.**
+// 값의 옳음은 test-inspection-steps-sync가 본다. 여기서 고정하는 것은 **어느 자리가 어느 축을
+// 읽는가** 뿐이고, 특히 아래 「의무 축 회귀 가드」가 이 차수에서 가장 비싼 단언이다.
+console.log('\n— 표시 축 원천이 의무 축의 **파생**이다 (소방계획서_48)')
+has('표시 축 함수가 존재한다', P.status, /export function visibleStepNums/)
+inFn('그 함수가 activeStepNums를 **걸러서** 만든다 — 독립 리터럴이면 언젠가 의무 축과 갈라진다',
+  P.status, 'visibleStepNums', /return activeStepNums\(isSpecial, needsRepairSteps\)\.filter\(/)
+notInFn('표시 축이 단계 목록을 직접 적어 두지 않는다', P.status, 'visibleStepNums', /\[1, 2, 3/)
+inFn('의무 축은 종전 그대로다 — ①~④ / ①~⑥ 두 갈래', P.status, 'activeStepNums',
+  /needsRepairSteps \? \[1, 2, 3, 4, 5, 6\] : \[1, 2, 3, 4\]/)
+
+console.log('\n— 🎯 의무 축 회귀 가드: 완료 판정·크론은 표시 축을 **쓰면 안 된다**')
+// 여기가 붉어지면 「불량 0건이면 ④를 감춘다」가 「④를 안 해도 완료로 친다」로 번진 것이다.
+inFn('sync의 완료 판정 분모가 여전히 activeStepNums다',
+  P.sync, 'syncInspectionSteps', /const active = activeStepNums\(isSpecial, hasSheetDefect\(evidence\)\)/)
+notInFn('sync에 표시 축이 새어 들어오지 않았다 — status=completed를 쓰는 함수다',
+  P.sync, 'syncInspectionSteps', /visibleStepNums|isStepVisible/)
+has('마감 알림 크론이 의무 축 술어를 유지한다 — 별지 9호 15일 법정 알림',
+  P.cron, /\.filter\(s => isStepActive\(activeByInsp, s\.inspection_id, s\.step_num\)\)/)
+lacks('그 크론이 표시 축으로 갈아타지 않았다', P.cron, /isStepVisible|visibleStepNums/)
+has('모바일 완료 판정도 의무 축을 유지한다 — 여기도 completed를 DB에 직접 쓴다',
+  P.mobileScreen, /updatedSteps\.filter\(s => activeNums\.has\(s\.step_num\)\)\.every/)
+count('모바일 화면이 두 축을 **둘 다** 들고 있다(렌더=표시·완료=의무)',
+  P.mobileScreen, /(?:visible|active)StepNums\(/g, 2)
+
+console.log('\n— 표시 표면 전수: 아홉 자리가 표시 축을 읽는다 (수를 센다 — 「셋 중 둘」은 개수로만 잡힌다)')
+has('조회 계층이 표시 집합을 함께 싣는다 — 추가 질의 0회', P.active, /visibleMap: Map<string, Set<number>>/)
+inFn('그 집합이 의무 축과 **같은 needs 값**에서 파생된다', P.active, 'activeStepsByInspection',
+  /visibleMap\.set\(i\.id, new Set\(visibleStepNums\(isSpecial, needs\)\)\)/)
+inFn('표시 술어도 「모르면 보인다」로 기운다 — 감추는 쪽으로 안 기운다',
+  P.active, 'isStepVisible', /\?\? true/)
+inFn('isStepHidden은 그 부정이다 — 사본 규칙을 따로 갖지 않는다',
+  P.active, 'isStepHidden', /return !isStepVisible\(a, inspectionId, stepNum\)/)
+for (const [name, path, re, n] of [
+  ['점검 달력(착륙 화면)', P.cal, /isStepVisible\(/g, 1],
+  ['대시보드 기한초과·오늘·임박 3곳', P.dash, /isStepVisible\(/g, 3],
+  ['개인 일정 달력', P.mySched, /isStepVisible\(/g, 1],
+  ['계획 항목 슬라이드 패널', P.planActions, /isStepVisible\(/g, 1],
+  ['사이드바 뱃지(차감)', P.layout, /isStepHidden\(/g, 1],
+  ['점검 목록 진행 열', P.list, /visibleStepNums\(/g, 1],
+  ['고객 상세 진행 집계', P.custDetail, /visibleStepNums\(/g, 1],
+  ['작업대(정본 화면)', P.workbench, /visibleStepNums\(/g, 1],
+]) {
+  count(`${name}이 표시 축을 ${n}곳에서 읽는다`, path, re, n)
+}
+// ⚠ 「새 축을 쓴다」만 물으면 **옛 축이 함께 남은** 반쪽 이관을 못 잡는다(한 표면 안에서 화면이 갈라진다)
+for (const [name, path] of [
+  ['점검 달력', P.cal], ['대시보드', P.dash], ['개인 일정', P.mySched], ['계획 패널', P.planActions],
+]) {
+  lacks(`${name}에 옛 표시 경로(isStepActive)가 남아 있지 않다`, path, /isStepActive\(/)
+}
+has('사이드바 차감 질의가 표시 축 후보 상수를 쓴다 — ④⑤⑥',
+  P.layout, /\.in\('step_num', \[\.\.\.NA_DISPLAY_STEP_NUMS\]\)/)
+has('그 상수가 ④⑤⑥이다', P.active, /NA_DISPLAY_STEP_NUMS = \[4, 5, 6\] as const/)
+has('크론이 쓰는 의무 축 상수는 그대로 남아 있다', P.active, /NA_CANDIDATE_STEP_NUMS/)
+
+console.log('\n— 모바일 사본이 웹과 갈라지지 않는다 (45차수 R-8의 6번째 표면)')
+has('모바일도 표시 축 사본을 갖는다', P.mobileRule, /export function visibleStepNums/)
+inFn('모바일 사본도 **파생**이다 — 웹과 같은 형태', P.mobileRule, 'visibleStepNums',
+  /activeStepNums\(isSpecial, needsRepairSteps\)\.filter\(/)
+has('모바일 화면이 렌더를 표시 축으로 거른다',
+  P.mobileScreen, /const visibleNums = new Set<number>\(visibleStepNums\(/)
+
+// ⚠ 작업대: 48차수는 「①완료+제출 후에만 ④를 접는다」는 종전 게이트를 **폐지**하고 즉시 감춤으로
+//   통일했다(2026-09-11 사용자 확정). 게이트 잔재가 남으면 같은 회차가 화면마다 다르게 보인다.
+console.log('\n— 작업대 종전 게이트 폐지 (즉시 감춤으로 통일)')
+lacks('제출 게이트 상태(step4Settled)가 남아 있지 않다', P.workbench, /step4Settled/)
+lacks('모두합격 특례 분기(allPass)가 남아 있지 않다', P.workbench, /\ballPass\b/)
+lacks('접힌 ④ 폼의 도달 불가 창구가 남아 있지 않다', P.workbench, /submit9-collapsed|submit9-expand/)
 
 console.log(`\n결과: ${pass}/${pass + fail} 통과`)
 process.exit(fail ? 1 : 0)

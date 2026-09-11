@@ -8,7 +8,7 @@ import { InspectionCustomerSearch } from '@/components/inspections/inspection-cu
 import { RecentCustomersStrip } from '@/components/customers/recent-customers-strip'
 import type { InspectionStatus, InspectionType, PlanType, UserRole } from '@/types'
 import { inspectionNatureBadge } from '@/lib/inspection-nature'
-import { activeStepNums, isSelfInspection } from '@/lib/inspection-step-status'
+import { isSelfInspection, visibleStepNums } from '@/lib/inspection-step-status'
 import { fetchAllRows, fetchAllRowsByIds } from '@/lib/supabase/paginate'
 import { todayKst } from '@/lib/kst-date'
 
@@ -175,13 +175,14 @@ export default async function InspectionsPage({
     // 초록 4/4 완료로 보인다). 크론과 같이 불완전하면 **보수적으로 전 단계 활성**으로 기운다.
     const repairAxisIncomplete = !!(defectsRes.error || defectsRes.truncated || xRes.error || xRes.truncated)
     const needsRepair = new Set([...defectsRes.rows, ...xRes.rows].map(d => d.inspection_id))
+    // 소방계획서_48 — 목록 진행 열은 **표시 축**(불량 0이면 ④도 즉시 감춤). 완료 판정은 의무 축 그대로.
     const activeByInsp = new Map(inspections.map(i => [
       i.id,
-      new Set<number>(activeStepNums(isSelfInspection(i.plan_type), repairAxisIncomplete || needsRepair.has(i.id))),
+      new Set<number>(visibleStepNums(isSelfInspection(i.plan_type), repairAxisIncomplete || needsRepair.has(i.id))),
     ]))
 
     for (const row of stepsRes.rows) {
-      // 유효 단계가 아니면 분모·마감임박 어디에도 세지 않는다(행은 DB에 그대로 둔다)
+      // 표시 단계가 아니면 분모·마감임박 어디에도 세지 않는다(행은 DB에 그대로 둔다)
       if (!activeByInsp.get(row.inspection_id)?.has(row.step_num)) continue
       if (!stepSummary[row.inspection_id]) {
         stepSummary[row.inspection_id] = { total: 0, completed: 0, hasDueSoon: false, hasOverdue: false }

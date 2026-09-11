@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation'
 import { getProfile, can } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { fetchAllRows, fetchAllRowsByIds } from '@/lib/supabase/paginate'
-import { activeStepsByInspection, isStepActive } from '@/lib/active-steps'
+import { activeStepsByInspection, isStepVisible } from '@/lib/active-steps'
 import { InspectionCalendarClient } from '@/components/inspections/inspection-calendar-client'
 import type { CalendarInspection, CalendarPlanItem } from '@/components/inspections/inspection-calendar-client'
 import type { InspectionType, InspectionStatus, UserRole } from '@/types'
@@ -125,11 +125,12 @@ export default async function InspectionCalendarPage({
     // 🎯 소방계획서_45 §S11(Q-6 유예분) — **착륙 화면**이 4/6이었다. 점검표 모두 합격이라
     // 작업대에서 '해당없음'으로 흐려진 ⑤⑥이 여기서는 정상 단계로 그려져, 달력에서 시작한
     // 사용자는 영원히 끝나지 않는 점검을 본다. 판정은 크론·목록과 같은 한 벌을 쓴다.
+    // 소방계획서_48 — 불량 0이면 ④도 즉시 감춘다(표시 축). 완료 판정·크론은 의무 축 그대로.
     const activeCal = await activeStepsByInspection(admin, inspIds, 'inspection-calendar')
 
     const stepsMap = new Map<string, StepRow[]>()
     for (const s of stepsRes.rows as StepRow[]) {
-      if (!isStepActive(activeCal, s.inspection_id, s.step_num)) continue
+      if (!isStepVisible(activeCal, s.inspection_id, s.step_num)) continue
       if (!stepsMap.has(s.inspection_id)) stepsMap.set(s.inspection_id, [])
       stepsMap.get(s.inspection_id)!.push(s)
     }

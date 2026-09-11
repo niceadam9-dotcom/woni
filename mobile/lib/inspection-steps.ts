@@ -27,8 +27,17 @@ export function hasSheetDefect(e: {
   return e.defectsTotal > 0 || e.sheetX > 0
 }
 
-/** 진행률 분모·화면에 그릴 **유효 단계**. 정기·일반(월간 외관)은 ① 하나뿐이다. */
+/** **유효 단계**(의무 축) — [완료] 버튼의 완료 판정 분모. 정기·일반(월간 외관)은 ① 하나뿐이다. */
 export function activeStepNums(isSpecial: boolean, needsRepairSteps: boolean): StepNum[] {
   if (!isSpecial) return [1]
   return needsRepairSteps ? [1, 2, 3, 4, 5, 6] : [1, 2, 3, 4]
+}
+
+/** 화면에 **그릴** 단계(표시 축) — 웹 `visibleStepNums`의 사본(소방계획서_48).
+ *  불량 0이면 ④도 **즉시** 감춘다(2026-09-11 사용자 확정 「즉시 감춤으로 통일」).
+ *  ⚠ 완료 판정([완료] 버튼 → `inspections.status='completed'`)은 activeStepNums(의무 축)를
+ *  그대로 쓴다 — 별지 9호(④)는 법정 의무라 표시가 줄어도 완료의 분모에서 빠지지 않는다.
+ *  파생(filter)이라 visible ⊆ active가 구조로 보장된다 — 독립 리터럴로 바꾸지 말 것. */
+export function visibleStepNums(isSpecial: boolean, needsRepairSteps: boolean): StepNum[] {
+  return activeStepNums(isSpecial, needsRepairSteps).filter(n => needsRepairSteps || n !== 4)
 }

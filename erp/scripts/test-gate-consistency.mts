@@ -31,6 +31,20 @@ try {
   const inspGenEvent   = await mkInsp('게이트E2E일반레거시', '일반관리', 'event', '작동')        // 레거시 event → 외관
   const inspMonthly    = await mkInsp('게이트E2E정기', '작동', 'monthly', '작동')               // 정기 → 외관(비자체)
 
+  // 🚨 소방계획서_48 — 이 파일의 축은 **게이트 정합성**(plan_type × 보고서 어포던스)이지 표시 축이
+  //    아니다. 그런데 48차수가 「불량 0이면 ④⑤⑥을 즉시 감춘다」를 넣으면서, 불량이 없는 새 회차의
+  //    작업대에는 ④ 칸 자체가 없어졌다 — 아래 `data-step="submit9"` 클릭과 「6단계 표시」가
+  //    **이 축과 무관한 이유로** 깨진다. 픽스처에 ✕ 응답을 하나 심어 ④⑤⑥이 보이는 상태로 만든 뒤
+  //    기존 단언을 그대로 유지한다(단언을 지우면 게이트 축이 사라진다).
+  //    표시 축 자체(3 → 6 → 3)는 test-allpass-step-collapse가 본다.
+  for (const [label, id] of [['소방 자체점검', inspSpecial], ['일반관리 자체점검', inspGenSpecial]] as const) {
+    const { error: xErr } = await raw.from('inspection_sheet_responses').insert({
+      inspection_id: id, item_code: '1-A-001', result: 'X', month: 0,
+    } as never)
+    // 전제 선단언 — 실패하면 아래 6단계 단언이 "게이트가 옳다"가 아니라 "픽스처가 안 섰다"로 붉어진다
+    check(`${label} 픽스처 — ✕ 응답 저장 성공(④⑤⑥ 노출 전제)`, !xErr, xErr?.message ?? '')
+  }
+
   const l = await launch(); browser = l.browser; const page = l.page
   page.setDefaultTimeout(20000)
   await login(page, EMAIL)

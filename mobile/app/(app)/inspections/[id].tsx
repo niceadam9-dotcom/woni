@@ -7,7 +7,7 @@ import { useLocalSearchParams, useRouter, Stack } from 'expo-router'
 import { supabase } from '@/lib/supabase'
 import type { PlanItem, Inspection, InspectionStep, InspectionDefect } from '@/lib/types'
 import { DefectFormModal } from '@/components/DefectFormModal'
-import { activeStepNums, hasSheetDefect, isSelfInspection } from '@/lib/inspection-steps'
+import { activeStepNums, hasSheetDefect, isSelfInspection, visibleStepNums } from '@/lib/inspection-steps'
 
 const SEVERITY_COLORS = {
   '경미': { bg: '#fef9c3', text: '#ca8a04' },
@@ -232,14 +232,16 @@ export default function InspectionDetailScreen() {
     setStartingInspection(false)
   }
 
-  /** 이 회차에서 실제로 유효한 단계 번호 — 화면·완료 판정이 **같은 집합**을 쓴다.
+  /** 유효 단계(의무 축)와 표시 단계(표시 축) — 소방계획서_48에서 두 축을 갈랐다.
    *  🎯 소방계획서_45 R-8: 종전에는 이 판정이 아예 없어 ⑤⑥에도 [완료] 버튼이 떴고,
-   *  그것을 누르면 `inspections.status='completed'`가 DB에 기록됐다(D34-2). */
-  const activeNums = new Set<number>(activeStepNums(
-    isSelfInspection(inspection?.plan_type as string | null | undefined),
-    hasSheetDefect({ defectsTotal: defects.length, sheetX, axisIncomplete }),
-  ))
-  const visibleSteps = steps.filter(s => activeNums.has(s.step_num))
+   *  그것을 누르면 `inspections.status='completed'`가 DB에 기록됐다(D34-2).
+   *  🚨 완료 판정(allDone)은 반드시 **activeNums**로 — 불량 0이면 ④가 화면에서 빠지지만
+   *  별지 9호는 법정 의무라, 표시 축으로 완료를 판정하면 ①②③만으로 completed가 굳는다. */
+  const isSpecialInsp = isSelfInspection(inspection?.plan_type as string | null | undefined)
+  const needsRepairSteps = hasSheetDefect({ defectsTotal: defects.length, sheetX, axisIncomplete })
+  const activeNums = new Set<number>(activeStepNums(isSpecialInsp, needsRepairSteps))
+  const visibleNums = new Set<number>(visibleStepNums(isSpecialInsp, needsRepairSteps))
+  const visibleSteps = steps.filter(s => visibleNums.has(s.step_num))
 
   async function completeStep(stepId: string) {
     if (!inspection) return

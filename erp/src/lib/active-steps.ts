@@ -2,7 +2,7 @@ import 'server-only'
 
 import type { createAdminClient } from '@/lib/supabase/admin'
 import { fetchAllRowsByIds } from '@/lib/supabase/paginate'
-import { activeStepNums, isSelfInspection } from '@/lib/inspection-step-status'
+import { activeStepNums, isSelfInspection, visibleStepNums } from '@/lib/inspection-step-status'
 
 type Admin = ReturnType<typeof createAdminClient>
 
@@ -21,6 +21,9 @@ type Admin = ReturnType<typeof createAdminClient>
 export type ActiveSteps = {
   /** inspection_id → 유효 단계 번호 집합. **없는 키는 '모름'이지 '전부 비활성'이 아니다** */
   map: Map<string, Set<number>>
+  /** inspection_id → **표시** 단계 번호 집합(소방계획서_48 — 불량 0이면 ④도 즉시 감춤).
+   *  map(의무 축)의 부분집합이다. 완료 판정·크론은 이 축이 아니라 map을 본다. */
+  visibleMap: Map<string, Set<number>>
   /** 조회가 불완전했는가 — 참이면 map은 전 단계를 활성으로 담고 있다 */
   incomplete: boolean
 }
@@ -31,7 +34,8 @@ export async function activeStepsByInspection(
   admin: Admin, ids: string[], label: string,
 ): Promise<ActiveSteps> {
   const map = new Map<string, Set<number>>()
-  if (ids.length === 0) return { map, incomplete: false }
+  const visibleMap = new Map<string, Set<number>>()
+  if (ids.length === 0) return { map, visibleMap, incomplete: false }
 
   // ⚠ `fetchAllRowsByIds` — id 목록은 URL에 실리므로 **400건부터 요청 자체가 실패**한다(실측).
   // 1000행 상한을 푸는 것만으로는 부족하다: 여기 오는 ids는 목록 「전체」 보기에서 수천이 될 수 있다.
@@ -55,9 +59,13 @@ export async function activeStepsByInspection(
 
   const needsRepair = new Set([...defRes.rows, ...xRes.rows].map(r => r.inspection_id))
   for (const i of inspRes.rows) {
-    map.set(i.id, new Set(activeStepNums(isSelfInspection(i.plan_type), incomplete || needsRepair.has(i.id))))
+    // 같은 재료를 두 축으로 투영한다 — 추가 질의 0회. 표시 축은 불량 0이면 ④까지 감춘다(48차수)
+    const isSpecial = isSelfInspection(i.plan_type)
+    const needs = incomplete || needsRepair.has(i.id)
+    map.set(i.id, new Set(activeStepNums(isSpecial, needs)))
+    visibleMap.set(i.id, new Set(visibleStepNums(isSpecial, needs)))
   }
-  return { map, incomplete }
+  return { map, visibleMap, incomplete }
 }
 
 /** 이 단계가 화면·알림에 나타나야 하는가.
@@ -75,3 +83,19 @@ export function isStepNa(a: ActiveSteps, inspectionId: string, stepNum: number):
 /** ⑤⑥만이 '해당없음'이 될 수 있다(activeStepNums는 ①~④를 두 분기의 공통 접두로 갖는다).
  *  count 질의를 쓰는 표면이 **전 단계를 행으로 받지 않고** 뺄 건수만 재도록 하는 상수다. */
 export const NA_CANDIDATE_STEP_NUMS = [5, 6] as const
+
+/** 이 단계를 화면에 **그려야** 하는가 (소방계획서_48 — 표시 축).
+ *  isStepActive와 같은 기울기: **모르면 참**(보인다). 조용히 지우는 쪽으로 기울지 않는다.
+ *  ⚠ 완료 판정·크론 알림은 isStepActive(의무 축)를 쓴다 — 여기에 바꿔 달지 말 것. */
+export function isStepVisible(a: ActiveSteps, inspectionId: string, stepNum: number): boolean {
+  return a.visibleMap.get(inspectionId)?.has(stepNum) ?? true
+}
+
+/** 「표시에서 감춰진」 단계인가 = isStepVisible의 부정 (isStepNa의 표시 축 짝).
+ *  뱃지·카운터가 **빼야 할 건수**를 셀 때 쓴다. */
+export function isStepHidden(a: ActiveSteps, inspectionId: string, stepNum: number): boolean {
+  return !isStepVisible(a, inspectionId, stepNum)
+}
+
+/** ④⑤⑥이 표시에서 감춰질 수 있다(visibleStepNums는 ①~③만 공통 접두). NA_CANDIDATE의 표시 축 짝. */
+export const NA_DISPLAY_STEP_NUMS = [4, 5, 6] as const

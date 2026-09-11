@@ -7,7 +7,7 @@ import { loadAnchorDates, loadAnchorResolutions } from '@/lib/inspection-plan-ge
 import { anchorSourceLabel } from '@/lib/plan-anchor'
 import { rowInspectionType, rowSubType } from '@/lib/inspection-round'
 import { startInspectionCore, syncInspectionStepDates, syncInspectionVisitDate, isStepOneCompleted } from '@/lib/inspection-start'
-import { activeStepsByInspection, isStepActive } from '@/lib/active-steps'
+import { activeStepsByInspection, isStepVisible } from '@/lib/active-steps'
 import type { PlanStatus, PlanItemStatus, InspectionType } from '@/types'
 
 // ── 점검 시작 — plan_item → inspections 생성 (코어는 src/lib/inspection-start.ts — 크론·자동 시작과 공용) ──
@@ -858,7 +858,7 @@ export async function getInspectionStepsForItemAction(inspectionId: string) {
   const steps = ((data ?? []) as Array<{
     id: string; step_num: number; name_ko: string
     due_date: string | null; status: string; completed_at: string | null
-  }>).filter(s => isStepActive(active, inspectionId, s.step_num))
+  }>).filter(s => isStepVisible(active, inspectionId, s.step_num)) // 48차수 — 표시 축(불량 0이면 ④도 감춤)
   return { steps }
 }
 

@@ -58,8 +58,12 @@ ok('두 분기(월간·자체점검) 모두 evidence를 싣는다',
   (page.match(/evidence: stepEvidence \?\? undefined/g) ?? []).length === 2,
   String((page.match(/evidence: stepEvidence \?\? undefined/g) ?? []).length))
 // evidenceDone은 S3-6 선반영 때문에 스프레드로 부른다 / 2번째 인자는 소방계획서_45의 needsRepairSteps
-ok('작업대가 evidenceDone/activeStepNums/stepProgress를 쓴다',
-  /evidenceDone\(\{?\s*(\.\.\.)?data\.evidence/.test(wb) && /activeStepNums\(isSpecial, needsRepairSteps\)/.test(wb) && /stepProgress\(/.test(wb))
+// ⚠ 2026-09-11(소방계획서_48): 작업대는 이제 **표시 축** `visibleStepNums(isSpecial, needsRepairSteps)`를
+//   부른다(불량 0이면 ④⑤⑥을 즉시 감춤). 이 단언의 축은 「작업대가 공용 판정 함수를 쓰는가」이지
+//   「어느 축을 쓰는가」가 아니므로 둘 다 인정한다 — 시그니처(2인자)는 그대로 고정된다.
+//   어느 자리가 어느 축을 읽어야 하는지는 _probe-45-neighbors가 개수로 본다(의무 축 회귀 가드 포함).
+ok('작업대가 evidenceDone/(visible|active)StepNums/stepProgress를 쓴다',
+  /evidenceDone\(\{?\s*(\.\.\.)?data\.evidence/.test(wb) && /(?:visible|active)StepNums\(isSpecial, needsRepairSteps\)/.test(wb) && /stepProgress\(/.test(wb))
 ok('작업대의 리터럴 판정은 evidence가 없을 때의 폴백 한 곳뿐',
   (wb.match(/data\.responded > 0/g) ?? []).length === 1)
 

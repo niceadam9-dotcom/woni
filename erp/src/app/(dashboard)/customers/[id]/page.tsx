@@ -46,7 +46,7 @@ import { todayKst } from '@/lib/kst-date'
 import { fetchCustomerNavIds, parseListFilter } from '@/lib/customer-list'
 import { inspectionNatureBadge } from '@/lib/inspection-nature'
 import { fetchAllRows } from '@/lib/supabase/paginate'
-import { activeStepNums, isSelfInspection } from '@/lib/inspection-step-status'
+import { isSelfInspection, visibleStepNums } from '@/lib/inspection-step-status'
 import { PlanAnnexSection } from '@/components/customers/plan-annex-section'
 import { getCustomerRoundsAction } from '@/app/(dashboard)/reports/docs-actions'
 import type { Customer, CustomerContact, Inspection, InspectionStatus, InspectionType, UserRole } from '@/types'
@@ -279,9 +279,10 @@ export default async function CustomerDetailPage({
   if (stepsRes.error) console.error('[customers/[id]] 단계 조회 실패 — 진행바가 부정확할 수 있습니다:', stepsRes.error)
   else if (stepsRes.truncated) console.error('[customers/[id]] 단계 조회가 상한에서 잘렸습니다 — 진행바가 부정확합니다')
   const needsRepairByInsp = new Set([...defectsRes.rows, ...sheetXRes.rows].map(r => r.inspection_id))
+  // 소방계획서_48 — 진행바는 **표시 축**(불량 0이면 ④도 즉시 감춤). 완료 판정은 의무 축 그대로.
   const activeNumsByInsp = new Map(inspections.map(i => [
     i.id,
-    new Set<number>(activeStepNums(isSelfInspection(i.plan_type), repairAxisIncomplete || needsRepairByInsp.has(i.id))),
+    new Set<number>(visibleStepNums(isSelfInspection(i.plan_type), repairAxisIncomplete || needsRepairByInsp.has(i.id))),
   ]))
   const stepCounts: Record<string, { total: number; completed: number }> = {}
   for (const r of stepsRes.rows) {

@@ -4,7 +4,7 @@ import { getProfile } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { fetchAllRowsByIds } from '@/lib/supabase/paginate'
-import { activeStepsByInspection, isStepActive } from '@/lib/active-steps'
+import { activeStepsByInspection, isStepVisible } from '@/lib/active-steps'
 import { SchedulesClient } from '@/components/my/schedules-client'
 import type { InspectionDeadline } from '@/components/my/schedules-client'
 
@@ -88,7 +88,8 @@ export default async function SchedulesPage() {
     type StepRow = { id: string; inspection_id: string; step_num: number; name_ko: string; due_date: string }
 
     inspectionDeadlines = (stepsRes.rows as StepRow[])
-      .filter(s => isStepActive(activeSched, s.inspection_id, s.step_num))
+      // 소방계획서_48 — 표시 축: 불량 0이면 ④도 즉시 감춘다(알림은 크론=의무 축이 계속 맡는다)
+      .filter(s => isStepVisible(activeSched, s.inspection_id, s.step_num))
       // 조회를 id 정렬로 받았으므로(페이징 규약) 달력이 기대하는 마감일 순서는 여기서 세운다
       .sort((a, b) => a.due_date.localeCompare(b.due_date))
       .map(s => {

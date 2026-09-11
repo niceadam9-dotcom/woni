@@ -16,7 +16,7 @@ import { countUnsentNotices } from '@/lib/sms'
 import { SmsNoticeWidget } from '@/components/sms/sms-notice-widget'
 import { fetchInputTodo } from '@/lib/customer-list'
 import { fetchAllRows, fetchAllRowsByIds } from '@/lib/supabase/paginate'
-import { activeStepsByInspection, isStepActive } from '@/lib/active-steps'
+import { activeStepsByInspection, isStepVisible } from '@/lib/active-steps'
 import type { UserRole } from '@/types'
 
 const leaveStatusLabel: Record<string, string> = {
@@ -211,14 +211,15 @@ export default async function DashboardPage() {
       ...todayRes.rows.map(s => s.inspection_id),
     ])], 'dashboard')
 
-    const overdueSteps = overdueRes.rows.filter(s => isStepActive(active, s.inspection_id, s.step_num))
+    // 소방계획서_48 — 대시보드 세 창은 **표시 축**(불량 0이면 ④도 즉시 감춤). 15일 보고 알림은 크론(의무 축)이 맡는다.
+    const overdueSteps = overdueRes.rows.filter(s => isStepVisible(active, s.inspection_id, s.step_num))
     overdueStepCount = overdueSteps.length
     // 기한 초과 단계가 있는 점검 건수 → 나의 점검현황 기한초과와 일치시킴
     inspStats.overdue = new Set(overdueSteps.map(s => s.inspection_id)).size
-    todayStepCount = todayRes.rows.filter(s => isStepActive(active, s.inspection_id, s.step_num)).length
+    todayStepCount = todayRes.rows.filter(s => isStepVisible(active, s.inspection_id, s.step_num)).length
 
     dueSoonList = dueSoonRaw
-      .filter(s => isStepActive(active, s.inspection_id, s.step_num))
+      .filter(s => isStepVisible(active, s.inspection_id, s.step_num))
       .slice(0, DUE_SOON_SHOW)
       .map(s => {
         const insp = s.inspection

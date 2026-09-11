@@ -15,7 +15,7 @@ import statusMod from '../src/lib/inspection-step-status.ts'
 import syncMod from '../src/lib/inspection-step-sync.ts'
 import type { StepEvidence } from '../src/lib/inspection-step-status.ts'
 
-const { evidenceDone, activeStepNums, hasSheetDefect, stepProgress, isSelfInspection, resolveForcedSteps, isForced5Void } =
+const { evidenceDone, activeStepNums, visibleStepNums, hasSheetDefect, stepProgress, isSelfInspection, resolveForcedSteps, isForced5Void } =
   statusMod as unknown as typeof import('../src/lib/inspection-step-status.ts')
 // 독립 검증 R4-10 지적 해소: 순수 함수에 손으로 값을 넣는 대신 **server-only 모듈을 실제로 불러**
 // syncInspectionSteps를 돌리고 inspection_steps.status를 읽어 확인한다(--conditions=react-server 필요)
@@ -70,6 +70,46 @@ console.log('— 1부 분모(F-6 교정)')
   ok('월간 건이 ① 완료만으로 100%', p.pct === 100 && p.done === 1 && p.total === 1, JSON.stringify(p))
   const q = stepProgress(evidenceDone({ ...EV, responded: 5 }), activeStepNums(true, false))
   ok('자체점검은 ① 완료 시 25%(분모 4)', q.pct === 25 && q.total === 4, JSON.stringify(q))
+}
+
+// 소방계획서_48 — **표시 축**(visibleStepNums)은 의무 축(activeStepNums)의 파생이다.
+// 불량 0건이면 화면에서 ④를 즉시 감추지만, 별지 9호는 법정 의무라 완료 판정·크론의 분모는
+// 여전히 activeStepNums다(§3). 위 「분모(F-6 교정)」 21단언이 무수정으로 통과하는 것이
+// **의무 축 무손상**의 증거이고, 아래는 갈라지는 유일한 지점이 ④뿐임을 고정한다.
+console.log('— 1부 표시 축 (소방계획서_48)')
+{
+  // ① 4조합 — 값을 그대로 박는다(파생을 지워 activeStepNums를 그대로 반환하면 여기서 깨진다)
+  ok('자체점검 불량 0건이면 화면은 ①~③ (④ 즉시 감춤)',
+    JSON.stringify(visibleStepNums(true, false)) === '[1,2,3]', JSON.stringify(visibleStepNums(true, false)))
+  ok('자체점검 불량 있으면 화면도 ①~⑥ (감추지 않는다)',
+    JSON.stringify(visibleStepNums(true, true)) === '[1,2,3,4,5,6]', JSON.stringify(visibleStepNums(true, true)))
+  ok('월간 외관점검은 표시도 ① 하나', JSON.stringify(visibleStepNums(false, false)) === '[1]')
+  ok('월간은 불량이 있어도 표시 ① 하나', JSON.stringify(visibleStepNums(false, true)) === '[1]')
+
+  // ② 양성·음성 짝 — 음성만 물으면 「④를 늘 지운다」는 변이가 초록으로 빠져나간다
+  ok('음성: 불량 0건이면 ④가 사라진다', visibleStepNums(true, false).includes(4) === false)
+  ok('양성: 불량이 있으면 ④가 남는다', visibleStepNums(true, true).includes(4) === true)
+
+  // ③ 전 조합 속성 단언 — visible ⊆ active (파생이 아닌 독립 리터럴로 바뀌면 언젠가 깨진다)
+  let subsetOk = true, diffs: string[] = []
+  for (const isSpecial of [true, false]) {
+    for (const needs of [true, false]) {
+      const a = activeStepNums(isSpecial, needs), v = visibleStepNums(isSpecial, needs)
+      if (!v.every(n => a.includes(n))) subsetOk = false
+      diffs.push(`${isSpecial}/${needs}:[${a.filter(n => !v.includes(n)).join(',')}]`)
+    }
+  }
+  ok('전 조합에서 visible ⊆ active', subsetOk, diffs.join(' '))
+  // 갈라지는 지점이 ④ 하나뿐 — ⑤나 ⑥까지 감추면(의무 축과 어긋나면) 여기서 깨진다
+  ok('active와 갈라지는 단계는 ④ 하나뿐',
+    diffs.join(' ') === 'true/true:[] true/false:[4] false/true:[] false/false:[]', diffs.join(' '))
+
+  // ④ 진행률 분모가 3으로 줄어든다(화면 1/4 → 1/3)
+  const v = stepProgress(evidenceDone({ ...EV, responded: 5 }), visibleStepNums(true, false))
+  ok('불량 0건 자체점검의 표시 진행률은 1/3', v.done === 1 && v.total === 3, JSON.stringify(v))
+
+  // ⑤ 의무 축은 같은 입력에서 여전히 ④를 포함한다 — 표시가 줄어도 sync의 분모는 안 줄어든다
+  ok('같은 입력에서 의무 축은 ④를 유지', activeStepNums(true, false).includes(4) === true)
 }
 
 // 소방계획서_45 — ⑤⑥ 생략의 축은 '등록된 불량 0건'이 아니라 **점검표 모두 합격**이다.
