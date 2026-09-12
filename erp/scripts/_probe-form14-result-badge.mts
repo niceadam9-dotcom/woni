@@ -148,6 +148,8 @@ try {
     { building_id: nb.id, category: '소화설비', facility_code: '고체에어로졸소화설비', installed: true, detail: { note: 'E2E 픽스처' } },
     // F-1f 전용 시트 분리 — 할론은 150 편입 STD-10을 열어야 한다(묶음 할로겐 시트가 아니라)
     { building_id: nb.id, category: '소화설비', facility_code: '할론소화설비', installed: true, detail: { note: 'E2E 픽스처' } },
+    // 부모 행 입력구(✎) 양성 표본 — **설치**한 부모. 짝인 음성은 피난기구(일부러 넣지 않는다).
+    { building_id: nb.id, category: '소화설비', facility_code: '소화기구 및 자동소화장치', installed: true, detail: { note: 'E2E 픽스처' } },
   ])
   const { data: ni, error: niErr } = await raw.from('inspections').insert({
     customer_id: fixtureCustId, inspection_type: '작동', sequence_num: 1,
@@ -170,6 +172,32 @@ try {
   // 떠나기 전에 나머지 링크를 미리 걷는다 — 1.4는 클라이언트 탭 상태라 되돌아올 수 없다
   const aeroHref = await page.locator('[data-testid="form14-result-link-고체에어로졸소화설비"]').getAttribute('href')
   const hallonHref = await page.locator('[data-testid="form14-result-link-할론소화설비"]').getAttribute('href')
+
+  // ── 부모 2행의 **입력 진입구**(2026-09-12, image-13) ────────────────────────
+  // 결과 마크는 종전대로 공란이다(위 별그리다 블록의 음성 단언이 그 계약을 고정한다). 그런데
+  // 그 음성만 있던 탓에, 배지를 없애면서 **입력구까지 사라진 것**을 어떤 검사도 보지 못했다 —
+  // 소화기구·피난기구는 1.4 어디에서도 점검표로 들어갈 수 없었다. 여기서 양성 축을 단언한다.
+  // 하위 5종(FIRE_SUB_ITEMS)은 42종 축이 아니라 점검표 한 장 안의 소제목이므로 진입구를 갖지
+  // 않는다 — 그 사실도 함께 못박는다(하위에 아이콘이 생기면 같은 화면으로 가는 중복 링크가 된다).
+  const fireParent = '소화기구 및 자동소화장치'
+  const fireSheetLink = page.locator(`[data-testid="form14-sheet-link-${fireParent}"]`)
+  // 없으면 그대로 빨강으로 보고한다(throw로 스위트를 끊지 않는다 — 뒤의 음성 짝도 봐야 한다)
+  await fireSheetLink.waitFor({ timeout: 15_000 }).catch(() => {})
+  const fireSheetHref = await fireSheetLink.getAttribute('href').catch(() => null)
+  check('픽스처: 설치한 부모 행에 점검표 입력구(✎)가 있다 — 소화기구',
+    (await fireSheetLink.count()) === 1)
+  check('픽스처: 부모 행의 결과 마크는 여전히 없다 (인쇄 공란 계약 유지)',
+    (await page.locator(`[data-testid="form14-result-link-${fireParent}"]`).count()) === 0)
+  check('픽스처: 입력구가 **부모 코드**로 딥링크 (하위 코드로 보내지 않는다)',
+    !!fireSheetHref && /\/inspections\/[0-9a-f-]+\/sheet\?facility=/.test(fireSheetHref)
+    && fireSheetHref.includes(encodeURIComponent(fireParent)), fireSheetHref ?? '(href 없음)')
+  // 음성 대조 — 미설치 부모(피난기구)엔 그리지 않는다. 이 짝이 없으면 '늘 뜨는 아이콘'도 초록이다.
+  check('픽스처: 미설치 부모(피난기구)엔 입력구가 없다',
+    (await page.locator('[data-testid="form14-sheet-link-피난기구"]').count()) === 0)
+  // 하위 5종은 결과 축도 진입구도 아니다(SHEET_FACILITY_MAP·FORM3_ITEMS 어디에도 없는 코드)
+  check('픽스처: 하위 5종엔 결과 배지·입력구가 없다',
+    (await page.locator('[data-testid^="form14-sheet-link-소화기("]').count()) === 0
+    && (await page.locator('[data-testid^="form14-result-link-소화기("]').count()) === 0)
 
   await hydBadge.click()
   await page.waitForURL(/\/inspections\/[0-9a-f-]+\/sheet/, { timeout: 15_000 })
@@ -208,6 +236,17 @@ try {
   check('F-1f: 형제 설비 고지 없음 — 할론은 단독 귀속',
     (await page.locator('text=결과에 함께 반영됩니다').count()) === 0)
 
+  // 부모 입력구가 **실제로 도착하는가** — 링크 존재만 보면 뜻이 틀려도 초록이다.
+  // 하위 5종은 이 한 장 안의 대괄호 소제목(1-A 소화기 …)이므로, 열린 시트명은 부모 이름이어야 한다.
+  await page.goto(`${BASE}${fireSheetHref}`)
+  await page.waitForSelector('text=점검표 입력 —', { timeout: 15_000 })
+  const fireOpened = ((await page.locator('h2').first().textContent({ timeout: 15_000 }).catch(() => '')) ?? '').trim()
+  check('부모 입력구 클릭 → 「소화기구 및 자동소화장치」 점검표가 열린 채 도착',
+    fireOpened === fireParent, fireOpened || '(열린 시트 없음)')
+  check('부모 입력구도 ?from= 복귀 계약을 지킨다 (1.4로 돌아간다)',
+    (await page.locator('[data-testid="sheet-entry-back"]').getAttribute('href'))
+      === `/customers/${fixtureCustId}?tab=plan&form=1.4`)
+
   // 건물 전환 — 배지는 **선택한 건물의 설치 설비**에 매인다. 종전엔 패널이 열린 채 남아 새 건물에
   // 없는 설비를 그 자리에서 기록할 수 있었다(독립 검증 지적, 2026-08-21). 입력이 전용 화면으로
   // 빠진 지금의 등가 축은 '배지 집합이 건물 전환을 따라가는가'다 — 설비 0종인 별관엔 배지가 없어야 한다.
@@ -231,6 +270,9 @@ try {
   ).catch(() => {})
   check(`건물 전환 시 배지가 그 건물 설비만 따라간다 (본관 ${mainBadges}종 → 별관 0종)`,
     (await page.locator('a[title*="점검결과 — "]').count()) === 0)
+  // 부모 입력구도 같은 축에 매인다 — 본관에만 소화기구가 설치돼 있다(별관은 설비 0종).
+  check('건물 전환 시 부모 입력구(✎)도 함께 사라진다',
+    (await page.locator('[data-testid^="form14-sheet-link-"]').count()) === 0)
 
   // ── F-1f 무퇴행 — 서림사(할론 단독 설치, 응답은 2026 완료 회차의 묶음 할로겐 시트 27건뿐).
   //    ⚠ 서림사는 진행 중 회차가 없어 **설계상 입력 배지를 그리지 않는다**(resultBadge 규약) —

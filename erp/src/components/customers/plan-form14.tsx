@@ -306,8 +306,9 @@ export function PlanForm14({ customerId, buildings, canManage, canRegister = fal
    *  `?from=` — 입력 화면의 뒤로가기가 이 서식(1.4)으로 돌아오게 한다. 현재 URL 캡처가 아니라
    *     정적 딥링크다: 배지는 항상 ?tab=plan&form=1.4 화면에만 그려지므로 목적지가 결정적이다. */
   const resultBadge = (code: string) => {
-    // 부모 2행(소화기구·피난기구)의 점검결과는 **하위 행 축**이다 — 결과칸은 항상 공란이고 입력구도
-    // 그리지 않는다(2026-09-03 사용자 결정, image-51. 인쇄는 distributeSubMarks parent=undefined가 짝).
+    // 부모 2행(소화기구·피난기구)의 점검**결과**는 하위 행 축이다 — 결과칸은 항상 공란이다
+    // (2026-09-03 사용자 결정, image-51. 인쇄는 distributeSubMarks parent=undefined가 짝).
+    // ⚠ 입력 진입구는 이 규칙과 **다른 축**이다 — 아래 sheetLink가 따로 그린다(2026-09-12).
     if (SUB_ROW_PARENT_ITEMS.includes(code)) return null
     if (!canInputResult) return null
     // 미체크 = 자동 ／ (2026-09-03) — 대장이 정본이라 입력할 것이 없다. 링크 없는 정적 표식만 둔다.
@@ -331,6 +332,34 @@ export function PlanForm14({ customerId, buildings, canManage, canRegister = fal
         title={`점검결과 — ${resultCtx?.inspection?.label} (클릭하면 점검표 입력 화면이 열립니다 · ○/×로 기록)`}
         className={`ml-auto shrink-0 h-5 min-w-7 px-1.5 rounded-full border text-form-2xs font-bold inline-flex items-center justify-center ${cls}`}>
         {lbl}
+      </Link>
+    )
+  }
+
+  /** 부모 2행(소화기구·피난기구) 전용 **입력 진입구** — 결과 마크는 그리지 않는다(위 resultBadge 참조).
+   *
+   *  왜 따로 있나: 배지 하나가 '결과 표시'와 '입력 화면 링크' 두 일을 겸하고 있었다. 2026-09-03에
+   *  인쇄 정합(부모 결과칸 공란)을 맞추려 배지를 통째로 없앴더니 **입력구까지 함께 사라져**, 이
+   *  두 항목만 1.4 어디에서도 점검표로 들어갈 수 없었다(하위 5종·11종은 42종 축이 아니라 애초에
+   *  결과가 매달리지 않는다 — FORM3_ITEMS·SHEET_FACILITY_MAP 어디에도 하위 코드가 없다).
+   *  두 축을 갈라 둔다: **결과는 여전히 공란**, 진입구만 되살린다(2026-09-12 사용자 결정, image-13).
+   *
+   *  ⚠ `?facility=`에 **부모 코드**를 보낸다 — 하위 종류는 점검표 한 장 안의 대괄호 소제목이라
+   *     별도 시트가 없다(FIRE_SUB_BY_SUBGROUP). 시트 해석은 resultBadge와 같이 전용 페이지가 한다.
+   *  ⚠ 미체크면 그리지 않는다 — 설치하지 않은 설비는 하위 행이 ／로 자동 인쇄되고 채울 것이 없다.
+   *     하위만 체크해도 toggle()이 부모를 자동 체크하므로(FIRE_SUB_ITEMS·toggleEvacType) 이 한
+   *     조건이 두 경우를 다 덮는다. */
+  const sheetLink = (code: string) => {
+    if (!canInputResult) return null
+    if (!fac[code]?.installed) return null
+    return (
+      <Link href={`/inspections/${resultCtx!.inspection!.id}/sheet?facility=${encodeURIComponent(code)}&from=${fromParam}`}
+        onClick={e => e.stopPropagation()}
+        data-testid={`form14-sheet-link-${code}`}
+        aria-label={`${code} 점검표 입력`}
+        title={`점검표 입력 — ${code} (${resultCtx?.inspection?.label} · 점검결과는 하위 행 축이라 이 칸엔 표시하지 않습니다)`}
+        className="shrink-0 inline-flex items-center justify-center w-7 h-form-7 rounded border border-brand-line-soft bg-paper text-form-sm leading-none text-ink-sub hover:text-brand hover:border-brand hover:bg-brand-tint">
+        ✎
       </Link>
     )
   }
@@ -686,6 +715,7 @@ export function PlanForm14({ customerId, buildings, canManage, canRegister = fal
                       {checkBox('소화기구 및 자동소화장치')}
                       {ledgerLabel('소화기구 및 자동소화장치')}
                       {resultBadge('소화기구 및 자동소화장치')}
+                      {sheetLink('소화기구 및 자동소화장치')}
                     </div>
                     <div className="flex flex-wrap gap-x-2 gap-y-0.5 pl-2 border-l border-brand-line-soft">
                       {FIRE_SUB_ITEMS.map(sname => {
@@ -713,6 +743,7 @@ export function PlanForm14({ customerId, buildings, canManage, canRegister = fal
                       {checkBox('피난기구')}
                       {ledgerLabel('피난기구')}
                       {resultBadge('피난기구')}
+                      {sheetLink('피난기구')}
                     </div>
                     <div className="flex flex-wrap gap-x-2 gap-y-0.5 pl-2 border-l border-brand-line-soft">
                       {/* 통합 어휘 11종 — 저장소는 세부제원 s36_evac.evac_equipment.types 하나다.
