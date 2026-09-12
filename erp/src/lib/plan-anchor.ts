@@ -130,10 +130,11 @@ export function plannedDateFor(
 }
 
 /** 화면 표기용 짧은 라벨 — 기산점이 어디서 왔는지 사람이 알 수 있게 한다.
- *  'manual'의 화면 표기는 「점검확정일」(2026-09-12, 구 「점검계획일」) — 컬럼명은 plan_anchor_date 그대로다. */
+ *  'manual'의 화면 표기는 「점검일자」(2026-09-12, 구 「점검계획일」→「점검확정일」을 거쳐 같은 날 용어 확정)
+ *  — 컬럼명은 plan_anchor_date 그대로다. */
 export function anchorSourceLabel(source: AnchorSource): string {
   return source === 'approval' ? '사용승인일'
-    : source === 'manual' ? '점검확정일'
+    : source === 'manual' ? '점검일자'
     : source === 'first' ? '최초 점검일'
     : '없음'
 }

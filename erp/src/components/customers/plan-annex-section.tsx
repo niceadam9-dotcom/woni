@@ -278,8 +278,8 @@ export function PlanAnnexSection({ customerId, canRegister = false, initialData 
 
       {rounds.length === 0 && (
         <p className="text-xs text-ink-meta py-4 text-center">
-          {/* 점검확정 화면 폐지(2026-09-12) — 계획은 고객 기본정보의 점검확정일 저장 시 자동 생성된다 */}
-          자체점검 일정이 없습니다 — 기본정보에 점검확정일을 입력하면 연간 계획이 자동 생성됩니다
+          {/* 점검확정 화면 폐지(2026-09-12) — 계획은 고객 기본정보의 점검일자 저장 시 자동 생성된다 */}
+          자체점검 일정이 없습니다 — 기본정보에 점검일자를 입력하면 연간 계획이 자동 생성됩니다
         </p>
       )}
 

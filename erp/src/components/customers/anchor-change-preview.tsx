@@ -48,7 +48,7 @@ export function AnchorChangePreview({
             </div>
             <p className="text-form-xs text-ink-meta mt-1">
               기산점 {after.anchorSource} {after.anchorDate ?? '(없음)'}
-              {after.divergent && <span className="text-orange-600"> · ⚠ 점검확정일과 달이 다릅니다</span>}
+              {after.divergent && <span className="text-orange-600"> · ⚠ 점검일자와 달이 다릅니다</span>}
             </p>
           </div>
 
@@ -139,7 +139,7 @@ export function LegalScheduleBadge({ months, anchorSource, anchorDate, divergent
         </b>
       </span>
       <span className="text-ink-meta">기산점 {anchorSource} {anchorDate}</span>
-      {divergent && <span className="text-orange-600">⚠ 점검확정일과 달이 다름</span>}
+      {divergent && <span className="text-orange-600">⚠ 점검일자와 달이 다름</span>}
       {initialDueDate && (
         <span className="text-orange-700 dark:text-orange-400 font-medium">
           🔴 최초점검 기한 {initialDueDate}

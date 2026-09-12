@@ -107,7 +107,7 @@ export function InlineCustomerFieldClient({
       setPreview(null); setEditing(false)
     })
 
-    // 기산점 축(사용승인일·점검확정일)은 저장 전에 무엇이 되는지 보여준다 —
+    // 기산점 축(사용승인일·점검일자)은 저장 전에 무엇이 되는지 보여준다 —
     // 전체 폼과 **같은 팝업**이라 어느 화면으로 고쳐도 같은 경험이 된다.
     if (field === 'use_approval_date' || field === 'plan_anchor_date') {
       startTransition(async () => {

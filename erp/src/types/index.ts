@@ -87,7 +87,7 @@ export interface Customer {
   id: string; customer_code: string; customer_name: string
   contract_date: string | null
   use_approval_date: string | null
-  plan_anchor_date: string | null // 점검확정일(구 점검계획일, 2026-09-12) — 계획 기산점 수동 지정(최우선). 컬럼명은 유지
+  plan_anchor_date: string | null // 점검일자(구 점검계획일→점검확정일, 2026-09-12 용어 확정) — 계획 기산점 수동 지정(최우선). 컬럼명은 유지
   zipcode: string | null
   region_si: string | null; region_myeon: string | null; region_ri: string | null
   inspection_type: InspectionType

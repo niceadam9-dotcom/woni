@@ -34,7 +34,7 @@ export function LedgerClient({ rows, canViewFee }: { rows: LedgerRow[]; canViewF
 
   function exportXlsx() {
     const data = filtered.map((r, i) => ({
-      번호: i + 1, 대상물: r.name, 구분: r.type, 점검확정일: r.planDate ?? '',
+      번호: i + 1, 대상물: r.name, 구분: r.type, 점검일자: r.planDate ?? '',
       지역: r.region, 연면적: r.area ?? '', 사용승인일: r.useApproval ?? '',
       관계인: r.contact, 연락처: formatTel(r.phone), 관할소방서: r.fireStation,
       ...(canViewFee ? { 계약료: r.fee ?? '', 과금: r.feeKind } : {}),
@@ -83,7 +83,7 @@ export function LedgerClient({ rows, canViewFee }: { rows: LedgerRow[]; canViewF
           <table className="w-full text-sm">
             <thead className={STICKY_THEAD}>
               <tr className="border-b border-line bg-paper text-xs text-ink-sub">
-                {['#', '대상물', '구분', '점검확정일', '지역', '연면적', '사용승인일', '관계인', '연락처', '관할서', ...(canViewFee ? ['계약료'] : [])].map(h => (
+                {['#', '대상물', '구분', '점검일자', '지역', '연면적', '사용승인일', '관계인', '연락처', '관할서', ...(canViewFee ? ['계약료'] : [])].map(h => (
                   <th key={h} className="text-left px-2 py-2.5 font-semibold whitespace-nowrap">{h}</th>
                 ))}
               </tr>

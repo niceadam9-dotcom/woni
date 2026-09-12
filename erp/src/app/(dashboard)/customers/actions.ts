@@ -21,7 +21,7 @@ import type { ContactRole, InspectionType } from '@/types'
 
 const CUSTOMER_FIELD_LABELS: Record<string, string> = {
   customer_name: '고객명', inspection_type: '점검유형', contract_date: '계약일',
-  use_approval_date: '사용승인일', plan_anchor_date: '점검확정일', address: '주소', assigned_employee_id: '담당직원',
+  use_approval_date: '사용승인일', plan_anchor_date: '점검일자', address: '주소', assigned_employee_id: '담당직원',
 }
 
 export type ContactInput = {
@@ -115,8 +115,8 @@ export async function createCustomerAction(
   const hasRep = (input.contacts ?? []).some(c => c.role === '대표' && c.name?.trim())
   if (!hasRep) return { error: '대표 관계인 이름을 입력해주세요. (대표 1명 필수)' }
 
-  // 점검확정일(구 점검계획일) 필수 — 연간 점검계획의 기산점 (수동 최우선)
-  if (!input.plan_anchor_date) return { error: '점검확정일을 입력해주세요.' }
+  // 점검일자(구 점검계획일→점검확정일, 2026-09-12 용어 확정) 필수 — 연간 점검계획의 기산점 (수동 최우선)
+  if (!input.plan_anchor_date) return { error: '점검일자를 입력해주세요.' }
 
   // 사용승인일 필수 — **신규 등록만**. 법정 점검 시기(종합=사용승인월, 작동=+6개월)와
   // 최초점검(사용승인일+60일) 판정이 전부 이 값에서 나온다.
@@ -602,7 +602,7 @@ export async function updateCustomerAction(
 
   // 점검계획일은 필수값 — 비우기 불허 (2026-07-14: "지우면 폴백 복귀" 설계 폐기)
   if (input.plan_anchor_date !== undefined && !input.plan_anchor_date) {
-    return { error: '점검확정일은 필수값입니다 — 비울 수 없습니다.' }
+    return { error: '점검일자는 필수값입니다 — 비울 수 없습니다.' }
   }
 
   // 변경 감지를 위해 이전 값 조회
@@ -1954,7 +1954,7 @@ export async function patchCustomerFieldAction(
 
   // 점검계획일은 필수값 — 비우기 불허 (2026-07-14: "지우면 폴백 복귀" 설계 폐기)
   if (field === 'plan_anchor_date' && !value) {
-    return { error: '점검확정일은 필수값입니다 — 비울 수 없습니다.' }
+    return { error: '점검일자는 필수값입니다 — 비울 수 없습니다.' }
   }
 
   // 이전 값 조회 (변경 감지 + 이력 기록용)

@@ -164,7 +164,7 @@ export function PlanForm110({ customerId, canManage, isComprehensive, autoOpMont
       {/* 1.10.1 연간 점검 계획 */}
       <div id="c-1.10.1" className="scroll-mt-4 rounded-xl border border-brand-line-soft bg-brand-tint p-4 space-y-2">
         <p className="text-form-sm font-semibold text-ink-sub">1.10.1 연간 자체점검 계획
-          <span className="font-normal text-ink-meta ml-2">시기는 점검확정일 기준 자동 — 수정 가능</span>
+          <span className="font-normal text-ink-meta ml-2">시기는 점검일자 기준 자동 — 수정 가능</span>
         </p>
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-form-xs font-medium text-ink-sub w-16">작동점검</span>

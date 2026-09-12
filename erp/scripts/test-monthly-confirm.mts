@@ -126,11 +126,11 @@ try {
   await page.waitForURL(u => !u.pathname.includes('/login'), { timeout: 20000 })
   check('로그인 성공', true)
 
-  // ── 2) 점검확정일 변경: 미시작 전건이 팝업 없이 재계산·확정 유지 ──
-  console.log('\n[2] 점검확정일 인라인 변경 (10일 → 22일)')
+  // ── 2) 점검일자 변경: 미시작 전건이 팝업 없이 재계산·확정 유지 ──
+  console.log('\n[2] 점검일자 인라인 변경 (10일 → 22일)')
   await page.goto(`${BASE}/customers?q=${encodeURIComponent('TEST-MONTHLY')}&active=all`)
   await row(page).waitFor()
-  const planCol = await colIdx(page, '점검확정일')
+  const planCol = await colIdx(page, '점검일자')
   await row(page).locator('td').nth(planCol).locator('[title="클릭하여 수정"]').click()
   const dateInput = row(page).locator('td').nth(planCol).locator('input[type=text]')
   await dateInput.waitFor()

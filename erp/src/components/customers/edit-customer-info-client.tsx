@@ -153,7 +153,7 @@ export function EditCustomerInfoClient({ customer, typeSlot, annualLabel, lastCh
 
   function handleSave() {
     if (!form.customer_name.trim()) { setError('고객명은 필수입니다'); return }
-    if (!form.plan_anchor_date) { setError('점검확정일은 필수입니다 — 연간 점검계획의 기산일을 입력해주세요.'); return }
+    if (!form.plan_anchor_date) { setError('점검일자는 필수입니다 — 연간 점검계획의 기산일을 입력해주세요.'); return }
     // 관할 소방서 필수 — 다만 **주소가 있으면 서버가 자동 지정**(actions.ts D-3)하므로 여기서 막지 않는다.
     // 둘 다 비어 있을 때만 즉시 막는다: 서버도 채울 근거가 없어 어차피 실패하니 왕복을 아낀다.
     // 실측(2026-08-20, 스테이징): 소방서 공란 28건 중 주소 있는 17건은 자동 지정 17/17 성공 —
@@ -162,7 +162,7 @@ export function EditCustomerInfoClient({ customer, typeSlot, annualLabel, lastCh
       setError('관할 소방서는 필수입니다 — 주소를 입력하면 자동 지정되고, 아니면 직접 입력해주세요.')
       return
     }
-    for (const [label, v] of [['계약일', form.contract_date], ['점검확정일', form.plan_anchor_date], ['사용승인일', form.use_approval_date]] as const) {
+    for (const [label, v] of [['계약일', form.contract_date], ['점검일자', form.plan_anchor_date], ['사용승인일', form.use_approval_date]] as const) {
       if (v && !isCompleteDate(v)) { setError(`${label}을(를) YYYY-MM-DD 형식으로 입력해주세요.`); return }
     }
     setError('')
@@ -244,7 +244,7 @@ export function EditCustomerInfoClient({ customer, typeSlot, annualLabel, lastCh
             {annualLabel && <span className="text-form-2xs text-ink-sub">{annualLabel}</span>}
           </div>
         )}
-        {field(<>점검확정일 {req} <span className="text-form-2xs text-ink-sub font-normal">(기산일)</span></>,
+        {field(<>점검일자 {req} <span className="text-form-2xs text-ink-sub font-normal">(기산일)</span></>,
           <DateInput id="cf-plan" value={form.plan_anchor_date} onChange={e => set('plan_anchor_date', e.target.value)} disabled={dis} className={inputCls} />
         )}
         {field(<>고객명 {req}</>,
