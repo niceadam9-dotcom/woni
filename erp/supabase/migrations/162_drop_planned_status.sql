@@ -17,6 +17,11 @@ UPDATE inspection_plan_items
 
 ALTER TABLE inspection_plan_items ALTER COLUMN status DROP DEFAULT;
 
+-- 부분 인덱스가 옛 타입 캐스팅('cancelled'::plan_item_status)을 술어에 물고 있어
+-- ALTER TYPE이 42883(operator does not exist)으로 막힌다 — 첫 적용 시도에서 실측(2026-09-12).
+-- 지웠다가 타입 교체 후 같은 정의로 재생성한다(028_performance_indexes가 만든 인덱스).
+DROP INDEX IF EXISTS idx_plan_items_status_active;
+
 CREATE TYPE plan_item_status_new AS ENUM ('confirmed', 'completed', 'cancelled');
 
 ALTER TABLE inspection_plan_items
@@ -25,6 +30,10 @@ ALTER TABLE inspection_plan_items
 
 DROP TYPE plan_item_status;
 ALTER TYPE plan_item_status_new RENAME TO plan_item_status;
+
+CREATE INDEX IF NOT EXISTS idx_plan_items_status_active
+  ON inspection_plan_items (plan_id, scheduled_date)
+  WHERE (status <> 'cancelled');
 
 -- 기본값도 새 체계로 — 생성기는 명시적으로 confirmed를 싣지만, 직접 INSERT하는
 -- 경로(수동 SQL 등)가 planned 시절 기본값에 기대지 않도록 명시한다.
