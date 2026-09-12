@@ -104,8 +104,9 @@ export type LoadTargetsInput =
  *  `plan_type` 필터를 걸지 않는다 — 달력의 계획 칩 축은 monthly·event만 로드하지만(P-8),
  *  자체점검도 방문이므로 여기서 빠지면 그 건들에 문자를 보낼 방법이 없어진다.
  *
- *  미확정(`planned`) 건은 **빼지 않고 `sendable:false`로 함께 반환**한다(S8-11).
- *  달력에는 미확정 칩도 보이므로 조용히 빼면 "달력에 있는데 문자 목록엔 없다"가 된다.
+ *  지난 방문일 건은 **빼지 않고 `sendable:false`로 함께 반환**한다(S8-11의 원칙 유지).
+ *  달력에 보이는 칩을 조용히 빼면 "달력에 있는데 문자 목록엔 없다"가 된다.
+ *  (미확정 planned 차단은 2026-09-12 폐지 — 전건이 확정 상태로 태어난다)
  */
 export async function loadSmsTargets(admin: Admin, input: LoadTargetsInput): Promise<SmsTarget[]> {
   const today = todayKst()
@@ -132,7 +133,8 @@ export async function loadSmsTargets(admin: Admin, input: LoadTargetsInput): Pro
     // 전에 점검일을 확정해 두는 정상 업무만으로 자체점검(종합·작동)이 사전 안내 대상에서 통째로
     // 사라졌다(스테이징 실측: 오늘 이후 자체점검 4건 중 2건이 이 사유로 누락).
     // 방문이 지났는지는 아래 scheduled_date >= today 가드가 이미 본다.
-      .in('status', ['planned', 'confirmed', 'completed'])
+      // planned는 enum에서 빠졌다(162) — 문자열로 남기면 PostgREST enum 캐스팅이 죽는다
+      .in('status', ['confirmed', 'completed'])
 
     if ('planItemIds' in input) {
       q = q.in('id', input.planItemIds)
@@ -195,12 +197,12 @@ export async function loadSmsTargets(admin: Admin, input: LoadTargetsInput): Pro
       address: c.address,
       contacts: c.customer_contacts ?? [],
       // completed도 발송 가능하다 — 확정을 지나 점검이 시작된 상태이지 미확정이 아니다.
-      // 여기서 빼면 위 status 필터를 넓힌 의미가 없어지고 '점검일 미확정'이라는 틀린 사유가 붙는다.
-      // 지난 방문일(includePast로 실린 건)은 **보낼 수 없다** — 사유를 달아 모달에서도 막는다.
-      sendable: r.status !== 'planned' && r.scheduled_date >= today,
+      // planned 차단은 2026-09-12 폐지 — 점검계획일=점검확정일이라 전건이 확정 상태로 태어난다
+      // (잔존 planned 행은 마이그 161이 confirmed로 백필). 지난 방문일(includePast로 실린 건)은
+      // **보낼 수 없다** — 사유를 달아 모달에서도 막는다.
+      sendable: r.scheduled_date >= today,
       unsendableReason:
         r.scheduled_date < today ? '이미 지난 방문일 — 사전 안내를 보낼 수 없습니다'
-        : r.status === 'planned' ? '점검일 미확정 — 점검확정에서 확정해주세요'
         : null,
     })
   }
@@ -359,7 +361,7 @@ export async function sendInspectionSms(
   const base = await companyVars()
   const { groups: allGroups, noPhone } = groupTargets(opts.targets)
 
-  // 미확정 건은 발송하지 않는다 — 목록에는 보이되 나가지는 않는다
+  // 보낼 수 없는 건(지난 방문일)은 발송하지 않는다 — 목록에는 보이되 나가지는 않는다
   let groups = allGroups.filter(x => x.sendable)
   const blocked = allGroups.length - groups.length
 
@@ -379,7 +381,7 @@ export async function sendInspectionSms(
     return { ...empty, ok: false, error: `1회 발송 상한(${g.maxPerRun}통)을 넘습니다 — ${total}통. 범위를 좁혀 나눠 보내주세요.` }
   }
   if (total === 0 && noPhone.length === 0) {
-    return { ...empty, ok: false, error: blocked > 0 ? '선택한 건이 모두 점검일 미확정입니다.' : '보낼 대상이 없습니다.' }
+    return { ...empty, ok: false, error: blocked > 0 ? '선택한 건이 모두 지난 방문일입니다.' : '보낼 대상이 없습니다.' }
   }
 
   // 발송 단위 펼치기 (1행 = 1수신자)

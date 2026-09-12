@@ -1,4 +1,5 @@
-/** 정기 자동 확정(089) E2E — 생성기·기준일 변경·유형 전환·Escape 취소 검증 (2026-07-14)
+/** 전건 자동 확정(089→161·162) E2E — 생성기·기준일 변경·유형 전환·Escape 취소 검증
+ *  (2026-07-14 정기 자동 확정 → 2026-09-12 전건 확정: 점검계획일=점검확정일, planned 소멸)
  *  실행: $env:TEST_BASE_URL='https://staging.sjfire.co.kr'; npx tsx scripts/test-monthly-confirm.mts
  */
 import { createClient } from '@supabase/supabase-js'
@@ -100,7 +101,7 @@ try {
     { id: customerId, inspection_type: '작동', plan_anchor_date: ANCHOR0, assigned_employee_id: null },
     YEAR, userId, hdSet)
 
-  // ── 1) 생성기: 정기 = 자동 확정, 특별 = planned ──
+  // ── 1) 생성기: 전 유형 생성 즉시 확정 (2026-09-12 — 특별점검도 confirmed·scheduled=planned) ──
   const initial = await getItems()
   const monthly0 = initial.filter(i => i.plan_type === 'monthly')
   const special0 = initial.filter(i => i.plan_type === 'special_작동')
@@ -108,7 +109,9 @@ try {
   check('정기 = confirmed + scheduled=planned',
     monthly0.every(i => i.status === 'confirmed' && i.scheduled_date === i.planned_date && i.planned_date != null),
     JSON.stringify(monthly0.map(i => [i.status, i.planned_date, i.scheduled_date])))
-  check('특별 = planned + scheduled 없음', special0.every(i => i.status === 'planned' && i.scheduled_date === null))
+  check('★ 특별도 confirmed + scheduled=planned (구 planned 축 소멸)',
+    special0.every(i => i.status === 'confirmed' && i.scheduled_date === i.planned_date && i.planned_date != null),
+    JSON.stringify(special0.map(i => [i.status, i.planned_date, i.scheduled_date])))
 
   // ── 로그인 ──
   browser = await chromium.launch()
@@ -123,19 +126,22 @@ try {
   await page.waitForURL(u => !u.pathname.includes('/login'), { timeout: 20000 })
   check('로그인 성공', true)
 
-  // ── 2) 점검계획일 변경: 확정 정기도 팝업 없이 재계산·확정 유지 ──
-  console.log('\n[2] 점검계획일 인라인 변경 (10일 → 22일)')
+  // ── 2) 점검확정일 변경: 미시작 전건이 팝업 없이 재계산·확정 유지 ──
+  console.log('\n[2] 점검확정일 인라인 변경 (10일 → 22일)')
   await page.goto(`${BASE}/customers?q=${encodeURIComponent('TEST-MONTHLY')}&active=all`)
   await row(page).waitFor()
-  const planCol = await colIdx(page, '점검계획일')
+  const planCol = await colIdx(page, '점검확정일')
   await row(page).locator('td').nth(planCol).locator('[title="클릭하여 수정"]').click()
   const dateInput = row(page).locator('td').nth(planCol).locator('input[type=text]')
   await dateInput.waitFor()
   await dateInput.fill(ANCHOR1)
   await dateInput.press('Enter')
-  await page.waitForTimeout(500)
-  const popupShown = await page.getByText('확정된 점검 일정이 있습니다').count()
-  check('확정보호 팝업 미표시 (자동 확정 정기는 제외)', popupShown === 0)
+  // 기산점 축은 저장 전에 「저장하면 이렇게 바뀝니다」 미리보기가 뜬다 — [이대로 저장]으로 진행
+  await page.getByText('저장하면 이렇게 바뀝니다').waitFor({ timeout: 10000 })
+  // 확정해지/유지 선택지(B안)는 2026-09-12 폐지 — 단일 [이대로 저장] 버튼이어야 한다
+  check('확정해지 선택지 미표시 (확정 보호 팝업 폐지)',
+    await page.getByText('확정해지 후 저장').count() === 0)
+  await page.getByRole('button', { name: '이대로 저장' }).click()
   const afterAnchor = await waitFor(getItems, list =>
     list.filter(i => i.plan_type === 'monthly')
       .every(i => i.planned_date != null && Number(i.planned_date.slice(8)) >= 22))
@@ -145,7 +151,10 @@ try {
       && Number(i.planned_date!.slice(8)) >= 22 && Number(i.planned_date!.slice(8)) <= 26),
     JSON.stringify(monthly1.map(i => [i.status, i.planned_date, i.scheduled_date])))
   const special1 = afterAnchor.filter(i => i.plan_type === 'special_작동')
-  check('특별: planned + 확정일 초기화 유지', special1.every(i => i.status === 'planned' && i.scheduled_date === null))
+  check('★ 특별도 새 기준일로 동행 + 확정 유지 (구 「planned 리셋」 폐지)',
+    special1.every(i => i.status === 'confirmed' && i.scheduled_date === i.planned_date
+      && Number(i.planned_date!.slice(8)) >= 22),
+    JSON.stringify(special1.map(i => [i.status, i.planned_date, i.scheduled_date])))
 
   // ── 3) 유형 드롭다운 Escape 취소 ──
   console.log('\n[3] 유형 드롭다운 Escape 취소')
@@ -168,6 +177,9 @@ try {
   await typeSel2.waitFor()
   await typeSel2.selectOption('종합')
   await page.locator('h1').click()
+  // 종류 전환도 저장 전 미리보기를 거친다 — [이대로 저장]으로 진행
+  await page.getByText('저장하면 이렇게 바뀝니다').waitFor({ timeout: 10000 })
+  await page.getByRole('button', { name: '이대로 저장' }).click()
   const afterType = await waitFor(getItems, list =>
     list.filter(i => i.plan_type === 'monthly').every(i => i.inspection_type === '종합')
     && list.some(i => i.plan_type === 'special_종합' && i.sequence_num === 1))

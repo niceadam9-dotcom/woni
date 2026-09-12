@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useMemo, useState, useTransition } from 'react'
-import Link from 'next/link'
 import { Loader2, RefreshCw } from 'lucide-react'
 import {
   getCustomerRoundsAction, getRoundDocsAction, getDocUrlAction,
@@ -9,7 +8,7 @@ import {
 } from '@/app/(dashboard)/reports/docs-actions'
 import { uploadTimelineFileAction } from '@/app/(dashboard)/inspections/timeline-actions'
 import { requestReport9Action, getAnnexPreviewHtmlAction } from '@/app/(dashboard)/inspections/report9-actions'
-import { confirmPlanItemStageOneAction } from '@/app/(dashboard)/inspection-plans/actions'
+import { confirmPlanItemStageOneAction } from '@/app/(dashboard)/inspections/plan-date-actions'
 import dynamic from 'next/dynamic'
 import type { ComposeAnnexNo } from '@/components/inspections/annex-compose-panel'
 import { PlanAnnexRoundCard } from '@/components/customers/plan-annex-round-card'
@@ -279,7 +278,8 @@ export function PlanAnnexSection({ customerId, canRegister = false, initialData 
 
       {rounds.length === 0 && (
         <p className="text-xs text-ink-meta py-4 text-center">
-          자체점검 일정이 없습니다 — 연간 계획 생성 후 자동으로 나타납니다 (<Link href="/inspection-plans" className="text-brand hover:underline">점검계획</Link>)
+          {/* 점검확정 화면 폐지(2026-09-12) — 계획은 고객 기본정보의 점검확정일 저장 시 자동 생성된다 */}
+          자체점검 일정이 없습니다 — 기본정보에 점검확정일을 입력하면 연간 계획이 자동 생성됩니다
         </p>
       )}
 

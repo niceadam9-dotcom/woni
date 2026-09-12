@@ -5,7 +5,7 @@
  *  여기서 확인하는 것은 **프로브가 볼 수 없는 화면 배선**이다:
  *    · 모니터링이 실제로 사라지고 새 화면으로 이어지는가(S6)
  *    · 달력 버튼이 그날 전 건을 띄우는가 — 달력이 로드하지 않는 자체점검까지(Q-14의 핵심)
- *    · 미확정 건이 목록에서 조용히 빠지지 않는가(S8-11)
+ *    · (구)미확정 차단은 2026-09-12 폐지 — 전건 확정 체계라, 이제는 확정 건이 곧바로 발송 대상인가를 본다
  *    · 시점 태그를 추가·삭제하면 배너 줄 수가 따라오는가(Q-13)
  *    · 고객관리 수신 체크가 저장되고 통수 안내가 뜨는가(S5-b)
  */
@@ -63,11 +63,12 @@ async function main() {
     custIds.push(cidD)
     await raw.from('customer_contacts').insert([{ customer_id: cidD, role: '대표', name: '무계획', phone: '01099990000' }])
 
-    // C — 미확정(planned)
+    // C — 정기 확정 건 하나 더 (구 미확정 사례 자리 — 2026-09-12 전건 확정 체계로 planned 소멸.
+    //     이제 지켜야 할 계약은 「태어나며 확정된 건이 곧바로 발송 대상이 되는가」다)
     const cidC = await mkCustomer({ customer_name: `문자UI-C${SUF}`, created_by: userId, region_si: '양평군', region_myeon: '강하면', region_ri: '전수리' })
     custIds.push(cidC)
-    await raw.from('customer_contacts').insert([{ customer_id: cidC, role: '대표', name: '미확정', phone: '01077778888' }])
-    await mkItem(cidC, 'monthly', 'planned')
+    await raw.from('customer_contacts').insert([{ customer_id: cidC, role: '대표', name: '정기확정', phone: '01077778888' }])
+    await mkItem(cidC, 'monthly', 'confirmed')
 
     // 시점 규칙을 **알려진 기준값 [1]로 고정하고 시작**한다.
     // 앞선 실행이 [3,1]을 남기면 배너 첫 줄이 '3일 후'가 되고 태그 추가도 중복으로 막혀
@@ -95,7 +96,7 @@ async function main() {
     check('★ 자체점검 건이 목록에 뜬다(달력 계획 칩 축에는 없는 종류)',
       rowsTxt.some(t => t.includes(`문자UI-A${SUF}`)), rowsTxt.join(' | ').slice(0, 300))
     check('정기 건도 뜬다', rowsTxt.some(t => t.includes(`문자UI-B${SUF}`)))
-    check('★ 미확정 건도 숨기지 않는다', rowsTxt.some(t => t.includes(`문자UI-C${SUF}`)))
+    check('★ 태어나며 확정된 건도 곧바로 목록에 뜬다(구 미확정 차단 폐지 축)', rowsTxt.some(t => t.includes(`문자UI-C${SUF}`)))
     check('지역 3단 묶음 헤더가 리까지 보여준다',
       (await page.locator('[data-testid="sms-region-group"]').allInnerTexts()).some(t => t.includes('전수리')),
       (await page.locator('[data-testid="sms-region-group"]').allInnerTexts()).join(' | '))
@@ -382,8 +383,10 @@ async function main() {
     const groupA = groups.find(t => t.includes(`문자UI-A${SUF}`)) ?? ''
     check('★ 수신 미지정이면 대표 1명만(폴백) — 관계인이 2명이어도 2통이 되지 않는다',
       groupA.includes('홍길동') && !groupA.includes('김철수'), groupA.replace(/\n/g, ' '))
-    check('★ 미확정 건은 사유와 함께 보이되 발송 불가',
-      (await page.locator('[data-testid="sms-unsendable"]').count()) >= 1)
+    // 미확정 차단 폐지(2026-09-12) — 내일 방문 모달엔 발송 불가 사유가 없어야 한다
+    // (남은 불가 사유는 '지난 방문일'뿐인데 내일 건이라 해당 없음). 상시 불가 띠가 남아 있으면 회귀다.
+    check('★ 발송 불가 표시가 없다(미확정 차단 폐지 — 전건 발송 가능)',
+      (await page.locator('[data-testid="sms-unsendable"]').count()) === 0)
     // 경고는 **양방향**으로 단언한다. 없을 때 뜨는 것만 보면, 키가 들어온 뒤에도 빨간 띠가
     // 계속 붙어 있는 상태를 통과시킨다 — 항상 켜진 경고는 읽히지 않아 경고가 아니게 된다.
     // (2026-08-19 로컬에 SOLAPI 실키가 들어오면서 실제로 이 방향이 갈렸다)

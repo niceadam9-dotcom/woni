@@ -570,7 +570,8 @@ export function SmsStatusClient({ canSend, initialFrom, initialTo, initialStatus
                 {overdueOpen ? '접기' : `전체 ${data!.overdue.items.length}건 보기`}
               </button>
             )}
-            <Link href="/inspection-plans" className={`${btn} ml-auto inline-flex items-center gap-1`}>
+            {/* 점검확정 화면 폐지(2026-09-12) — 일정 확인은 점검 달력으로 */}
+            <Link href="/inspections/calendar" className={`${btn} ml-auto inline-flex items-center gap-1`}>
               <CalendarDays className="size-3" /> 일정 확인
             </Link>
           </div>

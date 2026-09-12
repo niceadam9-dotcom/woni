@@ -66,7 +66,8 @@ try {
   }
   const { data: pItem, error: piErr } = await raw.from('inspection_plan_items').insert({
     plan_id: planId, customer_id: customerId, sequence_num: 2, plan_type: 'special_작동',
-    inspection_type: '작동', scheduled_date: kstShift(30), planned_date: kstShift(30), status: 'planned',
+    // 전건 확정 체계(2026-09-12, 161·162) — planned는 enum에서 빠졌다
+    inspection_type: '작동', scheduled_date: kstShift(30), planned_date: kstShift(30), status: 'confirmed',
   }).select('id').single()
   if (piErr) throw new Error(`계획 항목 생성 실패: ${piErr.message}`)
   planItemId = pItem!.id

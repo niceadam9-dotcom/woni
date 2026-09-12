@@ -27,7 +27,7 @@ export function CustomerSummaryPanel({ customerName, address, repName, repPhone,
       value: employeeName ?? <span className="text-red-500">미배정</span>,
     },
     {
-      icon: <Calendar className="size-3.5" />, label: '점검계획일',
+      icon: <Calendar className="size-3.5" />, label: '점검확정일',
       value: planDate ?? <span className="text-amber-600">미입력</span>,
     },
     {

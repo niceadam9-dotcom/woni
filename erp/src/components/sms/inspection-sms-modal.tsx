@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useTransition, useEffect, useRef } from 'react'
-import Link from 'next/link'
 import { X, Loader2, AlertTriangle, MessageSquare, CheckCircle2, ExternalLink, Ban } from 'lucide-react'
 import { prepareInspectionSmsAction, sendInspectionSmsAction } from '@/app/(dashboard)/inspections/sms-actions'
 import { MessageTemplateModal } from '@/components/settings/message-template-modal'
@@ -450,11 +449,11 @@ export function InspectionSmsModal({ source, onClose, onSent }: {
                           )}
                         </div>
 
-                        {/* 미확정 건 — 목록에서 빼지 않는다. 조용히 빼면 '달력엔 있는데 여긴 없다'가 된다 (S8-11) */}
+                        {/* 발송 불가 건(지난 방문일) — 목록에서 빼지 않는다. 조용히 빼면 '달력엔 있는데 여긴 없다'가 된다 (S8-11).
+                            「점검확정으로 이동」 링크는 화면 폐지(2026-09-12)로 제거 — 미확정 사유 자체가 사라졌다 */}
                         {!g.sendable && (
                           <div data-testid="sms-unsendable" className="mt-0.5 flex items-center gap-1.5 pl-6 text-form-2xs text-ink-soft">
                             <Ban className="size-3 shrink-0" /> {g.unsendableReason ?? '발송할 수 없습니다'}
-                            <Link href="/inspection-plans" className="text-brand hover:underline shrink-0">점검확정으로 이동 →</Link>
                           </div>
                         )}
 

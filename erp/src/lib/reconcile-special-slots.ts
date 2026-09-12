@@ -38,9 +38,9 @@ export type ReconcileResult = {
  *  **시작된 점검**은 건드리지 않는다. 이미 수행한 점검의 종류를 소급해 바꾸면 법정 서식
  *  허위 기재가 된다. 후보에서 빼고 `keptStarted`로 알린다.
  *
- *  ⚠ 확정된 정기를 특별로 올릴 때 `status`를 `planned`로 내리고 예정일을 비운다 —
- *    특별점검은 수동 확정이 규약이라, 정기의 자동 확정 상태를 물려받으면 '누가 언제 확정했는지'가
- *    거짓이 된다. 반대로 특별→정기는 자동 확정 규약대로 날짜를 채운다. */
+ *  ⚠ 승격(정기→특별)·강등(특별→정기) 모두 `confirmed` + 기산일 규칙 날짜를 싣는다 —
+ *    점검계획일=점검확정일(2026-09-12, 161·162)로 수동 확정 규약이 폐지돼, 종전의
+ *    「승격 시 planned로 내리고 예정일 비움」은 다시 채울 사람이 없는 구멍이 된다. */
 /** 바꾸려는 값 — 미리보기가 **저장 전** 값으로 계획을 세울 때 쓴다(생략하면 DB 현재값). */
 export type ReconcileOverride = {
   use_approval_date?: string | null
@@ -244,13 +244,15 @@ export async function reconcileSpecialSlots(
           // _resetPlanItemsForCustomer가 먼저 고쳐 줘 같은 값을 다시 쓰는 멱등이지만,
           // 이 함수가 리셋에 기대는 암묵 전제는 여기서 끊는다.
           const hd = await loadHolidays()
+          // 특별점검도 즉시 확정 — 점검계획일=점검확정일 (2026-09-12, 생성기와 같은 규약)
+          const specialDate = plannedDateFor(op.year, op.month, anchorDay, hd)
           const { error } = await admin.from('inspection_plan_items').update({
             plan_type: op.planType,
             inspection_sub_type: s,
             inspection_type: rowInspectionType(c.inspection_type, sub, s === '작동' && sub === '종합' ? 2 : 1),
-            status: 'planned',
-            planned_date: plannedDateFor(op.year, op.month, anchorDay, hd),
-            scheduled_date: null,
+            status: 'confirmed',
+            planned_date: specialDate,
+            scheduled_date: specialDate,
           } as Record<string, unknown>).eq('id', op.id)
           if (!error) out.promoted++
           break

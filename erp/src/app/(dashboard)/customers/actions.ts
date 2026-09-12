@@ -21,7 +21,7 @@ import type { ContactRole, InspectionType } from '@/types'
 
 const CUSTOMER_FIELD_LABELS: Record<string, string> = {
   customer_name: '고객명', inspection_type: '점검유형', contract_date: '계약일',
-  use_approval_date: '사용승인일', plan_anchor_date: '점검계획일', address: '주소', assigned_employee_id: '담당직원',
+  use_approval_date: '사용승인일', plan_anchor_date: '점검확정일', address: '주소', assigned_employee_id: '담당직원',
 }
 
 export type ContactInput = {
@@ -115,8 +115,8 @@ export async function createCustomerAction(
   const hasRep = (input.contacts ?? []).some(c => c.role === '대표' && c.name?.trim())
   if (!hasRep) return { error: '대표 관계인 이름을 입력해주세요. (대표 1명 필수)' }
 
-  // 점검계획일 필수 — 연간 점검계획의 기산점 (수동 최우선)
-  if (!input.plan_anchor_date) return { error: '점검계획일을 입력해주세요.' }
+  // 점검확정일(구 점검계획일) 필수 — 연간 점검계획의 기산점 (수동 최우선)
+  if (!input.plan_anchor_date) return { error: '점검확정일을 입력해주세요.' }
 
   // 사용승인일 필수 — **신규 등록만**. 법정 점검 시기(종합=사용승인월, 작동=+6개월)와
   // 최초점검(사용승인일+60일) 판정이 전부 이 값에서 나온다.
@@ -366,7 +366,6 @@ export async function createCustomerAction(
   await Promise.all([contactsTask, logTask, buildingTask, planTask])
 
   revalidatePath('/customers')
-  revalidatePath('/inspection-plans')
   return { customerId }
 }
 
@@ -406,7 +405,8 @@ async function _syncEmployeeToRelated(
     admin.from('inspection_plan_items')
       .update({ assigned_employee_id: employeeId } as Record<string, unknown>)
       .eq('customer_id', customerId)
-      .in('status', ['planned', 'confirmed']),
+      // 'planned' 제거(2026-09-12) — 전건 확정 체계. enum에서 값이 빠져 문자열로 남기면 쿼리가 죽는다
+      .eq('status', 'confirmed'),
     admin.from('inspections')
       .update({ assigned_employee_id: employeeId } as Record<string, unknown>)
       .eq('customer_id', customerId)
@@ -427,7 +427,6 @@ async function _syncEmployeeToRelated(
       .in('inspection_id', activeIds)
   }
 
-  revalidatePath('/inspection-plans')
   revalidatePath('/inspections/sms')
   revalidatePath('/inspections')
   revalidatePath('/inspections/calendar')
@@ -491,12 +490,6 @@ export async function assignEmployeeAction(
   return {}
 }
 
-/** 기준일 변경 팝업(B안)에서 사용자에게 보여줄 확정(confirmed) 항목 요약 */
-export type ConfirmedPlanItemInfo = {
-  id: string; year: number; month: number
-  scheduled_date: string | null; sequence_num: number; plan_type: string | null
-}
-
 export type UpdateCustomerInput = {
   customer_name?: string
   inspection_type?: InspectionType
@@ -515,39 +508,11 @@ export type UpdateCustomerInput = {
   fire_station?: string | null
 }
 
+// 확정 보호 팝업(B안, 2026-07-14)의 requiresConfirmedDecision/confirmedItems 계약과
+// _getUnconfirmablePlanItems는 2026-09-12 폐지 — 확정은 기계 계산값(점검계획일=점검확정일)이라
+// 보호할 사람 결정이 없다. 기산일이 움직이면 _resetPlanItemsForCustomer가 미시작 전건을 옮긴다.
 export type UpdateCustomerResult = {
   error?: string
-  /** 기준일 변경 대상 고객에 확정 일정이 있음 — confirmedDecision과 함께 재호출 필요 (아무것도 저장 안 됨) */
-  requiresConfirmedDecision?: boolean
-  confirmedItems?: ConfirmedPlanItemInfo[]
-}
-
-/** 기준일 변경 시 재계산에서 제외되는 확정(confirmed) 항목 조회 — 점검 미시작(미연결) 건만 해지 대상
- *  일반관리 event·정기(monthly)는 제외 — 자동 확정 항목이라 기준일 변경 시 재생성/재계산으로
- *  즉시 따라가며 확정보호 팝업 대상이 아님 (B안 + 정기 자동확정, 2026-07-14) */
-async function _getUnconfirmablePlanItems(
-  admin: ReturnType<typeof createAdminClient>,
-  customerId: string,
-): Promise<ConfirmedPlanItemInfo[]> {
-  const { data } = await admin
-    .from('inspection_plan_items')
-    .select('id, scheduled_date, sequence_num, plan_type, inspection_plans!inner(year, month)')
-    .eq('customer_id', customerId)
-    .eq('status', 'confirmed')
-    .is('inspection_id', null)
-  return ((data ?? []) as Array<Record<string, unknown>>)
-    // legacy 항목의 plan_type null은 소방 특별 — neq 쿼리는 null까지 걸러내므로 JS에서 제외
-    .filter(r => !['event', 'monthly'].includes((r.plan_type as string | null) ?? ''))
-    .map(r => {
-      const plan = r.inspection_plans as { year: number; month: number }
-      return {
-        id: r.id as string, year: plan.year, month: plan.month,
-        scheduled_date: (r.scheduled_date as string | null) ?? null,
-        sequence_num: (r.sequence_num as number | null) ?? 1,
-        plan_type: (r.plan_type as string | null) ?? null,
-      }
-    })
-    .sort((a, b) => (a.year - b.year) || (a.month - b.month))
 }
 
 /** 점검유형 변경 시 계획 항목 동기화 — 대상: planned + 자동 확정 정기(confirmed monthly, 미시작).
@@ -567,19 +532,19 @@ async function _syncInspectionTypeToPlanItems(
   actorId: string,
 ) {
   const newCategory = newType === '일반관리' ? '일반관리' : '소방안전관리'
-  // 자동 확정 정기 포함 미시작 항목 필터 (planned 전체 + confirmed monthly)
-  const UNSTARTED_OR = 'status.eq.planned,and(status.eq.confirmed,plan_type.eq.monthly)'
+  // 미시작 = confirmed + inspection_id null (2026-09-12 전건 확정 체계 — planned는 enum에서 빠졌다.
+  // 종전 「planned 전체 + confirmed monthly」 필터는 확정을 사람 결정으로 보호하던 규약)
 
-  // 레거시 event(자동 확정 포함, 미시작)는 어느 유형에서도 신규 체계와 무관 — 삭제
+  // 레거시 event(미시작)는 어느 유형에서도 신규 체계와 무관 — 삭제
   await admin.from('inspection_plan_items').delete()
-    .eq('customer_id', customerId).in('status', ['planned', 'confirmed'])
+    .eq('customer_id', customerId).eq('status', 'confirmed')
     .eq('plan_type', 'event').is('inspection_id', null)
 
   // 일반관리 전환: 정기(monthly)는 대상 아님 — 미시작 정기 삭제
   if (newCategory === '일반관리') {
     await admin.from('inspection_plan_items').delete()
       .eq('customer_id', customerId).eq('plan_type', 'monthly')
-      .is('inspection_id', null).in('status', ['planned', 'confirmed'])
+      .is('inspection_id', null).eq('status', 'confirmed')
   }
 
   // sequence_num을 함께 읽는다 — 이게 없으면 아래 루프가 2차 행까지 고객 축 값으로 덮어써서
@@ -589,7 +554,7 @@ async function _syncInspectionTypeToPlanItems(
     .select('id, plan_type, sequence_num')
     .eq('customer_id', customerId)
     .is('inspection_id', null)
-    .or(UNSTARTED_OR)
+    .eq('status', 'confirmed')
   for (const it of (items ?? []) as Array<{ id: string; plan_type: string | null; sequence_num: number }>) {
     // 행 축으로 내려 적용 — 2차는 고객이 종합이어도 작동이다
     const rowSub = rowSubType(newSubType, it.sequence_num)
@@ -605,8 +570,11 @@ async function _syncInspectionTypeToPlanItems(
       .eq('id', it.id)
   }
   if (newSubType === '작동') {
+    // 작동 전환 = 연 1회 — 미시작 2차 삭제. 종전 필터 status='planned'는 「사람이 확정한
+    // 2차는 보호」 규약이었는데, 전건 확정 체계에선 미시작(confirmed+미연결)이 그 자리다
     await admin.from('inspection_plan_items').delete()
-      .eq('customer_id', customerId).eq('status', 'planned').eq('sequence_num', 2)
+      .eq('customer_id', customerId).eq('status', 'confirmed')
+      .is('inspection_id', null).eq('sequence_num', 2)
   }
   // 누락 항목 보충 생성 — 작동→종합의 2차 특별점검, 소방 전환의 정기 등.
   // 기존 (plan, customer, sequence) 항목은 UNIQUE 충돌로 건너뜀(멱등)
@@ -628,14 +596,13 @@ async function _syncInspectionTypeToPlanItems(
 export async function updateCustomerAction(
   customerId: string,
   input: UpdateCustomerInput,
-  opts?: { confirmedDecision?: 'unconfirm' | 'keep' },
 ): Promise<UpdateCustomerResult> {
   const profile = await requirePermission('customer_manage')
   const admin = createAdminClient()
 
   // 점검계획일은 필수값 — 비우기 불허 (2026-07-14: "지우면 폴백 복귀" 설계 폐기)
   if (input.plan_anchor_date !== undefined && !input.plan_anchor_date) {
-    return { error: '점검계획일은 필수값입니다 — 비울 수 없습니다.' }
+    return { error: '점검확정일은 필수값입니다 — 비울 수 없습니다.' }
   }
 
   // 변경 감지를 위해 이전 값 조회
@@ -743,15 +710,8 @@ export async function updateCustomerAction(
   const approvalChanged = nextUseApproval !== (prev?.use_approval_date ?? null)
   const newAnchorDate = nextPlanAnchor
 
-  // 기준일 변경 + 확정 일정 존재 시(B안): 사용자 선택 전에는 아무것도 저장하지 않고 목록 반환
-  let confirmedItems: ConfirmedPlanItemInfo[] = []
-  if (anchorChanged) {
-    confirmedItems = await _getUnconfirmablePlanItems(admin, customerId)
-    if (confirmedItems.length > 0 && !opts?.confirmedDecision) {
-      return { requiresConfirmedDecision: true, confirmedItems }
-    }
-  }
-
+  // 확정 보호 팝업(B안, 2026-07-14) 폐지(2026-09-12) — 확정은 기계 계산값이라 보호할
+  // 사람 결정이 없다. 기산일이 움직이면 아래 _resetPlanItemsForCustomer가 미시작 전건을 옮긴다.
   let { error } = await admin
     .from('customers')
     .update(updateFields)
@@ -772,14 +732,8 @@ export async function updateCustomerAction(
 
   if (error) return { error: '고객 정보 수정에 실패했습니다.' }
 
-  // 기준일이 변경된 경우: 미확정(planned) plan_items 재계산.
-  // 확정(confirmed)은 기본 유지 — 사용자가 '확정해지 후 재계산'을 선택한 경우만 planned로 복귀시켜 포함
+  // 기준일이 변경된 경우: 미시작 plan_items 전건 재계산 (2026-09-12 — 확정해제 선택지 폐지)
   if (anchorChanged) {
-    if (opts?.confirmedDecision === 'unconfirm' && confirmedItems.length > 0) {
-      await admin.from('inspection_plan_items')
-        .update({ status: 'planned' } as Record<string, unknown>)
-        .in('id', confirmedItems.map(i => i.id))
-    }
     // 일반관리 포함 전 유형 동일 재계산 (소방계획서_6 — event 특례 제거)
     await _resetPlanItemsForCustomer(admin, customerId, { plan_anchor_date: newAnchorDate })
   }
@@ -814,7 +768,6 @@ export async function updateCustomerAction(
   if (anchorChanged || typeChanged || subChanged) {
     const y = new Date().getFullYear()
     await reconcileSpecialSlots(admin, customerId, [y, y + 1], profile.id)
-    revalidatePath('/inspection-plans')
     revalidatePath('/inspections/calendar')
   }
 
@@ -855,7 +808,6 @@ export async function updateCustomerAction(
 
   revalidatePath(`/customers/${customerId}`)
   revalidatePath('/customers')
-  revalidatePath('/inspection-plans')
   return {}
 }
 
@@ -871,7 +823,10 @@ async function _resetPlanItemsForCustomer(
     .select('id, status, plan_type, inspection_plans!inner(year, month)')
     .eq('customer_id', customerId)
     .is('inspection_id', null)
-    .or('status.eq.planned,and(status.eq.confirmed,plan_type.eq.monthly)')
+    // 미시작 전건 — 점검계획일=점검확정일(2026-09-12)이라 특별점검도 확정 상태로 태어난다.
+    // 종전의 「planned 또는 정기-confirmed」 필터는 확정을 사람 결정으로 보호하던 규약인데,
+    // 이제 확정은 기계 계산값이라 기산일이 움직이면 전건이 함께 움직여야 한다.
+    .in('status', ['planned', 'confirmed'])
 
   if (!items || items.length === 0) return
 
@@ -912,12 +867,6 @@ async function _resetPlanItemsForCustomer(
     step1_date: null, step2_date: null, step3_date: null,
     step4_date: null, step5_date: null, step6_date: null,
   }
-  // 특별점검(planned): 관리자 재확정 필요 — 확정일 초기화
-  const resetFields: Record<string, unknown> = {
-    status: 'planned',
-    scheduled_date: null,
-    ...stepResetFields,
-  }
 
   for (const item of items) {
     const plan = (item as Record<string, unknown>).inspection_plans as { year: number; month: number } | null
@@ -937,16 +886,17 @@ async function _resetPlanItemsForCustomer(
       }
     }
 
-    // 자동 확정 정기: 확정 유지 + 확정일도 새 기준일로 동행 (수동 재확정 불필요)
-    const it = item as Record<string, unknown>
-    const isAutoMonthly = it.plan_type === 'monthly' && it.status === 'confirmed'
-    const patch: Record<string, unknown> = isAutoMonthly
-      ? { status: 'confirmed', scheduled_date: newPlannedDate, ...stepResetFields }
-      : resetFields
-
+    // 전 유형: 확정 유지 + 확정일도 새 기준일로 동행 — 점검계획일=점검확정일 (2026-09-12).
+    // 종전엔 특별점검(planned)만 「관리자 재확정 필요」로 확정일을 비웠는데, 확정 절차가
+    // 폐지돼 비워 두면 다시 채울 사람이 없다. 단계 마감일은 시작 시 재계산되므로 비운다.
     await admin
       .from('inspection_plan_items')
-      .update({ ...patch, planned_date: newPlannedDate } as Record<string, unknown>)
+      .update({
+        status: 'confirmed',
+        scheduled_date: newPlannedDate,
+        planned_date: newPlannedDate,
+        ...stepResetFields,
+      } as Record<string, unknown>)
       .eq('id', (item as Record<string, unknown>).id as string)
   }
 }
@@ -963,17 +913,13 @@ export async function previewAnchorChangeAction(
   error?: string
   before?: AnchorPreview
   after?: AnchorPreview
-  /** 기준일이 바뀌어도 자동으로 안 바뀌는 확정 일정 — 미리보기와 **한 화면**에서 함께 묻는다.
-   *  종전엔 저장 → 확정팝업으로 **두 번 멈췄다**. 사용자는 한 번만 결정하면 된다. */
-  confirmedItems?: ConfirmedPlanItemInfo[]
 }> {
   await requirePermission('customer_manage')
   const admin = createAdminClient()
   const y = new Date().getFullYear()
-  const [b, a, confirmedItems] = await Promise.all([
+  const [b, a] = await Promise.all([
     planReconcile(admin, customerId, [y, y + 1]),
     planReconcile(admin, customerId, [y, y + 1], proposed),
-    _getUnconfirmablePlanItems(admin, customerId),
   ])
   if (!b || !a) return { error: '고객을 찾을 수 없습니다.' }
   const shape = (p: NonNullable<typeof b>): AnchorPreview => ({
@@ -989,7 +935,7 @@ export async function previewAnchorChangeAction(
     removes: p.ops.flatMap(o => o.kind === 'remove' ? [{ year: o.year, month: o.month, from: o.from }] : []),
     keptStarted: p.keptStarted.map(k => ({ year: k.year, month: k.month, planType: k.plan_type })),
   })
-  return { before: shape(b), after: shape(a), confirmedItems }
+  return { before: shape(b), after: shape(a) }
 }
 
 export type AnchorPreview = {
@@ -1206,7 +1152,6 @@ export async function bulkAssignEmployeeAction(
 
   revalidatePath('/customers')
   revalidatePath('/customers/regional-assign')
-  revalidatePath('/inspection-plans')
   revalidatePath('/inspections')
   for (const cid of customerIds) revalidatePath(`/customers/${cid}`)
   return { updatedCount: count ?? customerIds.length }
@@ -1283,7 +1228,9 @@ export async function generateCustomerCodeAction(prefix: string = 'C'): Promise<
 }
 
 // ── 비활성 전환 시 미완료 계획 자동 취소 / 재활성 시 복원 ──
-// 원상태를 notes 마커(⟦자동취소:상태⟧)로 보존해 재활성화 시 그대로 복원
+// 원상태를 notes 마커(⟦자동취소:상태⟧)로 보존해 재활성화 시 그대로 복원.
+// 정규식의 planned는 **과거 마커 읽기 전용** — planned 시절(2026-09-12 이전) 취소된 행의
+// 마커가 notes에 남아 있다. 복원할 때는 confirmed로 승격한다(enum에서 planned가 빠졌다, 162).
 const AUTO_CANCEL_MARKER = /⟦자동취소:(planned|confirmed)⟧/
 
 async function _autoCancelPlansForCustomer(admin: ReturnType<typeof createAdminClient>, customerId: string) {
@@ -1291,7 +1238,7 @@ async function _autoCancelPlansForCustomer(admin: ReturnType<typeof createAdminC
     .from('inspection_plan_items')
     .select('id, status, notes')
     .eq('customer_id', customerId)
-    .in('status', ['planned', 'confirmed'])
+    .eq('status', 'confirmed')
   for (const row of (data ?? []) as { id: string; status: string; notes: string | null }[]) {
     await admin
       .from('inspection_plan_items')
@@ -1324,7 +1271,8 @@ async function _restorePlansForCustomer(admin: ReturnType<typeof createAdminClie
     await admin
       .from('inspection_plan_items')
       .update({
-        status: m[1],
+        // 과거 마커의 planned는 confirmed로 승격 — enum에서 planned가 빠졌다(162)
+        status: m[1] === 'planned' ? 'confirmed' : m[1],
         notes: (row.notes ?? '').replace(AUTO_CANCEL_MARKER, '') || null,
         assigned_employee_id: currentAssignee,
       } as Record<string, unknown>)
@@ -1368,7 +1316,6 @@ export async function toggleCustomerActiveAction(
 
   revalidatePath('/customers')
   revalidatePath('/inspections')          // 점검업무 목록도 즉시 반영 (D-8 — 종전 누락)
-  revalidatePath('/inspection-plans')
   revalidatePath('/inspections/calendar')
   return {}
 }
@@ -1392,7 +1339,6 @@ export async function deleteCustomerAction(
   revalidatePath('/customers')
   revalidatePath('/buildings')
   revalidatePath('/inspections')          // 점검업무 목록도 즉시 반영 (D-8 — 종전 누락)
-  revalidatePath('/inspection-plans')
   revalidatePath('/inspections/calendar')
   return {}
 }
@@ -1584,7 +1530,6 @@ export async function hardDeleteCustomerAction(customerId: string): Promise<{ er
   revalidatePath('/customers')
   revalidatePath('/buildings')
   revalidatePath('/inspections')
-  revalidatePath('/inspection-plans')
   revalidatePath('/inspections/calendar')
   return purgeErrors.length
     ? { warning: `고객은 삭제됐으나 첨부 파일 정리가 일부 실패했습니다 — 관리자에게 알려주세요. (${purgeErrors.join(' / ')})` }
@@ -2000,7 +1945,6 @@ export async function patchCustomerFieldAction(
   customerId: string,
   field: 'customer_name' | 'inspection_type' | 'contract_date' | 'use_approval_date' | 'plan_anchor_date' | 'assigned_employee_id',
   value: string | null,
-  opts?: { confirmedDecision?: 'unconfirm' | 'keep' },
 ): Promise<UpdateCustomerResult> {
   // 담당자 필드는 배정 권한(매니저 이상), 그 외 필드는 고객 수정 권한
   const profile = field === 'assigned_employee_id'
@@ -2010,7 +1954,7 @@ export async function patchCustomerFieldAction(
 
   // 점검계획일은 필수값 — 비우기 불허 (2026-07-14: "지우면 폴백 복귀" 설계 폐기)
   if (field === 'plan_anchor_date' && !value) {
-    return { error: '점검계획일은 필수값입니다 — 비울 수 없습니다.' }
+    return { error: '점검확정일은 필수값입니다 — 비울 수 없습니다.' }
   }
 
   // 이전 값 조회 (변경 감지 + 이력 기록용)
@@ -2021,7 +1965,7 @@ export async function patchCustomerFieldAction(
   const prevRow = prevData as Record<string, string | null> | null
   const oldValue = prevRow?.[field] ?? null
 
-  // 기산점 변경 + 확정 일정 존재 시(B안): 사용자 선택 전에는 저장하지 않고 목록 반환
+  // 기산점이 실제로 움직였는지 판정 — 아래 재계산·자리 재배치의 방아쇠
   //
   // ⚠ 종전엔 `plan_anchor_date`만 기산점 필드로 봤다. 사용승인일이 기산점 축이 된 뒤로는
   //   그 판정이 사용승인일 인라인 수정을 놓쳐 확정 일정이 말없이 어긋난다(위 updateCustomerAction과 같은 결함).
@@ -2040,14 +1984,7 @@ export async function patchCustomerFieldAction(
       plan_anchor_manual: anchorManual,
     },
   )
-  let confirmedItems: ConfirmedPlanItemInfo[] = []
-  if (anchorMoved) {
-    confirmedItems = await _getUnconfirmablePlanItems(admin, customerId)
-    if (confirmedItems.length > 0 && !opts?.confirmedDecision) {
-      return { requiresConfirmedDecision: true, confirmedItems }
-    }
-  }
-
+  // 확정 보호 팝업(B안) 폐지(2026-09-12) — 기산점이 움직이면 아래에서 미시작 전건을 조건 없이 재계산한다
   const patchFields: Record<string, unknown> = { [field]: value || null, updated_at: new Date().toISOString() }
   if (field === 'inspection_type' && value) {
     patchFields.inspection_category = value === '일반관리' ? '일반관리' : '소방안전관리'
@@ -2063,14 +2000,8 @@ export async function patchCustomerFieldAction(
 
   if (error) return { error: '수정에 실패했습니다.' }
 
-  // 기산점이 **실제로 움직였을 때만** 미확정(planned) 항목 재계산 — 위 팝업과 같은 조건이어야 한다.
-  // 확정(confirmed)은 기본 유지 — '확정해지 후 재계산' 선택 시만 planned 복귀 후 포함
+  // 기산점이 **실제로 움직였을 때만** 미시작 항목 전건 재계산 (2026-09-12 — 확정해제 선택지 폐지)
   if (anchorMoved) {
-    if (opts?.confirmedDecision === 'unconfirm' && confirmedItems.length > 0) {
-      await admin.from('inspection_plan_items')
-        .update({ status: 'planned' } as Record<string, unknown>)
-        .in('id', confirmedItems.map(i => i.id))
-    }
     // 일반관리 포함 전 유형 동일 재계산 (소방계획서_6 — event 특례 제거).
     // plan_anchor_date만 넘긴다 — 사용승인일·manual 플래그는 loadAnchorDates가 DB에서 보강한다
     // (여기서 갱신된 값이 이미 저장돼 있다).
@@ -2091,7 +2022,6 @@ export async function patchCustomerFieldAction(
   if (anchorMoved || (field === 'inspection_type' && value && value !== oldValue)) {
     const y = new Date().getFullYear()
     await reconcileSpecialSlots(admin, customerId, [y, y + 1], profile.id)
-    revalidatePath('/inspection-plans')
     revalidatePath('/inspections/calendar')
   }
 
@@ -2100,7 +2030,6 @@ export async function patchCustomerFieldAction(
     const patchedSub = patchFields.inspection_sub_type === '종합' ? '종합' : '작동'
     await _syncInspectionTypeToPlanItems(admin, customerId, value as InspectionType, patchedSub, profile.id)
     await syncStartedRowSubTypes(admin, customerId)   // 시작된 행 종류도 (2026-09-02)
-    revalidatePath('/inspection-plans')
     revalidatePath('/inspections/calendar')
   }
 
@@ -2148,7 +2077,6 @@ export async function patchCustomerFieldAction(
 
   revalidatePath('/customers')
   revalidatePath(`/customers/${customerId}`)
-  if (field === 'plan_anchor_date') revalidatePath('/inspection-plans')
   return {}
 }
 

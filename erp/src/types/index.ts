@@ -30,7 +30,8 @@ export type ContactRole        = '대표' | '직원1' | '직원2'
 
 // Inspection Plan types (Victory4.md)
 export type PlanStatus     = 'draft' | 'confirmed' | 'cancelled'
-export type PlanItemStatus = 'planned' | 'confirmed' | 'completed' | 'cancelled'
+// 'planned' 제거(2026-09-12, 마이그 162) — 점검계획일=점검확정일, 전건이 확정 상태로 태어난다
+export type PlanItemStatus = 'confirmed' | 'completed' | 'cancelled'
 
 export interface Profile {
   id: string; employee_id: string; name: string; email: string
@@ -86,7 +87,7 @@ export interface Customer {
   id: string; customer_code: string; customer_name: string
   contract_date: string | null
   use_approval_date: string | null
-  plan_anchor_date: string | null // 점검계획일 — 계획 기산점 수동 지정(최우선)
+  plan_anchor_date: string | null // 점검확정일(구 점검계획일, 2026-09-12) — 계획 기산점 수동 지정(최우선). 컬럼명은 유지
   zipcode: string | null
   region_si: string | null; region_myeon: string | null; region_ri: string | null
   inspection_type: InspectionType

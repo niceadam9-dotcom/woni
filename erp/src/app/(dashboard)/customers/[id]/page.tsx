@@ -524,7 +524,7 @@ export default async function CustomerDetailPage({
         inspectionSubType={docProfile.inspection_sub_type === '종합' ? '종합' : '작동'}
         // 155 미적용 DB엔 이 컬럼이 없다 — undefined면 배지가 레거시로 해석한다(코드와 같은 답)
         planAnchorManual={(customer as unknown as { plan_anchor_manual?: boolean | null }).plan_anchor_manual}
-        annualLabel={customer.inspection_type === '종합' ? '연 2회 (1차·2차)' : customer.inspection_type === '작동' ? '연 1회' : '1회 (점검계획일)'}
+        annualLabel={customer.inspection_type === '종합' ? '연 2회 (1차·2차)' : customer.inspection_type === '작동' ? '연 1회' : '1회 (점검확정일)'}
         typeSlot={
           <span className="flex items-center">
             <span className={`text-form-sm font-medium px-2 py-0.5 rounded-full ${TYPE_COLORS[customer.inspection_type]}`}>

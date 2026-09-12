@@ -8,14 +8,11 @@
  *    ① [수리함] 기준일 부재 → 계획 0건 → 셋업에서 즉사.
  *       2026-07-14에 '사용승인일 폴백'이 제거됐는데(inspection-plan-generator.ts:17)
  *       픽스처는 use_approval_date만 줬다. plan_anchor_date를 넣어 해소.
- *    ② [미수리] 정기(monthly)는 **생성 즉시 자동 확정**된다(generator:71). 그래서 생성 직후
- *       planned가 0건이고, '나머지는 planned'라는 셋업 전제가 성립하지 않는다.
- *    ③ [미수리] getItems()에 안정 정렬이 없다. :101에서 items를 재조회·재대입하는데 순서가
+ *    ② [소멸 2026-09-12] planned 자체가 enum에서 빠졌다(161·162 — 전건 확정). 종전의
+ *       planned 왕복 축은 「레거시 ⟦자동취소:planned⟧ 마커 → 재활성 시 confirmed 승격」
+ *       축으로 갈아끼웠다(아래 셋업·단언). '계획 목록 UI' 단언도 화면 폐지로 은퇴.
+ *    ③ [미수리] getItems()에 안정 정렬이 없다. items를 재조회·재대입하는데 순서가
  *       바뀌므로, 이후 items[0..2].id가 셋업에서 상태를 지정한 그 행을 더는 가리키지 않는다.
- *       (②만 고치면 ③ 때문에 completed·수동취소 단언이 엉뚱한 행을 본다 — 함께 고쳐야 한다.)
- *
- *    D-8이 바꾼 것은 :140대 '계획 목록 UI' 단언 하나뿐이고, 그 검사는 지금도 통과한다.
- *    ②③ 수리는 별도 작업으로 분리한다(30.json S6-13).
  */
 import { createClient } from '@supabase/supabase-js'
 import { readFileSync, mkdirSync } from 'fs'
@@ -114,27 +111,24 @@ try {
 
   let items = await getItems()
   if (items.length < 4) throw new Error(`계획 항목 부족: ${items.length}건 (4건 이상 필요)`)
-  // 상태 구성: [0] confirmed, [1] completed, [2] 수동 취소, [3] planned
+  // 상태 구성: [0] confirmed, [1] completed, [2] 수동 취소, [3] 레거시 자동취소(⟦자동취소:planned⟧)
   //
-  // ②[수리] 종전 주석은 '나머지 planned'였는데 그 전제가 깨져 있었다 — 정기(monthly)는
-  //   **생성 즉시 자동 확정**된다(inspection-plan-generator:71). 그래서 생성 직후 planned가
-  //   0건이고, 셋업이 '나머지'에 기대는 순간 검사 전체가 무너진다.
-  //   기대는 생성기의 부산물이 아니라 **셋업이 직접 만든다** — 한 건을 명시적으로 planned로 둔다.
-  //   (②만 고치고 ③을 두면 이 지정이 다른 행으로 흘러가 엉뚱한 것을 단언한다 — 함께 고쳐야 한다.)
+  // ②[개편 2026-09-12] planned는 enum에서 빠졌다(161·162 — 점검계획일=점검확정일, 전건 확정).
+  //   종전의 planned 왕복 축은 **레거시 마커 승격 축**으로 갈아끼운다: planned 시절 자동취소된
+  //   행(⟦자동취소:planned⟧ 마커가 notes에 잔존)이 재활성 때 planned가 아니라 **confirmed로
+  //   승격**되는가 — customers/actions.ts _restorePlansForCustomer의 승격 분기가 무는 계약이다.
   await raw.from('inspection_plan_items').update({ status: 'confirmed', scheduled_date: `${YEAR}-07-15` }).eq('id', items[0].id)
   await raw.from('inspection_plan_items').update({ status: 'completed' }).eq('id', items[1].id)
   await raw.from('inspection_plan_items').update({ status: 'cancelled', notes: '수동 취소' }).eq('id', items[2].id)
-  await raw.from('inspection_plan_items').update({ status: 'planned', notes: null }).eq('id', items[3].id)
-  /** planned 축으로 단언할 행 — '나머지'가 아니라 **지목한 그 행**이다 */
-  const plannedId = items[3].id
+  await raw.from('inspection_plan_items').update({ status: 'cancelled', notes: '⟦자동취소:planned⟧' }).eq('id', items[3].id)
+  /** 레거시 마커 축으로 단언할 행 — '나머지'가 아니라 **지목한 그 행**이다 */
+  const legacyId = items[3].id
   items = await getItems()
-  const plannedCount = items.filter(i => i.status === 'planned').length
-  check(`셋업: planned ${plannedCount}(지정 1건 포함) + confirmed 1 + completed 1 + 수동취소 1`,
-    plannedCount >= 1
-    && items.find(i => i.id === plannedId)?.status === 'planned'
+  check('셋업: confirmed ≥1 + completed 1 + 취소 2(수동 1·레거시 마커 1)',
+    items.find(i => i.id === legacyId)?.status === 'cancelled'
     && items.filter(i => i.status === 'confirmed').length >= 1
     && items.filter(i => i.status === 'completed').length === 1
-    && items.filter(i => i.status === 'cancelled').length === 1,
+    && items.filter(i => i.status === 'cancelled').length === 2,
     JSON.stringify(items.map(i => [i.plan_type, i.status])))
 
   // ── 브라우저: 로그인 → 고객 목록 ─────────────────────────────
@@ -164,27 +158,21 @@ try {
   const c0 = afterCancel.find(i => i.id === items[0].id)! // confirmed였던 것
   const c1 = afterCancel.find(i => i.id === items[1].id)! // completed
   const c2 = afterCancel.find(i => i.id === items[2].id)! // 수동취소
-  // ③[수리] '나머지'가 아니라 셋업이 planned로 지목한 그 행만 본다 — 나머지 정기는 confirmed라
+  // ③[수리] '나머지'가 아니라 셋업이 지목한 그 행만 본다 — 나머지 정기는 confirmed라
   //   마커도 ⟦자동취소:confirmed⟧다. 뭉뚱그리면 서로 다른 두 마커를 한 단언이 요구하게 된다.
-  const cPlanned = afterCancel.filter(i => i.id === plannedId)
-  check('비활성: planned → cancelled + ⟦자동취소:planned⟧ 마커',
-    cPlanned.length === 1 && cPlanned.every(i => i.status === 'cancelled' && (i.notes ?? '').includes('⟦자동취소:planned⟧')),
-    JSON.stringify(cPlanned.map(i => [i.status, i.notes])))
+  const cLegacy = afterCancel.filter(i => i.id === legacyId)
+  check('비활성: 레거시 자동취소 행은 불변(이미 취소 — 마커 유지·중복 부착 없음)',
+    cLegacy.length === 1 && cLegacy.every(i => i.status === 'cancelled'
+      && ((i.notes ?? '').match(/자동취소/g) ?? []).length === 1),
+    JSON.stringify(cLegacy.map(i => [i.status, i.notes])))
   check('비활성: confirmed → cancelled + ⟦자동취소:confirmed⟧ 마커',
     c0.status === 'cancelled' && (c0.notes ?? '').includes('⟦자동취소:confirmed⟧'), JSON.stringify(c0))
   check('🔍 비활성: completed는 불변', c1.status === 'completed' && !(c1.notes ?? '').includes('자동취소'), JSON.stringify(c1))
   check('🔍 비활성: 기존 수동취소는 마커 미부착', c2.status === 'cancelled' && c2.notes === '수동 취소', JSON.stringify(c2))
 
-  // 계획 목록 UI — D-8(소방계획서_30 S6, 2026-08-29)로 기대가 뒤집혔다.
-  // 종전엔 '취소 상태로 표시되는가'를 봤지만, 이제 비활성 고객은 '취소' 칩을 포함해 **어느 칩에도
-  // 실리지 않는다**. 그래서 행의 부재를 단언한다.
-  // ⚠ waitFor()로 기다리면 안 된다 — 없는 것이 정답이라 15초 타임아웃 후 throw로 스위트가
-  //   중단되고 아래 ②재활성 복원·③2회차 검사가 통째로 실행되지 않는다(부재 판정은 count로).
-  await page.goto(`${BASE}/inspection-plans?year=${YEAR}&month=7&view=list`)
-  await page.getByRole('button', { name: /^전체/ }).first().click()
-  await page.waitForTimeout(800)
-  const planRowCount = await page.locator('tr', { has: page.getByText(CUSTOMER_NAME) }).count()
-  check('계획 목록 UI: 비활성 고객 행 제외 (D-8)', planRowCount === 0, `행 ${planRowCount}건 잔존`)
+  // (은퇴) 계획 목록 UI의 비활성 고객 행 제외 단언(D-8) — 점검확정 화면 폐지(2026-09-12)로
+  // 그 목록 자체가 없다. /inspection-plans는 점검 달력으로 리다이렉트되고, 취소(cancelled) 칩은
+  // 달력에서도 실리지 않는다(위 DB 단언이 취소 상태 자체를 확인한다).
   await shot(page, '03-plans-cancelled')
 
   // ── ② 재활성 전환 → 원상태 복원 ─────────────────────────────
@@ -193,17 +181,18 @@ try {
   await row().getByRole('button', { name: '활성' }).waitFor({ timeout: 15000 })
   const afterRestore = await waitFor(list => {
     const r0 = list.find(i => i.id === items[0].id)
-    return r0?.status === 'confirmed' && list.filter(i => i.status === 'planned').length === plannedCount
+    const rl = list.find(i => i.id === legacyId)
+    return r0?.status === 'confirmed' && rl?.status === 'confirmed'
   })
   await shot(page, '04-customers-restored')
 
   const r0 = afterRestore.find(i => i.id === items[0].id)!
   const r1 = afterRestore.find(i => i.id === items[1].id)!
   const r2 = afterRestore.find(i => i.id === items[2].id)!
-  const rPlanned = afterRestore.filter(i => i.id === plannedId)
-  check('재활성: planned 복원 + 마커 제거',
-    rPlanned.length === 1 && rPlanned.every(i => i.status === 'planned' && !(i.notes ?? '').includes('자동취소')),
-    JSON.stringify(rPlanned.map(i => [i.status, i.notes])))
+  const rLegacy = afterRestore.filter(i => i.id === legacyId)
+  check('★ 재활성: 레거시 ⟦자동취소:planned⟧ 마커는 confirmed로 **승격** 복원 + 마커 제거 (2026-09-12 승격 분기)',
+    rLegacy.length === 1 && rLegacy.every(i => i.status === 'confirmed' && !(i.notes ?? '').includes('자동취소')),
+    JSON.stringify(rLegacy.map(i => [i.status, i.notes])))
   check('재활성: confirmed 복원 (scheduled_date 유지) + 마커 제거',
     r0.status === 'confirmed' && r0.scheduled_date === `${YEAR}-07-15` && !(r0.notes ?? '').includes('자동취소'),
     JSON.stringify(r0))

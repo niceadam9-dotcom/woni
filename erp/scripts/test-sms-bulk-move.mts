@@ -59,16 +59,14 @@ async function main() {
     const p1 = await ensurePlan(y, mo, userId); plansCreated.push(p1)
     const planId = p1.id
 
-    // 액션 id는 **그 화면 번들**에만 실린다 — 두 화면을 모두 훑어야 둘 다 잡힌다
-    // (bulkMove=문자 발송 / confirm=점검확정)
+    // 액션 id는 **그 화면 번들**에만 실린다 — 점검확정 화면 폐지(2026-09-12) 후에는
+    // 문자 발송 화면 번들에서 bulkMove만 뽑는다. 특별점검의 날짜 적용(확정=시작)도
+    // bulkMove 1건 호출로 태운다 — 내부에서 confirmPlanItemStageOneAction으로 간다(같은 코드 경로).
     await page.goto(`${BASE}/inspections/sms`, { waitUntil: 'networkidle' })
-    await page.goto(`${BASE}/inspection-plans`, { waitUntil: 'networkidle' })
     const urls = [...scripts]
     const bulkMoveId = await findActionId(page, 'bulkMovePlanDatesAction', urls)
-    const confirmId  = await findActionId(page, 'confirmPlanItemStageOneAction', urls)
-    check('서버 액션 id 추출(bulkMove·confirm)', !!(bulkMoveId && confirmId),
-      `bulkMove=${!!bulkMoveId} confirm=${!!confirmId}`)
-    if (!bulkMoveId || !confirmId) throw new Error('액션 id 추출 실패 — dev 서버인지 확인')
+    check('서버 액션 id 추출(bulkMove)', !!bulkMoveId, `bulkMove=${!!bulkMoveId}`)
+    if (!bulkMoveId) throw new Error('액션 id 추출 실패 — dev 서버인지 확인')
 
     /** 계획 항목 1건 — planType 지정 가능(자체점검 / 정기) */
     async function mkItem(day: number, planType: 'special_작동' | 'monthly', name: string) {
@@ -81,7 +79,8 @@ async function main() {
         plan_id: planId, customer_id: cid, sequence_num: 1,
         inspection_type: planType === 'monthly' ? '작동' : '작동',
         plan_type: planType,
-        scheduled_date: D(day), status: 'planned',
+        // 전건 확정 체계(2026-09-12, 161·162) — planned는 enum에서 빠졌다
+        scheduled_date: D(day), planned_date: D(day), status: 'confirmed',
       }).select('id').single()
       if (error) throw new Error(`계획 항목 생성 실패: ${error.message}`)
       return { itemId: (data as { id: string }).id, custId: cid }
@@ -91,8 +90,8 @@ async function main() {
     const five: Array<{ itemId: string; custId: string }> = []
     for (let i = 0; i < 5; i++) five.push(await mkItem(10 + i, 'special_작동', `A${i + 1}`))
 
-    // 전부 확정 → 점검 자동 시작(자체점검은 확정=시작)
-    for (const f of five) await callAction(page, confirmId, [f.itemId, D(10)])
+    // 전부 날짜 적용 → 점검 자동 시작(자체점검은 날짜 적용=시작 — bulkMove가 confirm으로 태운다)
+    for (const f of five) await callAction(page, bulkMoveId, [[f.itemId], D(10)])
 
     // 5건 중 1건만 1단계 완료로 — 가드에 걸릴 건
     const blocked = five[2]

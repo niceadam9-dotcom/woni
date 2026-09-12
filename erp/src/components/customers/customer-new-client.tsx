@@ -204,8 +204,8 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
     setError('')
     if (!form.customer_code.trim()) { setError('고객코드 생성 중입니다. 잠시 후 다시 시도해주세요.'); return }
     if (!form.customer_name.trim()) { setError('고객명을 입력해주세요.'); return }
-    if (!form.plan_anchor_date) { setError('점검계획일을 입력해주세요.'); return }
-    for (const [label, v] of [['계약일', form.contract_date], ['점검계획일', form.plan_anchor_date], ['사용승인일', form.use_approval_date]] as const) {
+    if (!form.plan_anchor_date) { setError('점검확정일을 입력해주세요.'); return }
+    for (const [label, v] of [['계약일', form.contract_date], ['점검확정일', form.plan_anchor_date], ['사용승인일', form.use_approval_date]] as const) {
       if (v && !isCompleteDate(v)) { setError(`${label}을(를) YYYY-MM-DD 형식으로 입력해주세요.`); return }
     }
     if (!contacts['대표'].name.trim()) { setError('대표 관계인 이름을 입력해주세요. (대표 1명 필수)'); return }
@@ -329,7 +329,7 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
     ['주소', !!form.address.trim()],
     ['고객명', !!form.customer_name.trim()],
     ['점검유형', !!form.inspection_type],
-    ['점검계획일', isCompleteDate(form.plan_anchor_date)],
+    ['점검확정일', isCompleteDate(form.plan_anchor_date)],
     // 사용승인일은 법정 점검 시기의 기산점이다 — 종합점검은 사용승인일이 속하는 달,
     // 작동점검은 그로부터 6개월(시행규칙 [별표 3]). 비어 있으면 그 달을 계산할 수 없고
     // 최초점검(사용승인일+60일) 판정도 불가능해 별지 9호 3분기를 정할 수 없다.
@@ -437,13 +437,13 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
         </div>
 
         <div className="grid grid-cols-2 gap-4">
-          <Field label="점검계획일" required>
+          <Field label="점검확정일" required>
             <DateInput
               value={form.plan_anchor_date}
               onChange={e => setField('plan_anchor_date', e.target.value)}
               className={inputCls}
             />
-            <p className="text-form-xs text-ink-meta">등록일이 아닌 연간 점검의 기산일 — 이 날짜의 월·일 기준으로 자체·정기점검이 배치됩니다 (통상 사용승인일 또는 첫 점검일)</p>
+            <p className="text-form-xs text-ink-meta">등록일이 아닌 연간 점검의 기산일 — 이 날짜의 월·일 기준으로 자체·정기점검 일정이 확정됩니다 (통상 사용승인일 또는 첫 점검일)</p>
           </Field>
         </div>
 

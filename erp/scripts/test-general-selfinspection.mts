@@ -1,5 +1,5 @@
 /** 소방계획서_6 W-24: 일반관리 자체점검 통주행 E2E —
- *  고객 등록 → 연간 계획 생성(정기 없음 확인) → UI 점검일 확정 → 자동 시작(6단계) → 별지 9호 어포던스 → 타임라인 ①~⑥.
+ *  고객 등록 → 연간 계획 생성(정기 없음·전건 확정 확인) → 점검일 적용(HTTP 액션) → 자동 시작(6단계) → 별지 9호 어포던스 → 타임라인 ①~⑥.
  *  실행: (dev 기동 후) npx tsx scripts/test-general-selfinspection.mts
  *  전제: 스테이징 DB에 마이그레이션 110(백필)·111(트리거 개정) 적용
  */
@@ -87,9 +87,11 @@ try {
     YEAR, userId, hdSet)
 
   const a0 = await itemsOf(custA)
-  check('작동: special_작동 1건 생성 (planned)',
-    a0.length === 1 && a0[0].plan_type === 'special_작동' && a0[0].status === 'planned',
-    JSON.stringify(a0.map(i => [i.plan_type, i.status])))
+  // 2026-09-12 전건 확정 체계 — 특별점검도 confirmed + scheduled=planned_date로 태어난다(161·162)
+  check('작동: special_작동 1건 생성 (confirmed·scheduled=planned)',
+    a0.length === 1 && a0[0].plan_type === 'special_작동' && a0[0].status === 'confirmed'
+    && a0[0].scheduled_date === a0[0].planned_date && a0[0].planned_date != null,
+    JSON.stringify(a0.map(i => [i.plan_type, i.status, i.planned_date, i.scheduled_date])))
   check('작동: 정기(monthly)·event 0건', !a0.some(i => i.plan_type === 'monthly' || i.plan_type === 'event'))
   const b0 = await itemsOf(custB)
   // 소방계획서_33 — 종합 대상의 **1차만 종합**이고 2차는 작동이다(2차는 법적으로 작동점검).
@@ -112,10 +114,15 @@ try {
     && b2.every(i => i.inspection_sub_type === '작동'),
     JSON.stringify(b0.map(i => [i.sequence_num, i.inspection_sub_type])))
 
-  // ── 2) UI: 점검확정 화면에서 점검일 확정 → 자체점검 자동 시작 ──
+  // ── 2) 점검일 적용 → 자체점검 자동 시작 ──
+  // 점검확정 화면은 2026-09-12 폐지 — 같은 코드 경로(confirmPlanItemStageOneAction)를
+  // 로그인 세션으로 HTTP 호출한다(_judge19-action 관례, test-plan-date-sync와 동일).
+  // 액션 id는 고객 상세 번들에서 뽑는다(별지 회차 카드 [작성 시작]이 이 액션을 import).
   browser = await chromium.launch()
   const page: Page = await (await browser.newContext({ viewport: { width: 1500, height: 950 } })).newPage()
   page.setDefaultTimeout(20000)
+  const { findActionId, collectScripts, callAction } = await import('./_judge19-action.mjs')
+  const scripts = collectScripts(page)
   await page.goto(`${BASE}/login`)
   await page.fill('input[type=email]', EMAIL)
   await page.fill('input[type=password]', PW)
@@ -123,13 +130,11 @@ try {
   await page.waitForURL(u => !u.pathname.includes('/login'), { timeout: 20000 })
   check('로그인 성공', true)
 
-  await page.goto(`${BASE}/inspection-plans`)
-  const rowA = page.locator('tr', { has: page.getByText(NAME) }).first()
-  await rowA.waitFor()
-  await rowA.getByText('점검일 확정').click()
-  // 미니 달력 팝업에서 예정일(10일 부근 영업일) 클릭 — planned_date의 '일'을 그대로 선택
-  const plannedDay = Number((a0[0].planned_date ?? anchor).slice(8))
-  await page.locator('div.z-\\[9999\\] button', { hasText: new RegExp(`^${plannedDay}$`) }).first().click()
+  await page.goto(`${BASE}/customers/${custA}`, { waitUntil: 'networkidle' })
+  const confirmId = await findActionId(page, 'confirmPlanItemStageOneAction', [...scripts])
+  check('confirm 액션 id 추출(고객 상세 번들)', !!confirmId)
+  if (!confirmId) throw new Error('액션 id 추출 실패 — dev 서버인지 확인')
+  await callAction(page, confirmId, [a0[0].id, a0[0].scheduled_date ?? a0[0].planned_date ?? anchor])
 
   const a1 = await waitFor(() => itemsOf(custA), list => !!list[0]?.inspection_id)
   check('확정 → 자체점검 자동 시작 (inspection 연결·항목 completed)',
@@ -149,13 +154,11 @@ try {
   check('점검표 라벨 = 작동점검 (소방시설등점검표 축)', await page.isVisible('text=작동점검 (○항목)'))
   check('외관점검표 렌더 아님', !(await page.isVisible('text=외관점검 (별지 6호)')))
   check('스텝바 ① 점검표', await page.isVisible('text=① 점검표'))
-  check('스텝바 ④ 소방서 제출(9호)', await page.isVisible('text=④ 소방서 제출'))
-  check('스텝바 ⑥ 이행완료(별지 11호)', await page.isVisible('text=⑥ 이행완료 (별지 11호)'))
-  // 별지 9호 생성은 ④ 칸에 있다 — 일반관리 자체점검도 보고 대상(F-8).
-  // 어포던스는 2026-08-20(d538280)부터 문서 칩 — 전용 [별지 9호 생성] 버튼은 폐지됐다.
-  await page.click('[data-testid="workbench-stepbar"] button[data-step="submit9"]')
-  await page.waitForSelector('text=제출 전제')
-  check('별지 9호 생성 어포던스 노출', await page.isVisible('[data-doc-chip="report9"]'))
+  // 소방계획서_48 (2026-09 배포): **불량 0이면 ④⑤⑥ 즉시 감춤** — 갓 시작한 점검은 불량 0이라
+  // ④·⑥이 안 보이는 것이 정본이다. 종전 「④·⑥ 노출」 단언은 48 이전 계약이라 갈아끼웠다.
+  // (별지 9호 생성 어포던스는 불량 등록 후 ④가 나타나는 흐름 — 그 축은 annex 검사들이 덮는다)
+  check('스텝바 ④ 숨김 (불량 0 — 소방계획서_48)', !(await page.isVisible('text=④ 소방서 제출')))
+  check('스텝바 ⑥ 숨김 (불량 0 — 소방계획서_48)', !(await page.isVisible('text=⑥ 이행완료 (별지 11호)')))
 
   await browser.close(); browser = null
 } catch (e) {

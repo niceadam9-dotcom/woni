@@ -169,24 +169,17 @@ export async function applyStepSideEffects(
     await admin.from('inspections').update({ status: 'in_progress' } as Record<string, unknown>).eq('id', inspectionId)
   }
 
-  // 1단계 완료 → 계획 항목 확정 승격.
+  // (은퇴한 자리) 1단계 완료 → 계획 항목 확정 승격.
   //
   // ⚠ 종전에는 여기서 inspection_status_log도 함께 upsert했다(6단계 날짜 6개). 그 테이블은
   //   inspection_steps와 1:1 중복인데 동기화가 **작업대 → 모니터링 단방향뿐**이라,
   //   모니터링에서 날짜를 입력해도 다른 화면은 모르는 채 같은 점검의 진행률이 화면마다 달랐다
   //   (소방계획서_24 P-14·P-15). Q-8로 그 축을 은퇴시키면서 이 쓰기를 걷어냈다.
   //
-  // ⚠⚠ **아래 승격은 status_log와 무관한 별개 로직이라 반드시 남긴다.** 함께 지우면
-  //   1단계 완료가 계획 항목에 반영되지 않아 점검확정 화면이 계속 '계획중'으로 보인다.
-  if (newlyCompleted.includes(1)) {
-    const { data: planItem } = await admin.from('inspection_plan_items')
-      .select('id, status').eq('inspection_id', inspectionId).maybeSingle()
-    const pi = planItem as { id: string; status: string } | null
-    if (pi && pi.status === 'planned') {
-      await admin.from('inspection_plan_items')
-        .update({ status: 'confirmed' } as Record<string, unknown>).eq('id', pi.id)
-    }
-  }
+  // ⚠⚠ 종전 여기 있던 「1단계 완료 → planned→confirmed 승격」은 2026-09-12 폐지 —
+  //   점검계획일=점검확정일이라 전건이 확정 상태로 태어나고(생성기), 잔존 planned는
+  //   마이그 161이 백필해 승격할 planned가 더는 없다. (당시 「반드시 남긴다」 경고는
+  //   점검확정 화면이 '계획중'을 보여 주던 시절의 계약 — 그 상태 자체가 은퇴해 전제가 사라졌다.)
   return { justCompleted, ...(hold ? { completionHeld: holdCompletion! } : {}) }
 }
 

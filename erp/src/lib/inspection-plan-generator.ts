@@ -174,8 +174,11 @@ export async function generateRollingPlanItems(
  *    '종합 대상인가'는 고객 축(inspection_sub_type), '이 행이 무슨 점검인가'는 행 축으로 갈린다 (소방계획서_33)
  *  - 나머지 월: monthly 정기점검 — 단 이미 지난 달은 생성 생략 (중도 등록 대응).
  *    일반관리는 정기 미생성 (소방계획서_6 D-1 — 유일한 관리유형 분기)
- *  - 정기(monthly)는 생성 즉시 자동 확정(confirmed, scheduled=planned) — 기준일 규칙으로 날짜가
- *    이미 결정되는 루틴 방문이라 수동 확정 불필요 (2026-07-14 결정). 특별점검만 planned(수동 확정)
+ *  - **전 유형 생성 즉시 확정**(confirmed, scheduled=planned) — 점검계획일=점검확정일
+ *    (2026-09-12 결정, 확정 절차 폐지). 기준일 규칙으로 날짜가 이미 결정되므로 수동 확정이 없다.
+ *    종전엔 정기(monthly)만 자동 확정(2026-07-14)이고 특별점검은 planned(수동 확정)였다.
+ *    ⚠ 확정돼도 자동 시작은 정기만이다(auto-start-inspections 크론이 plan_type=monthly만 본다) —
+ *    특별점검 시작은 고객 상세 회차 카드 [작성 시작]이 담당한다.
  *  - 기준일 이전 날짜의 항목은 생성 안 함 (최초 점검 전 이행 의무 없음 — 올해 안 기준일의 2차 역행 방지)
  *  이미 존재하는 (plan, customer, sequence) 항목은 UNIQUE 충돌로 건너뜀 — 매년 재실행해도 안전(멱등)
  *  @returns 새로 생성된 항목 수 */
@@ -308,7 +311,7 @@ export async function generateYearlyPlanItems(
       planned = toStr(d)
     }
 
-    const isMonthly = planType === 'monthly'
+    // 전 유형 생성 즉시 확정 — 점검계획일=점검확정일 (2026-09-12, 마이그 161이 기존 planned를 백필)
     rows.push({
       plan_id: planId,
       customer_id: customer.id,
@@ -318,8 +321,8 @@ export async function generateYearlyPlanItems(
       sequence_num,
       assigned_employee_id: assigned_employee_id || null,
       planned_date: planned,
-      scheduled_date: isMonthly ? planned : null,
-      status: isMonthly ? 'confirmed' : 'planned',
+      scheduled_date: planned,
+      status: 'confirmed',
       plan_type: planType,
     })
   }

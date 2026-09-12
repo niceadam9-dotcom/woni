@@ -3,10 +3,9 @@
 import { useEffect, useRef, useState, useTransition, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import { Loader2, Search } from 'lucide-react'
-import { updateCustomerAction, quickAddressApplyAction, checkAddressAction, previewAnchorChangeAction, type ConfirmedPlanItemInfo, type AnchorPreview, type UpdateCustomerInput, type AddressDuplicateCustomer, type AddressDuplicateBuilding } from '@/app/(dashboard)/customers/actions'
+import { updateCustomerAction, quickAddressApplyAction, checkAddressAction, previewAnchorChangeAction, type AnchorPreview, type UpdateCustomerInput, type AddressDuplicateCustomer, type AddressDuplicateBuilding } from '@/app/(dashboard)/customers/actions'
 import { useDaumPostcode, type DaumPostcodeData } from '@/hooks/use-daum-postcode'
 import { DateInput, isCompleteDate } from '@/components/ui/date-input'
-import { ConfirmedDecisionDialog } from './confirmed-decision-dialog'
 import { AnchorChangePreview, LegalScheduleBadge } from './anchor-change-preview'
 import { resolveAnchor, anchorSourceLabel } from '@/lib/plan-anchor'
 import { AddressDuplicateDialog } from './address-duplicate-dialog'
@@ -53,19 +52,18 @@ export function EditCustomerInfoClient({ customer, typeSlot, annualLabel, lastCh
   const [form, setForm] = useState(() => makeInitial(customer))
   const [error, setError] = useState('')
   const [isPending, startTransition] = useTransition()
-  // 기준일 변경 시 확정 일정 처리 선택 팝업(B안)
-  const [confirmedDlg, setConfirmedDlg] = useState<ConfirmedPlanItemInfo[] | null>(null)
+  // 확정 보호 팝업(B안)은 2026-09-12 폐지 — 전건 확정 체계라 보호할 사람 결정이 없다
   /** 기산점 변경 미리보기 — 저장 전에 한 번만 띄운다 */
-  const [preview, setPreview] = useState<{ before: AnchorPreview; after: AnchorPreview; confirmedItems: ConfirmedPlanItemInfo[] } | null>(null)
+  const [preview, setPreview] = useState<{ before: AnchorPreview; after: AnchorPreview } | null>(null)
   const previewAckRef = useRef(false)
   // 주소 중복 안내 팝업 — 자기 자신은 제외하고 '다른 고객'과 겹칠 때만
   const [dupInfo, setDupInfo] = useState<{
     customer?: AddressDuplicateCustomer; building?: AddressDuplicateBuilding; address: string
   } | null>(null)
   const dupAckRef = useRef('')                                  // '계속 적용'으로 확인 완료된 주소
-  // 팝업 확인 후 이어서 실행할 동작. null = 대기 없음. (decision은 undefined일 수 있어 객체로 감싼다)
+  // 팝업 확인 후 이어서 실행할 동작. null/false = 대기 없음.
   const pendingAddrRef = useRef<DaumPostcodeData | null>(null)  // 주소 검색 결과 적용
-  const pendingSaveRef = useRef<{ decision?: 'unconfirm' | 'keep' } | null>(null)  // [저장]
+  const pendingSaveRef = useRef(false)                          // [저장]
 
   // customer props가 갱신(router.refresh)되면 form 초기화 — 렌더 중 상태 조정 패턴 (effect 아님)
   const syncKey = [customer.customer_name, customer.contract_date, customer.use_approval_date, customer.plan_anchor_date, customer.address, customer.notes, customer.fire_station].join('|')
@@ -153,9 +151,9 @@ export function EditCustomerInfoClient({ customer, typeSlot, annualLabel, lastCh
     }
   }
 
-  function handleSave(confirmedDecision?: 'unconfirm' | 'keep') {
+  function handleSave() {
     if (!form.customer_name.trim()) { setError('고객명은 필수입니다'); return }
-    if (!form.plan_anchor_date) { setError('점검계획일은 필수입니다 — 연간 점검계획의 기산일을 입력해주세요.'); return }
+    if (!form.plan_anchor_date) { setError('점검확정일은 필수입니다 — 연간 점검계획의 기산일을 입력해주세요.'); return }
     // 관할 소방서 필수 — 다만 **주소가 있으면 서버가 자동 지정**(actions.ts D-3)하므로 여기서 막지 않는다.
     // 둘 다 비어 있을 때만 즉시 막는다: 서버도 채울 근거가 없어 어차피 실패하니 왕복을 아낀다.
     // 실측(2026-08-20, 스테이징): 소방서 공란 28건 중 주소 있는 17건은 자동 지정 17/17 성공 —
@@ -164,7 +162,7 @@ export function EditCustomerInfoClient({ customer, typeSlot, annualLabel, lastCh
       setError('관할 소방서는 필수입니다 — 주소를 입력하면 자동 지정되고, 아니면 직접 입력해주세요.')
       return
     }
-    for (const [label, v] of [['계약일', form.contract_date], ['점검계획일', form.plan_anchor_date], ['사용승인일', form.use_approval_date]] as const) {
+    for (const [label, v] of [['계약일', form.contract_date], ['점검확정일', form.plan_anchor_date], ['사용승인일', form.use_approval_date]] as const) {
       if (v && !isCompleteDate(v)) { setError(`${label}을(를) YYYY-MM-DD 형식으로 입력해주세요.`); return }
     }
     setError('')
@@ -174,48 +172,41 @@ export function EditCustomerInfoClient({ customer, typeSlot, annualLabel, lastCh
       startTransition(async () => {
         const dup = await checkAddressAction(addr, { excludeCustomerId: customer.id }).catch(() => null)
         if (dup?.duplicate || dup?.duplicateBuilding) {
-          pendingSaveRef.current = { decision: confirmedDecision }
+          pendingSaveRef.current = true
           setDupInfo({ customer: dup.duplicate, building: dup.duplicateBuilding, address: addr })
           return
         }
         dupAckRef.current = addr
-        gateThenSave(confirmedDecision)
+        gateThenSave()
       })
       return
     }
-    gateThenSave(confirmedDecision)
+    gateThenSave()
   }
 
   /** 기산점이 바뀌면 **저장 전에** 무엇이 되는지 보여준다.
-   *  종전엔 저장하고 나서야 알 수 있었고, 확정 일정이 있으면 그때 **또 한 번** 멈췄다 —
-   *  이제 미리보기 한 화면에서 확정 처리까지 함께 고른다. */
-  function gateThenSave(confirmedDecision?: 'unconfirm' | 'keep') {
+   *  종전엔 저장하고 나서야 알 수 있었다. (확정 처리 선택은 2026-09-12 폐지 — 미시작 전건이 자동 동행) */
+  function gateThenSave() {
     const anchorish =
       (form.use_approval_date || null) !== (customer.use_approval_date ?? null)
       || (form.plan_anchor_date || null) !== (customer.plan_anchor_date ?? null)
-    // 미리보기에서 결정하고 돌아온 호출이면 그대로 저장한다(무한 반복 방지)
-    if (!anchorish || confirmedDecision !== undefined || previewAckRef.current) { doSave(confirmedDecision); return }
+    // 미리보기에서 확인하고 돌아온 호출이면 그대로 저장한다(무한 반복 방지)
+    if (!anchorish || previewAckRef.current) { doSave(); return }
     startTransition(async () => {
       const res = await previewAnchorChangeAction(customer.id, {
         use_approval_date: form.use_approval_date || null,
         plan_anchor_date: form.plan_anchor_date || null,
       }).catch(() => null)
       // ⚠ 미리보기를 못 받아도 저장을 막지 않는다 — 안내는 부가 기능이지 관문이 아니다
-      if (!res?.before || !res.after) { doSave(confirmedDecision); return }
-      setPreview({ before: res.before, after: res.after, confirmedItems: res.confirmedItems ?? [] })
+      if (!res?.before || !res.after) { doSave(); return }
+      setPreview({ before: res.before, after: res.after })
     })
   }
 
-  function doSave(confirmedDecision?: 'unconfirm' | 'keep') {
+  function doSave() {
     startTransition(async () => {
-      const result = await updateCustomerAction(customer.id, buildInput(), confirmedDecision ? { confirmedDecision } : undefined)
-      // 확정 일정 보유 고객의 기준일 변경 — 아직 저장 안 됨, 사용자 선택 팝업 표시
-      if (result.requiresConfirmedDecision && result.confirmedItems) {
-        setConfirmedDlg(result.confirmedItems)
-        return
-      }
+      const result = await updateCustomerAction(customer.id, buildInput())
       if (result.error) { setError(result.error); return }
-      setConfirmedDlg(null)
       router.refresh()
     })
   }
@@ -253,7 +244,7 @@ export function EditCustomerInfoClient({ customer, typeSlot, annualLabel, lastCh
             {annualLabel && <span className="text-form-2xs text-ink-sub">{annualLabel}</span>}
           </div>
         )}
-        {field(<>점검계획일 {req} <span className="text-form-2xs text-ink-sub font-normal">(기산일)</span></>,
+        {field(<>점검확정일 {req} <span className="text-form-2xs text-ink-sub font-normal">(기산일)</span></>,
           <DateInput id="cf-plan" value={form.plan_anchor_date} onChange={e => set('plan_anchor_date', e.target.value)} disabled={dis} className={inputCls} />
         )}
         {field(<>고객명 {req}</>,
@@ -348,26 +339,15 @@ export function EditCustomerInfoClient({ customer, typeSlot, annualLabel, lastCh
         )
       })()}
 
-      {/* 기산점 변경 미리보기 — 저장 **전**에 무엇이 될지 보여주고, 확정 일정 처리까지 한 화면에서 고른다.
-          종전엔 저장 → 확정팝업으로 두 번 멈췄다. */}
+      {/* 기산점 변경 미리보기 — 저장 **전**에 무엇이 될지 보여준다.
+          확정 처리 선택 팝업(B안)은 2026-09-12 폐지 — 미시작 전건이 자동 동행한다. */}
       {preview && (
         <AnchorChangePreview
           before={preview.before}
           after={preview.after}
-          confirmedItems={preview.confirmedItems}
           isPending={isPending}
-          onConfirm={d => { previewAckRef.current = true; setPreview(null); doSave(d) }}
+          onConfirm={() => { previewAckRef.current = true; setPreview(null); doSave() }}
           onCancel={() => setPreview(null)}
-        />
-      )}
-
-      {/* 미리보기를 못 띄운 경로(기산점 무관 변경 등)에서 서버가 확정 선택을 요구할 때의 폴백 */}
-      {confirmedDlg && (
-        <ConfirmedDecisionDialog
-          items={confirmedDlg}
-          isPending={isPending}
-          onDecide={d => handleSave(d)}
-          onCancel={() => setConfirmedDlg(null)}
         />
       )}
 
@@ -377,14 +357,13 @@ export function EditCustomerInfoClient({ customer, typeSlot, annualLabel, lastCh
           customer={dupInfo.customer}
           building={dupInfo.building}
           address={dupInfo.address}
-          onClose={() => { pendingAddrRef.current = null; pendingSaveRef.current = null; setDupInfo(null) }}
+          onClose={() => { pendingAddrRef.current = null; pendingSaveRef.current = false; setDupInfo(null) }}
           onContinue={() => {
             dupAckRef.current = dupInfo.address
             setDupInfo(null)
             const addr = pendingAddrRef.current
             if (addr) { pendingAddrRef.current = null; applyAddress(addr); return }
-            const save = pendingSaveRef.current
-            if (save) { pendingSaveRef.current = null; doSave(save.decision) }
+            if (pendingSaveRef.current) { pendingSaveRef.current = false; doSave() }
           }}
           continueLabel="계속 적용"
         />

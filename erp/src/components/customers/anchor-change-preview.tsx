@@ -17,15 +17,12 @@ const kind = (planType: string | null) =>
  *  ⚠ 여기 뜨는 값은 전부 서버의 `planReconcile` 결과다 — **실행이 쓰는 그 함수**다.
  *    화면이 따로 계산하면 "보여준 것과 다른 일이 벌어진다". */
 export function AnchorChangePreview({
-  before, after, confirmedItems = [], isPending, onConfirm, onCancel,
+  before, after, isPending, onConfirm, onCancel,
 }: {
   before: AnchorPreview
   after: AnchorPreview
-  /** 기준일이 바뀌어도 자동으로 안 바뀌는 확정 일정 — 있으면 여기서 **함께** 묻는다.
-   *  종전엔 저장 → 확정팝업으로 두 번 멈췄다. 결정은 한 번이면 된다. */
-  confirmedItems?: Array<{ id: string; year: number; month: number; sequence_num: number; plan_type: string | null; scheduled_date: string | null }>
   isPending?: boolean
-  onConfirm: (decision?: 'unconfirm' | 'keep') => void
+  onConfirm: () => void
   onCancel: () => void
 }) {
   const monthsOf = (p: AnchorPreview) =>
@@ -51,7 +48,7 @@ export function AnchorChangePreview({
             </div>
             <p className="text-form-xs text-ink-meta mt-1">
               기산점 {after.anchorSource} {after.anchorDate ?? '(없음)'}
-              {after.divergent && <span className="text-orange-600"> · ⚠ 점검계획일과 달이 다릅니다</span>}
+              {after.divergent && <span className="text-orange-600"> · ⚠ 점검확정일과 달이 다릅니다</span>}
             </p>
           </div>
 
@@ -107,27 +104,11 @@ export function AnchorChangePreview({
         </div>
 
         <div className="flex flex-col gap-2 px-6 py-4 border-t border-line">
-          {confirmedItems.length > 0 ? (
-            <>
-              <p className="text-form-xs text-ink-sub mb-1">
-                ⚠ <b>이미 확정된 일정 {confirmedItems.length}건</b>은 기준일을 바꿔도 자동으로 안 옮겨집니다
-                {' '}({confirmedItems.map(i => `${i.year}-${String(i.month).padStart(2, '0')}`).join(', ')}).
-              </p>
-              <button onClick={() => onConfirm('unconfirm')} disabled={isPending}
-                className="h-form-10 rounded-lg bg-brand hover:bg-brand-strong text-white text-form-base font-medium flex items-center justify-center disabled:opacity-50">
-                {isPending ? <Loader2 className="size-4 animate-spin" /> : `확정해지 후 저장 (${confirmedItems.length}건 포함)`}
-              </button>
-              <button onClick={() => onConfirm('keep')} disabled={isPending}
-                className="h-form-10 rounded-lg border border-line text-form-base text-ink-sub hover:bg-paper disabled:opacity-50">
-                확정 유지하고 저장 — 미확정만 재계산
-              </button>
-            </>
-          ) : (
-            <button onClick={() => onConfirm()} disabled={isPending}
-              className="h-form-10 rounded-lg bg-brand hover:bg-brand-strong text-white text-form-base font-medium flex items-center justify-center disabled:opacity-50">
-              {isPending ? <Loader2 className="size-4 animate-spin" /> : '이대로 저장'}
-            </button>
-          )}
+          {/* 확정해지/유지 선택(B안)은 2026-09-12 폐지 — 미시작 전건이 기준일을 자동 동행한다 */}
+          <button onClick={() => onConfirm()} disabled={isPending}
+            className="h-form-10 rounded-lg bg-brand hover:bg-brand-strong text-white text-form-base font-medium flex items-center justify-center disabled:opacity-50">
+            {isPending ? <Loader2 className="size-4 animate-spin" /> : '이대로 저장'}
+          </button>
           <button onClick={onCancel} disabled={isPending}
             className="h-form-9 rounded-lg text-form-sm text-ink-meta hover:text-ink-sub disabled:opacity-50">
             취소 (변경하지 않음)
@@ -158,7 +139,7 @@ export function LegalScheduleBadge({ months, anchorSource, anchorDate, divergent
         </b>
       </span>
       <span className="text-ink-meta">기산점 {anchorSource} {anchorDate}</span>
-      {divergent && <span className="text-orange-600">⚠ 점검계획일과 달이 다름</span>}
+      {divergent && <span className="text-orange-600">⚠ 점검확정일과 달이 다름</span>}
       {initialDueDate && (
         <span className="text-orange-700 dark:text-orange-400 font-medium">
           🔴 최초점검 기한 {initialDueDate}

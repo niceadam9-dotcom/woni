@@ -111,11 +111,9 @@ console.log('— 3부 배선 (순수 함수가 맞아도 연결이 없으면 없
   ok('[입력]은 isCurrentStep이 아니라 미완료 여부로만 노출',
     /const inputLink = step\.status !== 'completed'\s*\?\s*stepInputLink\(/.test(cal))
 
-  const panel = code('components/inspection-plans/plan-item-slide-panel.tsx')
-  ok('계획 슬라이드 패널도 stepInputLink를 쓴다', /stepInputLink\(item\.inspection_id,\s*step\.step_num\)/.test(panel))
-  ok('계획 패널 강제완료 라벨도 "사유 완료"', /사유 완료/.test(panel))
-  ok('계획 패널 [입력]도 순서 강제와 분리(!done 기준)',
-    /const inputLink = !done && item\.inspection_id/.test(panel))
+  // 계획 슬라이드 패널(plan-item-slide-panel) 배선 3건은 2026-09-12 화면 폐지로 은퇴 —
+  // 점검확정 화면이 사라져 그 패널 자체가 없다. 단계 [입력] 창구는 달력 패널(위)과
+  // 입력 전용 페이지(/inspections/{id}/sheet)가 전담한다.
 }
 
 console.log('— 4부 별지 "미입력" 경고의 [고치기] 링크 (점검표 계열은 입력 전용 페이지로)')

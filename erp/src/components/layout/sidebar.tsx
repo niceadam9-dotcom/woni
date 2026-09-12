@@ -7,7 +7,7 @@ import { countUnsentNoticesAction } from '@/app/(dashboard)/inspections/sms-acti
 import {
   LayoutDashboard, FileText, CheckSquare, CalendarDays, Palmtree, ShieldCheck,
   Users, UserPlus, Building2, ClipboardList, Settings, Umbrella,
-  Flame, BookUser, TableProperties, Send, FileCheck2, ClipboardCheck,
+  Flame, BookUser, Send, FileCheck2, ClipboardCheck,
   Wallet, Receipt, CalendarCheck, ListTodo, MessageSquare, MessageCircle,
   FileSpreadsheet, ShoppingCart, BookOpen, TrendingUp, Scale, ReceiptText,
   Banknote, Handshake, LayoutList, BookMarked, NotebookPen, Car, Route,
@@ -54,7 +54,9 @@ export const NAV_GROUPS: NavGroup[] = [
       { label: '고객 관리',        href: '/customers',                  icon: BookUser,       roles: ['employee', 'manager', 'admin'] },
       // 건물 관리 메뉴 삭제 (2026-07-16 A안 확정) — 건물 조회·등록·수정은 고객 상세 > 건물·시설 탭
       // '점검 대장' 메뉴 소멸 (소방계획서_21 R8-3) — customers를 통째로 읽는 뷰라 고객 관리 탭으로 흡수. /inspection-ledger는 리다이렉트
-      { label: '점검확정',          href: '/inspection-plans',           icon: TableProperties, roles: ['employee', 'manager', 'admin'] },
+      // '점검확정' 메뉴 소멸 (2026-09-12 사용자 결정) — 점검계획일=점검확정일로 확정 절차 자체가 폐지.
+      // 계획은 고객 등록·크론(generate-yearly-plans)이 전건 확정 상태로 생성하고, 날짜 이동·시작은
+      // 점검 달력이, 담당 변경은 고객관리가 담당한다. /inspection-plans는 점검 달력으로 리다이렉트
       { label: '점검 달력',        href: '/inspections/calendar',       icon: CalendarDays,   roles: ['employee', 'manager', 'admin'] },
       { label: '점검 업무',        href: '/inspections',                icon: Flame,          roles: ['employee', 'manager', 'admin'] },
       // 접수 업무 — 점검 흐름 한가운데(종전 점검현황 앞)에서 일상 블록 끝으로 이동 (R8-6)

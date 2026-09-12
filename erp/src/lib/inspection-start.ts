@@ -153,7 +153,6 @@ export async function startInspectionCore(
 
   // 일괄 처리에서는 건별 revalidate 반복이 지연 요인 — 호출자가 마지막 1회로 대체
   if (!opts?.skipRevalidate) {
-    revalidatePath('/inspection-plans')
     revalidatePath('/inspections')
     revalidatePath('/inspections/calendar')
     revalidatePath('/inspections/sms')

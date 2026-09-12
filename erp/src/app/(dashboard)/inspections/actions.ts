@@ -153,7 +153,6 @@ export async function createInspectionAction(
       },
       targetYear, profile.id,
     )
-    revalidatePath('/inspection-plans')
   }
 
   revalidatePath('/inspections')
@@ -264,7 +263,6 @@ export async function completeStepAction(
     revalidatePath('/inspections')
     revalidatePath('/inspections/calendar')
     revalidatePath('/inspections/sms')
-    revalidatePath('/inspection-plans')
   }
   return res
 }
@@ -405,7 +403,6 @@ export async function bulkCompleteStepsAction(
   revalidatePath('/inspections')
   revalidatePath('/inspections/calendar')
   revalidatePath('/inspections/sms')
-  revalidatePath('/inspection-plans')
   return { done, failed, held }
 }
 
@@ -473,7 +470,6 @@ export async function bulkStartCompletePlanItemsAction(
   revalidatePath('/inspections')
   revalidatePath('/inspections/calendar')
   revalidatePath('/inspections/sms')
-  revalidatePath('/inspection-plans')
   return { done, failed }
 }
 
@@ -485,7 +481,7 @@ export async function deleteInspectionAction(
 
   // GAP-2: 연결된 계획 항목을 먼저 되돌린다 — FK SET NULL만 되면
   // "완료인데 점검 없음" 모순 상태(INV-3 위반)로 남기 때문.
-  // 확정일이 있으면 확정 상태로(재시작 가능), 없으면 계획으로 복귀
+  // 복귀는 무조건 confirmed — planned는 enum에서 빠졌다(162, 점검계획일=점검확정일)
   const { data: linkedRaw } = await admin
     .from('inspection_plan_items')
     .select('id, scheduled_date')
@@ -494,7 +490,7 @@ export async function deleteInspectionAction(
     await admin.from('inspection_plan_items')
       .update({
         inspection_id: null,
-        status: item.scheduled_date ? 'confirmed' : 'planned',
+        status: 'confirmed',
       } as Record<string, unknown>)
       .eq('id', item.id)
   }
@@ -508,7 +504,6 @@ export async function deleteInspectionAction(
 
   revalidatePath('/inspections')
   revalidatePath('/inspections/calendar')
-  revalidatePath('/inspection-plans')
   revalidatePath('/inspections/sms')
   return {}
 }

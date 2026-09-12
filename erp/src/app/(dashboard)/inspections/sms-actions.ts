@@ -14,7 +14,7 @@ import {
 } from '@/lib/sms-recipients'
 import { COMPANY_PROFILE_ORDER } from '@/lib/company-profile'
 import { fetchAllRows } from '@/lib/supabase/paginate'
-import { confirmPlanItemStageOneAction, moveMonthlyPlanItemAction } from '@/app/(dashboard)/inspection-plans/actions'
+import { confirmPlanItemStageOneAction, moveMonthlyPlanItemAction } from '@/app/(dashboard)/inspections/plan-date-actions'
 import { isStepOneCompleted } from '@/lib/inspection-start'
 
 /** 사전 안내 SMS 서버 액션 (소방계획서_24 S4)
@@ -566,7 +566,7 @@ export async function saveSmsSettingsAction(rulesInput: unknown) {
 
 /** 점검 껍데기에 **사람이 넣은 자료**가 있는지 본다 — 있으면 방문 취소를 거부할 근거다.
  *
- *  확정하면 점검이 조건 없이 자동 생성된다(inspection-plans/actions.ts:375-378). 그 껍데기는
+ *  날짜를 적용하면 점검이 조건 없이 자동 생성된다(plan-date-actions.ts confirmPlanItemStageOneAction 말미). 그 껍데기는
  *  아무도 요청하지 않은 부산물이라 방문이 취소되면 함께 사라지는 게 맞다. 하지만 `inspections`를
  *  지우면 점검표 응답·지적사항·조치계획·펌프시험이 **전부 CASCADE로 딸려간다**(069:6, 008:9·29,
  *  131:20 …). 그래서 CASCADE에 기대지 않고 여기서 직접 센다.
@@ -706,7 +706,6 @@ export async function bulkCancelPlanItemsAction(planItemIds: string[]) {
   }
 
   revalidatePath('/inspections/sms')
-  revalidatePath('/inspection-plans')
   revalidatePath('/inspections')
   revalidatePath('/inspections/calendar')
   return { cancelled, failed, warnings }
@@ -757,7 +756,6 @@ export async function bulkMovePlanDatesAction(planItemIds: string[], newDate: st
     else moved++
   }
   revalidatePath('/inspections/sms')
-  revalidatePath('/inspection-plans')
   revalidatePath('/inspections/calendar')
   return { moved, failed }
 }

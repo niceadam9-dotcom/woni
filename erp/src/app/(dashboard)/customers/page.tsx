@@ -79,7 +79,7 @@ export default async function CustomersPage({
 
   const baseHeaders = ['고객명', '점검유형']
   const fullHeaders = fullCols ? ['계약일', '사용승인일'] : []
-  const headers = [...baseHeaders, ...fullHeaders, '점검계획일', '담당직원', '상태', '문서', '']
+  const headers = [...baseHeaders, ...fullHeaders, '점검확정일', '담당직원', '상태', '문서', '']
 
   return (
     <div className="space-y-6">

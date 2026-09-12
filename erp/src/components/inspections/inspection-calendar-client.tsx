@@ -16,7 +16,7 @@ import {
 } from 'lucide-react'
 import { InspectionSmsModal, type SmsModalSource } from '@/components/sms/inspection-sms-modal'
 import { completeStepAction, bulkCompleteStepsAction, bulkStartCompletePlanItemsAction } from '@/app/(dashboard)/inspections/actions'
-import { moveMonthlyPlanItemAction } from '@/app/(dashboard)/inspection-plans/actions'
+import { moveMonthlyPlanItemAction } from '@/app/(dashboard)/inspections/plan-date-actions'
 // 여러 건 날짜 이동은 문자 발송 화면이 쓰는 액션을 **그대로 태운다** — 같은 달·미시작·1단계 완료
 // 가드가 그 경로에만 있으므로 여기서 복제하면 두 곳이 갈라진다(sms-actions.ts:391-394의 교훈)
 import { bulkMovePlanDatesAction } from '@/app/(dashboard)/inspections/sms-actions'
@@ -1427,8 +1427,9 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
             <div className="flex items-center gap-2 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-sm text-amber-800">
               <AlertTriangle className="size-4 shrink-0 text-amber-500" />
               <span>퇴사(비활성) 직원 담당 일정이 <strong>{orphanCount}건</strong> 있습니다. 달력에는 계속 표시되며, 담당자 재배정이 필요합니다.</span>
-              <Link href="/inspection-plans" className="ml-auto shrink-0 text-xs text-amber-700 font-medium hover:underline flex items-center gap-0.5">
-                점검확정에서 재배정 <ChevronRight className="size-3" />
+              {/* 담당은 고객관리가 단일 소스 — 점검확정 화면 폐지(2026-09-12)로 재배정 창구도 고객관리로 */}
+              <Link href="/customers" className="ml-auto shrink-0 text-xs text-amber-700 font-medium hover:underline flex items-center gap-0.5">
+                고객 관리에서 재배정 <ChevronRight className="size-3" />
               </Link>
             </div>
           )}
@@ -1783,11 +1784,8 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
                 )
               })()}
 
-              <div className="px-5 py-3 border-t border-brand-line-soft shrink-0">
-                <Link href="/inspection-plans" className="text-xs text-brand hover:underline flex items-center gap-1">
-                  점검확정에서 관리 <ChevronRight className="size-3" />
-                </Link>
-              </div>
+              {/* 「점검확정에서 관리」 링크 자리 — 점검확정 화면 폐지(2026-09-12)로 제거.
+                  날짜 이동·시작+완료는 이 데이 패널이, 담당 변경은 고객관리가 담당한다 */}
             </div>
 
             {/* 같은 날 일괄 완료 모달 (2026-08-04) — 기본 체크: 1단계형(정기·일반), 자체점검 단계는 해제 */}
