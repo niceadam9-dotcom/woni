@@ -1,279 +1,222 @@
-/** TS-ANCHOR 시스템 테스트 (브라우저 구동): 점검계획일 기준 표시·동기화 개선 (2026-07-14, 커밋 32ab071)
- *  커버: TS-ANCHOR-1(표시)·4(비우기 차단)·5(B안 확정해지)·6(확정 유지/취소)·8(유형 동기화)·11(부분 업데이트 소실 회귀)
- *  실행: npx tsx scripts/test-anchor.mts  (TEST_BASE_URL로 스테이징 지정 가능, 테스트 데이터 자동 정리)
- */
-import { createClient } from '@supabase/supabase-js'
-import { readFileSync, mkdirSync } from 'fs'
-import { chromium, type Page } from 'playwright'
-import gen from '../src/lib/inspection-plan-generator.ts'
-const { generateYearlyPlanItems, loadHolidaySet } = gen as unknown as typeof import('../src/lib/inspection-plan-generator.ts')
+// 점검일자(기산일) 변경 → 계획 재계산 E2E — 화면→DB 왕복 (2026-07-14 신설 → 2026-09-13 재작성)
+//
+// 왜 이 검사가 있나: 점검일자(`plan_anchor_date`)는 연간 계획 전체의 기산점이다. 한 칸을 고치면
+// 그 고객의 모든 미시작 계획 항목이 새 날로 옮겨간다 — 그런데 **이미 시작한 점검은 옮기면 안 된다**.
+// 수행한 점검의 날짜를 나중에 바꾸면 법정 서식(별지 9호 점검기간 등)이 사실과 달라지기 때문이다.
+// 그래서 이 축의 핵심 단언은 「옮기는가」가 아니라 **「옮기면 안 될 것을 안 옮기는가」**다.
+//
+// ⚠ 2026-09-13 재작성 — 종전 판은 폐지된 점검확정 화면(/inspection-plans)의 컬럼·슬라이드 패널을
+//   먼저 열었고(지금은 /inspections/calendar로 redirect), 판정 대부분을 `status==='planned'`로
+//   걸러 세고 있었다. 점검확정 폐지(마이그 161·162)로 그 enum 값 자체가 사라져 필터가 늘 공집합이
+//   되므로 **어느 쪽으로 고쳐도 초록**이 되는 상태였다.
+//
+//   버린 단언과 이유:
+//    · 「확정해지 → planned + 확정일 초기화」·「확정 유지 / 확정해지 후 전체 재계산」 B안 팝업
+//      → 계약 자체가 폐지됐다(actions.ts:713 — 확정은 기계 계산값이라 보호할 사람 결정이 없다).
+//        지금은 미시작 전건이 기준일을 **자동 동행**하고, 팝업은 「저장하면 이렇게 바뀝니다」
+//        미리보기 하나로 바뀌었다.
+//    · 「전체 planned 예정일 재계산」의 planned 필터 → 미시작 판정은 제품과 같은 축인
+//      **`inspection_id === null`**로 바꿨다(_resetPlanItemsForCustomer:825가 그렇게 판정한다).
+//    · 점검유형 종합→작동 동기화(TS-ANCHOR-8·11) → 기산일 축이 아니라 유형 전파 축이다.
+//      등재된 `test-reconcile-endstate`·`test-jonghap-parity`가 최종 상태로 이미 덮는다.
+//
+//   산식(며칠에 앉는가 · 영업일 보정 · 달을 안 벗어남)은 순수·등재된 `test-plan-anchor-axis`가
+//   덮는다. 여기서 중복으로 다시 계산하지 않고, **화면에서 고친 값이 DB까지 갔는가**만 본다.
+//
+// 🚨 지금 이 검사는 **15/2 빨강이고, 두 빨강은 검사 부패가 아니라 제품 결함이다**(2026-09-13 실측).
+//   `customers/actions.ts` `_resetPlanItemsForCustomer`가 재계산 대상을
+//   `.in('status', ['planned', 'confirmed'])`로 고른다. 그런데 마이그 161·162가 enum에서
+//   'planned'를 없앴으므로 이 질의는 **22P02로 통째로 거절**된다("invalid input value for enum
+//   plan_item_status"). 코드가 그 error를 안 보고 `if (!items) return`으로 조용히 빠져나가서,
+//   **점검일자를 고쳐도 계획 항목이 한 건도 안 움직인다.** 같은 파일 :408에는 이미
+//   「enum에서 값이 빠져 문자열로 남기면 쿼리가 죽는다」고 적고 고쳐 둔 자리가 있다 — 여기만 남았다.
+//   최악인 점: 저장 전 미리보기(planReconcile)는 **다른 함수**라 「이렇게 바뀝니다」를 정확히
+//   보여준다. 사용자는 보여준 대로 됐다고 믿는다.
+//   ⚠ `['confirmed']` 한 곳만 고치면 이 검사는 17/0이 된다(2026-09-13 확인). 제품을 고치기 전에는
+//     test-all에 등재하지 말 것 — 회귀 게이트가 상시 빨강이면 진짜 회귀가 그 안에 묻힌다.
+//
+// 실행: npx tsx scripts/test-anchor.mts   (로컬 dev + 스테이징 DB)
+import type { Page } from 'playwright'
+// @ts-expect-error mjs 헬퍼
+import { raw, BASE, PW, check, summary, mkUser, delUser, mkCustomer, cleanupCustomer, launch, login, ensurePlan } from './_e2e-helpers.mjs'
 
-const env = Object.fromEntries(
-  readFileSync(new URL('../.env.local', import.meta.url), 'utf8').split('\n')
-    .filter(l => l.includes('=') && !l.startsWith('#'))
-    .map(l => [l.slice(0, l.indexOf('=')).trim(), l.slice(l.indexOf('=') + 1).trim()])
-)
-const raw = createClient(env.NEXT_PUBLIC_SUPABASE_URL!, env.SUPABASE_SERVICE_ROLE_KEY!)
-const admin = raw as never as Parameters<typeof generateYearlyPlanItems>[0]
+const SUF = Math.random().toString(36).slice(2, 6).toUpperCase()
+const TAG = `ZAN${SUF}`
+const EMAIL = `anchor.${SUF}@e2e.test`
 
-const BASE = process.env.TEST_BASE_URL || 'http://localhost:3000'
-const SHOTS = new URL('../.test-shots/anchor/', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')
-mkdirSync(SHOTS, { recursive: true })
+const Y = new Date(Date.now() + 9 * 3600_000).getUTCFullYear()
+const ANCHOR0 = `${Y}-03-10`   // 초기 기산일 — '일'이 10일
+const ANCHOR1 = `${Y}-03-22`   // 바꿀 기산일 — '일'이 22일(달은 그대로 두고 일만 옮긴다)
+const OPEN_M = 11              // 미시작 항목이 앉은 달
+const STARTED_M = 12           // 이미 시작한 항목이 앉은 달
+const OPEN_D0 = `${Y}-${OPEN_M}-10`
+const STARTED_D0 = `${Y}-${STARTED_M}-10`
 
-const YEAR = new Date().getFullYear()
-const CUSTOMER_NAME = 'TEST-ANCHOR-빌딩'
-const TEST_EMAIL = 'test-anchor-admin@erp-test.com'
-const TEST_PW = 'AnchorTest1!'
-const ANCHOR0 = `${YEAR}-02-10`   // 초기 점검계획일 (2월 → 2차 특별 8월)
+let userId = ''
+let custId = ''
+let openItem = '', startedItem = '', inspId = ''
+const plansCreated: Array<{ id: string; created: boolean }> = []
+let browser: Awaited<ReturnType<typeof launch>>['browser'] | null = null
 
-let pass = 0, fail = 0
-function check(name: string, cond: boolean, detail = '') {
-  if (cond) { pass++; console.log(`  ✅ ${name}`) }
-  else { fail++; console.log(`  ❌ ${name} ${detail}`) }
+type Item = {
+  id: string; status: string; planned_date: string | null; scheduled_date: string | null
+  inspection_id: string | null; step1_date: string | null
 }
-
-let customerId = ''
-let testUserId = ''
-let browser: import('playwright').Browser | null = null
-
-async function shot(page: Page, name: string) {
-  await page.screenshot({ path: `${SHOTS}${name}.png`, fullPage: false })
-  console.log(`     📸 ${name}.png`)
-}
-
-type ItemRow = {
-  id: string; status: string; sequence_num: number; plan_type: string
-  inspection_type: string; inspection_sub_type: string | null
-  planned_date: string | null; scheduled_date: string | null
-}
-async function getItems(): Promise<ItemRow[]> {
+async function getItem(id: string): Promise<Item> {
   const { data } = await raw.from('inspection_plan_items')
-    .select('id, status, sequence_num, plan_type, inspection_type, inspection_sub_type, planned_date, scheduled_date')
-    .eq('customer_id', customerId).order('created_at')
-  return (data ?? []) as ItemRow[]
+    .select('id, status, planned_date, scheduled_date, inspection_id, step1_date').eq('id', id).single()
+  return data as Item
 }
-async function getCustomer() {
-  const { data } = await raw.from('customers')
-    .select('inspection_type, inspection_category, inspection_sub_type, contract_date, use_approval_date, plan_anchor_date, address, notes, fire_station')
-    .eq('id', customerId).single()
-  return data as Record<string, string | null>
+async function getAnchor(): Promise<string | null> {
+  const { data } = await raw.from('customers').select('plan_anchor_date').eq('id', custId).single()
+  return (data as { plan_anchor_date: string | null }).plan_anchor_date
 }
-async function waitFor<T>(get: () => Promise<T>, cond: (v: T) => boolean, ms = 15000): Promise<T> {
+/** RSC 갱신·서버 액션은 늦게 끝난다 — 고정 대기로 판정하면 오탐이 난다 */
+async function waitUntil(fn: () => Promise<boolean>, ms = 20000) {
   const start = Date.now()
-  let last: T = await get()
-  while (Date.now() - start < ms) {
-    if (cond(last)) return last
-    await new Promise(r => setTimeout(r, 500))
-    last = await get()
-  }
-  return last
-}
-
-/** 고객 목록에서 점검계획일 인라인 편집 → 값 입력 → 저장(Enter) */
-async function inlineEditPlanAnchor(page: Page, newDate: string) {
-  await page.goto(`${BASE}/customers?q=${encodeURIComponent('TEST-ANCHOR')}&active=all`)
-  const row = page.locator('tr', { has: page.getByText(CUSTOMER_NAME) }).first()
-  await row.waitFor()
-  // 컬럼(2026-07-16 목록 개편 기본 보기): 고객명(0) 점검유형(1) 점검계획일(2) 담당직원(3) 상태(4) 바로가기(5)
-  await row.locator('td').nth(2).locator('[title="클릭하여 수정"]').click()
-  const input = row.locator('td').nth(2).locator('input[type=text]')
-  await input.waitFor()
-  await input.fill(newDate)
-  await input.press('Enter')
+  while (Date.now() - start < ms) { if (await fn()) return true; await new Promise(r => setTimeout(r, 700)) }
+  return false
 }
 
 try {
-  // ── 셋업: 관리자 계정 + 종합 고객(모든 필드 채움) + 연간 계획 ──
-  console.log('\n[셋업] 테스트 계정·고객·계획 생성')
-  const { data: existing } = await raw.auth.admin.listUsers()
-  for (const u of existing?.users ?? []) if (u.email === TEST_EMAIL) await raw.auth.admin.deleteUser(u.id)
-  const { data: newUser, error: uErr } = await raw.auth.admin.createUser({ email: TEST_EMAIL, password: TEST_PW, email_confirm: true })
-  if (uErr || !newUser?.user) throw new Error(`테스트 계정 생성 실패: ${uErr?.message}`)
-  testUserId = newUser.user.id
-  const { error: pErr } = await raw.from('profiles').upsert({
-    id: testUserId, name: 'TEST-ANCHOR관리자', role: 'admin', is_active: true,
-    employee_id: 'TEST-ANC-ADM', email: TEST_EMAIL,
+  userId = await mkUser({ email: EMAIL, name: `기산일${SUF}`, employeeId: `AN-${SUF}`, role: 'admin' })
+  // 사용승인일을 **비워 둔다** — 그래야 기산점 해석(resolveAnchor)이 점검일자를 고르고,
+  // 이 검사가 고치는 칸이 실제 기산점이 된다(manual 플래그 유무와 무관하게 성립).
+  custId = await mkCustomer({
+    customer_name: `${TAG}빌딩`, inspection_type: '작동', inspection_category: '소방안전관리',
+    inspection_sub_type: '작동', created_by: userId, assigned_employee_id: userId,
+    plan_anchor_date: ANCHOR0, use_approval_date: null,
+    address: '경기 양평군 테스트로 1', fire_station: '양평소방서', notes: `${TAG} 비고`,
   })
-  if (pErr) throw new Error(`테스트 프로필 생성 실패: ${pErr.message}`)
 
-  const FULL_FIELDS = {
-    contract_date: '2026-01-05', use_approval_date: '2016-07-29', plan_anchor_date: ANCHOR0,
-    address: '경기 양평군 테스트로 1', notes: '앵커 테스트 비고', fire_station: '양평소방서',
+  const mkItem = async (month: number, date: string, started: boolean) => {
+    const plan = await ensurePlan(Y, month, userId); plansCreated.push(plan)
+    const { data, error } = await raw.from('inspection_plan_items').insert({
+      plan_id: plan.id, customer_id: custId, sequence_num: 1,
+      inspection_type: '작동', inspection_sub_type: '작동', plan_type: 'monthly',
+      // 전건 confirmed로 태어난다 — 'planned'는 마이그 161·162로 enum에서 사라졌다(넣으면 22P02).
+      // 미시작 판정은 status가 아니라 inspection_id가 한다.
+      status: 'confirmed', planned_date: date, scheduled_date: date, step1_date: date,
+      assigned_employee_id: userId,
+    }).select('id').single()
+    if (error) throw new Error(`계획 항목 시드 실패(${month}월): ${error.message}`)
+    const id = (data as { id: string }).id
+    if (started) {
+      const { data: insp, error: iErr } = await raw.from('inspections').insert({
+        customer_id: custId, sequence_num: 1, inspection_type: '작동',
+        status: 'in_progress', inspection_start_date: date,
+        assigned_employee_id: userId, created_by: userId,
+      }).select('id').single()
+      if (iErr) throw new Error(`점검 생성 실패: ${iErr.message}`)
+      inspId = (insp as { id: string }).id
+      await raw.from('inspection_plan_items').update({ inspection_id: inspId }).eq('id', id)
+    }
+    return id
   }
-  const { data: cust, error: cErr } = await raw.from('customers').insert({
-    customer_code: `TEST-ANC-${Math.random().toString(36).slice(2, 8)}`,
-    customer_name: CUSTOMER_NAME,
-    inspection_type: '종합', inspection_category: '소방안전관리', inspection_sub_type: '종합',
-    is_active: true, created_by: testUserId, assigned_employee_id: testUserId,
-    ...FULL_FIELDS,
-  }).select('id').single()
-  if (cErr) throw new Error(`고객 생성 실패: ${cErr.message}`)
-  customerId = (cust as { id: string }).id
+  openItem = await mkItem(OPEN_M, OPEN_D0, false)
+  startedItem = await mkItem(STARTED_M, STARTED_D0, true)
 
-  const hdSet = await loadHolidaySet(admin, YEAR)
-  await generateYearlyPlanItems(admin,
-    { id: customerId, inspection_type: '종합', use_approval_date: FULL_FIELDS.use_approval_date, plan_anchor_date: ANCHOR0, assigned_employee_id: testUserId },
-    YEAR, testUserId, hdSet)
+  // 공허 통과 방지 — 아래 단언들이 「행이 없어서 참」이 되지 않게 전제를 먼저 못박는다
+  const o0 = await getItem(openItem), s0 = await getItem(startedItem)
+  check('전제: 미시작 항목이 심겼다(inspection_id 없음)', o0.inspection_id === null && o0.planned_date === OPEN_D0)
+  check('전제: 이미 시작한 항목이 심겼다(inspection_id 있음)', !!s0.inspection_id && s0.planned_date === STARTED_D0)
 
-  let items = await getItems()
-  const seq2 = items.find(i => i.sequence_num === 2)
-  check(`셋업: 항목 ${items.length}건 (1차 특별 2월 + 2차 특별 8월 + 정기)`,
-    items.length >= 4 && !!seq2 && items.some(i => i.plan_type === 'special_종합' && i.sequence_num === 1))
+  const l = await launch(); browser = l.browser
+  const page: Page = l.page
+  page.setDefaultTimeout(20000)
+  await login(page, EMAIL, PW)
 
-  // monthly 1건 확정 처리 (점검 미연결 — B안 해지 대상)
-  const monthlyItem = items.find(i => i.plan_type === 'monthly')!
-  await raw.from('inspection_plan_items').update({ status: 'confirmed', scheduled_date: `${YEAR}-10-05` }).eq('id', monthlyItem.id)
+  const openDetail = async () => {
+    await page.goto(`${BASE}/customers/${custId}`)
+    await page.locator('#cf-plan').waitFor()
+  }
+  // 저장 버튼은 기본정보 폼 안의 것으로 특정한다 — 탭 셸이 다른 패널도 함께 렌더한다
+  const infoForm = () => page.locator('form', { has: page.locator('#cf-plan') })
+  const setAnchor = async (v: string) => {
+    await page.locator('#cf-plan').fill(v)
+    await page.waitForTimeout(200)
+    await infoForm().getByRole('button', { name: '저장', exact: true }).click()
+  }
+  const previewTitle = page.locator('text=저장하면 이렇게 바뀝니다')
 
-  // ── 브라우저 로그인 ──────────────────────────────────────────
-  console.log('\n[브라우저] 로그인')
-  browser = await chromium.launch()
-  const page = await browser.newPage({ viewport: { width: 1500, height: 950 } })
-  page.setDefaultTimeout(15000)
-  let lastAlert = ''
-  page.on('dialog', d => { lastAlert = d.message(); d.accept().catch(() => {}) })
-  await page.goto(`${BASE}/login`)
-  await page.fill('input[type=email]', TEST_EMAIL)
-  await page.fill('input[type=password]', TEST_PW)
-  await page.click('button[type=submit]')
-  await page.waitForURL(u => !u.pathname.includes('/login'), { timeout: 20000 })
-  check('로그인 성공', true)
+  // ══ [1] 저장 전 미리보기 → [취소]하면 아무것도 안 바뀐다 ═══════════════════════
+  //   음성 짝이다. [2]의 「바뀐다」만 재면 **늘 재계산하는** 구현도 초록이다 —
+  //   그러면 실수로 연 칸을 그냥 닫기만 해도 전 고객의 일정이 흔들린다.
+  //   (목록 인라인 편집 쪽 미리보기는 등재된 _probe-inline-preview가 본다. 여기는
+  //    고객 상세 폼 경로 — previewAckRef를 쓰는 다른 배선이다.)
+  console.log('\n[1] 미리보기 → 취소')
+  await openDetail()
+  await setAnchor(ANCHOR1)
+  await previewTitle.waitFor()
+  check('기산일을 고치면 저장 전에 미리보기가 뜬다', await previewTitle.count() > 0)
+  await page.getByRole('button', { name: /취소 \(변경하지 않음\)/ }).click()
+  await page.waitForTimeout(2500)
+  check('[음성] 취소 — 고객의 점검일자가 그대로다', await getAnchor() === ANCHOR0, String(await getAnchor()))
+  check('[음성] 취소 — 미시작 항목의 예정일도 그대로다', (await getItem(openItem)).planned_date === OPEN_D0)
 
-  // ── TS-ANCHOR-1: 점검확정 목록 "점검계획일" 컬럼 = 원본 값 ────
-  console.log('\n[TS-ANCHOR-1] 점검확정 컬럼 표시')
-  await page.goto(`${BASE}/inspection-plans?year=${YEAR}&month=2&view=list&status=all`)
-  await page.getByRole('columnheader', { name: '점검계획일' }).or(page.locator('th', { hasText: '점검계획일' })).first().waitFor()
-  check('컬럼 헤더 "점검계획일" 존재', true)
-  const planRow = page.locator('tr', { has: page.getByText(CUSTOMER_NAME) }).first()
-  await planRow.waitFor()
-  check('컬럼 값 = 고객관리 원본(점검계획일)', ((await planRow.textContent()) ?? '').includes(ANCHOR0), await planRow.textContent() ?? '')
-  await shot(page, '01-plans-column')
+  // ══ [2] [이대로 저장] → 미시작만 동행, 시작된 건 불가침 ═══════════════════════
+  console.log('\n[2] 이대로 저장 → 재계산')
+  await openDetail()
+  await setAnchor(ANCHOR1)
+  await previewTitle.waitFor()
+  await page.getByRole('button', { name: '이대로 저장' }).click()
+  const moved = await waitUntil(async () => (await getItem(openItem)).planned_date !== OPEN_D0)
+  check('고객의 점검일자가 저장됐다', await getAnchor() === ANCHOR1, String(await getAnchor()))
 
-  // 슬라이드 패널에도 점검계획일 표시
-  await planRow.click()
-  await page.getByText('계획 기산일 · 고객관리와 동기화').waitFor()
-  check('슬라이드 패널: 점검계획일 필드 표시 + 원본 값',
-    await page.locator(`text=${ANCHOR0}`).count() > 0)
-  await shot(page, '02-slide-panel')
-  await page.keyboard.press('Escape')
+  const o1 = await getItem(openItem)
+  const day = Number((o1.planned_date ?? '0000-00-00').slice(8))
+  check('★ 미시작 항목의 예정일이 새 기산일의 「일」로 재계산됐다(영업일 보정 포함)',
+    moved && (o1.planned_date ?? '').startsWith(`${Y}-${OPEN_M}-`) && day >= 22 && day <= 26,
+    String(o1.planned_date))
+  check('예정일과 확정일이 함께 움직인다 — 점검일자=점검확정일(2026-09-12)',
+    o1.scheduled_date === o1.planned_date, `${o1.scheduled_date} / ${o1.planned_date}`)
+  check('단계 마감일은 비워진다 — 시작 시점에 다시 잰다', o1.step1_date === null, String(o1.step1_date))
+  check('달은 안 옮긴다 — 항목이 속한 (연,월) plan은 그대로', (o1.planned_date ?? '').slice(0, 7) === `${Y}-${OPEN_M}`)
 
-  // ── TS-ANCHOR-8·11: 점검유형 변경 (종합→작동) — 동기화 + 필드 보존 ──
-  console.log('\n[TS-ANCHOR-8·11] 점검유형 변경 종합→작동')
-  await page.goto(`${BASE}/customers/${customerId}`)
-  await page.getByRole('button', { name: '수정' }).first().click()
-  const typeModal = page.locator('div.fixed', { hasText: '점검유형 변경' }).first()
-  await typeModal.waitFor()
-  await typeModal.locator('input[name=inspection_type][value=작동]').check()
-  await typeModal.getByRole('button', { name: '저장' }).click()
-  await typeModal.waitFor({ state: 'hidden', timeout: 20000 })
+  const s1 = await getItem(startedItem)
+  check('⭐ [음성] 이미 시작한 항목은 한 칸도 안 움직인다(수행한 점검의 날짜를 뒤에서 고치지 않는다)',
+    s1.planned_date === STARTED_D0 && s1.scheduled_date === STARTED_D0, JSON.stringify(s1))
+  check('⭐ [음성] 시작한 항목의 단계 마감일도 지워지지 않는다', s1.step1_date === STARTED_D0, String(s1.step1_date))
 
-  const afterType = await waitFor(getItems, list =>
-    list.filter(i => i.status === 'planned').every(i => i.inspection_type === '작동'))
-  const cust1 = await getCustomer()
-  check('고객: 유형 작동 + sub_type 작동', cust1.inspection_type === '작동' && cust1.inspection_sub_type === '작동')
-  check('🔍 소실 회귀: 계약일·사용승인일·점검계획일·주소·비고·관할서 보존',
-    cust1.contract_date === FULL_FIELDS.contract_date && cust1.use_approval_date === FULL_FIELDS.use_approval_date
-    && cust1.plan_anchor_date === ANCHOR0 && cust1.address === FULL_FIELDS.address
-    && cust1.notes === FULL_FIELDS.notes && cust1.fire_station === FULL_FIELDS.fire_station,
-    JSON.stringify(cust1))
-  const planned1 = afterType.filter(i => i.status === 'planned')
-  check('planned 항목: inspection_type=작동 + special_작동 전환',
-    planned1.every(i => i.inspection_type === '작동' && i.inspection_sub_type === '작동')
-    && planned1.some(i => i.plan_type === 'special_작동') && !planned1.some(i => i.plan_type === 'special_종합'),
-    JSON.stringify(planned1.map(i => [i.plan_type, i.inspection_type])))
-  check('planned 2차(seq2) 삭제 — 작동은 연 1회', !afterType.some(i => i.sequence_num === 2 && i.status === 'planned'))
-  const conf1 = afterType.find(i => i.id === monthlyItem.id)!
-  check('🔍 confirmed 항목 불변 (유형 동기화 제외)', conf1.status === 'confirmed' && conf1.scheduled_date === `${YEAR}-10-05`)
-  await shot(page, '03-after-type-change')
+  // ══ [3] 변경 이력 — 실제로 바뀐 한 칸만 남는다 ═══════════════════════════════
+  //   폼이 전 필드를 늘 함께 보내므로, 비교 없이 기록하면 「주소·계약일도 바뀜」이라는
+  //   허위 이력이 매 저장마다 쌓인다.
+  console.log('\n[3] 변경 이력')
+  // ⚠ 이력 기록은 저장 액션의 **맨 끝**이다 — 재계산·자리 재배치(reconcileSpecialSlots)가
+  //   먼저 끝나야 도달한다. [2]에서 예정일이 바뀐 것만 보고 곧장 읽으면 아직 안 실려 있어
+  //   빈 배열이 나온다(실측: 같은 리비전에서 있다/없다가 갈렸다). 도착할 때까지 기다린다.
+  const readChanges = async () => {
+    const { data } = await raw.from('activity_logs')
+      .select('metadata').eq('entity_id', custId).eq('action', 'customer_field_changed')
+      .order('created_at', { ascending: false }).limit(1)
+    return ((data?.[0] as { metadata: { changes: Array<{ field: string }> } } | undefined)?.metadata?.changes ?? [])
+  }
+  await waitUntil(async () => (await readChanges()).length > 0, 30000)
+  const changes = await readChanges()
+  check('전제: 변경 이력이 남았다', changes.length > 0)
+  check('[음성] 실제로 바뀐 plan_anchor_date 1건만 — 허위 이력 없음',
+    changes.length === 1 && changes[0].field === 'plan_anchor_date', JSON.stringify(changes))
 
-  // 변경 이력: 점검유형 1건만 (허위 날짜 이력 없음)
-  const { data: logs } = await raw.from('activity_logs')
-    .select('metadata').eq('entity_id', customerId).eq('action', 'customer_field_changed')
-    .order('created_at', { ascending: false }).limit(1)
-  const changes = ((logs?.[0] as { metadata: { changes: Array<{ field: string }> } } | undefined)?.metadata?.changes ?? [])
-  check('🔍 변경 이력: inspection_type 1건만 기록', changes.length === 1 && changes[0].field === 'inspection_type', JSON.stringify(changes))
-
-  // ── TS-ANCHOR-5: 점검계획일 변경 → B안 팝업 → 확정해지 후 전체 재계산 ──
-  console.log('\n[TS-ANCHOR-5] B안 팝업 — 확정해지 후 전체 재계산')
-  const ANCHOR1 = `${YEAR}-09-22`
-  await inlineEditPlanAnchor(page, ANCHOR1)
-  await page.getByText('확정된 점검 일정이 있습니다').waitFor()
-  check('팝업 표시: 확정 항목 목록', await page.locator('text=확정일 2026-10-05').count() > 0 || true)
-  await shot(page, '04-b-popup')
-  await page.getByRole('button', { name: /확정해지 후 전체 재계산/ }).click()
-
-  // 서버 순서: 고객 저장 → 확정해지(planned 전환) → 재계산 — 중간 상태를 잡지 않도록 최종 조건까지 대기
-  const afterUnconfirm = await waitFor(getItems, list => {
-    const it = list.find(i => i.id === monthlyItem.id)
-    return it?.status === 'planned' && it.scheduled_date === null
-      && list.filter(i => i.status === 'planned' && i.planned_date)
-        .every(i => { const d = Number(i.planned_date!.slice(8)); return d >= 22 && d <= 26 })
-  })
-  const cust2 = await getCustomer()
-  check('고객: 점검계획일 변경됨', cust2.plan_anchor_date === ANCHOR1, String(cust2.plan_anchor_date))
-  const un = afterUnconfirm.find(i => i.id === monthlyItem.id)!
-  check('확정해지: confirmed → planned + 확정일 초기화', un.status === 'planned' && un.scheduled_date === null, JSON.stringify(un))
-  const days1 = afterUnconfirm.filter(i => i.status === 'planned' && i.planned_date)
-    .map(i => Number(i.planned_date!.slice(8)))
-  check('전체 planned 예정일 = 새 기준일의 일(22) 기준 재계산', days1.every(d => d >= 22 && d <= 26), JSON.stringify(days1))
-  await shot(page, '05-after-unconfirm')
-
-  // ── TS-ANCHOR-6: 확정 유지 / 취소 분기 ──────────────────────
-  console.log('\n[TS-ANCHOR-6] B안 팝업 — 확정 유지 / 취소')
-  await raw.from('inspection_plan_items').update({ status: 'confirmed', scheduled_date: `${YEAR}-11-11` }).eq('id', monthlyItem.id)
-  const ANCHOR2 = `${YEAR}-04-18`
-  await inlineEditPlanAnchor(page, ANCHOR2)
-  await page.getByText('확정된 점검 일정이 있습니다').waitFor()
-  await page.getByRole('button', { name: /확정 유지/ }).click()
-  const afterKeep = await waitFor(getItems, list =>
-    list.filter(i => i.status === 'planned' && i.planned_date).every(i => { const d = Number(i.planned_date!.slice(8)); return d >= 18 && d <= 22 }))
-  const cust3 = await getCustomer()
-  const keep = afterKeep.find(i => i.id === monthlyItem.id)!
-  check('확정 유지: 고객 날짜 변경 + confirmed 불변', cust3.plan_anchor_date === ANCHOR2
-    && keep.status === 'confirmed' && keep.scheduled_date === `${YEAR}-11-11`, JSON.stringify(keep))
-
-  await inlineEditPlanAnchor(page, `${YEAR}-05-11`)
-  await page.getByText('확정된 점검 일정이 있습니다').waitFor()
-  await page.getByRole('button', { name: /취소/ }).last().click()
-  await page.waitForTimeout(1500)
-  const cust4 = await getCustomer()
-  check('취소: 아무것도 저장 안 됨', cust4.plan_anchor_date === ANCHOR2, String(cust4.plan_anchor_date))
-
-  // ── TS-ANCHOR-4: 점검계획일 비우기 차단 (인라인) ─────────────
-  console.log('\n[TS-ANCHOR-4] 비우기 차단')
-  lastAlert = ''
-  await inlineEditPlanAnchor(page, '')
+  // ══ [4] 비우기 거부 — 기산점은 필수값 ══════════════════════════════════════
+  //   "지우면 폴백 복귀" 설계는 2026-07-14에 폐기됐다. 비우면 계획을 아예 못 세운다.
+  console.log('\n[4] 비우기 거부')
+  await openDetail()
+  await setAnchor('')
   await page.waitForTimeout(2000)
-  const cust5 = await getCustomer()
-  check('비우기 거부: 서버 에러 알림 + 원값 유지',
-    cust5.plan_anchor_date === ANCHOR2 && lastAlert.includes('필수값'), `alert="${lastAlert}" 값=${cust5.plan_anchor_date}`)
-  await shot(page, '06-empty-blocked')
-
-  await browser.close(); browser = null
+  check('비우고 저장하면 화면이 막는다', await page.getByText('점검일자는 필수입니다', { exact: false }).count() > 0)
+  check('[음성] 비우기 시도 뒤에도 DB 값은 그대로다', await getAnchor() === ANCHOR1, String(await getAnchor()))
+  check('[음성] 비우기 시도가 계획을 흔들지 않았다',
+    (await getItem(openItem)).planned_date === o1.planned_date)
 } catch (e) {
-  fail++
-  console.error('\n❌ 테스트 중단:', (e as Error).message)
-  if (browser) {
-    try {
-      const pages = browser.contexts().flatMap(c => c.pages())
-      if (pages[0]) await pages[0].screenshot({ path: `${SHOTS}99-failure.png` })
-    } catch { /* ignore */ }
-    await browser.close(); browser = null
-  }
+  check('예외 없음', false, String(e))
 } finally {
   if (browser) await browser.close()
-  if (customerId) {
-    console.log('\n[정리] 테스트 데이터 삭제')
-    await raw.from('inspection_plan_items').delete().eq('customer_id', customerId)
-    await raw.from('activity_logs').delete().eq('entity_id', customerId)
-    const { error: delErr } = await raw.from('customers').delete().eq('id', customerId)
-    console.log(delErr ? `  ⚠ 고객 삭제 실패: ${delErr.message}` : '  ✅ 고객·계획 정리 완료')
-  }
-  if (testUserId) {
-    await raw.from('profiles').delete().eq('id', testUserId)
-    const { error: auErr } = await raw.auth.admin.deleteUser(testUserId)
-    console.log(auErr ? `  ⚠ 테스트 계정 삭제 실패: ${auErr.message}` : '  ✅ 테스트 계정 정리 완료')
-  }
+  if (custId) await cleanupCustomer(custId)
+  for (const p of plansCreated) if (p.created) await raw.from('inspection_plans').delete().eq('id', p.id)
+  // 자리 재배치(reconcileSpecialSlots)가 내년치 월 헤더를 스스로 만든다 — 내 계정이 만든 것만 걷는다
+  // (남이 이미 갖고 있던 헤더는 created_by가 달라 걸리지 않는다). 항목을 지운 뒤라 비어 있다.
+  if (userId) await raw.from('inspection_plans').delete().eq('created_by', userId)
+  if (userId) await delUser(userId)
+  void inspId; void startedItem
 }
-
-console.log(`\n결과: ${pass} 통과 / ${fail} 실패`)
-process.exit(fail > 0 ? 1 : 0)
+summary()

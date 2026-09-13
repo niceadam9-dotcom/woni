@@ -818,7 +818,7 @@ async function _resetPlanItemsForCustomer(
 ) {
   // 재계산 대상: 미확정(planned) + 자동 확정 정기(confirmed monthly, 미시작 — 2026-07-14 자동 확정 도입).
   // 사람이 확정한 특별점검(confirmed special)·완료·취소 항목은 재계획하지 않음 (2026-07-12 결정)
-  const { data: items } = await admin
+  const { data: items, error: itemsErr } = await admin
     .from('inspection_plan_items')
     .select('id, status, plan_type, inspection_plans!inner(year, month)')
     .eq('customer_id', customerId)
@@ -826,8 +826,20 @@ async function _resetPlanItemsForCustomer(
     // 미시작 전건 — 점검계획일=점검확정일(2026-09-12)이라 특별점검도 확정 상태로 태어난다.
     // 종전의 「planned 또는 정기-confirmed」 필터는 확정을 사람 결정으로 보호하던 규약인데,
     // 이제 확정은 기계 계산값이라 기산일이 움직이면 전건이 함께 움직여야 한다.
-    .in('status', ['planned', 'confirmed'])
+    // ⚠ 2026-09-13 수리 — 여기에 `'planned'`가 **남아 있었다**. 주석은 이미 「미시작 전건」이라고
+    //   적혀 있었는데 필터만 옛 값을 들고 있었고, 마이그 162가 enum에서 그 값을 지운 뒤로 이 질의는
+    //   **22P02로 통째로 거절**됐다(실측: invalid input value for enum plan_item_status: "planned").
+    //   error를 안 받아서 `items`가 null이 되고 아래 early return으로 빠져 — **점검계획일을 바꿔도
+    //   계획 항목이 한 건도 재계산되지 않았다.** 미리보기는 다른 함수(planReconcile)라 「이렇게
+    //   바뀝니다」를 정확히 보여줬으므로, 사용자는 보여준 대로 된 줄 알았다. 같은 파일 :408에
+    //   같은 함정을 고쳐 둔 자리가 있는데 이 한 곳이 남았다.
+    .in('status', ['confirmed'])
 
+  // 조회 실패를 '대상 없음'으로 접지 않는다 — 그 침묵이 위 결함을 배포까지 데려갔다
+  if (itemsErr) {
+    console.error(`[plan-reset] 재계산 대상 조회 실패 — 계획을 갱신하지 못했습니다 (customer ${customerId}):`, itemsErr)
+    return
+  }
   if (!items || items.length === 0) return
 
   // 기준일: 점검계획일(수동) → 최초 점검시작일 (모두 없으면 planned_date null)
