@@ -94,6 +94,10 @@ const steps: Step[] = [
   // 기산점 축 — 사용승인일/점검계획일 우선순위. **가장 중요한 단언은 마이그레이션 155 적용 전
   // 동작이 종전과 같다는 것**이다(레거시 폴백). 그게 깨지면 코드 배포만으로 전 고객 일정이 재배치된다.
   { name: '점검계획 기산점 축',          cmd: 'npx tsx scripts/test-plan-anchor-axis.mts' },
+  // 6단계 법정 마감일 산식 — 종전엔 `'use server'` 액션 안에 인라인이라 **단언할 수도, 크론이 부를
+  // 수도 없었다**. 그래서 자동 시작 크론이 자체점검을 통째로 제외했고, 점검확정 폐지로 그 제외가
+  // 구멍이 됐다. 가장 중요한 단언은 추출 전후가 같은 값을 낸다는 것(730건 원문 대조)이다.
+  { name: '6단계 마감일 산식',           cmd: 'npx tsx scripts/test-plan-step-dates.mts' },
   // 변동 = 재계산 — 기산월이 바뀌면 특별점검이 법정 달에 앉아야 한다. 종전엔 어느 경로로도
   // **달이 안 옮겨졌다**(재계산은 plan_id를 안 건드리고, 생성기는 정기가 seq=1로 자리를 점유하면
   // UNIQUE 충돌로 조용히 스킵). 시작된 점검 불가침·멱등·다른 해 불간섭까지 함께 고정한다.
@@ -495,6 +499,25 @@ const steps: Step[] = [
   { name: '드로어 다크·모바일(프로브)',  cmd: 'node scripts/_probe-38-dark-mobile.mjs',       needServer: true },
   // 고객명 검색은 목록을 거르는 축이라 조용히 깨지면 '검색해도 안 나온다'로만 드러난다
   { name: '점검 고객명 검색(E2E)',      cmd: 'npx tsx scripts/test-inspection-customer-search.mts', needServer: true },
+  // 같은 축의 **달력 쪽** 검사. 종전엔 점검확정 목록에 같은 기능이 있어 test-plans-customer-search가
+  // 봤는데, 그 화면이 폐지되며 검사만 고아로 남았다(testid plans-customer-search 계열은 소스에서 소멸).
+  // 기능은 죽은 게 아니라 달력으로 옮겨 왔으므로 승계자를 등재하고 옛 검사는 은퇴시켰다.
+  { name: '달력 고객명 검색·초성(E2E)', cmd: 'npx tsx scripts/test-calendar-customer-search.mts', needServer: true },
+  // 미배정 표면화 — 핵심은 배지가 뜨는가가 아니라 **담당자로 걸러도 안 사라지는가**이다.
+  // 미배정은 누구의 담당도 아니라 필터링이 자연스러운 구현인데, 그러면 '아무도 모르는 채 시기가
+  // 지나간다'는 원래 결함으로 되돌아간다(변이 실증: 예외를 빼면 달력에서 아예 안 보인다).
+  { name: '미배정 표면화(E2E)',        cmd: 'npx tsx scripts/test-unassigned-surface.mts',   needServer: true },
+  // 권한 경계 — 등재된 권한 검사가 **0건**이었다. 알맹이는 직원 JWT로 배정·고객삭제·계획항목삭제를
+  // **직접 호출**했을 때 RLS가 막는가이다(화면을 감추는 것은 방어가 아니다). 관리자로 같은 3건이
+  // 통하는 양성 짝을 붙였다 — 없으면 '요청이 애초에 안 닿았다'와 구별되지 않는다.
+  { name: '권한 경계·RLS 백스톱(E2E)', cmd: 'npx tsx scripts/test-entire-batch1.mts',        needServer: true },
+  // 기산일을 바꾸면 미시작 계획이 따라 움직이고 **시작된 건은 불가침**이다(사실 기록이므로).
+  // 이 검사가 2026-09-13에 실제 결함을 잡았다 — 폐지된 enum 값이 필터에 남아 재계산이 통째로
+  // 죽어 있었는데(22P02·error 무시), 미리보기는 다른 함수라 정상으로 보였다.
+  { name: '기산일 변경 → 계획 재계산(E2E)', cmd: 'npx tsx scripts/test-anchor.mts',          needServer: true },
+  // 작업대 스텝바 여정 — 폐지된 test-fire-s2-s3의 실질 승계자. 구 6단계 체크리스트 카드가
+  // **제거됐다는 것을 음성으로 단언**한다(:110·:183). 살아 있는데 미등재였다.
+  { name: '작업대 스텝바 여정(E2E)',   cmd: 'npx tsx scripts/test-h28-journey-stepper.mts',  needServer: true },
   // 최근 본 고객 스트립 — '기본 정렬은 그대로 둔다'가 이 기능의 설계 전제라 그것까지 고정한다
   { name: '최근 본 고객(E2E)',          cmd: 'npx tsx scripts/test-recent-customers.mts',           needServer: true },
   // 불량 전/후 사진 — 비공개 버킷에 public URL을 저장해 사진이 전부 안 뜨던 결함의 회귀 방어.
@@ -526,6 +549,10 @@ const steps: Step[] = [
   // (소방계획서_24 P-19: 인라인 달력이 inspections.inspection_start_date를 안 고쳐 별지 9호 점검기간이
   //  옛 날짜로 인쇄될 수 있었다). 다섯 경로 × 네 축을 상시 고정한다
   { name: '점검일 동기화 5경로(E2E)',    cmd: 'npx tsx scripts/test-plan-date-sync.mts',      needServer: true },
+  // 당일 자동 시작 크론 — 정기·자체점검은 시작하고 레거시 event·미배정은 건너뛴다.
+  // 자체점검 갈래의 핵심은 "시작됐다"가 아니라 **마감일 기산점이 확정일인가**이다(사용승인일 기준
+  // DB 트리거와 갈라지면 점검은 멀쩡한데 법정 마감일만 틀린다). 종전 미등재라 아무도 안 돌렸다.
+  { name: '당일 자동 시작 크론(E2E)',    cmd: 'npx tsx scripts/test-auto-start-cron.mts',     needServer: true },
   // 고객 비활성 ↔ 재활성 왕복(FIRE-S4 · 30 S6) — 미완료 계획을 자동취소하되 **마커로 원상태를
   // 기억**했다가 되살린다. 되돌리기가 조용히 깨지면 재활성한 고객의 계획이 취소된 채 남고,
   // 그건 달력·목록 어디에도 오류로 안 뜬다(취소는 정상 상태처럼 보인다).
@@ -543,6 +570,10 @@ const steps: Step[] = [
   // 실제로 정기의 '같은 달' 가드가 이 경로에서만 새고 있었다(S11-9 E2E가 잡아냄: moved:2·failed:[]).
   // 반환값과 DB를 함께 대조한다 — 응답과 데이터가 갈라지는 것이 이 기능의 최악 시나리오다
   { name: '지역 일괄 이동(E2E)',         cmd: 'npx tsx scripts/test-sms-bulk-move.mts',       needServer: true },
+  // 위가 **서버 계약**을 고정한다면 여기는 **화면이 그 계약을 제대로 쓰는지**를 본다 — [전체]가
+  // 보이는 행만 담는가·과거 날짜를 서버 부르기 전에 막는가·건별 실패를 삼키지 않는가.
+  // 종전 미등재라 아무도 안 돌렸고, 그 사이 셋업의 status:'planned'가 폐지돼 죽어 있었다.
+  { name: '달력 데이 패널 일괄 이동(E2E)', cmd: 'npx tsx scripts/test-calendar-day-bulk-move.mts', needServer: true },
   { name: 'SMS 발송 모듈(프로브)',       cmd: 'npx tsx --conditions=react-server scripts/_probe-sms-send.mts' },
   // ★ 독립 검증 J24-B1 — 발송 이력 기록이 실패하면 **보내지 않는다**. 종전엔 insert 오류를 버리고
   // 그대로 발송해 '돈은 나갔는데 기록이 없는' 건이 생길 수 있었다(→ 화면은 미발송 → 재발송·이중 과금).

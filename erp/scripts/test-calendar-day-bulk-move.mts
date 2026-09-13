@@ -53,7 +53,10 @@ async function mkItem(planId: string, name: string, planType: 'monthly' | 'event
   const { data, error } = await raw.from('inspection_plan_items').insert({
     plan_id: planId, customer_id: cid, sequence_num: 1,
     inspection_type: '작동', inspection_sub_type: '작동', plan_type: planType,
-    scheduled_date: D(day), planned_date: D(day), status: 'planned',
+    // 점검확정 폐지(마이그 161·162) 이후 plan_items는 전건 confirmed로 태어난다 — enum에서
+    // 'planned'가 사라져 종전 값으로 insert하면 22P02로 셋업이 죽는다. 이동 가능 판정은
+    // status가 아니라 plan_type·inspection_id를 보므로(:725 isMovablePlan) 네 계약은 그대로다.
+    scheduled_date: D(day), planned_date: D(day), status: 'confirmed',
     assigned_employee_id: null,   // 미배정은 담당자 필터와 무관하게 표시된다(달력 규칙)
   }).select('id').single()
   if (error) throw new Error(`계획 항목 생성 실패: ${error.message}`)
