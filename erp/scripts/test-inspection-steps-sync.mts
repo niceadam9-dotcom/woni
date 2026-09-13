@@ -15,8 +15,10 @@ import statusMod from '../src/lib/inspection-step-status.ts'
 import syncMod from '../src/lib/inspection-step-sync.ts'
 import type { StepEvidence } from '../src/lib/inspection-step-status.ts'
 
-const { evidenceDone, activeStepNums, visibleStepNums, hasSheetDefect, stepProgress, isSelfInspection, resolveForcedSteps, isForced5Void } =
+const { evidenceDone, activeStepNums, visibleStepNums, hasSheetDefect, stepProgress, isSelfInspection, resolveForcedSteps, resolveOfflineReport, isForced5Void } =
   statusMod as unknown as typeof import('../src/lib/inspection-step-status.ts')
+// ③ 철회 마커가 로그 보존 예외에 실렸는지까지 본다 — 목록에서 빠지면 24개월 뒤 완료가 되살아난다
+const { EVIDENCE_MARKER_ACTIONS } = (await import('../src/lib/doc-status.ts')) as unknown as typeof import('../src/lib/doc-status.ts')
 // 독립 검증 R4-10 지적 해소: 순수 함수에 손으로 값을 넣는 대신 **server-only 모듈을 실제로 불러**
 // syncInspectionSteps를 돌리고 inspection_steps.status를 읽어 확인한다(--conditions=react-server 필요)
 const { syncInspectionSteps, gatherStepEvidence } = syncMod as unknown as typeof import('../src/lib/inspection-step-sync.ts')
@@ -177,6 +179,50 @@ console.log('— 1부 마커 철회·낡은 강제 완료 (독립 검증 D1)')
     { action: U, stepNum: 4, at: '2026-08-01T00:00:00Z' },
   ]).steps.length === 0)
 
+  // ── ③ 오프라인 보고 철회 (2026-09-13 신설) ──────────────────────────────
+  // ③은 6단계 중 **유일하게 출구가 없었다**. 판정이 `logs.some(action === 보고)`라 마커가 존재하기만
+  // 하면 영구 완료였고, append-only(트리거 040)라 지울 수도 없었다.
+  {
+    const R = 'owner_report_offline', RU = 'owner_report_offline_undo'
+    const t = (d: string) => `2026-08-${d}T00:00:00Z`
+    ok('③ 보고 마커 하나면 보고됨',
+      resolveOfflineReport([{ action: R, at: t('01'), date: '2026-08-01', method: '방문 설명' }]).reported === true)
+    ok('③ 나중 철회가 이긴다(이게 종전에 없던 출구다)', resolveOfflineReport([
+      { action: R, at: t('01') }, { action: RU, at: t('02') },
+    ]).reported === false)
+    ok('③ 철회 뒤 다시 기록하면 또 보고됨(재기록이 막다른 길이 아니다)', resolveOfflineReport([
+      { action: R, at: t('01') }, { action: RU, at: t('02') }, { action: R, at: t('03') },
+    ]).reported === true)
+    ok('③ 동률 시각이면 철회가 이긴다(완료 쪽으로 기우는 것이 더 위험한 오답)', resolveOfflineReport([
+      { action: R, at: t('01') }, { action: RU, at: t('01') },
+    ]).reported === false)
+    ok('③ 무관한 마커는 무시한다', resolveOfflineReport([
+      { action: 'step_force_complete', at: t('05') }, { action: 'cert_reported', at: t('06') },
+    ]).reported === false)
+    ok('③ 마커가 없으면 보고 안 됨', resolveOfflineReport([]).reported === false)
+    // 표시용 상세 — 화면이 「무엇을 기록했는지」를 보여줄 수 있어야 잘못 누른 것을 알아본다
+    const latest = resolveOfflineReport([
+      { action: R, at: t('01'), date: '2026-08-01', method: '방문 설명' },
+      { action: R, at: t('03'), date: '2026-08-03', method: '유선 통보', memo: '부재로 재통화' },
+    ]).latest
+    ok('③ 상세는 **가장 최근** 기록을 준다',
+      latest?.date === '2026-08-03' && latest?.method === '유선 통보', JSON.stringify(latest))
+    ok('③ 철회 상태면 상세도 비운다(없는 것을 보여주지 않는다)', resolveOfflineReport([
+      { action: R, at: t('01'), date: '2026-08-01' }, { action: RU, at: t('02') },
+    ]).latest === null)
+
+    // 음성 짝 — 철회가 **이메일 축까지 끄면 안 된다**. 이게 없으면 "③을 통째로 미완으로 만드는"
+    // 구현도 위 단언들을 전부 통과한다(실제 사고는 그쪽이 더 아프다 — 보낸 메일이 안 보낸 게 된다).
+    ok('③ 오프라인을 철회해도 이메일 발송 이력이 있으면 여전히 완료',
+      evidenceDone({ ...EV, delivery: true, offlineReport: false })[3] === true)
+    ok('③ 오프라인 철회 + 이메일 없음 = 미완료로 되돌아간다',
+      evidenceDone({ ...EV, delivery: false, offlineReport: false })[3] === false)
+    // 보존 정책 — 철회 마커가 만료로 지워지면 덮개가 사라져 완료가 되살아난다
+    ok('③ 철회 마커가 로그 보존 예외 목록에 있다',
+      (EVIDENCE_MARKER_ACTIONS as readonly string[]).includes(RU),
+      JSON.stringify(EVIDENCE_MARKER_ACTIONS))
+  }
+
   const forced5: StepEvidence = { ...EV, forced: [5], defectsTotal: 1, defectsDone: 0 }
   ok('⑤ 사유 완료는 미조치 불량이 남아 있으면 무효', isForced5Void(forced5) === true)
   ok('그 상태의 ⑤ 판정은 미완료', evidenceDone(forced5)[5] === false)
@@ -317,6 +363,34 @@ try {
   } as never)
   await syncInspectionSteps(admin, inspId, actorId)
   ok('③ 오프라인 보고 마커만으로 DB status 완료', (await doneNow()).includes(3), JSON.stringify(await doneNow()))
+
+  // ③ 철회 실주행 (2026-09-13) — 순수 단언만으로는 **판정부가 해소 함수를 실제로 쓰는지** 모른다.
+  // 종전 `logs.some(action === 보고)`를 그대로 두고 resolveOfflineReport만 새로 만들었어도
+  // 위 1부는 전부 초록이었다. DB까지 내려가야 그 배선이 증명된다.
+  await db.from('activity_logs').insert({
+    action: 'owner_report_offline_undo', entity_type: 'inspection', entity_id: inspId,
+    metadata: { memo: SEED },
+  } as never)
+  await syncInspectionSteps(admin, inspId, actorId)
+  ok('③ 철회 마커로 미완료 복귀 — 6단계 중 유일하게 없던 출구', !(await doneNow()).includes(3),
+    JSON.stringify(await doneNow()))
+  // 재기록이 막다른 길이 아니어야 한다(날짜·방법을 고쳐 적는 것이 실제 동선)
+  await db.from('activity_logs').insert({
+    action: 'owner_report_offline', entity_type: 'inspection', entity_id: inspId,
+    metadata: { date: '2026-08-14', method: '유선 통보', memo: SEED },
+  } as never)
+  await syncInspectionSteps(admin, inspId, actorId)
+  ok('③ 철회 뒤 다시 기록하면 최신 마커가 이긴다', (await doneNow()).includes(3), JSON.stringify(await doneNow()))
+  // 증거 수집부가 표시용 상세까지 최신으로 주는가 — 화면이 옛 기록을 보여주면 사람이 오판한다
+  {
+    const { data: inspRow } = await db.from('inspections')
+      .select('id, customer_id, status, inspection_start_date, inspection_end_date, inspection_type, plan_type, report9_submitted_at, report11_submitted_at')
+      .eq('id', inspId).single()
+    const ev = await gatherStepEvidence(admin, inspRow as never)
+    ok('③ 증거 수집이 최신 기록(08-14·유선 통보)을 상세로 준다',
+      ev.offlineReport === true && ev.offlineReportInfo?.date === '2026-08-14' && ev.offlineReportInfo?.method === '유선 통보',
+      JSON.stringify(ev.offlineReportInfo))
+  }
 
   // 강제 완료 마커 → ② 완료, 철회 마커 → 되돌림 (독립 검증 D1)
   await db.from('activity_logs').insert({

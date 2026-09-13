@@ -13,6 +13,18 @@
 
 /** ③ 관계인에게 방문·전화로 보고한 사실을 남기는 마커 (R4-2). metadata: {일자, 방법, 메모} */
 export const OWNER_REPORT_OFFLINE_ACTION = 'owner_report_offline'
+/** ③ 오프라인 보고의 **철회** 마커 (2026-09-13).
+ *
+ *  ⚠ 왜 필요했나 — ③은 6단계 중 **유일하게 출구가 없었다.** ②는 [해제](toggleReported undo),
+ *  ④⑥은 제출일 삭제, 사유 완료는 STEP_FORCE_UNDO_ACTION이 있는데 ③ 오프라인 보고만 없었다.
+ *  기본값이 전부 채워져 있어 실질 클릭 두 번으로 기록되는데(보고일=오늘·방법='방문 설명'),
+ *  activity_logs는 append-only(트리거 040)라 잘못 눌러도 **영구 완료**였다. ①②④가 차 있으면
+ *  applyStepSideEffects가 `inspections.status='completed'`까지 쓴다.
+ *
+ *  설계 의도는 그대로 둔다 — 이 기록은 **차단이 아니라 귀속**이다(누가·언제·무슨 방법으로).
+ *  방문·전화 보고는 앱이 검증할 수 없는 현실 행위이므로 값으로 막지 않는다. 다만 **되돌릴 수는
+ *  있어야** 한다. STEP_FORCE_UNDO_ACTION과 같은 방식: 지우는 대신 반대 마커를 덧붙인다. */
+export const OWNER_REPORT_OFFLINE_UNDO_ACTION = 'owner_report_offline_undo'
 /** 그 밖의 예외를 사람이 확정하는 마커 (R4-3) — **사유 필수**. 이것도 증거로 남는다 */
 export const STEP_FORCE_COMPLETE_ACTION = 'step_force_complete'
 /** 강제 완료의 **철회** 마커 (독립 검증 D1). activity_logs는 append-only(트리거 040)라 마커를 지울 수
@@ -36,9 +48,14 @@ export type StepEvidence = {
   /** ② 배치확인서 — 파일 보유 또는 종이 보관 마커(소방계획서_18 D-7) */
   certFile: boolean
   certArchived: boolean
-  /** ③ 이메일 발송 이력 / 오프라인(방문·전화) 보고 마커 */
+  /** ③ 이메일 발송 이력 / 오프라인(방문·전화) 보고 마커.
+   *  `offlineReport`는 **철회 마커까지 해소한 뒤**의 값이다(resolveOfflineReport) —
+   *  마커 존재 여부(`some()`)로 읽으면 철회가 무력해진다. */
   delivery: boolean
   offlineReport: boolean
+  /** ③ 오프라인 보고의 표시용 상세 — 판정에는 쓰지 않는다(그래서 선택 필드다).
+   *  화면이 「무엇을 기록했는지」를 보여줘야 잘못 누른 것을 사람이 알아볼 수 있다. */
+  offlineReportInfo?: { at: string; date: string | null; method: string | null; memo: string | null } | null
   /** ④ 별지 9호 제출일 */
   submit9At: string | null
   /** ⑤ 불량 전건 조치 완료 (R10-a — 계약서·사진은 선택 증빙이라 조건에서 제외) */
@@ -98,6 +115,36 @@ export function resolveForcedSteps(
     steps.push(num as StepNum)
   }
   return { steps: steps.sort((a, b) => a - b) }
+}
+
+/** ③ 오프라인 보고 마커 하나(=이 점검 전체의 한 축)를 append-only 로그에서 해소한다.
+ *
+ *  resolveForcedSteps와 **같은 규칙**이되 단계별이 아니라 점검별이다(③ 한 자리뿐).
+ *  가장 최근 마커만 본다 — 보고면 유효, 철회면 해제. 다시 보고하면 다시 유효(재기록 가능).
+ *  시각이 같으면 **철회가 이긴다**: 한 트랜잭션에서 둘이 함께 들어와 created_at이 같아질 수 있는데,
+ *  그때 완료 쪽으로 기우는 것이 더 위험한 오답이다(D34-2가 막으려던 자리).
+ *
+ *  순수 함수라 DB 없이 전 조합을 단언할 수 있다. 표시용 상세(날짜·방법)도 함께 돌려준다 —
+ *  종전에는 화면이 「방문·유선으로 보고함」만 말하고 **무엇을 기록했는지 안 보여줬다**.
+ *  이메일 축엔 [최근 발송]이 있는데 오프라인 축엔 없어서, 잘못 눌렀는지조차 확인할 수 없었다. */
+export function resolveOfflineReport(
+  markers: Array<{
+    action: string; at: string
+    date?: string | null; method?: string | null; memo?: string | null
+  }>,
+): { reported: boolean; latest: { at: string; date: string | null; method: string | null; memo: string | null } | null } {
+  let cur: (typeof markers)[number] | null = null
+  for (const m of markers) {
+    if (m.action !== OWNER_REPORT_OFFLINE_ACTION && m.action !== OWNER_REPORT_OFFLINE_UNDO_ACTION) continue
+    const wins = !cur || m.at > cur.at
+      || (m.at === cur.at && m.action === OWNER_REPORT_OFFLINE_UNDO_ACTION)
+    if (wins) cur = m
+  }
+  if (!cur || cur.action !== OWNER_REPORT_OFFLINE_ACTION) return { reported: false, latest: null }
+  return {
+    reported: true,
+    latest: { at: cur.at, date: cur.date ?? null, method: cur.method ?? null, memo: cur.memo ?? null },
+  }
 }
 
 /** 증거 → 단계별 완료 여부. 순서 강제 없음(R4-4) — 배치확인서는 늦게 오고 점검표는 먼저 채워진다.

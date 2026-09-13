@@ -15,7 +15,7 @@ import {
 import { getAnnexInputsAction, saveAnnexInputsAction, getAnnexAutoDefaultsAction, getAnnexDutySummaryAction } from '@/app/(dashboard)/customers/facility-spec-actions'
 import {
   uploadTimelineFileAction, sendOwnerReportAction, recordSubmissionAction, downloadPackageAction,
-  forceCompleteStepAction, undoForceCompleteStepAction, recordOwnerReportOfflineAction,
+  forceCompleteStepAction, undoForceCompleteStepAction, recordOwnerReportOfflineAction, undoOwnerReportOfflineAction,
   deleteTimelineFileAction, markCertReportedAction,
 } from '@/app/(dashboard)/inspections/timeline-actions'
 import { updateInspectionMultidayAction } from '@/app/(dashboard)/inspections/actions'
@@ -519,6 +519,23 @@ export function InspectionWorkbench({
     })
   }
 
+  /** ③ 방문·유선 보고 **철회** (2026-09-13) — 잘못 기록한 것을 되돌리는 유일한 길.
+   *  append-only라 마커를 지우지 못하므로 반대 마커를 덧붙인다(사유 완료 철회와 같은 방식). */
+  function undoOffline() {
+    const info = data.evidence?.offlineReportInfo
+    const what = info?.date ? `${info.date}${info.method ? ` · ${info.method}` : ''}` : '기록'
+    if (!window.confirm(
+      `방문·유선 보고 기록을 철회합니다.\n(${what})\n\n`
+      + '이메일 발송 이력이 없으면 ③이 다시 미완료로 돌아가고,\n'
+      + '점검 상태도 완료에서 진행중으로 물러날 수 있습니다. 계속할까요?')) return
+    startTransition(async () => {
+      const res = await undoOwnerReportOfflineAction(inspectionId)
+      if (res.error) { setMsg(`❌ ${res.error}`); return }
+      setMsg('✅ 방문·유선 보고 기록을 철회했습니다 — 증거 기준으로 다시 판정합니다.')
+      deferredRefresh()
+    })
+  }
+
   /** ② 협회 배치신고 완료 표시 (2026-09-07 — 업로드·종이보관 폼을 대체한 유일한 완료 경로).
    *  대표가 협회에서 직접 신고하므로 ERP가 받을 것은 파일이 아니라 **신고했다는 사실과 날짜**뿐이다. */
   function toggleReported(undo: boolean) {
@@ -810,6 +827,12 @@ export function InspectionWorkbench({
               ['고객', customerName ?? '-'],
               ['송달 동의·이메일', data.consentOk ? '보유' : '미입력 — 고객 소방계획서 탭에서 입력'],
               ['최근 발송', data.delivery ? `${data.delivery.sentTo} (${data.delivery.sentAt.slice(0, 10)})` : '없음'],
+              // 이메일 축엔 [최근 발송]이 있는데 오프라인 축엔 아무것도 없어서, 무엇을 기록했는지도
+              // 잘못 눌렀는지도 알 수 없었다. 두 축을 대칭으로 둔다(2026-09-13).
+              ['최근 방문·유선 보고', data.evidence?.offlineReportInfo
+                ? [data.evidence.offlineReportInfo.date, data.evidence.offlineReportInfo.method]
+                    .filter(Boolean).join(' · ') || '기록됨'
+                : '없음'],
             ]} />
           </Pane>
           <Pane title="발송" cls={paneCls} head={paneHead}>
@@ -833,6 +856,18 @@ export function InspectionWorkbench({
                   <button onClick={saveOffline} disabled={isPending} className={btnPri}>기록</button>
                   {/* S7-1 4차 — 누르면 동작하는 **활성 컨트롤**이다(F-22와 같은 축) */}
                   <button onClick={() => setOfflineOpen(false)} className="text-form-2xs underline text-ink-meta">취소</button>
+                </div>
+              ) : data.evidence?.offlineReport ? (
+                /* 기록된 뒤에는 **되돌릴 길**이 있어야 한다 — ③은 6단계 중 유일하게 출구가 없었다.
+                   ②[해제]·④⑥ 제출일 삭제·사유 완료 [철회]와 같은 자리다. 다시 기록도 열어 둔다
+                   (날짜·방법을 고쳐 적는 것이 실제 동선이라 철회만 있으면 막다른 길이 된다). */
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <button onClick={() => setOfflineOpen(true)} className={btn}>보고 내용 다시 기록</button>
+                  <button onClick={undoOffline} disabled={isPending}
+                    className="inline-flex items-center gap-1 h-7 px-2.5 rounded-lg border border-amber-200 bg-surface text-form-xs text-amber-700 hover:bg-amber-50 disabled:opacity-50"
+                    title="잘못 기록했다면 철회할 수 있습니다. 철회하면 증거만으로 다시 판정합니다.">
+                    {isPending ? <Loader2 className="size-3 animate-spin" /> : null} 보고 기록 철회
+                  </button>
                 </div>
               ) : (
                 <button onClick={() => setOfflineOpen(true)} className={btn}>방문·유선 보고 기록</button>

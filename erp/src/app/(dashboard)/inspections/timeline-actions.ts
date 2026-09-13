@@ -12,7 +12,7 @@ import { syncStepsAndRevalidate, revalidateInspection } from './step-revalidate'
 import { extractStoragePath } from '@/lib/defect-photos'
 import { renderMessage } from '@/lib/message-template'
 import { annexDownloadName } from '@/lib/annex-filename'
-import { OWNER_REPORT_OFFLINE_ACTION, STEP_FORCE_COMPLETE_ACTION, STEP_FORCE_UNDO_ACTION } from '@/lib/inspection-step-status'
+import { OWNER_REPORT_OFFLINE_ACTION, OWNER_REPORT_OFFLINE_UNDO_ACTION, STEP_FORCE_COMPLETE_ACTION, STEP_FORCE_UNDO_ACTION } from '@/lib/inspection-step-status'
 
 /** 문서 타임라인 액션 (소방계획서_4.md §9-9 / P7)
  *  업로드 슬롯 3종(②배치확인서·⑤계약서 — 전후 사진은 불량내역 슬롯 재사용), ③ 관계인 보고 발송,
@@ -304,6 +304,33 @@ export async function recordOwnerReportOfflineAction(
     metadata: { date: input.date, method, memo: (input.memo ?? '').trim().slice(0, 300) },
   } as Record<string, unknown>)
   // 36 S2-3 — 바뀌는 서버 prop: evidence.offlineReport(방문·유선 보고 마커)
+  await syncStepsAndRevalidate(admin, inspectionId, profile.id, { alsoChanged: true })
+  return {}
+}
+
+/** ③ 오프라인 보고의 **철회** (2026-09-13)
+ *
+ *  ③은 6단계 중 유일하게 출구가 없었다 — ②는 [해제], ④⑥은 제출일 삭제, 사유 완료는 [철회]가
+ *  있는데 여기만 없었다. 폼 기본값이 전부 차 있어(보고일=오늘·방법='방문 설명') 실질 클릭 두 번에
+ *  기록되는데, activity_logs는 append-only라 잘못 눌러도 되돌릴 수 없었다. ①②④가 차 있으면
+ *  applyStepSideEffects가 `inspections.status='completed'`까지 쓴다.
+ *
+ *  ⚠ 사유를 **요구하지 않는다** — undoForceCompleteStepAction과 다른 점이다. 사유 완료는 근거 없이
+ *  완료시킨 것이라 철회에도 설명이 필요하지만, 여기는 반대로 **잘못 기록한 것을 지우는** 길이다.
+ *  5자 사유를 요구하면 오타 한 번을 되돌리는 데 문턱이 생기고, 그러면 사람은 그냥 놔둔다.
+ *  누가·언제 철회했는지는 마커 자체(actor_id·created_at)가 남기므로 귀속은 유지된다. */
+export async function undoOwnerReportOfflineAction(
+  inspectionId: string,
+): Promise<{ error?: string }> {
+  const profile = await requirePermission('inspection_register')
+  const admin = createAdminClient()
+  await admin.from('activity_logs').insert({
+    actor_id: profile.id, action: OWNER_REPORT_OFFLINE_UNDO_ACTION,
+    entity_type: 'inspection', entity_id: inspectionId,
+    metadata: {},
+  } as Record<string, unknown>)
+  // 바뀌는 서버 prop: evidence.offlineReport가 false로 — ③이 이메일 발송 이력 없이는 미완으로
+  // 돌아가고, 그로 인해 completed였던 점검이 in_progress로 물러날 수 있다(applyStepSideEffects).
   await syncStepsAndRevalidate(admin, inspectionId, profile.id, { alsoChanged: true })
   return {}
 }

@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import {
-  OWNER_REPORT_OFFLINE_ACTION, STEP_FORCE_COMPLETE_ACTION, STEP_FORCE_UNDO_ACTION,
+  OWNER_REPORT_OFFLINE_ACTION, OWNER_REPORT_OFFLINE_UNDO_ACTION,
+  STEP_FORCE_COMPLETE_ACTION, STEP_FORCE_UNDO_ACTION,
 } from '@/lib/inspection-step-status'
 import { fetchAllRows } from '@/lib/supabase/paginate'
 
@@ -100,6 +101,9 @@ export const EVIDENCE_MARKER_ACTIONS = [
   // 철회 마커도 보존해야 한다 — 이것만 지워지면 **완료가 되살아난다**(덮개가 사라지므로).
   CERT_REPORTED_UNDO_ACTION,
   OWNER_REPORT_OFFLINE_ACTION,
+  // 같은 이유로 ③ 철회도 보존한다 — 보고 마커는 위에서 보존되는데 철회 마커만 만료로 지워지면
+  // 덮개가 사라져 **철회했던 ③이 조용히 다시 완료가 된다**(2026-09-13 신설)
+  OWNER_REPORT_OFFLINE_UNDO_ACTION,
   STEP_FORCE_COMPLETE_ACTION,
   STEP_FORCE_UNDO_ACTION,
 ] as const

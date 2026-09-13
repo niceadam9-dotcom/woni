@@ -24,8 +24,9 @@ import {
 } from '@/lib/facility-verify-gate'
 import { fetchAllRows } from '@/lib/supabase/paginate'
 import {
-  evidenceDone, activeStepNums, hasSheetDefect, isSelfInspection, resolveForcedSteps,
-  OWNER_REPORT_OFFLINE_ACTION, STEP_FORCE_COMPLETE_ACTION, STEP_FORCE_UNDO_ACTION,
+  evidenceDone, activeStepNums, hasSheetDefect, isSelfInspection, resolveForcedSteps, resolveOfflineReport,
+  OWNER_REPORT_OFFLINE_ACTION, OWNER_REPORT_OFFLINE_UNDO_ACTION,
+  STEP_FORCE_COMPLETE_ACTION, STEP_FORCE_UNDO_ACTION,
   type StepEvidence, type StepNum,
 } from '@/lib/inspection-step-status'
 
@@ -64,7 +65,10 @@ export async function gatherStepEvidence(
     // created_at을 함께 읽는다: append-only라 철회는 '나중 마커'로만 표현된다(D1)
     admin.from('activity_logs').select('action, metadata, created_at')
       .eq('entity_type', 'inspection').eq('entity_id', insp.id)
-      .in('action', [OWNER_REPORT_OFFLINE_ACTION, STEP_FORCE_COMPLETE_ACTION, STEP_FORCE_UNDO_ACTION])
+      .in('action', [
+        OWNER_REPORT_OFFLINE_ACTION, OWNER_REPORT_OFFLINE_UNDO_ACTION,
+        STEP_FORCE_COMPLETE_ACTION, STEP_FORCE_UNDO_ACTION,
+      ])
       .order('created_at')
       .limit(500),
     findArchivedCertInspections(admin, [insp.id]),
@@ -99,13 +103,22 @@ export async function gatherStepEvidence(
   const { steps: forced } = resolveForcedSteps(
     logs.map(l => ({ action: l.action, stepNum: Number(l.metadata?.['step_num']), at: l.created_at })),
   )
+  // ③ — 마커 **존재**가 아니라 시각순 해소로 판정한다. `some()`으로 읽으면 철회 마커가 무력해진다
+  // (append-only라 보고 마커는 철회 후에도 로그에 그대로 남아 있다).
+  const offline = resolveOfflineReport(logs.map(l => ({
+    action: l.action, at: l.created_at,
+    date: (l.metadata?.['date'] as string | undefined) ?? null,
+    method: (l.metadata?.['method'] as string | undefined) ?? null,
+    memo: (l.metadata?.['memo'] as string | undefined) ?? null,
+  })))
 
   return {
     responded: respRes.count ?? 0,
     certFile: (filesRes.data ?? []).some(o => isCertFileName(o.name)),
     certArchived: archivedSet.has(insp.id),
     delivery: (deliveryRes.data ?? []).length > 0,
-    offlineReport: logs.some(l => l.action === OWNER_REPORT_OFFLINE_ACTION),
+    offlineReport: offline.reported,
+    offlineReportInfo: offline.latest,
     submit9At: insp.report9_submitted_at,
     defectsTotal: defects.length,
     defectsDone: defects.filter(d => d.action_completed_at).length,
