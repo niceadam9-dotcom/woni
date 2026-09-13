@@ -2,6 +2,7 @@ import { revalidatePath } from 'next/cache'
 import type { createAdminClient } from '@/lib/supabase/admin'
 import type { InspectionType } from '@/types'
 import { planTypeSub, isInitialByLaw } from '@/lib/inspection-round'
+import { resolveStepDates, isSixStepPlanType } from '@/lib/plan-step-dates'
 
 type Admin = ReturnType<typeof createAdminClient>
 
@@ -85,6 +86,29 @@ export async function startInspectionCore(
   if (item.inspection_id) return { error: '이미 점검이 시작된 항목입니다.' }
   if (!item.scheduled_date) return { error: '점검 예정일을 입력 후 점검을 시작해주세요.' }
 
+  // 6단계 마감일이 비어 있으면 **여기서 채운다**. 생성기(inspection-plan-generator)는 step1~6_date를
+  // 넣지 않는데(planned_date·scheduled_date·status뿐) 아래 syncInspectionStepDates는 null을 조용히
+  // 건너뛴다 → 그냥 두면 due_date가 DB 트리거의 **사용승인일 기준** 값으로 남아, 확정일 기준이어야
+  // 하는 법정 마감일과 갈라지고 그 사실이 화면 어디에도 안 드러난다.
+  // 점검확정 폐지 전에는 사람이 반드시 confirmPlanItemStageOneAction을 거쳐 들어와 값이 늘 차 있었다.
+  // 이제는 항목이 생성 시점에 confirmed로 태어나므로 그 전제가 없다.
+  // ⚠ 점검을 만들기 **전에** 계산한다 — 공휴일 조회가 실패하면 아무것도 생성되지 않아야 한다.
+  //   확정 경로는 이미 채워 놓고 부르므로 여기서 다시 계산하지 않는다(값이 있으면 그대로 쓴다).
+  let stepDates: (string | null)[] = [
+    item.step1_date, item.step2_date, item.step3_date,
+    item.step4_date, item.step5_date, item.step6_date,
+  ]
+  let stepDatesPatch: Record<string, unknown> = {}
+  if (isSixStepPlanType(item.plan_type) && !item.step1_date) {
+    const { dates, error } = await resolveStepDates(admin, item.scheduled_date)
+    if (error || !dates) return { error: error ?? '공휴일 조회에 실패했습니다.' }
+    stepDates = dates
+    stepDatesPatch = {
+      step1_date: dates[0], step2_date: dates[1], step3_date: dates[2],
+      step4_date: dates[3], step5_date: dates[4], step6_date: dates[5],
+    }
+  }
+
   // 담당 미배정 항목은 점검을 시작한 직원을 담당으로 자동 배정 (모바일 점검시작과 동일 규칙)
   const autoAssigned = !item.assigned_employee_id
   const assigneeId = item.assigned_employee_id ?? actorId
@@ -133,15 +157,15 @@ export async function startInspectionCore(
       inspection_id: inspectionId,
       status: 'completed',
       ...(autoAssigned ? { assigned_employee_id: assigneeId } : {}),
+      // 위에서 새로 계산했다면 계획 항목에도 남긴다 — 안 남기면 별지·문자 화면이 읽는 plan_item은
+      // 여전히 비어 있어, 같은 점검의 마감일이 표면마다 달라진다
+      ...stepDatesPatch,
     } as Record<string, unknown>)
     .eq('id', itemId)
 
   // 6단계 마감일을 확정일 기준(plan_item.step1~6_date)으로 동기화 —
   // DB 트리거는 use_approval_date 기준으로 due_date를 생성하므로 확정일과 어긋남 (Victory9: 기준일 = 1단계 확정일)
-  await syncInspectionStepDates(admin, inspectionId, [
-    item.step1_date, item.step2_date, item.step3_date,
-    item.step4_date, item.step5_date, item.step6_date,
-  ])
+  await syncInspectionStepDates(admin, inspectionId, stepDates)
 
   await admin.from('activity_logs').insert({
     actor_id:    actorId,

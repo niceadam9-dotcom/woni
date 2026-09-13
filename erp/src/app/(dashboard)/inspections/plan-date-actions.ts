@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requirePermission } from '@/lib/auth'
 import { startInspectionCore, syncInspectionStepDates, syncInspectionVisitDate, isStepOneCompleted } from '@/lib/inspection-start'
+import { resolveStepDates } from '@/lib/plan-step-dates'
 
 // ── 점검일 적용·이동 액션 (구 inspection-plans/actions.ts에서 이관, 2026-09-12) ──
 //
@@ -74,46 +75,11 @@ export async function confirmPlanItemStageOneAction(
     return {}
   }
 
-  // 공휴일 조회 — 확정일 기준 ±7개월 범위
-  // 주의: 종료일을 '-31' 하드코딩하면 2·4·6·9·11월에서 무효 날짜(예: 2027-02-31)가 되어
-  //       쿼리가 실패하고 공휴일이 전부 무시됐음 (실증: 2026-07-09, 제헌절 미제외) — 말일을 정확히 계산
-  const base  = new Date(confirmedDate)
-  const rangeStart = new Date(base); rangeStart.setMonth(rangeStart.getMonth() - 1)
-  const rangeEnd   = new Date(base); rangeEnd.setMonth(rangeEnd.getMonth() + 7)
-  const startStr = `${rangeStart.getFullYear()}-${String(rangeStart.getMonth()+1).padStart(2,'0')}-01`
-  const rangeEndLast = new Date(rangeEnd.getFullYear(), rangeEnd.getMonth() + 1, 0)
-  const endStr = `${rangeEndLast.getFullYear()}-${String(rangeEndLast.getMonth()+1).padStart(2,'0')}-${String(rangeEndLast.getDate()).padStart(2,'0')}`
-
-  const { data: holidayData, error: holidayErr } = await admin
-    .from('holidays').select('date')
-    .gte('date', startStr).lte('date', endStr)
-  // 공휴일 없이 계산하면 마감일이 조용히 틀어지므로 조회 실패는 명시적으로 중단
-  if (holidayErr) return { error: '공휴일 조회에 실패했습니다. 잠시 후 다시 시도해주세요.' }
-  const holidaySet = new Set((holidayData ?? []).map(h => (h as Record<string, unknown>).date as string))
-
-  function toDateStr(d: Date): string {
-    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
-  }
-  function addWorkingDays(from: Date, n: number): string {
-    const d = new Date(from)
-    let count = 0
-    while (count < n) {
-      d.setDate(d.getDate() + 1)
-      const dow = d.getDay()
-      if (dow !== 0 && dow !== 6 && !holidaySet.has(toDateStr(d))) count++
-    }
-    return toDateStr(d)
-  }
-
-  const step1 = confirmedDate
-  const step2 = addWorkingDays(new Date(step1), 5)
-  const step3 = addWorkingDays(new Date(step1), 10)
-  const step4 = addWorkingDays(new Date(step1), 15)
-  // step5: step4 당일을 1일째로 포함한 절대일 10일째 (= +9일, 주말·공휴일 포함)
-  // 2026-07-09 사용자 확정: step4 08-18 → step5 08-27. DB 트리거·recalc도 050에서 동일 규칙으로 통일
-  const step4Date = new Date(step4); step4Date.setDate(step4Date.getDate() + 9)
-  const step5 = toDateStr(step4Date)
-  const step6 = addWorkingDays(new Date(step5), 10)
+  // 산식은 lib/plan-step-dates.ts가 정본이다 — 여기 인라인으로만 두면 `'use server'` 밖에서
+  // 부를 수 없어(세션 없는 크론이 선다) 당일 자동 시작 경로가 같은 마감일을 만들지 못한다
+  const { dates, error: stepErr } = await resolveStepDates(admin, confirmedDate)
+  if (stepErr || !dates) return { error: stepErr ?? '공휴일 조회에 실패했습니다.' }
+  const [step1, step2, step3, step4, step5, step6] = dates
 
   const { error } = await admin
     .from('inspection_plan_items')
