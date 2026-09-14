@@ -45,13 +45,13 @@ export type FirePlanInfoInput = {
   rampCount: string           // 경사로(개소) | ''
   evacElevatorCount: string   // 피난용승강기(대) | ''
   // customers
-  managerSelectedAt: string   // YYYY-MM-DD | ''
+  //
+  // 🚨 사람 축(선임일·대표자 구분·자격구분·교육이수일·선임 형태)은 **이 payload에 없다**.
+  //    입력칸이 2026-08-20에 관계인 탭 [소방안전관리]로 옮겨간 뒤에도 여기 남아 있었고,
+  //    그게 값을 지우고 있었다(2026-09-14 재현·수리). 되돌리지 말 것 — 아래 update 주석 참조.
+  /** 급수 = **대상물** 속성(별표4: 연면적·층수·설비). 사람 축이 아니라서 이 폼이 정본이다
+   *  (2026-09-14 사용자 확정 — 관계인 탭의 중복 입력칸은 제거했다). */
   grade: string               // 특급/1급/2급/3급 | ''
-  // 운영현황 신규 (104, §3-1.1 — 별지 9호 2쪽 연계)
-  repRole: string             // 대표자 구분: 소유자/관리자/점유자 | ''
-  managerLicenseGrade: string // 소방안전관리자 자격구분: 특급/1급/2급/3급 | ''
-  managerEduDate: string      // 최근 교육이수일 YYYY-MM-DD | ''
-  managerAppointType: string  // B-4d(소방계획서_19, 124): 선임 형태 — 소방기술자격/소방안전관리자수첩/업무대행감독/겸직/기타 | ''
   insuranceJoined: boolean | null
   insuranceCompany: string
   insurancePeriod: string
@@ -80,9 +80,9 @@ export async function saveFirePlanInfoAction(
   const profile = await requirePermission('customer_manage')
   const admin = createAdminClient()
 
-  if (input.repRole && !['소유자', '관리자', '점유자'].includes(input.repRole)) return { error: '대표자 구분 값을 확인해주세요.' }
-  if (input.managerLicenseGrade && !['특급', '1급', '2급', '3급'].includes(input.managerLicenseGrade)) return { error: '자격구분 값을 확인해주세요.' }
-  if (input.managerAppointType && !['소방기술자격', '소방안전관리자수첩', '업무대행감독', '겸직', '기타'].includes(input.managerAppointType)) return { error: '선임 형태 값을 확인해주세요.' }
+  // 사람 축 검증은 관계인 탭 액션(fire-safety-manager-actions)이 들고 있다 — 이 폼은 그 값을
+  // 받지도 쓰지도 않으므로 여기서 검증하면 늘 통과하는 죽은 규칙이 된다.
+  if (input.grade && !['특급', '1급', '2급', '3급'].includes(input.grade)) return { error: '급수 값을 확인해주세요.' }
   // 송달 동의 검증 — 구 saveEmailConsentAction의 규칙을 그대로 승계(저장 통합, 2026-08-06)
   const reportEmail = input.reportEmail.trim()
   if (reportEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(reportEmail)) return { error: '이메일 형식을 확인해주세요.' }
@@ -95,13 +95,22 @@ export async function saveFirePlanInfoAction(
   if (insErr) return { error: insErr }
 
   // customers 갱신
+  //
+  // 🚨 사람 축(manager_selected_at·manager_license_grade·manager_edu_date·manager_appointment_type·
+  //    rep_role)은 **여기서 쓰지 않는다** — 2026-08-20에 입력칸이 관계인 탭 [소방안전관리]로 옮겨간 뒤에도
+  //    이 액션이 계속 그 컬럼을 썼고, 그게 값을 지우고 있었다(2026-09-14 재현).
+  //
+  //    이유: 고객 상세의 탭 셸은 패널을 `hidden`으로 **마운트한 채** 둔다(customer-tabs.tsx). 1.1 패널은
+  //    `useState(initial)`로 마운트 시점 값을 한 번만 심으므로, 관계인 탭에서 나중에 채운 선임일은
+  //    이 패널 상태에 영원히 ''로 남는다. 그 상태로 [저장]을 누르면 `|| null`이 방금 넣은 값을 지웠다.
+  //    (종전 주석은 "값을 상태에 그대로 두고 함께 저장하면 안전하다"였는데, 그 방어는 **마운트 전에
+  //     있던 값**만 지킨다. 마운트 후에 옆 탭에서 생긴 값은 못 지킨다.)
+  //
+  //    ⚠ 입력칸이 없는 화면은 그 컬럼을 쓰지 않는다 — 이 규칙을 깨면 같은 유실이 그대로 돌아온다.
+  //      회귀 검사: scripts/test-selected-at-preserve.mjs
+  //    급수(building_grade)는 예외가 아니라 **정말로 이 폼 소유**다(대상물 속성, 여기에 입력칸이 있다).
   const { error: cErr } = await admin.from('customers').update({
-    manager_selected_at: input.managerSelectedAt || null,
     building_grade: input.grade || null,
-    rep_role: input.repRole || null,
-    manager_license_grade: input.managerLicenseGrade || null,
-    manager_edu_date: input.managerEduDate || null,
-    manager_appointment_type: input.managerAppointType || null,
     insurance_joined: input.insuranceJoined,
     insurance_company: input.insuranceCompany.trim() || null,
     insurance_period: input.insurancePeriod.trim() || null,

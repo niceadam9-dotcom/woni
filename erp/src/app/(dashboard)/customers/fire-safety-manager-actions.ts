@@ -11,8 +11,12 @@ import { requirePermission } from '@/lib/auth'
  *  블록이 다 채워진 곳이 **1곳**이었다(2026-08-20 실측). 그래서 사람 축 입력을 관계인 탭 한 자리로 모은다.
  *
  *  ⚠ 새 저장소를 만들지 않는다 — 전부 기존 customers 컬럼에 그대로 쓴다.
- *     특히 급수(building_grade)는 **대상물** 속성이라 계획서 1.1에도 그대로 남아 있고,
- *     여기서 고치든 거기서 고치든 같은 칸이다(창구가 둘, 저장소는 하나).
+ *
+ *  ⚠ 2026-09-14: 급수(building_grade)는 **여기서 빠졌다**. 종전엔 "창구가 둘, 저장소는 하나라
+ *     어긋나지 않는다"고 적혀 있었으나 그게 틀렸다 — 두 화면이 동시에 마운트된 채 살아 있어서
+ *     (customer-tabs가 패널을 hidden으로 유지) 늦게 저장하는 쪽의 **낡은 상태**가 상대가 방금
+ *     넣은 값을 덮어쓴다. 선임일이 실제로 그렇게 지워지고 있었다. 급수는 대상물 속성이므로
+ *     계획서 1.1을 정본으로 두고 이 패널에서는 입력칸째 없앴다(사용자 확정).
  */
 
 const GRADES = ['특급', '1급', '2급', '3급']
@@ -28,8 +32,6 @@ export type FireSafetyManagerInput = {
   managerEduDate: string
   managerAppointType: string
   repRole: string
-  /** 대상물 급수 = 별지 9호 '소방안전관리등급' (별표4) */
-  buildingGrade: string
 }
 
 export async function saveFireSafetyManagerAction(
@@ -40,7 +42,6 @@ export async function saveFireSafetyManagerAction(
 
   if (input.repRole && !REP_ROLES.includes(input.repRole)) return { error: '대표자 구분 값을 확인해주세요.' }
   if (input.managerLicenseGrade && !GRADES.includes(input.managerLicenseGrade)) return { error: '자격구분 값을 확인해주세요.' }
-  if (input.buildingGrade && !GRADES.includes(input.buildingGrade)) return { error: '소방안전관리등급 값을 확인해주세요.' }
   if (input.managerAppointType && !APPOINT_TYPES.includes(input.managerAppointType)) return { error: '선임 형태 값을 확인해주세요.' }
 
   // 지목 대상은 **이 고객의 관계인**이어야 한다 — 남의 고객 관계인 id를 넣어 이름·전화를 끌어오지 못하게.
@@ -57,7 +58,9 @@ export async function saveFireSafetyManagerAction(
     manager_edu_date: input.managerEduDate || null,
     manager_appointment_type: input.managerAppointType || null,
     rep_role: input.repRole || null,
-    building_grade: input.buildingGrade || null,
+    // 급수(building_grade)는 여기서 쓰지 않는다 — **대상물** 속성이라 계획서 1.1이 정본이다
+    // (2026-09-14 사용자 확정). 양쪽이 같은 컬럼을 쓰면 나중에 마운트된 화면의 낡은 상태가
+    // 상대가 방금 저장한 값을 덮어쓴다 — 선임일에서 실제로 터진 사고와 같은 구조다.
   } as Record<string, unknown>).eq('id', customerId)
   if (error) return { error: `저장 실패: ${error.message}` }
 

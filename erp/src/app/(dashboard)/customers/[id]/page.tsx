@@ -591,15 +591,6 @@ export default async function CustomerDetailPage({
               managerEduDate: planInfoInitial.managerEduDate,
               managerAppointType: planInfoInitial.managerAppointType,
               repRole: planInfoInitial.repRole,
-              buildingGrade: planInfoInitial.grade,
-            }}
-            gradeBasis={{
-              purpose: planInfoInitial.purpose,
-              totalArea: planInfoInitial.totalArea,
-              floorsAbove: planInfoInitial.floorsAbove,
-              floorsBelow: planInfoInitial.floorsBelow,
-              height: planInfoInitial.height,
-              facilityCodes: planInfoInitial.facilityCodes,
             }}
           />
         </div>

@@ -1,11 +1,12 @@
 'use client'
 
 import { useMemo, useState, useTransition } from 'react'
-import { Save, Loader2, ShieldCheck, Sparkles, ExternalLink, Phone } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import Link from 'next/link'
+import { Save, Loader2, ShieldCheck, ExternalLink, Phone } from 'lucide-react'
 import { DateInput } from '@/components/ui/date-input'
 import { useUnsavedWarning } from '@/components/ui/fields'
 import { formatTel } from '@/lib/format-contact'
-import { suggestGrade } from '@/lib/fire-plan-suggest'
 import { saveFireSafetyManagerAction, type FireSafetyManagerInput } from '@/app/(dashboard)/customers/fire-safety-manager-actions'
 import type { CustomerContact } from '@/types'
 
@@ -28,29 +29,20 @@ const segBtn = (on: boolean) => `px-2.5 h-form-8 text-form-sm ${on ? 'bg-brand t
 
 export type FireSafetyManagerInitial = FireSafetyManagerInput
 
-/** 별표4 자동 산정 입력 — 고객 상세 page.tsx가 이미 계산해 두는 값들 */
-export type GradeBasis = {
-  purpose: string | null
-  totalArea: number | null
-  floorsAbove: number | null
-  floorsBelow: number | null
-  height: string
-  facilityCodes: string[]
-}
+/** 별표4 자동 산정(GradeBasis)은 급수 입력칸과 함께 계획서 1.1로 갔다 — 2026-09-14 */
 
-export function FireSafetyManagerPanel({ customerId, contacts, canManage, initial, gradeBasis }: {
+export function FireSafetyManagerPanel({ customerId, contacts, canManage, initial }: {
   customerId: string
   contacts: CustomerContact[]
   canManage: boolean
   initial: FireSafetyManagerInitial
-  gradeBasis: GradeBasis
 }) {
+  const router = useRouter()
   const [d, setD] = useState<FireSafetyManagerInput>(initial)
   const [dirty, setDirty] = useState(false)
   // 이 패널의 dirty는 탭 셸(setTabDirty)에 안 잡힌다 — <a> 전체 이동(보조자 링크 등)의 미저장 보호는 여기서
   useUnsavedWarning(dirty)
   const [msg, setMsg] = useState('')
-  const [gradeReason, setGradeReason] = useState('')
   const [isPending, startTransition] = useTransition()
 
   const set = <K extends keyof FireSafetyManagerInput>(k: K, v: FireSafetyManagerInput[K]) => {
@@ -60,29 +52,20 @@ export function FireSafetyManagerPanel({ customerId, contacts, canManage, initia
 
   const picked = useMemo(() => contacts.find(c => c.id === d.managerContactId) ?? null, [contacts, d.managerContactId])
 
-  function applySuggest() {
-    const g = suggestGrade({
-      purpose: gradeBasis.purpose, totalArea: gradeBasis.totalArea,
-      floorsAbove: gradeBasis.floorsAbove, floorsBelow: gradeBasis.floorsBelow,
-      height: parseFloat(gradeBasis.height) || null, facilityCodes: gradeBasis.facilityCodes,
-    })
-    if (!g) {
-      // 왜 못 냈는지를 말한다 — "산정 불가"만 띄우면 사용자가 할 수 있는 게 없다
-      setGradeReason('')
-      setMsg('별표4 조건에 걸리는 값이 없습니다 — 2·3급은 설비 설치 여부로 갈립니다. [건물·시설] 탭에서 연면적·층수·설비를 먼저 채워주세요.')
-      return
-    }
-    set('buildingGrade', g.grade)
-    setGradeReason(g.reason)
-    setMsg(`제안: ${g.grade} — 확인 후 저장하세요`)
-  }
-
   function save() {
     startTransition(async () => {
       const res = await saveFireSafetyManagerAction(customerId, d)
       if (res.error) { setMsg(`❌ ${res.error}`); return }
       setDirty(false)
       setMsg('✅ 저장됨 — 별지 9호 2쪽 소방안전정보에 반영됩니다')
+      // 계획서 1.1은 여기서 채운 선임일을 prop으로 읽어 준비율·표시에 쓴다. 서버의 revalidatePath는
+      // **클라이언트 라우터 캐시**까지 비우지 않으므로 짝으로 걸어 준다(1.1 패널 save()와 같은 규약).
+      //
+      // ⚠ 이 줄은 dev E2E로 고정되지 않는다 — dev에서는 탭 전환(router.replace)이 어차피 매번
+      //   RSC를 다시 받아 와서, 지워도 test-selected-at-preserve가 초록이다(2026-09-14 변이 실험에서
+      //   MUTANT-2가 살아남았다). 남겨 두는 근거는 **운영의 라우터 캐시**다: 같은 라우트 재방문이
+      //   캐시로 처리되면 방금 저장한 선임일이 안 내려와 "채웠는데 1.1은 누락" 증상이 그대로 돌아온다.
+      router.refresh()
     })
   }
 
@@ -121,24 +104,15 @@ export function FireSafetyManagerPanel({ customerId, contacts, canManage, initia
       </div>
 
       <div className="flex flex-wrap gap-3 items-end">
-        {/* ② 대상물 등급 — 사람이 아니라 건물 속성이라는 걸 라벨에 못박는다 */}
+        {/* ② 대상물 급수는 여기 없다 — 사람이 아니라 **건물** 속성이라 계획서 1.1이 정본이다
+            (2026-09-14 사용자 확정). 두 화면이 같은 컬럼을 쓰면 늦게 저장하는 쪽의 낡은 상태가
+            상대 값을 덮어쓴다 — 선임일이 그렇게 지워졌다. 어디로 가면 되는지만 알려 준다. */}
         <div>
-          <label className={labelCls}>소방안전관리등급 <span className="text-ink-meta">(대상물 급수 · 별표4)</span></label>
-          <div className="flex items-center gap-1.5 mt-0.5">
-            <div className="flex rounded-lg border border-brand-line overflow-hidden">
-              {GRADES.map(g => (
-                <button key={g} disabled={!canManage} onClick={() => toggle('buildingGrade', g)}
-                  className={segBtn(d.buildingGrade === g)}>{g}</button>
-              ))}
-            </div>
-            {canManage && (
-              <button onClick={applySuggest} title="연면적·층수·높이·설비로 별표4 등급을 계산합니다 (제안 — 저장은 직접)"
-                className="inline-flex items-center gap-1 h-form-8 px-2 rounded-lg border border-brand-line text-form-xs text-brand hover:bg-brand-tint">
-                <Sparkles className="size-3" /> 자동 산정
-              </button>
-            )}
-          </div>
-          {gradeReason && <p className="text-form-2xs text-brand mt-0.5">근거: {gradeReason}</p>}
+          <label className={labelCls}>소방안전관리등급 <span className="text-ink-meta">(대상물 급수 · 별표4)</span></label><br />
+          <Link href={`/customers/${customerId}?tab=plan&form=1.1`}
+            className="inline-flex items-center gap-1 h-form-8 px-2.5 mt-0.5 rounded-lg border border-brand-line text-form-sm text-brand hover:bg-brand-tint">
+            건물 속성이라 소방계획서 1.1에서 <ExternalLink className="size-2.5" />
+          </Link>
         </div>
 
         {/* ③ 사람의 자격구분 — 위 등급과 다른 축임을 표시 */}

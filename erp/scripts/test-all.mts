@@ -493,6 +493,16 @@ const steps: Step[] = [
   // 그래서 '보이는가'보다 **양방향 무손상**을 묻고, 값이 애초에 없으면 늘 초록인 공허 통과를 막으려
   // 양성 표본이 실재했음을 먼저 단언한다.
   { name: '1.10.3 이사·저장 분리(E2E)', cmd: 'npx tsx scripts/test-s7-multi-use-move.mts',    needServer: true },
+  // 같은 부류의 실사고가 사람 축에서 터졌다(2026-09-14). 선임일 입력칸은 2026-08-20에 관계인 탭으로
+  // 옮겨갔는데 **1.1의 저장 payload에는 그대로 남아** 있었다. 탭 셸이 패널을 hidden으로 마운트한 채
+  // 두므로 1.1의 `useState(initial)`는 마운트 시점의 ''를 계속 들고 있었고, 1.1에서 아무 칸이나
+  // 저장하면 관계인 탭이 방금 넣은 선임일이 `|| null`로 지워졌다. 운영 활성 고객 305곳 중 선임일이
+  // 남아 있던 곳이 **5곳**이었다 — 사용자에겐 "채웠는데 계속 누락"으로만 보였다.
+  // 고정하는 계약: **입력칸이 없는 화면은 그 컬럼을 쓰지 않는다**(사람 축 5종은 관계인 탭,
+  // 급수는 대상물 속성이라 1.1). 양방향으로 묻고, 저장이 통째로 실패해도 초록이 되는 공허 통과를
+  // 막으려 매 저장마다 '그 저장이 의도한 값은 들어갔는가'를 대조군으로 함께 잰다.
+  // 변이 검증: 지운 쪽을 되살리면 C(선임일)·E(급수)가 정확히 하나씩 빨개진다.
+  { name: '선임일 유실 방지(E2E)',       cmd: 'node scripts/test-selected-at-preserve.mjs',    needServer: true },
   { name: '별지 상호작용(E2E)',         cmd: 'npx tsx scripts/test-annex-interaction.mts',    needServer: true },
   { name: '별지 탭 승격(프로브)',        cmd: 'npx tsx scripts/_probe-annex-tab.mts',          needServer: true },
   { name: '별지 같은경로 이동(프로브)',   cmd: 'npx tsx scripts/_probe-annex-samepath-nav.mts', needServer: true },

@@ -35,6 +35,12 @@ const labelCls = 'text-form-xs font-medium text-ink-sub'
 export type FirePlanInfoInitial = FirePlanInfoInput & {
   height: string
   hasBuilding: boolean
+  /** 사람 축 — 관계인 탭 [소방안전관리]가 정본이고 이 패널엔 입력칸이 없다. 준비율 게이지가 **읽기만** 한다.
+   *  ⚠ 이 둘을 `FirePlanInfoInput`(= 저장 payload)으로 되돌리지 말 것. 저장에 실리는 순간
+   *    마운트 시점 값이 굳어 관계인 탭이 채운 값을 null로 덮어쓴다(2026-09-14 유실 사고).
+   *    prop으로 두면 서버 재렌더마다 최신값이 와서 게이지도 같이 갱신된다. */
+  managerSelectedAt: string
+  managerAppointType: string
   // §6-D-1 추천값 판정용 (건물·시설 데이터)
   purpose: string | null
   totalArea: number | null
@@ -82,12 +88,15 @@ export function FirePlanInfoPanel({ customerId, initial, people }: {
 
   // 준비율 — 설계 §5: 입력 여부 체크 (생성 페이지·워커와 같은 어휘, fire-plan-readiness.ts)
   // missing 목록은 상단 생성 바가 단독 담당(2026-08-06 중복 제거) — 여기선 게이지 수치만 사용
+  //
+  // 사람 축(선임일·선임 형태)은 이 패널이 편집하지 않으므로 **상태가 아니라 prop**에서 읽는다.
+  // 상태에서 읽으면 관계인 탭에서 방금 저장해도 게이지가 안 움직여 "채웠는데 계속 누락"으로 보인다.
   const { done, total } = computeFirePlanReadiness({
     receiverLocation: d.receiverLocation, structure: d.structure, roof: d.roof,
-    managerSelectedAt: d.managerSelectedAt, grade: d.grade, insuranceJoined: d.insuranceJoined,
+    managerSelectedAt: initial.managerSelectedAt, grade: d.grade, insuranceJoined: d.insuranceJoined,
     opHoursWeekday: d.opHoursWeekday,
     hasHeadcount: !!(d.headcountWorker || d.headcountResident || d.headcountMax),
-    managerAppointType: d.managerAppointType,
+    managerAppointType: initial.managerAppointType,
     hasBrigade: d.brigade.some(m => m.name.trim()),
   })
 
@@ -334,18 +343,31 @@ export function FirePlanInfoPanel({ customerId, initial, people }: {
               </div>
             </div>
             {/* 사람 축(선임일·대표자 구분·자격구분·교육이수일·선임 형태)은 2026-08-20부터 **관계인 탭
-                [소방안전관리]** 한 자리에서 입력한다. 여기서 칸을 지우되 값은 상태에 그대로 두고 함께
-                저장한다 — 상태에서 빼면 이 패널 저장이 관계인 탭에서 채운 값을 null로 덮어쓴다.
-                누락 칩(READINESS_TARGET_IDS)이 여전히 이 카드로 오므로 앵커 id는 유지한다. */}
+                [소방안전관리]** 한 자리에서 입력한다. 누락 칩(READINESS_TARGET_IDS)이 여전히 이 카드로
+                오므로 앵커 id는 유지한다.
+
+                🚨 이 값들을 이 패널의 저장 payload(FirePlanInfoInput)에 다시 넣지 말 것 —
+                   입력칸 없이 payload에만 남아 있던 탓에, 관계인 탭에서 채운 선임일을 이 폼의 [저장]이
+                   null로 지우고 있었다(2026-09-14 재현·수리). 표시는 prop(initial)에서 읽는다. */}
             <div id="fp-manager-date" className="scroll-mt-4">
               <label className={labelCls}>소방안전관리자 정보</label><br />
-              <Link href={`/customers/${customerId}?tab=contacts#c-fire-safety-manager`}
-                id="fp-appoint-type"
-                className="inline-flex items-center gap-1 h-form-8 px-2.5 rounded-lg border border-brand-line text-form-sm text-brand hover:bg-brand-tint scroll-mt-4">
-                <ShieldCheck className="size-3" />
-                선임일·자격구분·교육이수일·선임 형태·대표자 구분 → 관계인 탭
-                <ExternalLink className="size-2.5" />
-              </Link>
+              {/* 지금 값이 무엇인지 여기서 보여준다 — 안 보여주면 관계인 탭에서 채우고 와도
+                  이 카드가 계속 비어 보여 "왜 아직 누락이냐"가 된다. */}
+              <span className="inline-flex items-center gap-2 flex-wrap">
+                <span className="text-form-sm text-ink-sub">
+                  선임일{' '}
+                  {initial.managerSelectedAt
+                    ? <b className="text-ink">{initial.managerSelectedAt}</b>
+                    : <span className="text-amber-600">미입력</span>}
+                </span>
+                <Link href={`/customers/${customerId}?tab=contacts#c-fire-safety-manager`}
+                  id="fp-appoint-type"
+                  className="inline-flex items-center gap-1 h-form-8 px-2.5 rounded-lg border border-brand-line text-form-sm text-brand hover:bg-brand-tint scroll-mt-4">
+                  <ShieldCheck className="size-3" />
+                  선임일·자격구분·교육이수일·선임 형태·대표자 구분 → 관계인 탭
+                  <ExternalLink className="size-2.5" />
+                </Link>
+              </span>
             </div>
           </div>
           {/* 급수 근거 줄 — 판정이 되면 근거를, 안 되면 **없는 값의 이름**을 말한다. 확정은 사용자다(추천 표기).
