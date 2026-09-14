@@ -4,6 +4,36 @@ import { AlertTriangle, ArrowRight, Loader2, X } from 'lucide-react'
 import type { AnchorPreview } from '@/app/(dashboard)/customers/actions'
 
 const mo = (m: number) => `${m}월`
+
+/** 법정 시기 문자열 — 모달 표시와 **변화 판정**이 같은 값을 봐야 한다(사본을 두면 갈린다) */
+export const monthsKey = (p: AnchorPreview) =>
+  p.months.map(m => `${m.planType.endsWith('종합') ? '종합' : '작동'} ${mo(m.month)}`).join(' · ') || '—'
+
+/** 이 변경이 **알릴 만한가** — 아니면 조용히 저장한다 (2026-09-14 사용자 결정).
+ *
+ *  왜 관문이 필요한가: 종전에는 기산점 필드(사용승인일·점검일자·점검종류)를 건드리기만 하면
+ *  무조건 모달이 떴다. 그래서 계획이 **한 건도 안 바뀌는** 입력 — 예컨대 사용승인일의 연도만
+ *  정정(월·일이 같으면 `plannedDateFor` 결과가 같다) — 에도 「저장하면 이렇게 바뀝니다」가 뜨고,
+ *  본문엔 「바뀌는 계획 항목이 없습니다」라고 적혀 있었다. 알릴 것이 없는데 띄운 것이다.
+ *  정상 입력을 매번 막아 세우면 사람은 곧 내용을 안 읽고 누르게 되고, **정작 바뀔 때의 경고까지
+ *  같이 죽는다.** 경고는 드물어야 읽힌다.
+ *
+ *  ⚠ **최초점검 기한은 예외로 남긴다.** 계획 항목이 하나도 안 바뀌어도 사용승인일+60일 창이
+ *    새로 열렸다면 알린다 — 놓치면 법정 미이행인데 그 사실은 「계획 변화」 목록에 안 나타난다.
+ *    단 **아직 열려 있는**(기한이 오늘 이후) 창만 센다. 지난 창까지 세면 옛 사용승인일을
+ *    정정할 때마다 다시 떠서 관문이 무의미해진다(실측: 2001년 승인일도 창을 들고 온다).
+ */
+export function anchorPreviewWorthShowing(
+  before: AnchorPreview, after: AnchorPreview, todayISO: string,
+): boolean {
+  const ops = after.creates.length + after.promotes.length + after.demotes.length + after.removes.length
+  if (ops > 0) return true
+  if (monthsKey(before) !== monthsKey(after)) return true
+  const w = after.initialWindow
+  if (w && w.to >= todayISO && w.to !== before.initialWindow?.to) return true
+  return false
+}
+
 const kind = (planType: string | null) =>
   planType?.startsWith('special_') ? (planType.endsWith('종합') ? '종합점검' : '작동점검')
   : planType === 'monthly' ? '정기점검' : (planType ?? '—')
@@ -25,8 +55,7 @@ export function AnchorChangePreview({
   onConfirm: () => void
   onCancel: () => void
 }) {
-  const monthsOf = (p: AnchorPreview) =>
-    p.months.map(m => `${m.planType.endsWith('종합') ? '종합' : '작동'} ${mo(m.month)}`).join(' · ') || '—'
+  const monthsOf = monthsKey
   const changed = monthsOf(before) !== monthsOf(after)
   const nothing = after.creates.length + after.promotes.length + after.demotes.length + after.removes.length === 0
 

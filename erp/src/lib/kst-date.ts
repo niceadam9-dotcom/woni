@@ -42,3 +42,22 @@ export function daysBetween(baseDate: string, targetDate: string): number {
   const b = Date.UTC(+targetDate.slice(0, 4), +targetDate.slice(5, 7) - 1, +targetDate.slice(8, 10))
   return Math.round((b - a) / 86_400_000)
 }
+
+/** 'YYYY-MM-DD'의 **한글 요일** 한 글자 — '월'·'화'…·'일'.
+ *
+ *  ⚠ `new Date('YYYY-MM-DD')`를 쓰지 않는다(위 daysBetween과 같은 이유) — 그 파싱은 UTC 자정이라
+ *    음수 오프셋 지역에서 하루 앞 요일이 나온다. 서버 렌더와 브라우저가 **다른 요일**을 찍으면
+ *    하이드레이션 불일치로 조용히 갈린다. Date.UTC로 고정해 어디서 불러도 같은 답을 준다.
+ *
+ *  왜 필요한가: 법정 점검 예정일은 토·일·공휴일이면 영업일로 밀린다. 사용자는 「사용승인일이
+ *  26일인데 왜 28일인가」를 묻게 되는데, 요일을 함께 보여주면 그 자리에서 답이 된다(2026-09-14). */
+export function weekdayKo(iso: string): string {
+  if (!iso || iso.length < 10) return ''
+  const d = new Date(Date.UTC(+iso.slice(0, 4), +iso.slice(5, 7) - 1, +iso.slice(8, 10)))
+  return ['일', '월', '화', '수', '목', '금', '토'][d.getUTCDay()]
+}
+
+/** 'YYYY-MM-DD (금)' 표기 — 날짜와 요일을 늘 붙여 다니게 한다 */
+export function ymdWithWeekday(iso: string | null | undefined): string {
+  return iso ? `${iso} (${weekdayKo(iso)})` : '—'
+}

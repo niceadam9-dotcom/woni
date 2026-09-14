@@ -6,7 +6,8 @@ import { Loader2, Search } from 'lucide-react'
 import { updateCustomerAction, quickAddressApplyAction, checkAddressAction, previewAnchorChangeAction, type AnchorPreview, type UpdateCustomerInput, type AddressDuplicateCustomer, type AddressDuplicateBuilding } from '@/app/(dashboard)/customers/actions'
 import { useDaumPostcode, type DaumPostcodeData } from '@/hooks/use-daum-postcode'
 import { DateInput, isCompleteDate } from '@/components/ui/date-input'
-import { AnchorChangePreview, LegalScheduleBadge } from './anchor-change-preview'
+import { AnchorChangePreview, LegalScheduleBadge, anchorPreviewWorthShowing } from './anchor-change-preview'
+import { todayKst } from '@/lib/kst-date'
 import { resolveAnchor, anchorSourceLabel } from '@/lib/plan-anchor'
 import { AddressDuplicateDialog } from './address-duplicate-dialog'
 import type { Customer } from '@/types'
@@ -199,6 +200,8 @@ export function EditCustomerInfoClient({ customer, typeSlot, annualLabel, lastCh
       }).catch(() => null)
       // ⚠ 미리보기를 못 받아도 저장을 막지 않는다 — 안내는 부가 기능이지 관문이 아니다
       if (!res?.before || !res.after) { doSave(); return }
+      // 바뀌는 게 없으면 조용히 저장한다 — 인라인 경로와 **같은 함수**로 판정한다
+      if (!anchorPreviewWorthShowing(res.before, res.after, todayKst())) { doSave(); return }
       setPreview({ before: res.before, after: res.after })
     })
   }

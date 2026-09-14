@@ -4,7 +4,8 @@ import { useState, useTransition, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Loader2, Users, Phone, Mail, MapPin, Search, X, Building2, Plus, ChevronDown, ChevronRight, Check } from 'lucide-react'
-import { createCustomerAction, generateCustomerCodeAction, checkAddressAction, checkCustomerNameAction, fetchBuildingLedgerAction, type ContactInput, type BuildingLedgerInfo, type AddressDuplicateCustomer, type AddressDuplicateBuilding, type NameDuplicateCustomer } from '@/app/(dashboard)/customers/actions'
+import { createCustomerAction, generateCustomerCodeAction, checkAddressAction, checkCustomerNameAction, fetchBuildingLedgerAction, previewNewCustomerScheduleAction, type ContactInput, type BuildingLedgerInfo, type AddressDuplicateCustomer, type AddressDuplicateBuilding, type NameDuplicateCustomer, type NewSchedulePreview } from '@/app/(dashboard)/customers/actions'
+import { NewSchedulePreviewBox } from '@/components/customers/new-schedule-preview'
 import { AddressDuplicateDialog } from '@/components/customers/address-duplicate-dialog'
 import { NameDuplicateDialog } from '@/components/customers/name-duplicate-dialog'
 import { useDaumPostcode } from '@/hooks/use-daum-postcode'
@@ -64,6 +65,15 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
   // 이제 **오른쪽 칸**을 따로 쓰므로 펼쳐도 필수 정보를 밀어내지 않는다 → 기본 펼침.
   const [showOptional, setShowOptional] = useState(true)
 
+  // ── 법정 일정 미리보기 (2026-09-14) ─────────────────────────────────────
+  // 등록 폼은 점검일자를 필수로 받지만, 사용승인일도 필수라 신규 고객은 manual=false로 태어나
+  // **항상 사용승인일이 이긴다** — 입력값이 안 쓰이는데 화면이 그 사실을 말하지 않았다.
+  // 계산은 **서버의 실행 경로와 같은 함수**로 한다(달 산식·영업일 보정·기산점 해석 전부).
+  const [schedPreview, setSchedPreview] = useState<NewSchedulePreview | null>(null)
+  const [schedLoading, setSchedLoading] = useState(false)
+  /** 법정 축을 벗어나 「입력한 점검일자」를 쓰겠다는 예외 — 전 직원 허용(2026-09-14 사용자 결정) */
+  const [anchorManual, setAnchorManual] = useState(false)
+
   // 기본 지역 pre-fill: 시/군/구 ← 회사 기본, 읍/면 ← 최근 사용값(localStorage, 클라이언트에서만) — effect 대신 lazy 초기값
   const [form, setForm] = useState(() => ({
     customer_code: '',
@@ -115,6 +125,33 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
       if (result.code) setForm(prev => ({ ...prev, customer_code: result.code! }))
     }).catch(() => null)
   }, [])
+
+  // 법정 일정 미리보기 — 두 날짜·종류·예외 스위치가 바뀔 때마다 다시 묻는다.
+  // ⚠ 늦게 도착한 옛 응답이 최신 미리보기를 덮지 않게 세대(seq)로 막는다(고객명 중복 검사와 같은 규약).
+  const schedSeq = useRef(0)
+  const ua = form.use_approval_date, pa = form.plan_anchor_date
+  const subForPreview: '종합' | '작동' =
+    form.inspection_type === '일반관리' ? form.general_sub_type
+    : form.inspection_type === '종합' ? '종합' : '작동'
+  useEffect(() => {
+    const uaOk = isCompleteDate(ua), paOk = isCompleteDate(pa)
+    if (!uaOk && !paOk) { setSchedPreview(null); setSchedLoading(false); return }
+    const my = ++schedSeq.current
+    setSchedLoading(true)
+    previewNewCustomerScheduleAction({
+      use_approval_date: uaOk ? ua : null,
+      plan_anchor_date: paOk ? pa : null,
+      plan_anchor_manual: anchorManual,
+      inspection_sub_type: subForPreview,
+    }).then(res => {
+      if (my !== schedSeq.current) return          // 낡은 응답 버림
+      setSchedPreview(res.preview ?? null)
+      setSchedLoading(false)
+    }).catch(() => {
+      if (my !== schedSeq.current) return
+      setSchedPreview(null); setSchedLoading(false)  // 미리보기 실패가 등록을 막지는 않는다
+    })
+  }, [ua, pa, subForPreview, anchorManual])
 
   function handleAddressSearch() {
     openPostcode(data => {
@@ -266,6 +303,7 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
         customer_name: form.customer_name.trim(),
         contract_date: form.contract_date || undefined,
         use_approval_date: form.use_approval_date || undefined,
+        plan_anchor_manual: anchorManual,
         plan_anchor_date: form.plan_anchor_date,
         inspection_type: form.inspection_type,
         inspection_sub_type: form.inspection_type === '일반관리' ? form.general_sub_type : undefined,
@@ -443,7 +481,17 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
               onChange={e => setField('plan_anchor_date', e.target.value)}
               className={inputCls}
             />
-            <p className="text-form-xs text-ink-meta">등록일이 아닌 연간 점검의 기산일 — 이 날짜의 월·일 기준으로 자체·정기점검 일정이 확정됩니다 (통상 사용승인일 또는 첫 점검일)</p>
+            {/* ⚠ 종전 문구는 "이 날짜의 월·일 기준으로 일정이 확정됩니다"였는데 **거짓**이었다 —
+                사용승인일도 필수라 신규 고객은 늘 사용승인일이 기산점이 된다(2026-09-14 실측 158/162).
+                무엇이 실제로 쓰이는지는 아래 미리보기가 답한다. */}
+            <p className="text-form-xs text-ink-meta">등록일이 아닌 연간 점검의 기산일 — 사용승인일이 있으면 <b>법정 기산점은 사용승인일</b>입니다 (아래 참조)</p>
+            <NewSchedulePreviewBox
+              preview={schedPreview}
+              loading={schedLoading}
+              anchorManual={anchorManual}
+              onToggleManual={setAnchorManual}
+              canOverride
+            />
           </Field>
         </div>
 

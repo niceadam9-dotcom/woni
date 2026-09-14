@@ -4,7 +4,8 @@ import { useState, useTransition, useRef, useEffect } from 'react'
 import { Pencil, Check, X } from 'lucide-react'
 import { patchCustomerFieldAction, updateCustomerAction, previewAnchorChangeAction, type AnchorPreview } from '@/app/(dashboard)/customers/actions'
 import { DateInput, isCompleteDate } from '@/components/ui/date-input'
-import { AnchorChangePreview } from './anchor-change-preview'
+import { AnchorChangePreview, anchorPreviewWorthShowing } from './anchor-change-preview'
+import { todayKst } from '@/lib/kst-date'
 import type { InspectionType } from '@/types'
 
 type Field = 'customer_name' | 'inspection_type' | 'contract_date' | 'use_approval_date' | 'plan_anchor_date' | 'assigned_employee_id'
@@ -86,6 +87,8 @@ export function InlineCustomerFieldClient({
     startTransition(async () => {
       const p = await previewAnchorChangeAction(customerId, { inspection_sub_type: nextSub }).catch(() => null)
       if (!p?.before || !p.after) { doIt(); return }   // 미리보기 실패가 저장을 막지 않는다
+      // 바뀌는 게 없으면 조용히 저장한다 — 관문은 세 경로가 **같은 함수**를 쓴다
+      if (!anchorPreviewWorthShowing(p.before, p.after, todayKst())) { doIt(); return }
       setPreview({ before: p.before, after: p.after, run: () => doIt() })
     })
   }
@@ -113,6 +116,8 @@ export function InlineCustomerFieldClient({
       startTransition(async () => {
         const p = await previewAnchorChangeAction(customerId, { [field]: trimmed }).catch(() => null)
         if (!p?.before || !p.after) { doPatch(); return }   // 미리보기 실패가 저장을 막지 않는다
+        // 일정이 안 바뀌는 정상 입력은 막아 세우지 않는다(2026-09-14 사용자 결정)
+        if (!anchorPreviewWorthShowing(p.before, p.after, todayKst())) { doPatch(); return }
         setPreview({ before: p.before, after: p.after, run: () => doPatch() })
       })
       return
