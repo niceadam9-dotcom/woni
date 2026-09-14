@@ -17,7 +17,9 @@
 // INV-D12: 소방계획서_33 — 종합 대상의 2차는 작동점검 (153) ⓐ seq2 special_* 는 전부 special_작동
 //          ⓑ 종합 대상이 아닌 고객의 seq2 점검 0건 (트리거 축 이동 후 가드 생존을 결과로 감시)
 // INV-D13: 종합 대상은 각 연도에 2차(special_작동 seq=2)가 정확히 1건 — 2차가 사라지는 경로가
-//          여럿이라(재계산이 만들지 않고 강등만 함) **결과 축에서** 감시. 기산일이 속한 해는 제외
+//          여럿이라(재계산이 만들지 않고 강등만 함) **결과 축에서** 감시.
+//          제외: ⓐ 기산일이 속한 해 ⓑ **기산월 7~12(감김) 고객의 계획 첫 해**(2026-09-14 계약 변경 —
+//          감긴 2차는 전 해 주기의 것이라 첫 해엔 짝이 될 종합이 없다)
 import { createClient } from '@supabase/supabase-js'
 import { readFileSync } from 'fs'
 import { fileURLToPath } from 'url'
@@ -301,8 +303,21 @@ const isSpecial = (_type, planType) => !planType || planType.startsWith('special
   for (const c of comp) {
     const anc = manualOf.get(c.id) ? c.plan_anchor_date : (c.use_approval_date ?? c.plan_anchor_date)
     const anchorYear = anc ? Number(String(anc).slice(0, 4)) : null
-    for (const y of (years.get(c.id) ?? new Set())) {
+    // ⚠ **감긴 2차의 첫 해도 제외한다** (2026-09-14 계약 변경).
+    //   기산월이 7~12면 +6개월이 다음 해로 가므로, 그 해에 보이는 2차는 **전 해 주기의 것**이다.
+    //   계획 첫 해에는 짝이 될 종합이 없어 2차가 **정당하게 없다**.
+    //   종전 규칙은 감긴 2차를 같은 해에 두어 1차보다 6개월 앞선 고아를 만들었고, 그 고아를
+    //   없애자 이 불변식이 위반 3건을 냈다(힘찬해가·탑텐·지평리56 전부 2026년 0건).
+    //   **계약이 바뀐 것이지 데이터가 깨진 것이 아니다** — 그래서 지우지 않고 갈아끼운다.
+    //   ⚠ 술어를 제품(desiredSlotsInYear)과 공유하지 않는다. 이 불변식의 값어치는 **결과 축의
+    //     독립 재유도**에 있다 — 같은 함수를 쓰면 그 함수가 틀린 날 둘이 함께 틀린다.
+    const anchorMonth = anc ? Number(String(anc).slice(5, 7)) : null
+    const wraps = anchorMonth !== null && anchorMonth >= 7
+    const ys = years.get(c.id) ?? new Set()
+    const firstYear = ys.size ? Math.min(...ys) : null
+    for (const y of ys) {
       if (anchorYear === y) continue            // 기산일이 속한 해 — 기준일 이전이라 정당하게 없을 수 있다
+      if (wraps && y === firstYear) continue    // 감긴 2차의 첫 해 — 짝이 될 종합이 없다
       const n = seq2.get(`${c.id}|${y}`) ?? 0
       if (n !== 1) bad.push({ c, y, n })
     }
