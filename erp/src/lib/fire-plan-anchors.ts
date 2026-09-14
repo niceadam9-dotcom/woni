@@ -32,6 +32,7 @@ export const FP_SHEET = {
   F1_5_2: '1.5.2 방화·제연구획 현황도',
   F1_7_1: '1.7.1 소방안전관리자 선임현황',
   F1_8: '1.8 업무대행 현황',
+  F1_10_1: '1.10.1 연간 점검 계획',
   // ⚠ manifest에 `1.11.4`로 시작하는 시트가 **둘**이다(앞쪽·뒷쪽) — 용도 칸은 앞쪽에만 있다
   F1_11_4: '1.11.4 훈련·교육 결과기록부',
   // 제2장(2026-09-08 2단계)
@@ -221,6 +222,40 @@ const FIXED_SEEDS: Seed[] = [
    */
   { field: 'purpose_full', sheet: FP_SHEET.F3_1, cell: 'AY4', labelCell: 'AU4' },
   { field: 'purpose_full', sheet: FP_SHEET.F1_11_4, cell: 'AZ5', labelCell: 'AR5' },
+
+  /* ── 서식 1.10.1 연간 점검 계획 (2026-09-14) ────────────────────────────────
+   *  🚨 **이 시트도 통째로 미배선이었다**(사용자 지적: 「건축물 사용승인일·자체점검 체크가
+   *    안 돼 있다」). 1.4·1.8과 같은 갈래로, 씨앗에 `{{token}}`이 하나도 없어 자동 생성이
+   *    못 보던 자리다(`tokenCells: {}`). 그래서 사용승인일·점검시기·점검자가 전부 공란이고
+   *    상자는 전부 `□`로 나갔다 — 같은 값을 **PDF는 인쇄하고 있었다**(D-7 갈라짐).
+   *
+   *  ⭐ 좌표는 자산 실측(`sheet16.xml` 병합표)으로 세웠다. 값칸은 전부 병합의 **시작 칸**이다:
+   *    `V5:BH5` · `AP8:BH8` · `AP9:BH9` · `AP10:BH10`.
+   *
+   *  ⚠ **일부러 안 세운 칸** — 조용히 넘기지 않는다:
+   *    · `D13`·`V13`·`V14`·`V15`·`AF15` 「외관점검(공공기관)」 한 벌 — ERP에 공공기관 판정 축이
+   *      없다. 지어내면 아닌 대상에 체크가 찍힌다(사용자 결정 2026-09-14: 공란 유지).
+   *    · `AX6`·`AX11` 「제출처」 두 칸 — 값은 관할 소방서인데, 지금 이 파일의 `fire_station`은
+   *      고객 레코드만 읽고 PDF는 1.3 입력을 우선한다(두 표면이 이미 갈라져 있다). 여기에
+   *      셋째 규칙을 더하지 않는다 — **그 축을 하나로 모으는 별건**에 함께 배선한다.
+   *    · `D16`~`BE18` 일상점검·`M24`~`AH25` 관련서류 — 1.10.1이되 자체점검 축이 아니다(별건).
+   */
+  { field: 'f1101_use_approval_date', sheet: FP_SHEET.F1_10_1, cell: 'A4', labelCell: 'A4' },
+  // 작동점검 3칸 — 상자칸 둘(점검자)과 연월칸 하나
+  { field: 'f1101_op_check', sheet: FP_SHEET.F1_10_1, cell: 'D5', labelCell: 'D5' },
+  { field: 'f1101_op_month', sheet: FP_SHEET.F1_10_1, cell: 'V5', labelCell: 'M5' },
+  { field: 'f1101_op_self', sheet: FP_SHEET.F1_10_1, cell: 'V7', labelCell: 'V7' },
+  { field: 'f1101_op_outsource', sheet: FP_SHEET.F1_10_1, cell: 'AF7', labelCell: 'AF7' },
+  // 종합점검 — 머리 상자(D8) + 안쪽 세 줄(최초·종합·2차) + 점검자
+  { field: 'f1101_comp_check', sheet: FP_SHEET.F1_10_1, cell: 'D8', labelCell: 'D8' },
+  { field: 'f1101_initial_check', sheet: FP_SHEET.F1_10_1, cell: 'V8', labelCell: 'V8' },
+  { field: 'f1101_initial_month', sheet: FP_SHEET.F1_10_1, cell: 'AP8', labelCell: 'M8' },
+  { field: 'f1101_comp_box', sheet: FP_SHEET.F1_10_1, cell: 'V9', labelCell: 'V9' },
+  { field: 'f1101_comp_month', sheet: FP_SHEET.F1_10_1, cell: 'AP9', labelCell: 'M8' },
+  { field: 'f1101_comp2_box', sheet: FP_SHEET.F1_10_1, cell: 'V10', labelCell: 'V10' },
+  { field: 'f1101_comp2_month', sheet: FP_SHEET.F1_10_1, cell: 'AP10', labelCell: 'M8' },
+  { field: 'f1101_comp_self', sheet: FP_SHEET.F1_10_1, cell: 'V12', labelCell: 'V12' },
+  { field: 'f1101_comp_outsource', sheet: FP_SHEET.F1_10_1, cell: 'AF12', labelCell: 'AF12' },
 ]
 
 /* ══════════════════ 2.2 편성표 「현장대응팀」 — 반복 행 ══════════════════
@@ -504,6 +539,22 @@ export function isUnitLabelAnchor(a: { sheet: string; cell: string }): boolean {
 export function isPrefixLabelAnchor(a: { sheet: string; cell: string }): boolean {
   const lbl = sheetManifest(a.sheet).labels[a.cell]
   return !!lbl && /[:：]\s*$/.test(lbl)
+}
+
+/**
+ * **연월칸인가**(2026-09-14, 1.10.1 점검시기) — 자구가 `년`·`월` **둘뿐**이고 나머지는 공백인가.
+ *
+ * 백지 불변식의 다섯째 예외다. 단위칸의 친척이지만 자구가 값 **사이사이에** 끼어 있다
+ * (`'          년        월'` — 빈칸 두 자리가 연·월을 받는 서식 골격이다). 지우면 그 줄이
+ * 그냥 빈 칸이 되어 무엇을 적는 자리인지 알 수 없게 되므로 공란을 요구할 수 없다.
+ *
+ * 🚨 여기서도 판별을 `셀 글자 == manifest 라벨`에 맡기지 않는다(항진명제 — §단위칸 참조).
+ *   대신 **'남은 글자가 자구뿐인가'**를 묻는다: 숫자가 한 자라도 있으면 그건 자구가 아니라
+ *   표본의 답이므로 이 예외를 통과하지 못하고 곧바로 붉어진다.
+ */
+export function isYearMonthLabelAnchor(a: { sheet: string; cell: string }): boolean {
+  const lbl = sheetManifest(a.sheet).labels[a.cell]
+  return !!lbl && /^\s*년\s*월\s*$/.test(lbl)
 }
 
 /** 값 맵이 반드시 채워야 하는 필드 전수(중복 제거) — S7-2 완결성 검사와 S5가 같은 목록을 본다 */

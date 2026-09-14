@@ -186,6 +186,8 @@ const ck = (on: boolean, label: string) => `<span class="ck">${on ? '■' : '☐
 import { FACILITY_STANDARD } from './facility-codes'
 import { formatTel } from './format-contact'
 import { isMultiUseApplicable, isMultiUseNone } from './multi-use'
+/* 1.10.1 — 엑셀과 공유하는 해석기(사본 금지). 격자·manifest 의존이 없어 PDF 경로가 안전하다 */
+import { resolveInspectionPlan } from './fire-plan-inspection-plan'
 export const FACILITY_FORM = FACILITY_STANDARD
 
 const GRADES = ['특급', '1급', '2급', '3급']
@@ -329,11 +331,13 @@ export function buildFirePlanHtml(
   // ── 1.6 기타시설 ──
   const etc = f.etcFacility
   // ── 1.10 ──
-  const insp = f.inspection
-  const opMonthText = insp?.opMonth?.trim() ? insp.opMonth : d.operationMonth
-  const compMonthText = insp?.compMonth?.trim() ? insp.compMonth : d.comprehensiveMonth
-  const opInspector = insp?.opInspector || '외주'
-  const compInspector = insp?.compInspector || '외주'
+  /* 규칙(입력 우선·점검자 기본 외주)은 **엑셀 1.10.1과 공유**한다(2026-09-14) —
+   * 그 시트를 배선하면서 같은 판단이 두 표면을 갖게 됐다(`fire-plan-inspection-plan.ts`). */
+  const ip = resolveInspectionPlan(f.inspection, d)
+  const opMonthText = ip.opMonth
+  const compMonthText = ip.compMonth
+  const opInspector = ip.opInspector
+  const compInspector = ip.compInspector
   const dutyRows = pad(f.dutyLog ?? [], 5, { date: '', content: '', action: '', note: '' })
     .map(r => `<tr><td>${v(r.date)}</td><td class="l">${v(r.content)}</td><td class="l">${v(r.action)}</td><td>${v(r.note)}</td></tr>`).join('')
   const mu = f.multiUse
@@ -629,16 +633,16 @@ ${(d.autoFilled?.length ?? 0) > 0
   <h3>1.10.1 연간 점검 계획</h3>
   ${/* B-5a(소방계획서_19 M-9): 최초점검 입력은 종합점검월이 비어도 독립 행으로 출력 — 종전엔 comp 블록 종속이라 통째 미출력 */''}
   <table>
-    <tr><th style="width:90px" rowspan="${1 + (compMonthText ? 1 : 0) + (!compMonthText && insp?.isInitial ? 1 : 0)}">자체점검</th>
+    <tr><th style="width:90px" rowspan="${1 + (compMonthText ? 1 : 0) + (!compMonthText && ip.isInitial ? 1 : 0)}">자체점검</th>
         <td class="l">■ 작동점검 — 점검시기: ${v(opMonthText)}</td>
         <td class="l">결과보고: 점검이 끝난 날부터 15일 이내</td>
         <td class="l">제출처: ${v(fireStation)}</td>
         <td class="l">점검자: ${ck(opInspector === '자체', '자체')} ${ck(opInspector === '외주', '외주')}</td></tr>
-    ${compMonthText ? `<tr><td class="l">■ 종합점검 — 점검시기: ${v(compMonthText)}${insp?.comp2Month?.trim() ? ` / ${esc(insp.comp2Month)}` : ''}${insp?.isInitial ? ` <span class="small">(최초점검: ${v(insp.initialMonth)})</span>` : ''}</td>
+    ${compMonthText ? `<tr><td class="l">■ 종합점검 — 점검시기: ${v(compMonthText)}${ip.comp2Month ? ` / ${esc(ip.comp2Month)}` : ''}${ip.isInitial ? ` <span class="small">(최초점검: ${v(ip.initialMonth)})</span>` : ''}</td>
         <td class="l">결과보고: 점검이 끝난 날부터 15일 이내</td>
         <td class="l">제출처: ${v(fireStation)}</td>
         <td class="l">점검자: ${ck(compInspector === '자체', '자체')} ${ck(compInspector === '외주', '외주')}</td></tr>` : ''}
-    ${!compMonthText && insp?.isInitial ? `<tr><td class="l">■ 최초점검 — 점검시기: ${v(insp.initialMonth)}</td>
+    ${!compMonthText && ip.isInitial ? `<tr><td class="l">■ 최초점검 — 점검시기: ${v(ip.initialMonth)}</td>
         <td class="l">결과보고: 점검이 끝난 날부터 15일 이내</td>
         <td class="l">제출처: ${v(fireStation)}</td>
         <td class="l">점검자: ${ck(compInspector === '자체', '자체')} ${ck(compInspector === '외주', '외주')}</td></tr>` : ''}

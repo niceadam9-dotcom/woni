@@ -14,7 +14,7 @@ import * as XLSX from 'xlsx'
 import { validateAnchors } from '../src/lib/xlsx-anchors.ts'
 import { toInjectTargets } from '../src/lib/xlsx-workbook.ts'
 import { injectWorkbook } from '../src/lib/xlsx-inject.ts'
-import { FIRE_PLAN_ANCHORS, FIRE_PLAN_FIELDS, FP_SHEET, ZONE_ROWS, ZONE_SHEET, ZONE_FIRST_ROW, BRIG_ROWS, BRIG_FIRST_ROW, isBoxLabelAnchor, isUnitLabelAnchor, isPrefixLabelAnchor, FORM14_ROWS, FORM14_SHEET, FORM14_NAME_CELL, FORM14_NAME_FIELD } from '../src/lib/fire-plan-anchors.ts'
+import { FIRE_PLAN_ANCHORS, FIRE_PLAN_FIELDS, FP_SHEET, ZONE_ROWS, ZONE_SHEET, ZONE_FIRST_ROW, BRIG_ROWS, BRIG_FIRST_ROW, isBoxLabelAnchor, isUnitLabelAnchor, isPrefixLabelAnchor, isYearMonthLabelAnchor, FORM14_ROWS, FORM14_SHEET, FORM14_NAME_CELL, FORM14_NAME_FIELD } from '../src/lib/fire-plan-anchors.ts'
 import { ALL_STANDARD_CODES } from '../src/lib/facility-codes.ts'
 import { brigadeRowOverflow, buildFirePlanValues, missingValueFields, planDate, zoneRowOverflow } from '../src/lib/fire-plan-xlsx-values.ts'
 import { FIRE_PLAN_MANIFEST, labelAt, boxGlyphAt } from '../src/lib/fire-plan-xlsx-manifest.ts'
@@ -111,15 +111,28 @@ console.log('\n[3] 백지 불변식 — 템플릿에 표본의 답이 남아 있
   //   자체가 자산에서 파생되므로 표본 답이 남아 있어도 등식은 성립한다(위 boxLabelOk의
   //   등식도 같은 한계를 갖고, 실질 판별은 `isBoxLabelAnchor` 쪽이 한다). 그래서
   //   `isUnitLabelAnchor`는 등식이 아니라 **'남은 글자가 단위처럼 생겼는가'**를 묻는다.
+  //
+  // 다섯째 갈래는 **연월칸**(2026-09-14, 1.10.1 점검시기): `'          년        월'` 처럼 자구가
+  // 값 **사이사이에** 끼어 있다. 단위칸과 같은 이유로 등식이 아니라 '남은 글자가 자구뿐인가'를
+  // 묻는다 — 숫자가 한 자라도 있으면 그건 표본의 답이라 예외를 통과하지 못한다(아래 단언).
   const dirty = FIRE_PLAN_ANCHORS.filter(a => {
     const t = cellText(a)
     return t && !/^[□☐]$/.test(t) && !boxLabelOk(a) && !isUnitLabelAnchor(a) && !isPrefixLabelAnchor(a)
+      && !isYearMonthLabelAnchor(a)
   })
-  check('앵커 셀 공란(빈 상자·상자칸·단위칸·접두라벨칸만 예외)', dirty.length === 0,
+  check('앵커 셀 공란(빈 상자·상자칸·단위칸·접두라벨칸·연월칸만 예외)', dirty.length === 0,
     dirty.slice(0, 5).map(a => `${a.sheet}!${a.cell}='${cellText(a)}'`).join(' · '))
+  // 2026-09-14: 1.10.1 「건축물 사용승인일 :」 배선으로 1 → 2. 이 시트는 종전 앵커 0이라
+  //   사용승인일이 통째로 공란이었다(PDF는 같은 값을 인쇄 중이었다 — D-7 갈라짐).
   const prefixCells = FIRE_PLAN_ANCHORS.filter(isPrefixLabelAnchor)
-  check('접두라벨칸 예외 수가 그대로(1.4 대상명 1칸)', prefixCells.length === 1,
+  check('접두라벨칸 예외 수가 그대로(1.4 대상명 + 1.10.1 사용승인일 = 2칸)', prefixCells.length === 2,
     prefixCells.map(a => `${a.sheet}!${a.cell}='${cellText(a)}'`).join(' · '))
+  const ymCells = FIRE_PLAN_ANCHORS.filter(isYearMonthLabelAnchor)
+  check('연월칸 예외 수가 그대로(1.10.1 점검시기 4칸)', ymCells.length === 4,
+    ymCells.map(a => `${a.sheet}!${a.cell}='${cellText(a)}'`).join(' · '))
+  // 🎯 표본 답이 이 예외 뒤에 숨지 못한다 — 연월칸에 숫자가 남았으면 그건 자구가 아니라 답이다
+  check('연월칸에 숫자가 없다', ymCells.every(a => !/\d/.test(cellText(a))),
+    ymCells.filter(a => /\d/.test(cellText(a))).map(a => `${a.sheet}!${a.cell}`).join(','))
   // 🎯 표본 답이 이 예외 뒤에 숨지 못한다 — 콜론 뒤에 글자가 남았으면 그건 자구가 아니라 답이다
   check('접두라벨칸에 답이 없다', prefixCells.every(a => /[:：]$/.test(cellText(a))),
     prefixCells.filter(a => !/[:：]$/.test(cellText(a))).map(a => `${a.sheet}!${a.cell}`).join(','))
@@ -133,7 +146,9 @@ console.log('\n[3] 백지 불변식 — 템플릿에 표본의 답이 남아 있
   //   법정 양식 hwpx 원문·manifest 양쪽에서 그 네 칸을 확인하고 늘렸다(추측 아님).
   // 2026-09-14: 서식 1.4 설비 체크칸 40을 배선해 28→68. 이 시트는 종전 앵커 0이라 40종 전부가
   //   `□`로 인쇄되고 있었다(PDF는 같은 값을 체크 중이었다 — D-7 갈라짐).
-  check('상자칸 예외 수가 그대로(1.5.1 3 + 1.1 25 + 1.4 40)', boxLabel.length === 68, `${boxLabel.length}칸`)
+  // 2026-09-14(2): 서식 1.10.1 자체점검 상자 9를 배선해 68→77 — 작동/종합 머리 2, 안쪽 줄 3
+  //   (최초·종합·2차), 점검자 4(작동 자체/외주 · 종합 자체/외주). 이 시트도 종전 앵커 0이었다.
+  check('상자칸 예외 수가 그대로(1.5.1 3 + 1.1 25 + 1.4 40 + 1.10.1 9)', boxLabel.length === 77, `${boxLabel.length}칸`)
   check('상자칸은 템플릿에서 전부 미체크', boxLabel.every(a => !/■/.test(cellText(a))),
     boxLabel.filter(a => /■/.test(cellText(a))).map(a => a.cell).join(','))
   const unitCells = FIRE_PLAN_ANCHORS.filter(isUnitLabelAnchor)
@@ -313,6 +328,9 @@ console.log('\n[7] 값 맵 완결성 · 표기 규약')
     height: '15', structure: '철근콘크리트', roof: '슬라브',
     fireStation: '어딘가소방서', managerSelectedAt: '2025-01-14',
     contractStart: '2025-01-01', companyName: '어느소방이엔지',
+    /* 서식 1.10.1 — 점검계획일 **파생 자동값**(고객이 1.10.1을 안 적은 다수 경로다).
+     * 입력이 자동값을 이기는 갈래는 아래 §1.10.1에서 값 함수를 직접 불러 따로 본다. */
+    operationMonth: '2026년 7월', comprehensiveMonth: '2026년 1월',
     /* 서식 1.4 — **설치·미설치를 둘 다** 담는다(전부 담으면 '늘 켜는 구현'이 통과한다).
      * 고른 다섯은 축이 각각 다르다: 좌열 부모(소화기구)·좌열(유도등·자탐)·우열 AJ(옥외소화전)·
      * 우열 **AI**(비상콘센트 — 23~25행만 열이 다르다). 바로 옆·아래 칸(유도표지 J20·
@@ -335,6 +353,14 @@ console.log('\n[7] 값 맵 완결성 · 표기 규약')
     forms: {
       evacFire: { compartment: 'area_floor', stairs: { 직통계단: '2', 특별피난계단: '', 피난계단: '', 옥외계단: '' } },
       multiUse: { applicable: true },
+      /* ⚠ 점검자를 **작동은 외주·종합은 자체**로 엇갈리게 둔다. 둘 다 같은 값이면
+       *   '한쪽만 읽고 양쪽에 찍는' 구현이 초록으로 통과한다(네 상자가 한 번에 판별된다).
+       * ⚠ `comp2Month`·`isInitial`은 **비워 둔다** — 이 둘이 음성 축이다(늘 켜는 구현을 잡는다). */
+      inspection: {
+        opMonth: '', opInspector: '외주',
+        isInitial: false, initialMonth: '',
+        compMonth: '', comp2Month: '', compInspector: '자체',
+      },
     },
     // 자위소방대 — 대장·부대장·현장대응팀 셋을 **한 픽스처에** 담는다. 현장대응팀은 칸보다
     // 하나 많게 채워 **넘침**까지 같은 실행에서 본다(잘려도 인쇄물은 멀쩡해 보이는 축).
@@ -536,6 +562,159 @@ console.log('\n[7] 값 맵 완결성 · 표기 규약')
     check('1.4 대상명 착지(자구 + 값)',
       atF(FORM14_NAME_FIELD).includes('대상명') && atF(FORM14_NAME_FIELD).endsWith('가상건물'),
       atF(FORM14_NAME_FIELD))
+  }
+
+  /* ── 서식 1.10.1 연간 점검 계획 (2026-09-14 배선) ──────────────────────────────
+   *  🚨 이 시트도 앵커가 **0칸**이라 사용승인일·자체점검 체크·점검시기가 통째로 공란이었다
+   *    (사용자 신고). 같은 값을 PDF는 인쇄하고 있었다 — 1.4와 똑같은 D-7 갈라짐이다.
+   *  🚨 여기서도 켜짐만 묻지 않는다. 픽스처가 **엇갈린 점검자**(작동=외주 / 종합=자체)와
+   *    **빈 2차·최초점검**을 함께 담고 있어 네 상자와 두 음성 축이 한 실행에서 판별된다. */
+  {
+    const F1101 = FP_SHEET.F1_10_1
+    const on = (f: string) => atF(f).includes('■')
+
+    // ① 사용승인일 — 사용자가 신고한 바로 그 칸. 자구는 남고 값이 뒤에 붙는다(접두라벨칸)
+    check('1.10.1 사용승인일 착지(자구 + 값)',
+      atF('f1101_use_approval_date').includes('건축물 사용승인일')
+      && atF('f1101_use_approval_date').endsWith('2019. 3. 7.'),
+      atF('f1101_use_approval_date'))
+    // 🎯 1.1과 **같은 원천·같은 표기**여야 한다 — 두 칸이 갈라지면 한 문서 안에서 모순이다
+    check('1.10.1 사용승인일이 1.1과 같은 값', atF('f1101_use_approval_date').endsWith(atF('use_approval_date')),
+      `1.10.1='${atF('f1101_use_approval_date')}' vs 1.1='${atF('use_approval_date')}'`)
+
+    // ② 자체점검 머리 상자 둘
+    check('1.10.1 작동점검 체크', on('f1101_op_check'), atF('f1101_op_check'))
+    check('1.10.1 종합점검 체크(종합 시기 있음)', on('f1101_comp_check'), atF('f1101_comp_check'))
+
+    // ③ 점검시기 — 연월칸. 자구(`년`·`월`)는 남고 값이 그 앞에 끼어야 한다
+    check('1.10.1 작동점검 시기 = 자동값',
+      atF('f1101_op_month').includes('2026년') && atF('f1101_op_month').includes('7월'),
+      `'${atF('f1101_op_month')}'`)
+    check('1.10.1 종합점검 시기 = 자동값',
+      atF('f1101_comp_month').includes('2026년') && atF('f1101_comp_month').includes('1월'),
+      `'${atF('f1101_comp_month')}'`)
+    // 🎯 작동·종합이 **서로 다른 달**을 받는다 — 한쪽을 양쪽에 찍는 구현이 여기서 붉어진다
+    check('1.10.1 작동·종합 시기가 서로 다르다', atF('f1101_op_month') !== atF('f1101_comp_month'),
+      `작동='${atF('f1101_op_month')}' 종합='${atF('f1101_comp_month')}'`)
+    check('1.10.1 연월칸 법정 자구 보존(년·월이 남는다)',
+      /년/.test(atF('f1101_op_month')) && /월/.test(atF('f1101_op_month')), atF('f1101_op_month'))
+
+    // ④ 점검자 — 엇갈린 픽스처라 네 상자가 한 번에 판별된다
+    check('1.10.1 작동 점검자 = 외주(자체 아님)', on('f1101_op_outsource') && !on('f1101_op_self'),
+      `자체='${atF('f1101_op_self')}' 외주='${atF('f1101_op_outsource')}'`)
+    check('1.10.1 종합 점검자 = 자체(외주 아님)', on('f1101_comp_self') && !on('f1101_comp_outsource'),
+      `자체='${atF('f1101_comp_self')}' 외주='${atF('f1101_comp_outsource')}'`)
+
+    // ⑤ 음성 — 안 적은 것은 안 켠다('늘 켜는 구현'을 잡는 축)
+    check('1.10.1 최초점검은 미체크(입력 없음)', !on('f1101_initial_check'), atF('f1101_initial_check'))
+    check('1.10.1 종합 2차는 미체크(입력 없음)', !on('f1101_comp2_box'), atF('f1101_comp2_box'))
+    /* ⚠ 「숫자가 없다」만 물으면 **칸을 통째로 지우는 구현도 통과**한다(빈 문자열엔 숫자가 없다).
+     *   변이가 실제로 그걸 뚫었다 — 빈 서식의 계약은 '값이 없다'가 아니라 **'자구가 남는다'**다. */
+    const blankForm = (f: string) => !/\d/.test(atF(f)) && /년/.test(atF(f)) && /월/.test(atF(f))
+    check('1.10.1 최초·2차 연월칸은 빈 서식(년·월 자구는 남고 숫자는 없다)',
+      blankForm('f1101_initial_month') && blankForm('f1101_comp2_month'),
+      `최초='${atF('f1101_initial_month')}' 2차='${atF('f1101_comp2_month')}'`)
+
+    // ⑥ 법정 자구 보존 — 상자칸 아홉 전부, 상자 글자만 바뀌어야 한다
+    {
+      const boxFields = ['f1101_op_check', 'f1101_comp_check', 'f1101_initial_check', 'f1101_comp_box',
+        'f1101_comp2_box', 'f1101_op_self', 'f1101_op_outsource', 'f1101_comp_self', 'f1101_comp_outsource']
+      const broken = boxFields.filter(f => {
+        const a = anchorOf(f)
+        return at(a.sheet, a.cell).replace('■', boxGlyphAt(a.sheet, a.cell)).trim() !== labelAt(a.sheet, a.cell).trim()
+      })
+      check('1.10.1 법정 자구 보존(상자 글자만 바뀐다)', broken.length === 0, broken.join(','))
+    }
+
+    /* ⑦ 시트 전체 ■ 수 — 배선하지 않은 칸(외관점검 한 벌·일상점검·관련서류)이 켜지면 늘어난다.
+     *   기대값 5 = D5 작동점검 · AF7 작동 외주 · D8 종합점검 머리 · V9 종합점검 줄 · V12 종합 자체.
+     *   ⚠ 「종합점검」 상자는 **둘**이다 — 머리(D8)와 안쪽 줄(V9). 처음에 4로 적었다가 이 단언이
+     *     잡았다(제품이 아니라 기대값이 틀렸다). 머리만 세면 안쪽 줄이 빠져도 초록이 된다. */
+    {
+      const ws = wb2.Sheets[F1101] ?? {}
+      const marks = Object.keys(ws).filter(k => !k.startsWith('!'))
+        .filter(k => String((ws[k] as XLSX.CellObject).v ?? '').includes('■')).length
+      check('1.10.1 체크된 상자는 우리가 켠 5개뿐(외관점검·일상점검은 손대지 않는다)', marks === 5, `${marks}개`)
+    }
+
+    /* ⑧ 갈래 표 — 주입까지 가지 않고 **값 함수를 직접** 불러 나머지 경로를 판별한다.
+     *   여기서만 보이는 것이 둘이다: **입력이 자동값을 이기는가**, 그리고 **최초점검만 잡힌 건**
+     *   (종합월이 비어도 머리 상자가 켜져야 한다 — PDF가 독립 행을 내는 것과 같은 판단). */
+    const vals = (insp: Record<string, unknown> | undefined, auto: Record<string, string>) =>
+      buildFirePlanValues({ ...fixture, ...auto, forms: { ...fixture.forms, inspection: insp } } as unknown as FirePlanGenData)
+    {
+      const over = vals({ opMonth: '2027년 11월', compMonth: '2027년 2월', opInspector: '외주', compInspector: '외주', isInitial: false, initialMonth: '', comp2Month: '' },
+        { operationMonth: '2026년 7월', comprehensiveMonth: '2026년 1월' })
+      check('1.10.1 고객 입력이 자동값을 이긴다',
+        String(over.get('f1101_op_month')).includes('2027년') && String(over.get('f1101_op_month')).includes('11월'),
+        String(over.get('f1101_op_month')))
+      check('1.10.1 자동값이 새어 들지 않는다', !String(over.get('f1101_op_month')).includes('2026'),
+        String(over.get('f1101_op_month')))
+    }
+    {
+      // 🎯 최초점검만 — 종합월이 비어도 머리 상자가 켜진다(`hasComprehensiveBlock`)
+      const init = vals({ opMonth: '', compMonth: '', opInspector: '외주', compInspector: '외주', isInitial: true, initialMonth: '2026년 5월', comp2Month: '' },
+        { operationMonth: '2026년 7월', comprehensiveMonth: '' })
+      check('1.10.1 최초점검만 잡혀도 종합 머리가 켜진다', String(init.get('f1101_comp_check')).includes('■'),
+        String(init.get('f1101_comp_check')))
+      check('1.10.1 최초점검 시기 착지', /2026년\s*5월/.test(String(init.get('f1101_initial_month'))),
+        String(init.get('f1101_initial_month')))
+      check('1.10.1 최초점검만일 때 종합 상자는 꺼진다', !String(init.get('f1101_comp_box')).includes('■'),
+        String(init.get('f1101_comp_box')))
+    }
+    {
+      // 🎯 2차는 적었을 때만 — '공란 유지'는 값을 버리라는 뜻이 아니다(PDF도 이 값을 인쇄한다)
+      const c2 = vals({ opMonth: '', compMonth: '2026년 1월', opInspector: '외주', compInspector: '외주', isInitial: false, initialMonth: '', comp2Month: '2026년 8월' },
+        { operationMonth: '2026년 7월', comprehensiveMonth: '2026년 1월' })
+      check('1.10.1 2차는 고객이 적었을 때만 켜진다', String(c2.get('f1101_comp2_box')).includes('■'),
+        String(c2.get('f1101_comp2_box')))
+      check('1.10.1 2차 시기 착지', /2026년\s*8월/.test(String(c2.get('f1101_comp2_month'))),
+        String(c2.get('f1101_comp2_month')))
+    }
+    {
+      /* 🎯 자체점검이 하나도 안 잡힌 고객 — 작동점검은 **그래도 켜지고**(법정 필수) 종합 블록은
+       *   통째로 꺼진다. 점검자도 둘 다 꺼져야 한다(종합을 안 하는데 점검자만 찍히면 자기모순). */
+      const none = vals(undefined, { operationMonth: '', comprehensiveMonth: '' })
+      check('1.10.1 시기 미정이어도 작동점검은 켜진다', String(none.get('f1101_op_check')).includes('■'),
+        String(none.get('f1101_op_check')))
+      // ⚠ 여기도 '지운다'가 아니라 '자구가 남는다'를 요구한다(위 §빈 서식 주석)
+      check('1.10.1 작동 연월칸은 빈 서식으로 남는다(년·월 자구 보존)',
+        !/\d/.test(String(none.get('f1101_op_month'))) && /년/.test(String(none.get('f1101_op_month')))
+        && /월/.test(String(none.get('f1101_op_month'))),
+        `'${String(none.get('f1101_op_month'))}'`)
+      check('1.10.1 종합 블록이 통째로 꺼진다',
+        !String(none.get('f1101_comp_check')).includes('■') && !String(none.get('f1101_comp_box')).includes('■'),
+        `머리='${none.get('f1101_comp_check')}' 종합='${none.get('f1101_comp_box')}'`)
+      check('1.10.1 종합 점검자도 둘 다 꺼진다',
+        !String(none.get('f1101_comp_self')).includes('■') && !String(none.get('f1101_comp_outsource')).includes('■'),
+        `자체='${none.get('f1101_comp_self')}' 외주='${none.get('f1101_comp_outsource')}'`)
+      // 입력이 아예 없어도 점검자 기본값은 외주다(PDF와 공유하는 규칙)
+      check('1.10.1 입력 없으면 작동 점검자 기본 외주', String(none.get('f1101_op_outsource')).includes('■'),
+        String(none.get('f1101_op_outsource')))
+    }
+    {
+      /* 🚨 **변이가 찾아낸 구멍**(2026-09-14). 위 `none` 건은 점검자가 기본값 `외주`라, 종합
+       *   블록이 꺼진 것 때문에 `자체` 상자가 꺼진 건지 **애초에 자체가 아니어서** 꺼진 건지
+       *   구별하지 못했다 — `compBlock &&` 가드를 떼는 변이가 그대로 살아남았다.
+       *   그래서 **블록은 꺼졌는데 점검자는 자체**인 건을 따로 세운다. 이 짝에서만 가드가 드러난다. */
+      const offSelf = vals({ opMonth: '', compMonth: '', opInspector: '외주', compInspector: '자체', isInitial: false, initialMonth: '', comp2Month: '' },
+        { operationMonth: '2026년 7월', comprehensiveMonth: '' })
+      check('1.10.1 종합을 안 하면 「자체」를 골랐어도 점검자를 안 찍는다',
+        !String(offSelf.get('f1101_comp_self')).includes('■'), String(offSelf.get('f1101_comp_self')))
+      // 짝 — 같은 입력에서 블록이 켜지면 그 「자체」는 찍혀야 한다(늘 끄는 구현을 잡는다)
+      const onSelf = vals({ opMonth: '', compMonth: '2026년 1월', opInspector: '외주', compInspector: '자체', isInitial: false, initialMonth: '', comp2Month: '' },
+        { operationMonth: '2026년 7월', comprehensiveMonth: '2026년 1월' })
+      check('1.10.1 종합을 하면 그 「자체」가 찍힌다',
+        String(onSelf.get('f1101_comp_self')).includes('■'), String(onSelf.get('f1101_comp_self')))
+    }
+    {
+      /* 🎯 레거시 자유 텍스트 — 형식을 못 맞추면 **원문을 통째로** 인쇄한다(값을 잃지 않는다).
+       *   `planMonthParts`의 왕복 대조가 없으면 `경`이 조용히 사라진다. */
+      const legacy = vals({ opMonth: '2026년 7월경', compMonth: '', opInspector: '외주', compInspector: '외주', isInitial: false, initialMonth: '', comp2Month: '' },
+        { operationMonth: '', comprehensiveMonth: '' })
+      check('1.10.1 형식 밖 연월은 원문 그대로(글자 유실 0)',
+        String(legacy.get('f1101_op_month')).includes('2026년 7월경'), String(legacy.get('f1101_op_month')))
+    }
   }
 
   /* ── 제2장 서식 2.2 자위소방대 편성표 (2단계 · Q-1) ────────────────────────────

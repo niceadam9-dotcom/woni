@@ -30,6 +30,9 @@ import { purposeCover, purposeShort } from '@/lib/purpose-label'
 import { parseParkingSummary, parseParkingByType } from '@/lib/doc-templates/report9'
 import { compartmentApplies, compartmentHasArea, compartmentHasFloor } from '@/lib/evac-compartment'
 import { isMultiUseApplicable, isMultiUseNone } from '@/lib/multi-use'
+/* 1.10.1 연간 점검 계획 — PDF와 **같은 해석기**(사본 금지) */
+import { hasComprehensiveBlock, resolveInspectionPlan } from '@/lib/fire-plan-inspection-plan'
+import { planMonthParts } from '@/lib/plan-month'
 
 /* ────────────────────────── 표기 ────────────────────────── */
 
@@ -126,6 +129,29 @@ export function prefixCell(sheet: string, cell: string, value: string | null | u
   const label = labelAt(sheet, cell)
   const v = txt(value)
   return v ? `${label}${label.endsWith(' ') ? '' : ' '}${v}` : label
+}
+
+/**
+ * **연월칸** — 자구가 값 **사이사이에** 끼어 있는 칸(`'          년        월'`, 1.10.1 점검시기).
+ *
+ * 단위칸·접두라벨칸의 셋째 형제다. 여기서도 `` `${y}년 ${m}월` `` 을 손으로 짓지 않고 manifest
+ * 원문의 공백 자리에 값을 끼운다 — 양식이 `년 월`을 `년도 월`로 개정하면 여기가 아니라
+ * manifest가 바뀐다.
+ *
+ * ⚠ 값이 없으면 자구만 남긴다(빈 서식) — 지우면 무엇을 적는 자리인지 알 수 없게 된다.
+ * 🚨 **형식을 못 맞추면 원문을 통째로 인쇄한다.** `년`·`월` 자구를 지키자고 값을 잃는 쪽이
+ *   훨씬 나쁘다(레거시 자유 텍스트 안전망 — `planMonthParts`의 왕복 대조가 갈래를 가른다).
+ */
+export function yearMonthCell(sheet: string, cell: string, monthText: string | null | undefined): string {
+  const tpl = labelAt(sheet, cell)
+  if (!/년/.test(tpl) || !/월/.test(tpl)) {
+    throw new Error(`fire-plan-xlsx-values: ${sheet}!${cell} 에 '년·월' 자구가 없다 — 연월칸이 아니다`)
+  }
+  const s = txt(monthText)
+  if (!s) return tpl
+  const p = planMonthParts(s)
+  if (!p) return s
+  return tpl.replace(/\s*년/, ` ${p.year}년`).replace(/\s*월/, ` ${p.month}월`)
 }
 
 /* ────────────────────────── 값 조립 ────────────────────────── */
@@ -281,6 +307,40 @@ export function buildFirePlanValues(d: FirePlanGenData): Map<string, CellValue> 
   // 원문이 `{{contract_date}} ~ ` 라 물결표까지 한 칸에 있다. 리터럴을 손으로 베끼지 않고
   // manifest의 원본 문자열에 값을 끼워 넣는다 — 서식이 바뀌면 여기가 아니라 manifest가 바뀐다.
   v.set('agency_contract_period', fillTemplate('1.8 업무대행 현황', 'U10', { contract_date: planDate(d.contractStart) }))
+
+  /* ── 서식 1.10.1 연간 점검 계획 (2026-09-14) ─────────────────────────────────
+   *  🚨 이 시트도 앵커가 **0개**라 사용승인일·자체점검 체크·점검시기가 통째로 공란이었다
+   *    (사용자 신고). 값은 새로 계산하지 않는다 — PDF와 **한 해석기**를 쓴다(§사본 금지).
+   *  ⭐ 상자를 켜면 양식 컨트롤도 함께 켜진다: 체크박스의 상태는 `fire-plan-checkbox-controls`가
+   *    **이 계층이 칸에 적어 놓은 `■` 여부**로 정한다(그래서 여기만 고치면 된다).
+   */
+  const ip = resolveInspectionPlan(d.forms?.inspection, d)
+  const compBlock = hasComprehensiveBlock(ip)
+  const F1101 = FP_SHEET.F1_10_1
+  v.set('f1101_use_approval_date', prefixCell(F1101, 'A4', planDate(d.useApprovalDate)))
+
+  /* 작동점검 — **늘 체크한다**. 여기만 '값이 있는가'를 안 묻는 이유: 작동점검은 자체점검 대상
+   * 전건의 법정 필수라 켤지 말지를 고르는 칸이 아니다(PDF도 `■ 작동점검`을 조건 없이 인쇄한다).
+   * 시기를 아직 못 정한 고객은 상자만 켜지고 연월칸은 빈 서식으로 남는다 — 그게 맞는 상태다. */
+  v.set('f1101_op_check', boxLabelCell(F1101, 'D5', true))
+  v.set('f1101_op_month', yearMonthCell(F1101, 'V5', ip.opMonth))
+  v.set('f1101_op_self', boxLabelCell(F1101, 'V7', ip.opInspector === '자체'))
+  v.set('f1101_op_outsource', boxLabelCell(F1101, 'AF7', ip.opInspector === '외주'))
+
+  /* 종합점검 — 머리 상자는 안쪽 세 줄 중 하나라도 켜질 때만(`hasComprehensiveBlock`).
+   * ⚠ 2차(특급대상물)는 **고객이 적었을 때만** 켠다. 실측 3건 전부 공란이라 사실상 늘 빈 상자지만
+   *   (사용자 결정 2026-09-14: 공란 유지), 적어 넣은 값을 버리지는 않는다 — PDF는 그 값을
+   *   인쇄하므로 여기서만 삼키면 두 산출물이 갈라진다. '공란 유지'와 '값 버리기'는 다르다. */
+  v.set('f1101_comp_check', boxLabelCell(F1101, 'D8', compBlock))
+  v.set('f1101_initial_check', boxLabelCell(F1101, 'V8', ip.isInitial))
+  v.set('f1101_initial_month', yearMonthCell(F1101, 'AP8', ip.isInitial ? ip.initialMonth : ''))
+  v.set('f1101_comp_box', boxLabelCell(F1101, 'V9', !!ip.compMonth))
+  v.set('f1101_comp_month', yearMonthCell(F1101, 'AP9', ip.compMonth))
+  v.set('f1101_comp2_box', boxLabelCell(F1101, 'V10', !!ip.comp2Month))
+  v.set('f1101_comp2_month', yearMonthCell(F1101, 'AP10', ip.comp2Month))
+  // 점검자 — 블록이 꺼져 있으면 **둘 다 비운다**(종합을 안 하는데 점검자만 찍히면 자기모순이다)
+  v.set('f1101_comp_self', boxLabelCell(F1101, 'V12', compBlock && ip.compInspector === '자체'))
+  v.set('f1101_comp_outsource', boxLabelCell(F1101, 'AF12', compBlock && ip.compInspector === '외주'))
 
   // ── 서식 1.2.1 구역별 세부현황 ──
   // S4-3: 양식 고정 행 수를 지킨다. 넘치는 구역은 **버리되 세어서** 라우트가 고지 헤더에 싣는다.
