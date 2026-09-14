@@ -13,7 +13,10 @@
 //  ③ 🚨 **이미 완료된 행의 손으로 적은 날짜는 덮이지 않는다** (음성 축 — 되돌릴 수 없는 손실)
 //  ④ 건수를 그대로 말한다 — 「전건 완료」라 적어 놓고 건너뛴 수를 삼키면 화면이 거짓말을 한다
 //  ⑤ 전건 완료 뒤에도 **개별 해제**가 된다 (한 번의 클릭이 굳어 버리면 안 된다)
-//  ⑥ 축이 새지 않는다 — ⑤(계획)에는 이 버튼이 없고, 기간이 없으면 아예 안 그린다
+//  ⑥ 축이 새지 않는다 — 🎯 2026-09-14 **계약 반전**: ⑤에도 이 버튼이 **있어야** 한다
+//    (⑤의 완료 조건이 「불량 전건 조치 완료」라 ⑤를 닫는 입력이 ⑤에 있어야 한다).
+//    대신 «서술 축»은 그대로 갈려 있는지를 묻는다 — ⑤는 「조치 계획」, ⑥은 「조치 내용」.
+//    기간이 없으면 **양쪽 다** 안 그린다.
 //
 // 실행: npx tsx scripts/test-defect-complete-all.mts   (로컬 dev :3000 + 스테이징 DB)
 // @ts-expect-error mjs 헬퍼
@@ -129,28 +132,46 @@ try {
   check('★ B-1 전건 완료 뒤에도 개별 해제가 된다', await waitCol(D1, 'action_completed_at', null),
     `A='${await dbCol(D1, 'action_completed_at')}'`)
 
-  /* ───────── 축이 새지 않는가 ─────────
-     ⑤는 **계획** 축이다. 거기에 완료 버튼이 생기면 계획을 세우는 자리에서 완료가 찍힌다.
-     ⚠ 앵커는 `defect-grid`다 — 종전에는 ⑤의 [빈 칸에 일괄 적용]을 기다렸는데, 그 버튼은
-       2026-09-11에 **일부러 없어졌다**(불량별 계획 기간 입력 폐지). 남의 축이 사라졌다고
-       내 단언까지 죽일 일은 아니어서 앵커만 옮겼다 — 묻는 것은 그대로 「⑤에 완료가 새는가」다. */
+  /* ───────── 축이 새지 않는가 — 🎯 **2026-09-14 계약 반전** ─────────
+     종전 계약은 「★ C-1 (음성) ⑤에는 [전건 완료]가 없다」였고, 이유는 «⑤는 계획 축이라
+     거기서 완료를 찍으면 안 된다»였다. **그 전제가 뒤집혔다.**
+
+     ⑤의 완료 조건이 바로 「불량 전건 조치 완료」다(inspection-step-status `evidenceDone` ⑤ —
+     ⑥의 조건은 별지 11호 제출일이지 이 칸이 아니다). 즉 ⑤를 닫는 입력이 ⑥ 칸에만 있어서
+     **⑤를 열면 ⑤를 닫을 수단이 거기 없었다**(사용자 지적: "보수 증빙 전건완료 버튼 없음",
+     실측으로 ⑤ 표에 완료칸 0·[전건 완료] 0 확인).
+
+     ⚠ 그래서 음성 단언을 **지우지 않고 갈아끼운다**(낡은 계약은 옮기거나 교체한다).
+       묻는 것을 「완료가 새는가」에서 **「서술 축이 새는가」**로 옮겼다 — 완료는 공유하되
+       ⑤는 여전히 「조치 계획」만 쓰고 「조치 내용」은 ⑥의 것이다. 양성 짝을 붙여
+       라벨이 죽어 음성이 공허 통과하는 길도 막는다. */
   await page.goto(`${BASE}/inspections/${insp}?step=5`)
   await page.waitForLoadState('networkidle').catch(() => {})
   await page.getByTestId('defect-grid').waitFor({ state: 'visible' })
-  check('★ C-1 (음성) ⑤에는 [전건 완료]가 없다',
-    (await page.getByTestId('complete-all-defects').count()) === 0)
-  check('C-2 ⑤ 화면이 실제로 떠 있다(앵커가 죽어 C-1이 공허 통과하지 않는다)',
+  check('★ C-1 ⑤에도 [전건 완료]가 있다 — ⑤의 완료 조건이 이 칸이기 때문',
+    (await page.getByTestId('complete-all-defects').count()) > 0)
+  check('C-1b ⑤에도 행별 완료 체크가 있다',
+    (await page.getByLabel(`${D1} 조치 완료`).count()) > 0)
+  check('★ C-1c (음성) 서술 축은 그대로 갈려 있다 — ⑤에 「조치 내용」 입력이 없다',
+    (await page.getByLabel(`${D1} 조치 내용`).count()) === 0)
+  check('C-1d ⑤는 「조치 계획」을 쓴다(C-1c의 양성 짝 — 라벨이 죽어 공허 통과하지 않는다)',
+    (await page.getByLabel(`${D1} 조치 계획`).count()) > 0)
+  check('C-2 ⑤ 화면이 실제로 떠 있다(앵커가 죽어 위가 공허 통과하지 않는다)',
     (await page.getByTestId('defect-grid').count()) > 0)
 
-  /* 기간이 없으면 서버가 어차피 거절한다 — 늘 실패하는 버튼을 그려 두지 않는다 */
+  /* 기간이 없으면 서버가 어차피 거절한다 — 늘 실패하는 버튼을 그려 두지 않는다.
+     ⚠ ⑤·⑥ **양쪽에서** 묻는다: 버튼이 두 칸으로 늘었으니 이 가드도 두 칸에서 성립해야 한다
+       (한쪽만 보면 형제 자리에 늘 실패하는 버튼이 남는다). */
   await setPeriodRow('')
-  await page.goto(`${BASE}/inspections/${insp}?step=6`)
-  await page.waitForLoadState('networkidle').catch(() => {})
-  await page.getByLabel(`${D1} 조치 완료`).waitFor({ state: 'visible' })
-  check('★ C-3 (음성) 총 이행기간이 없으면 [전건 완료]를 그리지 않는다',
-    (await page.getByTestId('complete-all-defects').count()) === 0)
-  check('C-4 대신 무엇을 먼저 해야 하는지 말한다',
-    (await page.getByText('총 이행기간이 아직 없습니다').count()) > 0)
+  for (const [step, name] of [['6', '⑥'], ['5', '⑤']] as const) {
+    await page.goto(`${BASE}/inspections/${insp}?step=${step}`)
+    await page.waitForLoadState('networkidle').catch(() => {})
+    await page.getByLabel(`${D1} 조치 완료`).waitFor({ state: 'visible' })
+    check(`★ C-3${step === '6' ? '' : 'b'} (음성) 총 이행기간이 없으면 ${name}에 [전건 완료]를 그리지 않는다`,
+      (await page.getByTestId('complete-all-defects').count()) === 0)
+    check(`C-4${step === '6' ? '' : 'b'} 대신 ${name}가 무엇을 먼저 해야 하는지 말한다`,
+      (await page.getByText('총 이행기간이 아직 없습니다').count()) > 0)
+  }
 } catch (e) {
   check(`예외: ${(e as Error).message}`, false)
   console.log((e as Error).stack)

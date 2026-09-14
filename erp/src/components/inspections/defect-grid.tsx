@@ -14,7 +14,7 @@ import { DateInput } from '@/components/ui/date-input'
 import { dateRangeError } from '@/lib/date-range'
 
 /** 불량 표 편집 (소방계획서_21 R6-7) — 불량마다 폼을 펼치지 않고 한 표에서 고친다.
- *  행 = 불량 1건, 칸 = 계획 내용 · 계획 기간 · 완료 내용 · 완료 · 전/후 사진.
+ *  행 = 불량 1건, 칸 = 조치 계획(⑤) 또는 조치 내용(⑥) · 완료(양쪽) · 전/후 사진.
  *  칸을 떠날 때(blur) 저장한다 — 타이핑 중 저장하면 부분 문장이 문서에 실리므로 디바운스가 아니라 blur다.
  *  원본 액션은 불량 카드(inspection-defects-client)와 같은 것을 쓴다 — 저장 경로는 하나다.
  *
@@ -28,7 +28,18 @@ import { dateRangeError } from '@/lib/date-range'
  *     기간은 ④ 별지 10호의 「총 이행기간」 하나뿐이고, 문서(별지 10호)도 그 한 줄만 인쇄한다.
  *     ⚠ `action_start`·`action_end` **컬럼은 남는다** — 과거 회차의 값이 실려 있고,
  *       ⑥ 완료일 폴백(기간 없으면 그 행의 계획 종료일)과 planned 집계가 그 값을 **읽기만** 한다.
- *       여기서 새로 쓰는 경로만 없앤 것이다(두 자리에서 고치면 어느 쪽이 참인지 사라진다). */
+ *       여기서 새로 쓰는 경로만 없앤 것이다(두 자리에서 고치면 어느 쪽이 참인지 사라진다).
+ *
+ *  🎯 2026-09-14 — **「완료」 칸과 [전건 완료]를 ⑤에도 그린다**(사용자 지적: "보수 증빙 전건완료 버튼 없음").
+ *     종전엔 둘 다 ⑥ 전용이었다. 그런데 **⑤의 완료 조건이 바로 「불량 전건 조치 완료」**다
+ *     (inspection-step-status `evidenceDone` ⑤ — ⑥의 조건은 별지 11호 제출일이지 이 칸이 아니다).
+ *     즉 ⑤를 닫는 입력이 ⑥ 칸에만 있었고, ⑤를 열면 ⑤를 닫을 수단이 거기 없었다(실측 확인).
+ *     ⚠ **같은 값을 두 칸에서 보는 것**이지 값이 둘이 되는 게 아니다 — 편집분(`edits`)도
+ *       저장 경로(`setDefectCompletionAction`)도 한 벌이고, ④⑤⑥이 총 이행기간을 함께
+ *       보여 주는 것과 같은 규약이다.
+ *     ⚠ 그래서 `OWNED.plan`에 `actionCompletedAt`을 **함께** 넣는다 — F-27의 규칙은
+ *       「안 그리는 칸은 안 보낸다」이므로, 그리기 시작했으면 소유해야 한다. 안 그러면
+ *       ⑤의 [날짜 수정]이 델타에서 걸러져 **조용히 아무 일도 안 한다**. */
 
 export type GridDefect = {
   id: string
@@ -69,7 +80,8 @@ export function DefectGrid({ defects, inspectionId, canEdit, mode, onSaved, onPh
   defects: GridDefect[]
   inspectionId: string
   canEdit: boolean
-  /** plan = ⑤ 이행계획(계획·기간·전 사진) / complete = ⑥ 이행완료(완료 내용·완료일·후 사진) */
+  /** 서술 칸만 가른다 — plan = ⑤ 「조치 계획」, complete = ⑥ 「조치 내용」.
+   *  ⚠ **완료 칸·[전건 완료]·사진은 양쪽 공통이다**(2026-09-14, 파일 머리 🎯). */
   mode: 'plan' | 'complete'
   /** 저장 직후 **로컬로 다시 센 집계**를 올린다 — 부모가 이 값으로 칸 제목을 즉시 고친다(S3-5).
    *  종전에는 인자가 없어 부모가 router.refresh()로 상세 전체를 다시 그려야 숫자가 맞았다
@@ -306,6 +318,10 @@ export function DefectGrid({ defects, inspectionId, canEdit, mode, onSaved, onPh
    *  완료일·조치내용이 `null`로 남고 화면엔 '이행 기간' 오류). 안 그리는 칸은 안 보낸다. */
   /* ⚠ ⑤의 actionStart·actionEnd는 2026-09-11 입력 열 제거와 함께 소유 목록에서도 뺐다 —
    *    입력이 없는데 소유만 남기면 「보낼 수 있는데 그릴 수 없는」 유령 칸이 된다. */
+  /* ⚠ ⑤가 완료 **체크**를 그리게 됐는데도(2026-09-14) `actionCompletedAt`을 소유하지 않는 것은
+   *    모순이 아니다 — 체크는 `toggleDone`이 `setDefectCompletionAction`으로 **직접** 보내고
+   *    commit()을 타지 않는다(:228 주석). commit이 필요한 것은 「날짜 수정」 접이식뿐이고
+   *    그건 ⑥에만 있다. 소유 목록은 **commit이 보낼 칸**의 목록이지 화면 칸의 목록이 아니다. */
   const OWNED: Record<'plan' | 'complete', Array<keyof Row>> = {
     plan: ['actionPlan'],
     complete: ['actionTaken', 'actionCompletedAt'],
@@ -382,10 +398,11 @@ export function DefectGrid({ defects, inspectionId, canEdit, mode, onSaved, onPh
              「—」로 적으면 기간이 정해진 것처럼 읽히므로 문장으로 쓴다. */
           : <span className="text-amber-700">총 이행기간이 아직 없습니다 — ④ 소방서 제출에서 먼저 정해 주세요.</span>}
         {/* ⑤의 [빈 칸에 일괄 적용]은 2026-09-11 제거 — 불량별 계획 기간 입력이 사라져 채울 칸이 없다(파일 머리 주석) */}
-        {/* ⑥의 **형제 자리** — ⑤가 계획을 한 번에 채우듯 ⑥은 완료를 한 번에 찍는다(2026-09-11).
+        {/* 🎯 2026-09-14 — **⑤·⑥ 양쪽에** 그린다(종전 ⑥ 전용). ⑤의 완료 조건이 「불량 전건 조치
+            완료」인데 그 일괄 수단이 ⑥에만 있어, ⑤를 닫으러 ⑤에 온 사용자가 빈손으로 돌아갔다.
             기간이 없으면 그리지 않는다: 그때는 서버가 어차피 거절하고, 왼쪽 안내가 무엇을 먼저
             해야 하는지 이미 말한다(버튼이 있는데 늘 실패하면 그게 더 나쁘다). */}
-        {mode === 'complete' && canEdit && period && (
+        {canEdit && period && (
           <button type="button" onClick={completeAll} disabled={bulk} data-testid="complete-all-defects"
             title="아직 완료되지 않은 불량을 총 이행기간 종료일로 한 번에 완료 처리합니다 — 이미 완료된 행은 건드리지 않습니다"
             className="inline-flex items-center gap-1 h-6 px-2 rounded border border-brand-line text-form-2xs text-ink-sub hover:bg-brand-tint disabled:opacity-50">
@@ -398,14 +415,14 @@ export function DefectGrid({ defects, inspectionId, canEdit, mode, onSaved, onPh
         <thead>
           <tr className="text-left text-form-2xs text-ink-soft">
             <th className="w-[26%] px-1 pb-1 font-medium">불량</th>
-            {mode === 'plan' ? (
-              /* 「계획 기간」 열은 2026-09-11 제거(파일 머리 주석) — 조치 계획이 그 폭을 받는다 */
-              <th className="w-[64%] px-1 pb-1 font-medium">조치 계획</th>
-            ) : (<>
-              <th className="w-[32%] px-1 pb-1 font-medium">조치 내용</th>
-              {/* '완료일'이 아니라 '완료' — 날짜는 체크하면 기간 종료일이 들어간다(2026-09-10) */}
-              <th className="w-[32%] px-1 pb-1 font-medium">완료</th>
-            </>)}
+            {/* 「계획 기간」 열은 2026-09-11 제거(파일 머리 주석).
+                ⚠ 폭은 **두 모드가 같다**. ⑤에 완료 칸을 넣으며 처음엔 40/24로 나눴는데,
+                  좁은 칸에서 `2026-09-23`이 두 줄로 접혔다(실측). 날짜가 한 줄로 들어가는 폭이
+                  ⑥에서 이미 32%로 확인돼 있으므로 그대로 쓴다 — 두 칸이 같아 보이는 것도 이득이다. */}
+            <th className="w-[32%] px-1 pb-1 font-medium">{mode === 'plan' ? '조치 계획' : '조치 내용'}</th>
+            {/* '완료일'이 아니라 '완료' — 날짜는 체크하면 기간 종료일이 들어간다(2026-09-10).
+                ⑤·⑥ 양쪽에 그린다 — ⑤의 완료 조건이 이 칸이다(파일 머리 🎯) */}
+            <th className="w-[32%] px-1 pb-1 font-medium">완료</th>
             <th className="w-[10%] px-1 pb-1 font-medium">사진 전·후</th>
           </tr>
         </thead>
@@ -425,20 +442,24 @@ export function DefectGrid({ defects, inspectionId, canEdit, mode, onSaved, onPh
                     {justSaved[d.id] && saving !== d.id && <span className="text-form-3xs text-green-600 inline-flex items-center gap-0.5"><Check className="size-2.5" /> 저장됨</span>}
                   </span>
                 </td>
+                {/* 서술 칸만 모드가 가른다 — ⑤는 「앞으로 무엇을 할지」, ⑥은 「무엇을 했는지」.
+                    「계획 기간」 입력은 2026-09-11 제거 — 기간은 ④의 총 이행기간 하나다(파일 머리 주석) */}
                 {mode === 'plan' ? (
-                  /* 「계획 기간」 입력은 2026-09-11 제거 — 기간은 ④의 총 이행기간 하나다(파일 머리 주석) */
                   <td className="px-1 py-1">
                     <textarea rows={2} disabled={!canEdit} value={r.actionPlan} aria-label={`${d.defect_name} 조치 계획`}
                       onChange={e => set(d.id, { actionPlan: e.target.value })} onBlur={() => commit(d)}
                       className={`${cell} resize-y`} />
                   </td>
-                ) : (<>
+                ) : (
                   <td className="px-1 py-1">
                     <textarea rows={2} disabled={!canEdit} value={r.actionTaken} aria-label={`${d.defect_name} 조치 내용`}
                       onChange={e => set(d.id, { actionTaken: e.target.value })} onBlur={() => commit(d)}
                       className={`${cell} resize-y`} />
                   </td>
-                  <td className="px-1 py-1">
+                )}
+                {/* 완료 칸은 **두 모드가 공유한다**(파일 머리 🎯) — ⑤의 완료 조건이 이 칸이라
+                    ⑤에서도 닫을 수 있어야 한다. 규칙·저장 경로는 한 벌이다. */}
+                <td className="px-1 py-1">
                     {/* 체크 하나가 곧 완료다 — 날짜는 서버가 총 이행기간에서 파생한다(2026-09-10 사용자 결정).
                         ⚠ checked는 '체크한 적 있는가'가 아니라 **값이 있는가**로 판정한다. 손으로 적힌
                           과거 완료일도 그대로 체크로 보여야 한다(두 표면이 같은 규칙을 쓰게 한다). */}
@@ -457,8 +478,12 @@ export function DefectGrid({ defects, inspectionId, canEdit, mode, onSaved, onPh
                           : <span className="text-form-xs text-ink-meta">미완료</span>}
                     </label>
                     {/* 예외 창구 — 실제 조치일이 기간 종료일과 다를 때만 편다.
-                        평소에 접어 두는 이유: 펴 두면 '쳐야 하는 칸'으로 읽혀 없앤 일이 되돌아온다. */}
-                    {r.actionCompletedAt.trim() && canEdit && (
+                        평소에 접어 두는 이유: 펴 두면 '쳐야 하는 칸'으로 읽혀 없앤 일이 되돌아온다.
+                        🚨 **⑥에만 둔다.** ⑤에 날짜 입력이 없다는 것은 2026-09-11 「불량별 계획 기간
+                        입력 폐지」가 세운 계약이고(test-workbench-defect-pane1 9-0이 지킨다),
+                        완료 칸을 ⑤로 넓히는 것과 그 계약을 깨는 것은 **다른 일**이다. 사용자가 요청한
+                        것은 「완료 체크·전건 완료」이지 날짜 수정이 아니므로 계약을 그대로 둔다. */}
+                    {mode === 'complete' && r.actionCompletedAt.trim() && canEdit && (
                       <details className="mt-1">
                         <summary className="cursor-pointer text-form-3xs text-ink-meta hover:text-brand">날짜 수정</summary>
                         <DateInput value={r.actionCompletedAt} aria-label={`${d.defect_name} 완료일`}
@@ -466,8 +491,7 @@ export function DefectGrid({ defects, inspectionId, canEdit, mode, onSaved, onPh
                           className={`${cell} mt-1`} />
                       </details>
                     )}
-                  </td>
-                </>)}
+                </td>
                 {/* 전·후를 한 행에 나란히 — 쌍이 맞는지는 나란히 놓아야 보인다(별지 11호 증빙) */}
                 <td className="flex gap-1 px-1 py-1">
                   <PhotoCell defectId={d.id} inspectionId={inspectionId} canEdit={canEdit}
