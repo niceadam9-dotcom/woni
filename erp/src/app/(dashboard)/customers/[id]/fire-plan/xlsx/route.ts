@@ -12,6 +12,7 @@ import { FIRE_PLAN_ANCHORS, FIRE_PLAN_IMAGE_ANCHORS } from '@/lib/fire-plan-anch
 import { brigadeRowOverflow, buildFirePlanValues, missingValueFields, zoneRowOverflow } from '@/lib/fire-plan-xlsx-values'
 import { FIRE_PLAN_MANIFEST } from '@/lib/fire-plan-xlsx-manifest'
 import { embedFirePlanImages, planFirePlanImages } from '@/lib/fire-plan-xlsx-images'
+import { applyFirePlanCheckboxes } from '@/lib/fire-plan-checkbox-controls'
 
 /** 소방계획서 엑셀(xlsx) — 소방계획서_42 S6-1.
  *
@@ -96,8 +97,17 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
         { status: 500 })
     }
 
-    // ⑤ 사진·도면 — 법정 서식이 비워 둔 상자에 앉힌다. 한 장이 깨져도 문서는 나간다(사유는 고지에).
-    const embedded = await embedFirePlanImages(result.bytes, imgPlan.targets)
+    // ⑤ 체크박스 — 상자 글자(`□`/`■`)를 **클릭 가능한 양식 컨트롤**로 바꾼다.
+    //    받는 사람이 엑셀에서 직접 체크·해제하게 하는 것이 목적이고, 체크 상태는 바로 위 주입이
+    //    그 칸에 적어 놓은 글(`■` 여부)이 정한다 — 값 계층을 따로 고칠 필요가 없다.
+    //    ⚠ **사진보다 먼저** 돌아야 한다: CT_Worksheet 순서가 `drawing → legacyDrawing`이고
+    //      `insertDrawingTag`가 `<legacyDrawing` 앞에 끼우도록 이미 짜여 있다. 뒤집으면
+    //      **LibreOffice는 통과하고 Excel만** 복구 대화상자를 띄운다(우리 LO 검사로는 안 잡힌다).
+    //    달지 못한 칸은 상자 글자를 그대로 두므로 **오늘과 같은 상태**다 — 끊지 않고 고지로 낸다.
+    const checkboxes = await applyFirePlanCheckboxes(result.bytes)
+
+    // ⑥ 사진·도면 — 법정 서식이 비워 둔 상자에 앉힌다. 한 장이 깨져도 문서는 나간다(사유는 고지에).
+    const embedded = await embedFirePlanImages(checkboxes.bytes, imgPlan.targets)
 
     const name = `${data.buildingName || '소방계획서'}_소방계획서_${year}.xlsx`
     return new NextResponse(Buffer.from(embedded.bytes), {
@@ -116,6 +126,11 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
           ...(zoneRowOverflow(data) ? [`구역별 세부현황 ${zoneRowOverflow(data)}개 구역 미표기(양식 고정 행 상한)`] : []),
           // 대원 넘침도 같은 축이다 — 편성표는 잘려 나가도 인쇄물이 멀쩡해 보인다
           ...(brigadeRowOverflow(data) ? [`자위소방대 현장대응팀 ${brigadeRowOverflow(data)}명 미표기(양식 고정 행 상한)`] : []),
+          // 체크박스를 못 단 칸 — 그 칸은 상자가 **글자로 남아** 클릭이 안 된다. 문서는 멀쩡해
+          // 보이므로(상자가 보이니까) 여기 적지 않으면 아무도 모른다.
+          ...(checkboxes.skipped.length
+            ? [`체크박스 미적용 ${checkboxes.skipped.length}칸(글자 상자로 남음): ${checkboxes.skipped.slice(0, 5).join(' ')}`]
+            : []),
           // 사진 — 버린 장수·깨진 장수는 여기가 유일한 창구다(문서에는 흔적이 안 남는다)
           ...imgPlan.notes, ...embedded.notes,
           ...missing,

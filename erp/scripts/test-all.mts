@@ -248,6 +248,15 @@ const steps: Step[] = [
   //   변이 프로브: `node scripts/_mutate-fireplan-images.mjs` (12/12 빨강 실측 2026-09-14 —
   //   그중 M11은 「상자를 잘못 재도 초록」이던 사각을 드러내 단언을 하나 더 낳았다)
   { name: '소방계획서 사진 상자',      cmd: 'npx tsx --conditions=react-server scripts/test-fire-plan-images.mts' },
+  // 소방계획서 엑셀 **클릭 가능한 체크박스**(2026-09-14 사용자 신고: 엑셀에서 체크를 못 한다).
+  // 법정 문구 속 `□` 글자를 양식 컨트롤로 교체한다. 위 두 검사와 축이 또 다르다 — 저기는
+  // 글자·그림, 여기는 **컨트롤 파트가 제대로 조립됐는가 + 문구가 안 깨졌는가**다.
+  // ⚠ 이 검사는 「Excel이 받아들이는가」를 **못 묻는다**(노드에 Excel이 없다). CT_Worksheet
+  //   순서 위반은 LibreOffice는 통과하고 **Excel만** 복구 대화상자를 띄운다 → 그 축은
+  //   `scripts/_verify-checkbox-excel.ps1`이 실제 Excel COM으로 따로 본다(Windows 전용이라 미등재).
+  //   변이 프로브: `node scripts/_mutate-checkbox.mjs` (10/10 빨강 실측 2026-09-14 — 그중 하나는
+  //   `xmlns:mc` 단언이 `<controls>` 블록의 **인라인 선언**에 걸려 초록이던 사각을 드러냈다)
+  { name: '소방계획서 체크박스',        cmd: 'npx tsx scripts/test-fire-plan-checkbox.mts' },
   // 건물 이름 중복 확인(2026-09-09) — 같은 고객에 같은 이름 동이 조용히 두 번 등록된 실사고.
   // ⚠ 핵심은 「막는가」가 아니라 **「다동을 안 막는가」**다 — 이름이 다르면 통과해야 한다.
   { name: '건물 이름 중복 판정',        cmd: 'npx tsx scripts/test-building-dup.mts' },
