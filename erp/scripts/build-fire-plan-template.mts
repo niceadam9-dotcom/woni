@@ -26,8 +26,8 @@ import {
 import {
   buildXlsx, cellRef, isDarkFill, type BuildSheet, type BuildCell, type CellStyle, type HAlign,
 } from '../src/lib/xlsx-build.ts'
-import { classifyAlign } from '../src/lib/fire-plan-align.ts'
-import { neededRowHeights, PAGE_BODY_PT } from '../src/lib/xlsx-wrap-height.ts'
+import { classifyAlign, isPlainProse } from '../src/lib/fire-plan-align.ts'
+import { measureLines, neededRowHeights, PAGE_BODY_PT } from '../src/lib/xlsx-wrap-height.ts'
 import {
   scrubText, uncheckText, FIRE_PLAN_SCRUB_NEEDLES, FIRE_PLAN_MARK_CHECKED_RE,
 } from '../src/lib/fire-plan-scrub.ts'
@@ -43,6 +43,58 @@ const FINE_N = 60
 /** 🎯 **인쇄 글자 크기를 정하는 값**. 가로 1쪽에 맞추면 폰트가 약분되고
  *  `쪽폭 ÷ (열 수 × 열 폭)`만 남는다 — 실측 최적 1.8(2.2는 축소돼 작아지고, 1.1은 줄바꿈). */
 const FINE_COL_W = 1.8
+
+/* ══════════ 미세 격자 열 경계 **미세 조정**(2026-09-14 사용자 지적 image-28·29) ══════════
+ *
+ *  `projectCols`는 hwpx 열 폭 비율을 60칸에 반올림해 투영한다. 비율은 맞지만 **글자는 안 본다** —
+ *  원본은 칸마다 폰트가 다른데 우리는 전 칸을 10pt 한 벌로 쓰므로, 반올림이 한 칸을 덜 준 자리에서
+ *  법정 자구가 두 줄로 접힌다. 서식 2.1에서 실제로 그랬다(같은 뜻의 형제 칸과 나란히 두면 보인다):
+ *
+ *      운영시간  평일 「□ 주간」 5칸(65px) = 두 줄   ↔  휴일 「□ 주간」 6칸(78px) = 한 줄
+ *      구성      「□ 비상연락팀」 8칸(104px) = 두 줄  (글자 88px + 들여쓰기 21px = 109px)
+ *
+ *  🚨 이건 «행을 늘려 두 줄을 살리는» 축(`xlsx-wrap-height`)과 **다른 답**이다. 사용자 지시는
+ *    「한 줄로」이고, 운영시간은 「오른쪽과 동일하게」였다 — 높이가 아니라 **폭**을 고쳐야 한다.
+ *
+ *  ⚠ 손으로 적는 수이므로 **아래 `ONE_LINE_CELLS`가 결과를 단언한다**. 조정만 있고 단언이 없으면
+ *    양식이 개정돼 좌표가 밀릴 때 조용히 옛 자리를 밀어 서식을 망가뜨린다.
+ *  ⚠ 넓힌 만큼 **형제 칸이 좁아진다**. 좁아지는 쪽도 한 줄이어야 하므로 그 칸들도 함께 단언한다
+ *    (「 명」은 여유가 크지만 「□ 상근직」은 7칸이 하한이다 — 6칸으로 줄이면 그쪽이 두 줄이 된다).
+ */
+interface ColEdgeNudge { table: number; edge: number; to: number; why: string }
+
+const COL_EDGE_NUDGES: ColEdgeNudge[] = [
+  // 서식 2.1 운영시간 — 평일 쪽 「주간/야간 : 시~시」를 휴일 쪽과 **같은 6 : 12**로 맞춘다
+  { table: 46, edge: 5, to: 24, why: '2.1 운영시간 평일 「□ 주간/야간」 5→6칸 (휴일 쪽과 동일)' },
+  /* 서식 2.1 구성 — 팀 이름 칸 8→9. 모자란 한 칸은 **왼쪽 경계를 당겨** 가져온다.
+   * 🚨 오른쪽 경계(edge 9·16)를 미는 쪽이 먼저 떠오르지만 **그러면 안 된다**: edge 9는
+   *   아래 구성 표뿐 아니라 **위 운영시간 행의 「□ 휴일」 왼쪽 변**이기도 해서, 밀면 휴일 칸이
+   *   6→5칸으로 좁아져 이번엔 그쪽이 두 줄이 된다(한 수리가 다음 결함을 만든 실측 — 가드가 잡았다).
+   *   왼쪽으로 당기면 줄어드는 것은 여유가 큰 「 명」(총원) 칸뿐이다. */
+  { table: 46, edge: 7, to: 27, why: '2.1 구성 왼쪽 「□ 비상연락팀·초기소화팀·피난유도팀」 8→9칸' },
+  { table: 46, edge: 12, to: 43, why: '2.1 구성 오른쪽 「□ 응급구조팀·방호안전팀」 8→9칸' },
+]
+
+/** 조정 뒤 **한 줄이어야 하는** 칸 — 넓힌 쪽·좁아진 쪽·안 건드린 대조군을 함께 건다.
+ *  ⚠ 좌표는 **조정 뒤**의 것이다(경계를 당기면 칸의 시작 열도 함께 움직인다). */
+const ONE_LINE_CELLS: Record<string, string> = {
+  // ① 운영시간 — 평일 쪽을 넓혀 휴일 쪽과 같게 했다
+  '2.1 자위소방대 일반현황!S9': '평일 □ 주간 (넓힌 쪽 5→6칸)',
+  '2.1 자위소방대 일반현황!S10': '평일 □ 야간 (넓힌 쪽)',
+  '2.1 자위소방대 일반현황!AQ9': '휴일 □ 주간 — 원래 한 줄이었다(대조군)',
+  '2.1 자위소방대 일반현황!AQ10': '휴일 □ 야간 — 대조군',
+  '2.1 자위소방대 일반현황!M9': '□ 평일 — 대조군',
+  // 🎯 edge 9를 밀었다가 이 칸이 6→5칸으로 좁아져 두 줄이 됐다. 그래서 여기 남긴다
+  '2.1 자위소방대 일반현황!AK9': '□ 휴일 — 구성 표를 넓히다 좁아지기 쉬운 자리',
+  // ② 구성 — 팀 이름 칸을 8→9칸으로
+  '2.1 자위소방대 일반현황!AB15': '구성 □ 비상연락팀 (넓힌 쪽)',
+  '2.1 자위소방대 일반현황!AB16': '구성 □ 초기소화팀',
+  '2.1 자위소방대 일반현황!AB17': '구성 □ 피난유도팀',
+  '2.1 자위소방대 일반현황!AR15': '구성 □ 응급구조팀',
+  '2.1 자위소방대 일반현황!AR16': '구성 □ 방호안전팀',
+  '2.1 자위소방대 일반현황!AK13': '좁아진 쪽 — 자위소방대 □ 상근직(7칸이 하한)',
+  '2.1 자위소방대 일반현황!AK18': '좁아진 쪽 — 초기대응체계 □ 상근직',
+}
 
 /** 확장 **이전부터** 한 쪽(A4 세로)을 넘던 시트 — 원본 hwpx 자체가 여러 쪽인 서식이다.
  *  🚨 「넘치면 실패」 가드의 면제 목록이지 봐주기가 아니다: 여기 없는 시트가 넘치면 빌드가 선다.
@@ -518,6 +570,12 @@ interface SheetManifest {
   fillInStripped: Record<string, string>
   /** 표본 고객의 자유 텍스트 답이라 비운 칸 → 이유(S7-3 강순기 대조가 찾아냈다) */
   sampleBlanked: Record<string, string>
+  /** 정렬 ⑥ — **형제가 문장이라** 가운데에서 좌로 올린 칸(정렬 규칙은 `fire-plan-align`).
+   *
+   *  🚨 이건 «장식»이 아니라 **소비자가 재현할 수 없는 사실**이다. ⑥의 판정은 hwpx 표의
+   *    열·병합폭·borderFill을 봐야 나오는데 manifest에는 그 셋이 없다 — 안 실으면 정렬 검사가
+   *    `classifyAlign(label)`만으로 기대값을 세워 **제품이 옳은데 붉어진다**(실측 24칸). */
+  proseColumnCells: string[]
   /** 0열이 1,2,3… 으로 이어지는 구간 — 반복 행 예산의 파생 원천(S4-3) */
   numberedRuns: { startRow: number; rows: number }[]
   /** 각 격자 표가 이 시트의 **몇 번째 행에서 시작하는가**(0-based) — 세로로 쌓인 시트
@@ -559,6 +617,9 @@ let blankHits = 0
 /** 줄바꿈 높이 자동 확장 기록 — 콘솔 전용(자산엔 결과만 실린다) */
 const wrapGrowLog: string[] = []
 let wrapGrowTotal = 0
+/** 실제로 먹은 열 경계 조정 수 — 선언한 만큼 적용됐는지 아래에서 정확히 단언한다.
+ *  ⚠ `projectCols`보다 **앞에** 둔다(뒤에 두면 첫 호출이 TDZ에 걸린다 — FINE_N과 같은 이유) */
+let nudgeHits = 0
 
 for (const sec of SECTIONS) {
   const gridParts = sec.parts.filter(p => p.kind === 'grid') as Extract<Part, { kind: 'grid' }>[]
@@ -591,7 +652,7 @@ for (const sec of SECTIONS) {
   const m: SheetManifest = {
     name: sec.name, no: sec.no, tables: sec.parts.map(p => p.table),
     rows: 0, cols: nCols, merges: 0, bannerRows: [],
-    labels: {}, boxes: {}, restoredBoxes: {}, bulletCells: {}, tokenCells: {}, scrubbed: {}, sampleBlanked: {}, fillInStripped: {}, numberedRuns: [], gridTops: [],
+    labels: {}, boxes: {}, restoredBoxes: {}, bulletCells: {}, tokenCells: {}, scrubbed: {}, sampleBlanked: {}, fillInStripped: {}, proseColumnCells: [], numberedRuns: [], gridTops: [],
   }
 
   /** 원문 → 스크럽 → 체크 되돌리기 → 토큰 비우기. **배너와 격자가 같은 관을 지난다** —
@@ -671,7 +732,7 @@ for (const sec of SECTIONS) {
     row += g.rowCnt
 
     /* 미세 격자 투영 — 표마다 독립이라 열 수가 다른 표를 한 시트에 쌓을 수 있다(Q-9) */
-    const proj = projectCols(g)
+    const proj = projectCols(g, gp.table)
 
     /* 글자를 한 칸도 싣지 않은 **원본 열** — `blankEmptyCols`가 켜진 표에서만 쓴다.
      * 판정은 `processText` 이전의 **원문**으로 한다: 토큰 칸·표본 답 칸은 뒤에서 공란이 되므로
@@ -688,7 +749,11 @@ for (const sec of SECTIONS) {
      *   `cols[i]` = 표의 i번째 열이 시작하는 시트 열(0-based), 길이는 colCnt+1(마지막은 끝 경계). */
     m.gridTops.push({ table: gp.table, top, rows: g.rowCnt, cols: proj })
 
-    for (const c of g.cells) {
+    /* 🎯 **글자를 먼저 다 만들고, 그다음에 정렬을 정한다**(2026-09-14). ⑥「형제가 문장인 열」은
+     *  한 칸만 봐서는 답할 수 없다 — 같은 열의 다른 칸을 봐야 한다. `processText`는 라벨 기록·
+     *  스크럽 집계 같은 **부수효과**가 있어 두 번 부르면 수가 두 배가 되므로, 한 번만 부르고
+     *  결과를 들고 있다가 두 번째 바퀴에서 스타일만 얹는다. */
+    const prepared = g.cells.map(c => {
       const r0 = top + c.row
       const c0 = proj[c.col]
       const c1 = proj[Math.min(c.col + c.colSpan, g.colCnt)] - 1
@@ -700,17 +765,37 @@ for (const sec of SECTIONS) {
       // 표본 답 비우기 — 상자만 남기라는 지시면 빈 상자 글자 하나만 남긴다
       const raw = blank ? (blank.keep === 'box' ? (c.text.match(BOX_RE)?.[0] ?? '') : '') : c.text
       if (blank) { m.sampleBlanked[ref] = blank.why; blankHits++ }
-      const text = processText(raw, ref, () => oracle.glyphFor(c))
+      return { c, r0, c0, c1, ref, text: processText(raw, ref, () => oracle.glyphFor(c)) }
+    })
 
+    /* ⑥의 씨앗 — **형제 칸**에 순수 문장이 하나라도 있으면 그 구간은 문장 열이다.
+     *
+     * 형제의 정의가 이 규칙의 전부다. 실측으로 셋을 다 요구해야 했다:
+     *   · **열**      — 당연한 축.
+     *   · **병합폭**  — 같은 열에서 시작해도 폭이 다르면 다른 칸이다(서식 2.1 V열에는 폭 3의
+     *                   「 명」 칸과 폭 13의 「임무」 칸이 함께 산다).
+     *   · **borderFill** — 🎯 **머리글을 갈라내는 축**. 양식은 머리글 칸에 색을 깔고 값 칸은
+     *                   흰 바탕으로 둔다. 이 축이 없으면 「화재예방 및 홍보방법」(머리글)이
+     *                   아래 항목들에 끌려 왼쪽으로 갔다 — 색이 다르면 역할이 다르다.
+     *   ⚠ 정렬은 borderFill이 아니라 스타일의 다른 축이라 순환하지 않는다(같은 fill의 두 칸이
+     *     정렬만 달랐던 것이 애초의 결함이다).
+     */
+    const groupKey = (c: HwpxCell) => `${c.col}:${c.colSpan}:${c.borderFillId}`
+    const proseSpans = new Set<string>()
+    for (const p of prepared) if (isPlainProse(p.text)) proseSpans.add(groupKey(p.c))
+
+    for (const { c, r0, c0, c1, ref, text } of prepared) {
       /* B-12 — 정렬 분류(생성기 `_gs-book50.mts`와 한 벌: fire-plan-align). 토큰 칸은 위에서
        *  공란이 됐지만 **스타일은 남으므로** 런타임 주입 값이 그대로 좌정렬을 받는다 —
        *  자리 판정은 값이 아니라 양식의 `{{토큰}}`(= 방금 기록된 m.tokenCells)이 한다. */
       /* 이 칸이 **덮는 열이 전부** 빈 열일 때만 안 그린다 — 한 열이라도 글자를 실었으면 남는다 */
       const allColsEmpty = gp.blankEmptyCols
         && Array.from({ length: Math.min(c.colSpan, g.colCnt - c.col) }, (_, k) => emptyCol[c.col + k]).every(Boolean)
-      const style = allColsEmpty
-        ? BLANK_STYLE
-        : styleOf(fills.get(c.borderFillId), classifyAlign(text, { token: ref in m.tokenCells }))
+      const proseColumn = proseSpans.has(groupKey(c))
+      const align = classifyAlign(text, { token: ref in m.tokenCells, proseColumn })
+      // ⑥이 **실제로 판정을 바꾼 칸만** 싣는다 — 이미 좌인 칸까지 실으면 목록이 사실을 안 말한다
+      if (proseColumn && align !== classifyAlign(text, { token: ref in m.tokenCells })) m.proseColumnCells.push(ref)
+      const style = allColsEmpty ? BLANK_STYLE : styleOf(fills.get(c.borderFillId), align)
 
       cells.push({ row: r0, col: c0, text, style })
 
@@ -802,14 +887,30 @@ function solveWidths(t: HwpxTable): number[] {
   return w.map(x => (x > 0 ? x : 1))
 }
 /** hwp 열 경계 → 미세 격자 열 인덱스. 어떤 열도 0칸이 되어선 안 된다(셀이 사라진다) */
-function projectCols(t: HwpxTable): number[] {
+function projectCols(t: HwpxTable, table: number): number[] {
   const w = solveWidths(t)
   const total = w.reduce((a, b) => a + b, 0) || 1
   const map = [0]
   let acc = 0
   for (const x of w) { acc += x; map.push(Math.round((acc / total) * FINE_N)) }
   for (let i = 1; i < map.length; i++) if (map[i] <= map[i - 1]) map[i] = map[i - 1] + 1
+  /* 글자 폭 때문에 한 칸이 모자란 자리를 손으로 민다(위 COL_EDGE_NUDGES 주석).
+   * 🚨 양 끝 경계(0·마지막)는 표의 폭 자체라 못 민다. 단조 증가도 깨지면 안 된다 —
+   *    둘 중 하나라도 어기면 셀이 격자에서 자리를 잃고 **조용히 사라진다**. */
+  for (const n of COL_EDGE_NUDGES) {
+    if (n.table !== table) continue
+    if (n.edge <= 0 || n.edge >= map.length - 1) fail(`열 조정 #${table} edge ${n.edge} — 양 끝 경계는 못 민다`)
+    else if (n.to <= map[n.edge - 1] || n.to >= map[n.edge + 1]) {
+      fail(`열 조정 #${table} edge ${n.edge} → ${n.to} — 이웃 경계(${map[n.edge - 1]}·${map[n.edge + 1]})를 넘는다`)
+    } else { map[n.edge] = n.to; nudgeHits++ }
+  }
   return map
+}
+
+/** 'AC15' → 열 번호(0-based). `cellRef`의 역 — 병합 폭을 세는 데만 쓴다 */
+function colNumOf(ref: string): number {
+  const letters = /^([A-Z]+)/.exec(ref)?.[1] ?? ''
+  return [...letters].reduce((a, ch) => a * 26 + ch.charCodeAt(0) - 64, 0) - 1
 }
 
 function colWidthsOf(t: HwpxTable): number[] {
@@ -839,6 +940,34 @@ if (blankHits !== SAMPLE_ANSWER_CELLS.length) {
     .filter(s => s.pt > PAGE_BODY_PT && !PAGE_SPILL_KNOWN.includes(s.name))
   if (spilled.length) fail(`확장 뒤 한 쪽을 넘긴 시트 — ${spilled.map(s => `${s.name} ${s.pt.toFixed(0)}pt`).join(' · ')}`)
   else ok(`전 시트 한 쪽 이내(한도 ${PAGE_BODY_PT}pt, 기지 예외 ${PAGE_SPILL_KNOWN.length}장)`)
+}
+
+/* 열 경계 미세 조정 — **선언한 만큼 먹었는가 + 그래서 한 줄이 되었는가**.
+ *
+ * 🚨 조정 수만 세면 안 된다. 경계를 밀고도 글자가 여전히 넘치면(상수를 잘못 골랐거나 양식이
+ *   바뀌었거나) 아무도 모른 채 두 줄짜리 서식이 납품된다 — 목적은 경계가 아니라 **한 줄**이므로
+ *   그 결과를 직접 잰다. 자는 행 높이 확장이 쓰는 것과 **같은 추정기**다(두 벌이면 갈라진다).
+ */
+{
+  const want = COL_EDGE_NUDGES.length
+  if (nudgeHits !== want) fail(`열 경계 조정 ${nudgeHits}건 ≠ 선언 ${want}건 — 표 번호나 경계 인덱스가 밀렸다`)
+  else ok(`열 경계 조정 ${nudgeHits}건`)
+
+  const twoLine: string[] = []
+  for (const [refKey, why] of Object.entries(ONE_LINE_CELLS)) {
+    const [sheetName, ref] = refKey.split('!')
+    const sh = sheets.find(s => s.name === sheetName)
+    if (!sh) { fail(`한 줄 단언: 시트 '${sheetName}' 없음`); continue }
+    const hit = sh.cells.find(c => cellRef(c.row, c.col) === ref)
+    // 🚨 공허 통과 방지 — 좌표가 밀려 빈 칸을 재면 줄 수는 늘 1이라 조용히 초록이 된다
+    if (!hit || !hit.text.trim()) { fail(`한 줄 단언: ${refKey} 에 글자가 없다 (${why}) — 좌표가 밀렸다`); continue }
+    const mg = sh.merges.find(x => x.startsWith(`${ref}:`))
+    const cols = mg ? colNumOf(mg.split(':')[1]) - colNumOf(ref) + 1 : 1
+    const lines = measureLines(hit.text, cols, FINE_COL_W)
+    if (lines > 1) twoLine.push(`${refKey} ${cols}칸 ${lines}줄 "${hit.text.trim()}" (${why})`)
+  }
+  if (twoLine.length) fail(`한 줄이어야 하는데 접힌 칸 — ${twoLine.join(' · ')}`)
+  else ok(`한 줄 단언 ${Object.keys(ONE_LINE_CELLS).length}칸`)
 }
 
 // 규칙 축도 **정확히** 단언한다. 0건은 '깨끗하다'가 아니라 '규칙이 눈멀었다'일 수 있다

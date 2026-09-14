@@ -17,7 +17,8 @@ import { injectWorkbook } from '../src/lib/xlsx-inject.ts'
 import { FIRE_PLAN_ANCHORS, FIRE_PLAN_FIELDS, FP_SHEET, ZONE_ROWS, ZONE_SHEET, ZONE_FIRST_ROW, BRIG_ROWS, BRIG_FIRST_ROW, isBoxLabelAnchor, isUnitLabelAnchor, isPrefixLabelAnchor, isYearMonthLabelAnchor, FORM14_ROWS, FORM14_SHEET, FORM14_NAME_CELL, FORM14_NAME_FIELD } from '../src/lib/fire-plan-anchors.ts'
 import { ALL_STANDARD_CODES } from '../src/lib/facility-codes.ts'
 import { brigadeRowOverflow, buildFirePlanValues, missingValueFields, planDate, zoneRowOverflow } from '../src/lib/fire-plan-xlsx-values.ts'
-import { FIRE_PLAN_MANIFEST, labelAt, boxGlyphAt } from '../src/lib/fire-plan-xlsx-manifest.ts'
+import { FIRE_PLAN_MANIFEST, labelAt, boxGlyphAt, sheetManifest } from '../src/lib/fire-plan-xlsx-manifest.ts'
+import { measureLines } from '../src/lib/xlsx-wrap-height.ts'
 import { FIRE_PLAN_SCRUB_NEEDLES, FIRE_PLAN_MARK_CHECKED_RE } from '../src/lib/fire-plan-scrub.ts'
 import { classifyAlign, isCheckText } from '../src/lib/fire-plan-align.ts'
 import { COMPARTMENT_KINDS } from '../src/lib/evac-compartment.ts'
@@ -846,8 +847,8 @@ console.log('\n[8] 정렬 축 — 분류가 styles.xml에 실렸는가 (B-12)')
     if (t) sheetPath.set(m[1].replace(/&amp;/g, '&'), `xl/${t}`)
   }
 
-  const cnt = { banner: 0, check: 0, unit: 0, prose: 0, token: 0, center: 0 }
-  const bad: Record<keyof typeof cnt, string[]> = { banner: [], check: [], unit: [], prose: [], token: [], center: [] }
+  const cnt = { banner: 0, check: 0, unit: 0, prose: 0, token: 0, center: 0, proseCol: 0 }
+  const bad: Record<keyof typeof cnt, string[]> = { banner: [], check: [], unit: [], prose: [], token: [], center: [], proseCol: [] }
   for (const s of FIRE_PLAN_MANIFEST.sheets) {
     const p = sheetPath.get(s.name)
     if (!p) { check(`${s.name} 시트 XML 접근`, false); continue }
@@ -862,12 +863,17 @@ console.log('\n[8] 정렬 축 — 분류가 styles.xml에 실렸는가 (B-12)')
       const got = alignAt(ref)
       if (got !== want) bad[kind].push(`${s.name}!${ref} ${want}≠${got}`)
     }
+    /* ⑥ — 「형제가 문장인 열」이라 가운데에서 좌로 올린 칸. **manifest가 실어 준 사실**이다:
+     * 판정에 필요한 hwpx 열·병합폭·borderFill이 여기엔 없어 라벨만으로는 재현할 수 없다.
+     * ⚠ 이 집합을 빼면 «⑥이 고친 24칸»을 「가운데여야 하는데 좌」로 읽어 제품이 옳은데 붉어진다. */
+    const proseCol = new Set(s.proseColumnCells)
     // 토큰 칸 — 템플릿에서 공란이지만 스타일은 남아 런타임 주입 값이 좌정렬을 받는다(배너 토큰도 좌)
     for (const ref of Object.keys(s.tokenCells)) judge(ref, 'token', 'left')
     for (const [ref, label] of Object.entries(s.labels)) {
       if (bannerRows.has(rowOf(ref))) { judge(ref, 'banner', 'left'); continue }
-      const want = classifyAlign(label)
-      const kind = want === 'right' ? 'unit' : want === 'center' ? 'center' : isCheckText(label) ? 'check' : 'prose'
+      const want = classifyAlign(label, { proseColumn: proseCol.has(ref) })
+      const kind = proseCol.has(ref) ? 'proseCol'
+        : want === 'right' ? 'unit' : want === 'center' ? 'center' : isCheckText(label) ? 'check' : 'prose'
       judge(ref, kind, want)
     }
   }
@@ -885,6 +891,98 @@ console.log('\n[8] 정렬 축 — 분류가 styles.xml에 실렸는가 (B-12)')
     bad.banner.slice(0, 4).join(' · ') || `${cnt.banner}줄`)
   check(`나머지 라벨은 가운데(다수)`, cnt.center >= 500 && bad.center.length === 0,
     bad.center.slice(0, 4).join(' · ') || `${cnt.center}칸`)
+
+  /* ⑥ 「형제가 문장인 열」 — 사용자 지적 image-30(서식 2.1 임무는 7칸 중 4칸만 가운데였다).
+   * 🚨 **개수를 정확히 가둔다**(표본답 비우기·fill-in 규칙과 같은 규약). ⑥ 목록은 빌드가 만들고
+   *   이 검사가 읽으므로 규칙이 넓어지면 목록도 함께 넓어져 「전건 좌」는 계속 초록이다 —
+   *   **자기 채점**이라 개수만이 유일한 자다. 느슨한 구간(20~30)으로는 부족했다: 구(句) 길이를
+   *   6→2로 무른 변이가 27칸으로 **살아남았다**(실측). 정확한 수라야 규칙을 건드릴 때 사람이 본다.
+   *   실측 24칸 = 1.9 개별임무 4 · 1.11.2 1 · 1.14.1 홍보방법 4 · 2.1 임무 4 · 2.4 임무카드 6 ·
+   *              2.9 1 · 2.14 1 · 3.7 3. 양식이 개정되면 이 수를 **보고 나서** 고칠 것. */
+  const PROSE_COL_EXPECT = 24
+  check(`⑥ 형제 문장 열 전건 좌`, cnt.proseCol === PROSE_COL_EXPECT && bad.proseCol.length === 0,
+    bad.proseCol.slice(0, 4).join(' · ') || `${cnt.proseCol}/${PROSE_COL_EXPECT}칸`)
+  {
+    /* 🚨 「좌인가」만 물으면 **항진명제**다: ⑥이 통째로 죽어도 ①~⑤가 이미 좌로 보낸 칸을
+     *   목록에 실어 두면 초록이다. **⑥이 없었다면 가운데였을 것**임을 함께 단언한다. */
+    const noop: string[] = []
+    for (const s of FIRE_PLAN_MANIFEST.sheets) {
+      for (const ref of s.proseColumnCells) {
+        if (classifyAlign(s.labels[ref] ?? '') !== 'center') noop.push(`${s.name}!${ref}`)
+      }
+    }
+    check(`⑥ 목록은 전부 「⑥이 없었으면 가운데」`, noop.length === 0, noop.slice(0, 4).join(' · ') || '항진명제 아님')
+  }
+  {
+    // 사용자가 직접 짚은 네 칸(서식 2.1 임무). 규칙이 바뀌어도 이 결론은 남아야 한다
+    const s = sheetManifest('2.1 자위소방대 일반현황')
+    const want = ['총괄지휘 및 감독', '초기화재 진압활동', '피난유도 및 피난보조활동', '인명구조 및 응급조치']
+    const refs = want.map(t => Object.entries(s.labels).find(([, v]) => v.trim() === t)?.[0])
+    check(`2.1 임무 네 칸을 라벨로 찾았다(좌표 밀림 가드)`, refs.every(Boolean), refs.join(','))
+    const p = new Set(s.proseColumnCells)
+    check(`2.1 임무 네 칸 전건 좌정렬`, refs.every(r => !!r && p.has(r)),
+      refs.map((r, i) => `${want[i]}=${r}${r && p.has(r) ? '✓' : '✗'}`).join(' · '))
+    // 형제 세 칸은 ⑤(긴 문장)가 이미 좌로 보낸다 — 한 열이 통째로 왼쪽에서 시작하는지를 본다
+    const col = refs[0]!.replace(/\d+$/, '')
+    const sibs = Object.keys(s.labels).filter(r => r.startsWith(col) && /^\D+2[1-7]$/.test(r))
+    check(`2.1 임무 열 7칸이 한 정렬로 모였다`, sibs.length === 7
+      && sibs.every(r => p.has(r) || classifyAlign(s.labels[r]) === 'left'), `${sibs.length}칸 ${sibs.join(',')}`)
+  }
+}
+
+/* ══════════ [9] 기하 축 — 「한 줄인가」·「좌우가 같은가」(사용자 지적 image-28·29) ══════════
+ *
+ *  🚨 정렬 검사(=[8])는 이 결함을 **전혀 못 본다**. 글자도 정렬도 옳은데 칸이 한 칸 좁아
+ *    접히는 부류라, 묻는 축이 「폭 대 글자」여야 한다. 자는 빌드가 행 높이를 늘릴 때 쓰는 것과
+ *    같은 추정기(`measureLines`)다 — 두 벌을 두면 한쪽만 낡는다.
+ *  ⚠ 빌드 게이트에도 같은 단언이 있지만 여기에도 둔다: 게이트는 «자산을 만들 때»만 돌고,
+ *    이 검사는 «저장소에 있는 자산»을 본다(남이 옛 자산을 되돌려 놓아도 여기서 붉어진다).
+ */
+{
+  console.log('\n[9] 기하 축 — 서식 2.1 한 줄 · 평일/휴일 대칭')
+  const s = sheetManifest('2.1 자위소방대 일반현황')
+  const zip = await JSZip.loadAsync(bytes)
+  const wbXml = await zip.file('xl/workbook.xml')!.async('string')
+  const relXml = await zip.file('xl/_rels/workbook.xml.rels')!.async('string')
+  const relTarget = new Map<string, string>()
+  for (const m of relXml.matchAll(/<Relationship Id="([^"]+)"[^>]*Target="([^"]+)"/g)) relTarget.set(m[1], m[2])
+  let path = ''
+  for (const m of wbXml.matchAll(/<sheet name="([^"]+)"[^>]*r:id="([^"]+)"/g)) {
+    if (m[1].replace(/&amp;/g, '&') === s.name) path = `xl/${relTarget.get(m[2])}`
+  }
+  const xml = await zip.file(path)!.async('string')
+  const colNum = (r: string) => [...(/^[A-Z]+/.exec(r)![0])].reduce((a, ch) => a * 26 + ch.charCodeAt(0) - 64, 0) - 1
+  const span = new Map<string, number>()
+  for (const m of xml.matchAll(/<mergeCell ref="([A-Z]+\d+):([A-Z]+\d+)"/g)) span.set(m[1], colNum(m[2]) - colNum(m[1]) + 1)
+  const colW = Number(/<col [^>]*width="([\d.]+)"/.exec(xml)?.[1] ?? 0)
+  check('열 폭을 읽었다(눈멂 가드)', colW > 0, `${colW}`)
+
+  const at = (text: string) => Object.entries(s.labels).find(([, v]) => v.trim() === text)?.[0]
+  /** 그 글자가 든 칸이 **한 줄인가** — 좌표가 아니라 법정 자구로 찾는다(좌표는 밀린다) */
+  const oneLine = (text: string) => {
+    const ref = at(text)
+    if (!ref) return { ok: false, d: `'${text}' 라벨을 못 찾았다` }
+    const cols = span.get(ref) ?? 1
+    const lines = measureLines(s.labels[ref], cols, colW)
+    return { ok: lines === 1, d: `${ref} ${cols}칸 ${lines}줄` }
+  }
+  for (const t of ['□ 비상연락팀', '□ 초기소화팀', '□ 피난유도팀', '□ 응급구조팀', '□ 방호안전팀',
+    '□ 평일', '□ 휴일', '□ 상근직']) {
+    const r = oneLine(t)
+    check(`2.1 「${t}」 한 줄`, r.ok, r.d)
+  }
+  /* 「주간」·「야간」은 평일·휴일 **양쪽에 같은 글자**가 있다 — 라벨 검색이 첫 칸만 주므로
+   * 여기서는 그 둘을 짝으로 집어 **폭이 같은지**까지 본다(사용자 지시가 「오른쪽과 동일하게」였다). */
+  for (const word of ['주간', '야간']) {
+    const refs = Object.entries(s.labels).filter(([, v]) => v.trim() === `□ ${word}`).map(([r]) => r)
+    check(`2.1 「□ ${word}」이 평일·휴일 두 칸`, refs.length === 2, refs.join(','))
+    const widths = refs.map(r => span.get(r) ?? 1)
+    check(`2.1 「□ ${word}」 평일 == 휴일 폭`, widths.length === 2 && widths[0] === widths[1],
+      refs.map((r, i) => `${r}=${widths[i]}칸`).join(' · '))
+    check(`2.1 「□ ${word}」 두 칸 다 한 줄`,
+      refs.every(r => measureLines(s.labels[r], span.get(r) ?? 1, colW) === 1),
+      refs.map(r => `${r}:${measureLines(s.labels[r], span.get(r) ?? 1, colW)}줄`).join(' · '))
+  }
 }
 
 console.log(`\n=== pass ${pass} / fail ${fail} ===`)

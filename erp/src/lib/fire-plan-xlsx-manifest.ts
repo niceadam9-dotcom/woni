@@ -31,6 +31,12 @@ export interface FirePlanSheetManifest {
   /** 표본 답 잔재를 **규칙**으로 걷어낸 칸 → 적용 규칙(padded·etc·unit).
    *  ⚠ 원문(걷어낸 답)은 일부러 담지 않는다 — 기록이 그 답을 자산으로 되살린다(F-17). */
   fillInStripped: Record<string, string>
+  /** 정렬 ⑥(`fire-plan-align`) — **형제가 문장이라** 가운데에서 좌로 올린 칸.
+   *
+   *  ⑥의 판정은 hwpx 표의 열·병합폭·borderFill을 봐야 나오는데 manifest에는 그 셋이 없다.
+   *  즉 **소비자가 재현할 수 없는 사실**이라 빌드가 여기 실어 보낸다 — 안 실으면 정렬 검사가
+   *  `classifyAlign(label)`만으로 기대값을 세워 제품이 옳은데 붉어진다. */
+  proseColumnCells: string[]
   /** 0열이 1,2,3…으로 이어지는 구간 — 반복 행 예산의 파생 원천(S4-3) */
   numberedRuns: { startRow: number; rows: number }[]
   /** **원본 표 좌표 ↔ 시트 좌표를 잇는 사실.** 소비자가 기하를 추측하지 않게 하려고 싣는다.

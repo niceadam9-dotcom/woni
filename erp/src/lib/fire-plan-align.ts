@@ -12,7 +12,26 @@
  *   ④ ERP가 채우는 칸(토큰 자리) → 좌 (사용자 지시 「ERP에서 나온 데이터는 입력 시 좌측정렬」
  *      — ⭐템플릿 **스타일**이므로 런타임 주입 값이 그대로 좌정렬을 받는다)
  *   ⑤ 긴 문장(무공백 12자 이상) → 좌 (「글자입력은 칸 안에서 좌측정렬」)
- *   ⑥ 나머지 라벨 → 가운데(현행 유지)
+ *   ⑥ **형제가 문장인 열** → 좌 (아래 참조)
+ *   ⑦ 나머지 라벨 → 가운데(현행 유지)
+ *
+ *  ⭐ ⑥은 ⑤의 구멍을 메운다. ⑤는 **칸 하나의 길이**만 보므로 같은 열에 긴 문장과 짧은 문장이
+ *    섞이면 **한 열 안에서 정렬이 갈린다** — 실측(사용자 지적 image-30, 서식 2.1 임무):
+ *
+ *      대장        총괄지휘 및 감독                    7자  → 가운데
+ *      부대장      대장 업무 보조 및 부재시 대장 업무  15자 → 좌
+ *      비상연락팀  상황접수 및 전파, 자위소방대 소집…  20자 → 좌
+ *      초기소화팀  초기화재 진압활동                    8자  → 가운데
+ *
+ *    같은 「임무」 열인데 7칸 중 3칸만 왼쪽에서 시작한다. 12이라는 수를 흔드는 대신(그 수는
+ *    다른 표 수백 칸의 정렬을 함께 흔든다) **형제에게 묻는다**: 형제 칸에 ⑤에 걸리는 순수 문장이
+ *    하나라도 있으면 그 열은 문장 열이고, 열 전체가 왼쪽에서 시작한다.
+ *    판정 순서가 마지막이라 ①~⑤에 이미 걸린 칸(체크·단위·토큰·긴 문장)은 **전혀 안 바뀐다**
+ *    — ⑥이 할 수 있는 일은 가운데를 좌로 올리는 것뿐이다.
+ *
+ *  ⚠ **형제가 누구인지는 이 파일이 정하지 않는다** — 그건 hwpx 표를 든 빌더만 알 수 있다
+ *    (`build-fire-plan-template.mts`의 `groupKey`: 열 · 병합폭 · borderFill). 여기는 「형제가
+ *    문장이면」이라는 규칙만 들고, 누가 형제인지는 `proseColumn`으로 받는다.
  */
 import type { HAlign } from '@/lib/xlsx-build'
 
@@ -35,16 +54,46 @@ export const isUnitCell = (v: string): boolean =>
 export const isProse = (v: string): boolean => v.replace(/\s/g, '').length >= 12
 
 /**
- * 셀 글자 → 수평 정렬. 판정 순서는 파일 머리주석 ①~⑥ 그대로다.
+ * ⑥의 **씨앗** — 「긴 문장」이되 체크 상자도 단위 칸도 아닌 **순수 문장** 칸인가.
+ *
+ * 뜻: 「☐ 해당 [서식1.8] 작성」처럼 12자를 넘는 체크 칸은 ②가 이미 좌로 보내는 부류라
+ * **열의 성격을 말해 주지 않는다** — 열이 문장 열인지는 문장이 말해야 한다.
+ *
+ * ⚠ **오늘 이 양식에서는 앞의 두 조건이 결과를 하나도 바꾸지 않는다.** 씨앗을 그냥 `isProse`로
+ *   넓혀 본 변이가 **같은 24칸**을 냈다(동등 변이 — 잡힐 수 없으니 변이 목록에서 뺀다).
+ *   즉 관찰된 수리가 아니라 **개정 대비**다. 지우지 않는 이유는 뜻이 맞아서이고, 양식이 바뀌어
+ *   실제로 넓어지면 개수 단언(`PROSE_COL_EXPECT`)이 먼저 문다.
+ */
+export const isPlainProse = (v: string): boolean => !isCheckText(v) && !isUnitCell(v) && isProse(v)
+
+/** ⑥의 **대상** — 낱말이 둘 이상인 6자 이상의 구(句). 즉 «짧은 문장».
+ *
+ *  🚨 이 좁히기가 ⑥의 핵심이다. 대상을 「문장 열의 모든 칸」으로 두면 **머리글까지 끌려간다** —
+ *    실측으로 전 워크북 124칸이 움직였고 그중에 「명칭」·「연락처」·「설치유무」·「연락대상」처럼
+ *    가운데가 맞는 표 머리글이 잔뜩 있었다(라벨 열에 긴 칸이 하나만 있어도 열 전체가 끌렸다).
+ *    구(句)를 요구하면 그런 한 낱말 라벨은 걸리지 않고, 「총괄지휘 및 감독」은 걸린다.
+ */
+export const isPhrase = (v: string): boolean => {
+  const t = v.trim()
+  return t.replace(/\s/g, '').length >= 6 && /\S\s+\S/.test(t)
+}
+
+/**
+ * 셀 글자 → 수평 정렬. 판정 순서는 파일 머리주석 ①~⑦ 그대로다.
  *
  * @param v     셀에 실제로 남는 글자(토큰 칸은 비워진 뒤라 ''일 수 있다 — `token`으로 가른다)
  * @param token ERP가 채우는 칸인가 — 자리는 **양식**의 `{{토큰}}`이 정한다(값이 아니라)
+ * @param proseColumn 형제 칸에 `isPlainProse`가 있는가 — ⑥. 형제의 정의는 빌더가 든다(위 주석)
  */
-export function classifyAlign(v: string, opts: { banner?: boolean; token?: boolean } = {}): HAlign {
+export function classifyAlign(
+  v: string,
+  opts: { banner?: boolean; token?: boolean; proseColumn?: boolean } = {},
+): HAlign {
   if (opts.banner) return 'left'
   if (isCheckText(v)) return 'left'
   if (isUnitCell(v)) return 'right'
   if (opts.token) return 'left'
   if (isProse(v)) return 'left'
+  if (opts.proseColumn && isPhrase(v)) return 'left'
   return 'center'
 }

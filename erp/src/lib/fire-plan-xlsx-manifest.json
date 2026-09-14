@@ -11,9 +11,9 @@
   },
   "asset": {
     "file": "templates/fire-plan-workbook.xlsx",
-    "sha256": "d6ced7d63edef508c8db7a900a66bedcc0063acdb81c97e1fe799de0618f3056",
-    "contentSha256": "ccf1fe3576b1575a9e0d6b54bfdc3f773cd38e39f316045632f4ee6c4e754685",
-    "bytes": 1739461,
+    "sha256": "7b65d1e8c21e7bdae149b85034faef8d8d643f3e67848db0936aa41c74a49940",
+    "contentSha256": "6ee7cb53bcf5d69b675d2746e874195d62a6653ad87a8f39e89f21429e942645",
+    "bytes": 1739861,
     "styles": 160
   },
   "scrubNeedles": [
@@ -59,6 +59,7 @@
         "M1": "표지 용도 = 고객별 값(강순기는 근린생활시설)"
       },
       "fillInStripped": {},
+      "proseColumnCells": [],
       "numberedRuns": [],
       "gridTops": [
         {
@@ -114,6 +115,7 @@
         "N2": "개정이력 내용 = 표본('2025년 …' 연도 고정)"
       },
       "fillInStripped": {},
+      "proseColumnCells": [],
       "numberedRuns": [
         {
           "startRow": 1,
@@ -307,6 +309,7 @@
       "fillInStripped": {
         "BA19": "unit"
       },
+      "proseColumnCells": [],
       "numberedRuns": [],
       "gridTops": [
         {
@@ -410,6 +413,7 @@
       "scrubbed": {},
       "sampleBlanked": {},
       "fillInStripped": {},
+      "proseColumnCells": [],
       "numberedRuns": [],
       "gridTops": [
         {
@@ -529,6 +533,7 @@
         "N12": "전기실 위치 = 고객별 값(강순기와 우연히 일치해 대조엔 안 걸렸다)"
       },
       "fillInStripped": {},
+      "proseColumnCells": [],
       "numberedRuns": [],
       "gridTops": [
         {
@@ -572,6 +577,7 @@
       "scrubbed": {},
       "sampleBlanked": {},
       "fillInStripped": {},
+      "proseColumnCells": [],
       "numberedRuns": [],
       "gridTops": [
         {
@@ -620,6 +626,7 @@
       "scrubbed": {},
       "sampleBlanked": {},
       "fillInStripped": {},
+      "proseColumnCells": [],
       "numberedRuns": [],
       "gridTops": [
         {
@@ -764,6 +771,7 @@
       "scrubbed": {},
       "sampleBlanked": {},
       "fillInStripped": {},
+      "proseColumnCells": [],
       "numberedRuns": [],
       "gridTops": [
         {
@@ -898,6 +906,7 @@
         "P11": "etc",
         "AT13": "unit"
       },
+      "proseColumnCells": [],
       "numberedRuns": [],
       "gridTops": [
         {
@@ -956,6 +965,7 @@
       },
       "sampleBlanked": {},
       "fillInStripped": {},
+      "proseColumnCells": [],
       "numberedRuns": [],
       "gridTops": [
         {
@@ -1062,6 +1072,7 @@
       "scrubbed": {},
       "sampleBlanked": {},
       "fillInStripped": {},
+      "proseColumnCells": [],
       "numberedRuns": [],
       "gridTops": [
         {
@@ -1118,6 +1129,7 @@
       "scrubbed": {},
       "sampleBlanked": {},
       "fillInStripped": {},
+      "proseColumnCells": [],
       "numberedRuns": [],
       "gridTops": [
         {
@@ -1212,6 +1224,7 @@
       "scrubbed": {},
       "sampleBlanked": {},
       "fillInStripped": {},
+      "proseColumnCells": [],
       "numberedRuns": [],
       "gridTops": [
         {
@@ -1282,6 +1295,7 @@
       "scrubbed": {},
       "sampleBlanked": {},
       "fillInStripped": {},
+      "proseColumnCells": [],
       "numberedRuns": [
         {
           "startRow": 2,
@@ -1404,6 +1418,12 @@
       "scrubbed": {},
       "sampleBlanked": {},
       "fillInStripped": {},
+      "proseColumnCells": [
+        "AA9",
+        "AA10",
+        "AA11",
+        "AA13"
+      ],
       "numberedRuns": [],
       "gridTops": [
         {
@@ -1565,6 +1585,7 @@
       "fillInStripped": {
         "AF17": "padded"
       },
+      "proseColumnCells": [],
       "numberedRuns": [],
       "gridTops": [
         {
@@ -1715,6 +1736,7 @@
       "scrubbed": {},
       "sampleBlanked": {},
       "fillInStripped": {},
+      "proseColumnCells": [],
       "numberedRuns": [],
       "gridTops": [
         {
@@ -1768,6 +1790,7 @@
       "scrubbed": {},
       "sampleBlanked": {},
       "fillInStripped": {},
+      "proseColumnCells": [],
       "numberedRuns": [],
       "gridTops": [
         {
@@ -2015,6 +2038,7 @@
       "scrubbed": {},
       "sampleBlanked": {},
       "fillInStripped": {},
+      "proseColumnCells": [],
       "numberedRuns": [],
       "gridTops": [
         {
@@ -2138,6 +2162,9 @@
       "fillInStripped": {
         "A3": "padded"
       },
+      "proseColumnCells": [
+        "I4"
+      ],
       "numberedRuns": [],
       "gridTops": [
         {
@@ -2199,6 +2226,7 @@
       "scrubbed": {},
       "sampleBlanked": {},
       "fillInStripped": {},
+      "proseColumnCells": [],
       "numberedRuns": [],
       "gridTops": [
         {
@@ -2302,6 +2330,7 @@
       },
       "sampleBlanked": {},
       "fillInStripped": {},
+      "proseColumnCells": [],
       "numberedRuns": [],
       "gridTops": [
         {
@@ -2379,6 +2408,7 @@
       },
       "sampleBlanked": {},
       "fillInStripped": {},
+      "proseColumnCells": [],
       "numberedRuns": [],
       "gridTops": [
         {
@@ -2440,6 +2470,7 @@
       "scrubbed": {},
       "sampleBlanked": {},
       "fillInStripped": {},
+      "proseColumnCells": [],
       "numberedRuns": [],
       "gridTops": [
         {
@@ -2498,6 +2529,7 @@
       "scrubbed": {},
       "sampleBlanked": {},
       "fillInStripped": {},
+      "proseColumnCells": [],
       "numberedRuns": [],
       "gridTops": [
         {
@@ -2821,6 +2853,12 @@
       "fillInStripped": {
         "AO17": "etc"
       },
+      "proseColumnCells": [
+        "A7",
+        "A9",
+        "A10",
+        "A12"
+      ],
       "numberedRuns": [],
       "gridTops": [
         {
@@ -2876,6 +2914,7 @@
       "scrubbed": {},
       "sampleBlanked": {},
       "fillInStripped": {},
+      "proseColumnCells": [],
       "numberedRuns": [],
       "gridTops": [
         {
@@ -2972,6 +3011,7 @@
       },
       "sampleBlanked": {},
       "fillInStripped": {},
+      "proseColumnCells": [],
       "numberedRuns": [],
       "gridTops": [
         {
@@ -3019,7 +3059,7 @@
         "M6": "  ",
         "A7": "등급",
         "M7": " □ 특급   ",
-        "X7": " □ 1급",
+        "Y7": " □ 1급",
         "AK7": " □ 2급",
         "AU7": " □ 3급",
         "A8": "상시근무인원",
@@ -3030,12 +3070,12 @@
         "A9": "운영시간",
         "M9": " □ 평일",
         "S9": " □ 주간",
-        "X9": "  시 ~    시",
+        "Y9": "  시 ~    시",
         "AK9": " □ 휴일",
         "AQ9": " □ 주간",
         "AW9": "  시 ~    시",
         "S10": " □ 야간",
-        "X10": "  시 ~    시",
+        "Y10": "  시 ~    시",
         "AQ10": " □ 야간",
         "AW10": "  시 ~    시",
         "A11": "자위소방대 편성표서식",
@@ -3045,39 +3085,39 @@
         "D13": "자위소방대",
         "M13": "총원",
         "V13": " 명",
-        "AC13": "근무형태",
+        "AB13": "근무형태",
         "AK13": " □ 상근직 ",
-        "AS13": " □ 교대직 (   조   교대)",
+        "AR13": " □ 교대직 (   조   교대)",
         "M14": "지휘통제팀",
         "V14": " 명",
-        "AC14": "대장",
+        "AB14": "대장",
         "AK14": " 명",
-        "AS14": "부대장",
+        "AR14": "부대장",
         "BA14": "  명",
         "M15": "현장대응팀",
         "V15": "  명",
-        "AC15": " □ 비상연락팀",
+        "AB15": " □ 비상연락팀",
         "AK15": " 명",
-        "AS15": " □ 응급구조팀",
+        "AR15": " □ 응급구조팀",
         "BA15": " 명",
-        "AC16": " □ 초기소화팀",
+        "AB16": " □ 초기소화팀",
         "AK16": " 명",
-        "AS16": " □ 방호안전팀",
+        "AR16": " □ 방호안전팀",
         "BA16": " 명",
-        "AC17": " □ 피난유도팀",
+        "AB17": " □ 피난유도팀",
         "AK17": " 명",
         "D18": "초기대응체계 ",
         "M18": "총원",
         "V18": "명",
-        "AC18": "근무형태",
+        "AB18": "근무형태",
         "AK18": " □ 상근직 ",
-        "AS18": " □ 교대직 (   조   교대)",
+        "AR18": " □ 교대직 (   조   교대)",
         "M19": " □  조(평일 주간 시~ 시)",
-        "AC19": "명",
+        "AB19": "명",
         "AK19": " □  조(평일 야간 시~ 시)",
         "BA19": "명",
         "M20": " □  조(휴일 주간 시~ 시)",
-        "AC20": "명",
+        "AB20": "명",
         "AK20": " □  조(휴일 야간 시~ 시)",
         "BA20": "명",
         "A21": "임무",
@@ -3103,7 +3143,7 @@
       "boxes": {
         "AG4": "□",
         "M7": "□",
-        "X7": "□",
+        "Y7": "□",
         "AK7": "□",
         "AU7": "□",
         "M8": "□",
@@ -3119,14 +3159,14 @@
         "M11": "□",
         "M12": "□",
         "AK13": "□",
-        "AS13": "□",
-        "AC15": "□",
-        "AS15": "□",
-        "AC16": "□",
-        "AS16": "□",
-        "AC17": "□",
+        "AR13": "□",
+        "AB15": "□",
+        "AR15": "□",
+        "AB16": "□",
+        "AR16": "□",
+        "AB17": "□",
         "AK18": "□",
-        "AS18": "□",
+        "AR18": "□",
         "M19": "□",
         "AK19": "□",
         "M20": "□",
@@ -3145,6 +3185,12 @@
       "scrubbed": {},
       "sampleBlanked": {},
       "fillInStripped": {},
+      "proseColumnCells": [
+        "V21",
+        "V24",
+        "V25",
+        "V26"
+      ],
       "numberedRuns": [],
       "gridTops": [
         {
@@ -3157,14 +3203,14 @@
             12,
             18,
             21,
-            23,
+            24,
             26,
-            28,
+            27,
             32,
             36,
             39,
             42,
-            44,
+            43,
             46,
             48,
             49,
@@ -3235,6 +3281,7 @@
       "scrubbed": {},
       "sampleBlanked": {},
       "fillInStripped": {},
+      "proseColumnCells": [],
       "numberedRuns": [],
       "gridTops": [
         {
@@ -3314,6 +3361,7 @@
       "scrubbed": {},
       "sampleBlanked": {},
       "fillInStripped": {},
+      "proseColumnCells": [],
       "numberedRuns": [],
       "gridTops": [
         {
@@ -3396,6 +3444,7 @@
       "scrubbed": {},
       "sampleBlanked": {},
       "fillInStripped": {},
+      "proseColumnCells": [],
       "numberedRuns": [],
       "gridTops": [
         {
@@ -3562,6 +3611,14 @@
       },
       "sampleBlanked": {},
       "fillInStripped": {},
+      "proseColumnCells": [
+        "A12",
+        "A18",
+        "A29",
+        "A40",
+        "A62",
+        "A66"
+      ],
       "numberedRuns": [],
       "gridTops": [
         {
@@ -3801,6 +3858,7 @@
       "scrubbed": {},
       "sampleBlanked": {},
       "fillInStripped": {},
+      "proseColumnCells": [],
       "numberedRuns": [],
       "gridTops": [
         {
@@ -3888,6 +3946,7 @@
       "scrubbed": {},
       "sampleBlanked": {},
       "fillInStripped": {},
+      "proseColumnCells": [],
       "numberedRuns": [],
       "gridTops": [
         {
@@ -3958,6 +4017,7 @@
       "scrubbed": {},
       "sampleBlanked": {},
       "fillInStripped": {},
+      "proseColumnCells": [],
       "numberedRuns": [],
       "gridTops": [
         {
@@ -4044,6 +4104,9 @@
       "scrubbed": {},
       "sampleBlanked": {},
       "fillInStripped": {},
+      "proseColumnCells": [
+        "AC9"
+      ],
       "numberedRuns": [],
       "gridTops": [
         {
@@ -4139,6 +4202,7 @@
       "scrubbed": {},
       "sampleBlanked": {},
       "fillInStripped": {},
+      "proseColumnCells": [],
       "numberedRuns": [],
       "gridTops": [
         {
@@ -4222,6 +4286,7 @@
       "scrubbed": {},
       "sampleBlanked": {},
       "fillInStripped": {},
+      "proseColumnCells": [],
       "numberedRuns": [],
       "gridTops": [
         {
@@ -4310,6 +4375,7 @@
       "scrubbed": {},
       "sampleBlanked": {},
       "fillInStripped": {},
+      "proseColumnCells": [],
       "numberedRuns": [],
       "gridTops": [
         {
@@ -4412,6 +4478,7 @@
       "scrubbed": {},
       "sampleBlanked": {},
       "fillInStripped": {},
+      "proseColumnCells": [],
       "numberedRuns": [],
       "gridTops": [
         {
@@ -4542,6 +4609,9 @@
       "scrubbed": {},
       "sampleBlanked": {},
       "fillInStripped": {},
+      "proseColumnCells": [
+        "J29"
+      ],
       "numberedRuns": [],
       "gridTops": [
         {
@@ -4650,6 +4720,7 @@
       "scrubbed": {},
       "sampleBlanked": {},
       "fillInStripped": {},
+      "proseColumnCells": [],
       "numberedRuns": [
         {
           "startRow": 2,
@@ -4794,6 +4865,7 @@
       "scrubbed": {},
       "sampleBlanked": {},
       "fillInStripped": {},
+      "proseColumnCells": [],
       "numberedRuns": [],
       "gridTops": [
         {
@@ -4882,6 +4954,7 @@
       "scrubbed": {},
       "sampleBlanked": {},
       "fillInStripped": {},
+      "proseColumnCells": [],
       "numberedRuns": [],
       "gridTops": [
         {
@@ -4944,6 +5017,7 @@
       "scrubbed": {},
       "sampleBlanked": {},
       "fillInStripped": {},
+      "proseColumnCells": [],
       "numberedRuns": [],
       "gridTops": [
         {
@@ -5015,6 +5089,7 @@
       "scrubbed": {},
       "sampleBlanked": {},
       "fillInStripped": {},
+      "proseColumnCells": [],
       "numberedRuns": [],
       "gridTops": [
         {
@@ -5105,6 +5180,7 @@
       "scrubbed": {},
       "sampleBlanked": {},
       "fillInStripped": {},
+      "proseColumnCells": [],
       "numberedRuns": [],
       "gridTops": [
         {
@@ -5172,6 +5248,7 @@
       "scrubbed": {},
       "sampleBlanked": {},
       "fillInStripped": {},
+      "proseColumnCells": [],
       "numberedRuns": [],
       "gridTops": [
         {
@@ -5256,6 +5333,11 @@
       "scrubbed": {},
       "sampleBlanked": {},
       "fillInStripped": {},
+      "proseColumnCells": [
+        "A9",
+        "A13",
+        "A17"
+      ],
       "numberedRuns": [],
       "gridTops": [
         {
