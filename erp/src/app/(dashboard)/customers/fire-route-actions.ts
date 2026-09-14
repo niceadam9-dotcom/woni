@@ -8,7 +8,6 @@ import {
   hasMapsCredentials, type LngLat,
 } from '@/lib/ncp-directions'
 import { renderRouteMapPng } from '@/lib/static-map-compose'
-import { listCustomerAssetEntries, ASSET_BUCKET } from '@/lib/customer-assets'
 
 /** 소방차 진입 경로 (소방계획서_11.md §9 — D-4′ 채택 2026-08-07)
  *
@@ -310,37 +309,5 @@ export async function generateRouteImageAction(
   const { error } = await admin.storage.from(BUCKET)
     .upload(path, render.png, { contentType: 'image/png', upsert: false })
   if (error) return { error: `저장 실패: ${error.message}` }
-  return { path }
-}
-
-/** B-4 — [지도·사진]의 **표지 건물 사진**(위성 항공뷰)을 진입 경로도의 바탕 그림으로 가져온다.
- *  2026-09-14 사용자 확정: 경로도는 소방서→건물 주행경로 지도가 아니라 **표지와 같은 항공 사진** 위에
- *  진입 방향 화살표를 얹은 그림이라야 한다. 가져온 뒤 [화살표 넣기]로 편집한다.
- *
- *  ⚠ 참조가 아니라 **복사**다. 두 가지 이유가 있고 둘 중 하나만으로도 복사여야 한다:
- *   ① 화살표 편집은 바탕 위에 합성한 새 파일을 만든다 — 표지를 그대로 가리키면 표지 사진이 함께 변하고,
- *      반대로 표지를 교체하면 경로도가 말없이 따라 바뀐다(두 칸은 서로 다른 그림이어야 한다).
- *   ② 삭제·화살표·다운로드 액션이 모두 `{customerId}/plan-assets/` 접두사를 요구한다
- *      (deletePlanAssetAction·getPlanAssetUrlAction·getPlanAssetDataUrlAction의 경로 가드).
- *      자산 경로 `{customerId}/assets/cover.*`를 그대로 넘기면 그 세 버튼이 '잘못된 경로입니다'로 죽는다.
- *
- *  복사는 스토리지 내부 copy 한 번 — 고객 자산과 서식 자산이 **같은 버킷**(fire-plans)을 쓰기 때문이다
- *  (`ASSET_BUCKET` === 이 파일의 `BUCKET`). 규약이 갈라지면 여기부터 고쳐야 한다.
- *
- *  ⚠ 이름을 `use…`로 시작하면 안 된다 — 호출하는 쪽이 클라이언트 컴포넌트라
- *  react-hooks/rules-of-hooks가 **React Hook으로 오인**해 eslint가 막는다(2026-09-14 실측). */
-export async function importCoverPhotoAsRouteImageAction(
-  customerId: string,
-): Promise<{ path?: string; error?: string }> {
-  await requirePermission('customer_manage')
-  const cover = (await listCustomerAssetEntries(customerId)).find(e => e.slot === 'cover')
-  if (!cover) {
-    return { error: '표지 건물 사진이 없습니다 — 위 [지도·사진]의 표지 칸에서 [위성사진]을 누르거나 직접 등록해주세요.' }
-  }
-  const ext = (cover.path.split('.').pop() ?? 'png').toLowerCase()
-  const path = `${customerId}/plan-assets/route-cover-${Date.now()}.${ext}`
-  const admin = createAdminClient()
-  const { error } = await admin.storage.from(ASSET_BUCKET).copy(cover.path, path)
-  if (error) return { error: `표지 사진을 가져오지 못했습니다: ${error.message}` }
   return { path }
 }

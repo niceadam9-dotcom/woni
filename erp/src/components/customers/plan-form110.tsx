@@ -140,7 +140,9 @@ export function PlanForm110({ customerId, canManage, isComprehensive, autoOpMont
     // role=group + aria-pressed는 별지 9호 mark2 칸이 쓰던 규약 그대로다 — 확정 자리가 옮겨져도
     // '무엇이 눌려 있는가'를 읽는 방법은 같아야 한다(스크린리더·E2E 양쪽).
     <div className="flex items-center gap-2 flex-wrap" role="group" aria-label={label}>
-      <span className="text-form-xs font-medium text-ink-sub w-24">{label}</span>
+      {/* 폭은 em(글자 크기 파생) — px로 고정하면 전역 글자 배율을 올렸을 때 「소방계획서 작성」이
+          '작/성'으로 쪼개진다. nowrap은 그래도 못 쪼개게 하는 빗장. */}
+      <span className="text-form-xs font-medium text-ink-sub w-[8em] shrink-0 whitespace-nowrap">{label}</span>
       <button disabled={!canManage || disabled} className={chip(value === yes)}
         aria-pressed={value === yes} onClick={() => onPick(value === yes ? '' : yes)}>{yes}</button>
       <button disabled={!canManage || disabled} className={chip(value === no)}

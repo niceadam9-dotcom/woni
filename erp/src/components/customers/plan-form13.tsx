@@ -9,9 +9,7 @@ import {
   saveFirePlanSectionsAction, uploadPlanAssetAction, deletePlanAssetAction, getPlanAssetUrlAction,
   suggestSurroundingsAction,
 } from '@/app/(dashboard)/customers/fire-plan-form-actions'
-import {
-  getFireRouteAction, generateRouteImageAction, importCoverPhotoAsRouteImageAction,
-} from '@/app/(dashboard)/customers/fire-route-actions'
+import { getFireRouteAction, generateRouteImageAction } from '@/app/(dashboard)/customers/fire-route-actions'
 import { NumField, useUnsavedWarning } from '@/components/ui/fields'
 import { prepareImageFile } from '@/lib/image-prep'
 import { readClipboardImage, CLIPBOARD_EMPTY_MSG } from '@/lib/clipboard-image'
@@ -362,7 +360,7 @@ export function PlanForm13({
   // C-1(2026-08-08): 종전엔 '자동 조회'와 '수동 [경로 가져오기]'가 별도 함수·별도 메시지·별도 반영 버튼이라
   // 같은 값을 같은 칸에 넣는 경로가 둘이었다 — 규약·상태를 하나로 합쳐 [거리·시간 채우기]를 폐기했다.
   const [route, setRoute] = useState<RoutePreview | null>(null)
-  const [routeBusy, setRouteBusy] = useState<'' | 'fetch' | 'image' | 'cover'>('')
+  const [routeBusy, setRouteBusy] = useState<'' | 'fetch' | 'image'>('')
   const [routeMsg, setRouteMsg] = useState('')
   // 기존 입력과 다를 때의 교체 제안 — 조용히 덮어쓰지 않는다(§9-6 규약)
   const [pending, setPending] = useState<RoutePreview | null>(null)
@@ -423,19 +421,6 @@ export function PlanForm13({
     void runRoute({ station: next })
   }
 
-  /** 경로도 바탕 그림을 통째로 갈아끼운다 — 새 그림을 넣는 모든 경로가 여기를 지난다.
-   *
-   *  🚨 합성본(routeImage)만 지우면 **옛 원본(routeImageBase)이 남는다**. 그러면 [화살표 고치기]가
-   *  `annot.basePath ?? path` 규약대로 옛 원본을 배경으로 열어, 화면엔 새 그림이 보이는데
-   *  편집기는 엉뚱한 그림을 편집하고 저장하는 순간 새 그림이 옛 그림으로 되돌아간다.
-   *  좌표(routeAnnots)도 다른 그림 기준이라 화살표가 엉뚱한 곳을 가리킨다 — 셋을 한 묶음으로 버린다.
-   *  (ImageSlot의 업로드·삭제는 이미 이 규약을 지키고 있었고, 여기만 빠져 있었다.) */
-  async function replaceRouteImage(next: string) {
-    const stale = [...new Set([fa.routeImage, fa.routeImageBase].filter((p): p is string => !!p))]
-    for (const p of stale) await deletePlanAssetAction(customerId, p)
-    patchFa({ routeImage: next, routeImageBase: null, routeAnnots: null })
-  }
-
   async function applyRouteImage() {
     if (fa.routeImage && !window.confirm('이미 등록된 진입 경로도를 새 초안으로 바꿀까요?')) return
     setRouteBusy('image')
@@ -444,21 +429,9 @@ export function PlanForm13({
     setRouteBusy('')
     if (r.unavailable) { setDraftMsg('경로 API가 준비되지 않아 경로도를 만들 수 없습니다 — 직접 업로드해주세요.'); return }
     if (r.error || !r.path) { setDraftMsg(`❌ ${r.error ?? '경로도 생성 실패'}`); return }
-    await replaceRouteImage(r.path)
+    if (fa.routeImage) await deletePlanAssetAction(customerId, fa.routeImage)
+    patchFa({ routeImage: r.path })
     setDraftMsg('경로도 초안을 넣었습니다 — 진입 지점·정문·장애물은 직접 표시해 교체하세요. [서식 1.3 저장]을 눌러야 확정됩니다.')
-  }
-
-  /** 표지 건물 사진(위성 항공뷰)을 경로도 바탕으로 가져온다 (2026-09-14 사용자 확정 B안).
-   *  경로 조회와 무관한 축이라 [지도·사진]에 표지만 있으면 소방서를 안 골라도 쓸 수 있다. */
-  async function applyCoverPhoto() {
-    if (fa.routeImage && !window.confirm('이미 등록된 진입 경로도를 표지 건물 사진으로 바꿀까요? (넣어 둔 화살표는 지워집니다)')) return
-    setRouteBusy('cover')
-    setDraftMsg('')
-    const r = await importCoverPhotoAsRouteImageAction(customerId)
-    setRouteBusy('')
-    if (r.error || !r.path) { setDraftMsg(`❌ ${r.error ?? '표지 사진을 가져오지 못했습니다.'}`); return }
-    await replaceRouteImage(r.path)
-    setDraftMsg('표지 건물 사진을 경로도 바탕으로 가져왔습니다 — 아래 [화살표 넣기]로 진입 방향을 표시하세요. [서식 1.3 저장]을 눌러야 확정됩니다.')
   }
 
   /** D-1 레거시 정리 — 서식에 저장돼 있던 옛 위치도 제거([지도·사진] 슬롯으로 일원화) */
@@ -676,14 +649,6 @@ export function PlanForm13({
                 맨 위 <strong>관할 소방서·출동 거리</strong>에서 소방서를 고르면 경로가 조회되고, 여기서 진입경로 서술·경로도 초안을 만들 수 있습니다.
               </span>
             )}
-            {/* 표지 사진 가져오기는 **경로 조회와 독립 축**이라 위 ternary 밖에 둔다 —
-                소방서를 아직 안 골랐어도(=route 없음) [지도·사진]에 표지만 있으면 바로 쓸 수 있어야 한다 */}
-            <button type="button" onClick={() => { void applyCoverPhoto() }} disabled={routeBusy !== ''}
-              data-testid="form13-route-from-cover"
-              title="[지도·사진]의 표지 건물 사진(위성 항공뷰)을 진입 경로도 바탕으로 가져옵니다 — 그 위에 화살표로 진입 방향을 표시하세요"
-              className="inline-flex items-center gap-1 h-form-6 px-2 rounded-md border border-brand-line text-form-xs text-brand hover:bg-brand-tint disabled:opacity-50">
-              {routeBusy === 'cover' ? <Loader2 className="size-3 animate-spin" /> : <ImageIcon className="size-3" />} 표지 사진 가져오기
-            </button>
             {draftMsg && <span className="w-full text-form-xs text-ink-soft">{draftMsg}</span>}
           </div>
         )}
