@@ -11,6 +11,8 @@
 //     둘 다 있어야 한다. 빨강만 있으면 배경 유실, 초록만 있으면 화살표 유실, 흰색뿐이면
 //     canvas 오염(교차 출처 배경)으로 내보내기가 죽은 것이다. 육안으로는 셋을 구분 못 한다.
 //  4. 원본·주석이 DB에 남아 재편집이 된다 — 합성본만 저장하면 화살표를 두 번 다시 못 고친다
+//  5. [표지 사진 가져오기]가 진입 경로도 바탕을 **표지 건물 사진과 같은 사진**으로 만든다 (2026-09-14 B안).
+//     판정축은 바이트 동일성 + 옛 원본·좌표가 따라오지 않음. 경로 문자열만 보면 엉뚱한 파일을 복사해도 초록이다.
 // @ts-expect-error mjs 헬퍼
 import { raw, BASE, check, summary, mkUser, delUser, mkCustomer, cleanupCustomer, launch, login } from './_e2e-helpers.mjs'
 
@@ -169,15 +171,87 @@ try {
     (await modal2.locator('[data-testid="annot-canvas"] image').getAttribute('href'))!.length > 0
     && await modal2.locator('[data-testid="annot-canvas"] polygon').count() === 1)
 
-  // ── 7. 삭제가 원본까지 치우는가 (스토리지 누수) ───────────────────────────
-  console.log('— 7. 삭제 시 원본·합성본 동반 정리')
+  // ── 7. 표지 건물 사진을 경로도 바탕으로 가져오기 (2026-09-14 사용자 확정 B안) ──
+  //  고정하는 것: 진입 경로도의 바탕이 **표지와 같은 사진**이 된다(소방서→건물 주행경로 지도가 아니라).
+  //  판정은 경로 문자열이 아니라 **바이트 동일성**이다 — 경로만 보면 엉뚱한 파일을 복사해도 초록이다.
+  //
+  //  🚨 이 절은 반드시 **삭제 절보다 먼저** 와야 한다. 삭제가 먼저 돌면 routeImageBase·routeAnnots가
+  //  이미 비워진 채로 들어와, '옛 원본·좌표가 따라오지 않는가'가 **한 번도 실행되지 않고** 초록이 된다
+  //  (처음엔 그 순서로 짰다 — 전제를 단언으로 박아 두는 이유가 이것이다).
+  console.log('— 7. 표지 사진 가져오기')
   await page.keyboard.press('Escape')
   await modal2.waitFor({ state: 'detached', timeout: 10000 })
+
+  const beforeCover = await readFireAccess()
+  check('가져오기 직전 상태가 합성본·원본·좌표를 모두 들고 있다 (이 절의 전제)',
+    !!beforeCover.routeImage && !!beforeCover.routeImageBase && !!beforeCover.routeAnnots,
+    JSON.stringify(beforeCover))
+  const staleFiles = [beforeCover.routeImage, beforeCover.routeImageBase].filter((p): p is string => !!p)
+
+  // 표지 슬롯을 **파랑 단색**으로 심는다 — 앞 절의 배경(초록)과 색이 달라야
+  // '가져온 것이 표지인가, 옛 경로도인가'를 내용으로 가를 수 있다.
+  const sharp = (await import('sharp')).default
+  const coverPng = await sharp({
+    create: { width: 640, height: 480, channels: 3, background: { r: 30, g: 60, b: 200 } },
+  }).png().toBuffer()
+  // 페이지를 다시 열기 **전에** 심는다 — [지도·사진] 슬롯은 표지가 비어 있으면 마운트 시 위성사진을
+  // 자동 생성하므로(customer-assets-client ②), 비워 두면 무엇이 바탕이 됐는지 판정이 흐려진다.
+  const up = await raw.storage.from(BUCKET)
+    .upload(`${custId}/assets/cover.png`, coverPng, { contentType: 'image/png', upsert: true })
+  check('표지 건물 사진 심기 성공 (이 절의 전제)', !up.error, String(up.error?.message ?? ''))
+
+  await page.goto(`${BASE}/customers/${custId}?tab=plan&form=1.3`)
+  // 대기는 **같은 화면의 다른 것**에 건다. 버튼 자체를 waitFor하면 버튼이 없을 때
+  // 25초 타임아웃 예외로 스위트가 죽어, 빨강의 이유가 아래 단언이 아니라 '완주 실패'로 보고된다
+  // (2026-09-14 변이 실험 M5에서 실측 — 잡기는 잡는데 무엇이 깨졌는지 못 말해 준다).
+  await page.locator('[data-testid="form13-route-image"]').waitFor({ state: 'visible', timeout: 25000 })
+  const fromCover = page.locator('[data-testid="form13-route-from-cover"]')
+  // 이 버튼은 경로 조회와 독립 축이다 — 소방서를 고르지 않아도(=경로 미조회) 보여야 한다.
+  // 종전 초안 버튼들처럼 route 유무 ternary 안에 두면 여기서 0건이 된다.
+  check('[표지 사진 가져오기]가 경로 조회 전에도 보인다', await fromCover.count() === 1)
+
+  // 이미 경로도가 있으므로 교체 확인창이 뜬다 — Playwright는 기본이 '취소'라 받지 않으면
+  // 핸들러가 조용히 되돌아가고 이 절이 통째로 헛돈다.
+  page.once('dialog', (d: { accept: () => Promise<void> }) => { void d.accept() })
+  await fromCover.click()
+  // 썸네일은 이미 떠 있어 대기 신호가 못 된다(옛 그림이 그대로 보인다) — 완료 문구를 기다린다
+  await page.waitForFunction(() =>
+    document.body.innerText.includes('경로도 바탕으로 가져왔습니다'), null, { timeout: 30000 })
+  const fromCoverFa = await saveAndWait(page, fa => !!fa.routeImage && fa.routeImage !== beforeCover.routeImage)
+
+  check('경로도가 plan-assets 아래 새 파일로 들어옴 (삭제·화살표·다운로드 가드가 요구하는 접두사)',
+    !!fromCoverFa.routeImage?.startsWith(`${custId}/plan-assets/route-cover-`), String(fromCoverFa.routeImage))
+  const { data: copied } = await raw.storage.from(BUCKET).download(fromCoverFa.routeImage!)
+  const copiedBuf = Buffer.from(await copied!.arrayBuffer())
+  check('가져온 그림이 표지 사진과 **바이트까지 같다** (경로만 맞고 내용이 다른 경우를 가른다)',
+    copiedBuf.equals(coverPng), `${copiedBuf.length}B vs ${coverPng.length}B`)
+
+  const { data: coverStill } = await raw.storage.from(BUCKET).list(`${custId}/assets`)
+  check('표지 원본은 그 자리에 남아 있다 (복사이지 이동이 아니다)',
+    (coverStill ?? []).some((f: { name: string }) => f.name === 'cover.png'),
+    JSON.stringify((coverStill ?? []).map((f: { name: string }) => f.name)))
+
+  // 새 바탕에는 옛 원본·옛 좌표가 따라오면 안 된다 — 남으면 [화살표 고치기]가 **옛 그림**을 열고,
+  // 저장하는 순간 새 바탕이 옛 그림으로 되돌아간다(화면엔 멀쩡히 보이는 채로).
+  check('옛 원본(routeImageBase)이 따라오지 않음', !fromCoverFa.routeImageBase, String(fromCoverFa.routeImageBase))
+  check('옛 화살표 좌표(routeAnnots)가 따라오지 않음', !fromCoverFa.routeAnnots, String(fromCoverFa.routeAnnots))
+  check('버튼 문구가 [화살표 넣기]로 돌아옴 (고칠 옛 주석이 없다)',
+    (await page.locator('[data-testid="form13-route-image-annotate"]').innerText()).includes('화살표 넣기'))
+
+  // 상태만 비우고 파일을 두면 스토리지에 고아가 쌓인다 — 합성본·원본 **둘 다** 치웠는지 본다
+  const { data: afterSwap } = await raw.storage.from(BUCKET).list(`${custId}/plan-assets`)
+  const swapNames = (afterSwap ?? []).map((f: { name: string }) => f.name)
+  check('갈아끼우면서 옛 합성본·옛 원본 두 파일을 함께 치웠다',
+    staleFiles.length === 2 && staleFiles.every(p => !swapNames.includes(p.split('/').pop()!)),
+    `stale=${JSON.stringify(staleFiles)} left=${JSON.stringify(swapNames)}`)
+
+  // ── 8. 삭제가 스토리지까지 치우는가 (누수) ────────────────────────────────
+  console.log('— 8. 삭제 시 스토리지 정리')
   await page.locator('[data-testid="form13-route-image-delete"]').click()
   await page.waitForFunction(() =>
     document.querySelector('[data-testid="form13-route-image-thumb"]') === null, null, { timeout: 20000 })
   const { data: left } = await raw.storage.from(BUCKET).list(`${custId}/plan-assets`)
-  check('합성본·원본 모두 스토리지에서 사라짐', (left ?? []).length === 0,
+  check('경로도 파일이 스토리지에서 사라짐', (left ?? []).length === 0,
     JSON.stringify((left ?? []).map((f: { name: string }) => f.name)))
 } catch (e) {
   console.error('실행 중 오류:', e)
@@ -188,6 +262,11 @@ try {
   const { data: leftovers } = await raw.storage.from(BUCKET).list(`${custId}/plan-assets`)
   if (leftovers?.length) {
     await raw.storage.from(BUCKET).remove(leftovers.map((f: { name: string }) => `${custId}/plan-assets/${f.name}`))
+  }
+  // 8절이 심은 표지·슬롯 자동 생성분도 같은 버킷에 남는다 (assets 접두사는 위 목록에 안 걸린다)
+  const { data: assetLeft } = await raw.storage.from(BUCKET).list(`${custId}/assets`)
+  if (assetLeft?.length) {
+    await raw.storage.from(BUCKET).remove(assetLeft.map((f: { name: string }) => `${custId}/assets/${f.name}`))
   }
   await cleanupCustomer(custId)
   await delUser(userId)
