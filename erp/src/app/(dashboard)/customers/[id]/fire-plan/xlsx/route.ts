@@ -8,9 +8,10 @@ import { assembleFirePlan } from '@/lib/fire-plan-generate'
 import { validateAnchors } from '@/lib/xlsx-anchors'
 import { toInjectTargets } from '@/lib/xlsx-workbook'
 import { injectWorkbook } from '@/lib/xlsx-inject'
-import { FIRE_PLAN_ANCHORS } from '@/lib/fire-plan-anchors'
+import { FIRE_PLAN_ANCHORS, FIRE_PLAN_IMAGE_ANCHORS } from '@/lib/fire-plan-anchors'
 import { brigadeRowOverflow, buildFirePlanValues, missingValueFields, zoneRowOverflow } from '@/lib/fire-plan-xlsx-values'
 import { FIRE_PLAN_MANIFEST } from '@/lib/fire-plan-xlsx-manifest'
+import { embedFirePlanImages, planFirePlanImages } from '@/lib/fire-plan-xlsx-images'
 
 /** 소방계획서 엑셀(xlsx) — 소방계획서_42 S6-1.
  *
@@ -53,9 +54,21 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
         { status: 500 })
     }
 
+    // ①-b 사진 상자 좌표 — **값 앵커와 따로** 검증한다(§사진상자). 저쪽 목록에 섞으면
+    //     `missingValueFields`가 '값 없는 필드'라며 생성을 통째로 끊는다(그림엔 값이 없다).
+    const imgCheck = validateAnchors(templateBytes, FIRE_PLAN_IMAGE_ANCHORS)
+    if (!imgCheck.ok) {
+      return NextResponse.json(
+        { error: `소방계획서 사진 상자 좌표가 어긋났습니다(${imgCheck.failures.length}건). 관리자에게 알려 주세요.`, detail: imgCheck.failures.slice(0, 8) },
+        { status: 500 })
+    }
+
     // ② 값 — PDF와 공유하는 단일 조립 결과만 먹는다(재조회 없음)
-    const { data, missing } = await assembleFirePlan(admin, id, year)
+    const { data, images, assets, missing } = await assembleFirePlan(admin, id, year)
     const values = buildFirePlanValues(data)
+    // 사진 배정은 **주입 전에** 정한다 — 그림이 앉는 상자의 안내 글자(`[해당 층 평면도]`)를
+    // 같은 주입 왕복에서 함께 비워야 하기 때문이다.
+    const imgPlan = planFirePlanImages(images, assets, imgCheck.anchors)
 
     // ③ 값 맵 완결성 — 앵커가 요구하는 필드가 하나라도 없으면 그 칸만 템플릿 잔재로 남는다
     const gaps = missingValueFields(values)
@@ -72,15 +85,22 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
         { error: `주입 대상 누락 ${unmapped.length}칸`, detail: unmapped.slice(0, 12).map(a => `${a.sheet}!${a.cell}`) },
         { status: 500 })
     }
-    const result = await injectWorkbook(templateBytes, targets)
+    const result = await injectWorkbook(templateBytes, [
+      ...targets,
+      // 그림이 앉는 상자의 '여기 붙이시오' 안내는 지운다 — 그림 밑에 글자가 남는다
+      ...imgPlan.blankCells.map(c => ({ sheet: c.sheet, cell: c.cell, value: null })),
+    ])
     if (result.missed.length) {
       return NextResponse.json(
         { error: `소방계획서 값 주입 실패 ${result.missed.length}칸 — 미착지가 있으면 내보내지 않습니다.`, detail: result.missed.slice(0, 12) },
         { status: 500 })
     }
 
+    // ⑤ 사진·도면 — 법정 서식이 비워 둔 상자에 앉힌다. 한 장이 깨져도 문서는 나간다(사유는 고지에).
+    const embedded = await embedFirePlanImages(result.bytes, imgPlan.targets)
+
     const name = `${data.buildingName || '소방계획서'}_소방계획서_${year}.xlsx`
-    return new NextResponse(Buffer.from(result.bytes), {
+    return new NextResponse(Buffer.from(embedded.bytes), {
       headers: {
         'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         'Content-Disposition': `attachment; filename="fire-plan-${year}.xlsx"; filename*=UTF-8''${encodeURIComponent(name)}`,
@@ -91,9 +111,13 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
         // 절단할 때는 **잘렸다는 사실 자체**를 드러낸다 — 조용한 절단도 조용한 누락이다.
         'X-FirePlan-Missing': encodeURIComponent(noticeHeader([
           ...check.healed.map(h => `서식 좌표 자가치유: ${h}`),
+          // 사진 상자도 같은 1순위다 — 치유됐다는 건 그림이 원래 자리에 안 붙었다는 뜻이다
+          ...imgCheck.healed.map(h => `사진 상자 좌표 자가치유: ${h}`),
           ...(zoneRowOverflow(data) ? [`구역별 세부현황 ${zoneRowOverflow(data)}개 구역 미표기(양식 고정 행 상한)`] : []),
           // 대원 넘침도 같은 축이다 — 편성표는 잘려 나가도 인쇄물이 멀쩡해 보인다
           ...(brigadeRowOverflow(data) ? [`자위소방대 현장대응팀 ${brigadeRowOverflow(data)}명 미표기(양식 고정 행 상한)`] : []),
+          // 사진 — 버린 장수·깨진 장수는 여기가 유일한 창구다(문서에는 흔적이 안 남는다)
+          ...imgPlan.notes, ...embedded.notes,
           ...missing,
           // 범위 고지 — 받는 사람이 어디까지 담겼는지 헤더에서 바로 알게 한다
           `범위: ${FIRE_PLAN_MANIFEST.scope}(시트 ${FIRE_PLAN_MANIFEST.sheets.length}장)`,

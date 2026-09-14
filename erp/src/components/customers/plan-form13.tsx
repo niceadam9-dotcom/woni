@@ -26,6 +26,9 @@ export type LocationSection = { mapImage: string | null; surroundings: string; f
 export type FireAccessSection = {
   routeDesc: string; routeImage: string | null; entryPoint: string; nearbyFacilities: string
   routeImageBase?: string | null; routeAnnots?: string | null
+  /** 「소방차 진입장소 및 주변 소방시설 현황」 상자에 인쇄되는 사진 (2026-09-14 신설).
+   *  선택 항목이라 기존 저장분(없음)도 그대로 열린다 — routeImage 3분 저장과 같은 꼴. */
+  entryImage?: string | null; entryImageBase?: string | null; entryAnnots?: string | null
 }
 
 /** 화살표 편집을 지원하는 슬롯이 부모와 주고받는 짝 — 넘기지 않으면 종전대로 단순 업로드 슬롯이다 */
@@ -709,6 +712,16 @@ export function PlanForm13({
           <textarea value={fa.nearbyFacilities} onChange={e => patchFa({ nearbyFacilities: e.target.value })} disabled={!canManage}
             rows={2} placeholder="예: 정문 앞 지상식 소화전 1개소" className={taCls} />
         </div>
+        {/* 2026-09-14 신설 — 법정 서식 1.3 아래쪽 상자(「소방차 진입장소 및 주변 소방시설 현황」)에는
+            **사진/도면**이 들어가는데 여태 이 칸을 채울 입력 창구가 ERP에 없었다(글 두 칸뿐이었다).
+            위 경로도와 같은 창구·같은 화살표 편집을 쓴다 — 칸마다 다른 방법을 외우게 하지 않는다. */}
+        <ImageSlot customerId={customerId} canManage={canManage} path={fa.entryImage ?? null} testId="form13-entry-image"
+          onChange={p => patchFa({ entryImage: p })} label="진입장소·주변 소방시설 사진 (이미지)"
+          annot={{
+            basePath: fa.entryImageBase ?? null,
+            annots: fa.entryAnnots ?? null,
+            onChange: v => patchFa({ entryImageBase: v.basePath, entryAnnots: v.annots }),
+          }} />
       </div>
 
       {/* ④ 생성 문서 삽입 사진 (§8-1k — 종전 생성 모달의 사진 입력 이관) */}

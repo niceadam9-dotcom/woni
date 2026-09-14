@@ -24,8 +24,11 @@ export const FP_SHEET = {
   F1_1: '1.1 건축물 일반현황',
   F1_2_1: '1.2.1 구역별 세부현황',
   F1_3_ROUTE: '1.3 소방차 진입경로',
+  // 사진·도면 상자만 있는 시트 둘 — 값 앵커는 아직 없다(§사진상자 참조)
+  F1_3_LOC: '1.3 건축물 위치·운영현황',
   F1_4: '1.4 소방시설 현황',
   F1_5_1: '1.5.1 피난·방화시설 현황',
+  F1_5_2: '1.5.2 방화·제연구획 현황도',
   F1_7_1: '1.7.1 소방안전관리자 선임현황',
   F1_8: '1.8 업무대행 현황',
   // ⚠ manifest에 `1.11.4`로 시작하는 시트가 **둘**이다(앞쪽·뒷쪽) — 용도 칸은 앞쪽에만 있다
@@ -411,6 +414,52 @@ function assemble(seeds: Seed[]): Anchor[] {
 }
 
 export const FIRE_PLAN_ANCHORS: Anchor[] = assemble([...FIXED_SEEDS, ...ZONE_SEEDS, ...BRIG_SEEDS, ...FORM14_SEEDS])
+
+/* ══════════════════════ §사진상자 (2026-09-14) ══════════════════════
+ *
+ *  법정 서식은 사진·도면을 붙이라고 큰 상자를 비워 둔다. 그 상자들은 **글자 앵커가 아니다** —
+ *  값 맵도 `toInjectTargets`도 여기 관여하지 않는다. 그래서 `FIRE_PLAN_ANCHORS`와 **따로**
+ *  둔다: 저쪽에 섞으면 `missingValueFields`가 '값이 없는 필드'라며 생성을 500으로 끊는다.
+ *
+ *  같은 것을 공유하는 것은 **검증 규약**이다 — `validateAnchors`에 이 목록을 따로 한 번 더
+ *  먹여 라벨 대조·자가치유를 그대로 받는다(좌표를 쓰되 좌표만 믿지 않는다).
+ *
+ *  ⚠ **라벨칸을 상자 자신으로 잡지 않는다**(1.5.2). 그 시트는 같은 블록이 두 벌이라
+ *    `[해당 층 평면도]`가 A4·A6 **두 칸에 똑같이** 있다. 상자 자신을 라벨로 삼으면 A4가
+ *    어긋났을 때 자가치유가 **유일 후보인 A6로 옮겨 붙어** 두 그림이 한 상자에 겹친다.
+ *    그래서 둘 다 시트에서 유일한 제목칸 A1에 물린다 — 서식이 밀리면 **함께** 따라 옮겨진다.
+ *
+ *  ⚠ `descr`(대체 텍스트)도 자구를 베끼지 않는다. manifest의 그 칸 글자를 쓰고, 없으면 라벨칸 글자.
+ */
+
+/** 상자 하나 — 어떤 그림(kind)의 몇 번째 장이 어디에 앉는가 */
+export type FirePlanImageBox = Seed & {
+  /** `assembleFirePlan()`이 붙이는 이미지 종류 */
+  kind: 'map' | 'route' | 'entry' | 'evacmap'
+  /** 같은 kind가 여러 장일 때 몇 번째를 이 상자에 넣는가(0부터) */
+  index: number
+  /** 그림이 앉으면 **그 칸의 글자를 비운다** — `[해당 층 평면도]` 같은 '여기 붙이시오' 안내다.
+   *  그림이 **없으면 남긴다**(그 안내가 곧 서식이다).
+   *  ⚠ 좌표를 따로 적지 않는 이유: 자가치유로 상자가 옮겨지면 안내 글자도 함께 옮겨져 있다. */
+  clearPlaceholder?: boolean
+}
+
+export const FIRE_PLAN_IMAGE_BOXES: FirePlanImageBox[] = [
+  { field: 'img_location_map', kind: 'map',   index: 0, sheet: FP_SHEET.F1_3_LOC,   cell: 'A3', labelCell: 'A2' },
+  { field: 'img_route',        kind: 'route', index: 0, sheet: FP_SHEET.F1_3_ROUTE, cell: 'A2', labelCell: 'A1' },
+  { field: 'img_entry',        kind: 'entry', index: 0, sheet: FP_SHEET.F1_3_ROUTE, cell: 'A4', labelCell: 'A3' },
+  { field: 'img_evacmap_1', kind: 'evacmap', index: 0, sheet: FP_SHEET.F1_5_2, cell: 'A4', labelCell: 'A1', clearPlaceholder: true },
+  { field: 'img_evacmap_2', kind: 'evacmap', index: 1, sheet: FP_SHEET.F1_5_2, cell: 'A6', labelCell: 'A1', clearPlaceholder: true },
+]
+
+/** 사진 상자의 라벨 검증용 앵커 — 라우트가 `validateAnchors(bytes, FIRE_PLAN_IMAGE_ANCHORS)`로 쓴다 */
+export const FIRE_PLAN_IMAGE_ANCHORS: Anchor[] = assemble(
+  FIRE_PLAN_IMAGE_BOXES.map(({ field, sheet, cell, labelCell }) => ({ field, sheet, cell, labelCell })))
+
+/** 상자의 대체 텍스트 — 그 칸 글자가 있으면 그것(`[해당 층 평면도]`), 없으면 라벨칸 글자 */
+export function imageBoxDescr(b: FirePlanImageBox): string {
+  return (sheetManifest(b.sheet).labels[b.cell] ?? labelAt(b.sheet, b.labelCell)).trim()
+}
 
 /**
  * **라벨동반 상자칸인가**(§상자칸) — 그 칸의 manifest 라벨이 빈 상자를 품고 있는가.

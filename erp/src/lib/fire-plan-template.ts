@@ -524,6 +524,8 @@ ${(d.autoFilled?.length ?? 0) > 0
   <h3>건축물 위치도</h3>
   ${mapImgs.length ? imgBlock(mapImgs, 340) : slotPlaceholder('위치도(약도)')}
   ${imgsOf('route').length ? `<h3>소방차 진입경로</h3>${imgBlock(imgsOf('route'), 300)}` : ''}
+  ${/* 2026-09-14 — 엑셀 1.3 아래쪽 상자와 **같은 그림**이다. 한쪽만 인쇄하면 두 표면이 갈라진다(D-7) */''}
+  ${imgsOf('entry').length ? `<h3>소방차 진입장소 및 주변 소방시설 현황</h3>${imgBlock(imgsOf('entry'), 300)}` : ''}
   ${imgsOf('building').length ? `<h3>건물 전경</h3>${imgBlock(imgsOf('building'), 300)}` : ''}
 </div>
 

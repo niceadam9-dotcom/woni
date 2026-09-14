@@ -242,6 +242,12 @@ const steps: Step[] = [
   //   데려간 채 HEAD에 실렸어도(42 R-7 실사고) 회귀 그물이 조용했다. 여기가 붉으면 자산·앵커·
   //   manifest 셋 중 하나가 갈라진 것 — build-fire-plan-template 재실행부터 볼 것.
   { name: '소방계획서 워크북 자산',    cmd: 'npx tsx scripts/test-fire-plan-xlsx.mts' },
+  // 소방계획서 엑셀 **사진·도면 상자**(2026-09-14 사용자 신고: 1.3이 늘 백지였다).
+  // 위 자산 검사와 축이 다르다 — 저기는 글자·좌표·자구, 여기는 **그림이 그 상자에 들어갔는가**다.
+  // ⚠ 판정은 경로가 아니라 **바이트·평균색**이다(엉뚱한 그림이 들어가도 경로는 맞는다).
+  //   변이 프로브: `node scripts/_mutate-fireplan-images.mjs` (12/12 빨강 실측 2026-09-14 —
+  //   그중 M11은 「상자를 잘못 재도 초록」이던 사각을 드러내 단언을 하나 더 낳았다)
+  { name: '소방계획서 사진 상자',      cmd: 'npx tsx --conditions=react-server scripts/test-fire-plan-images.mts' },
   // 건물 이름 중복 확인(2026-09-09) — 같은 고객에 같은 이름 동이 조용히 두 번 등록된 실사고.
   // ⚠ 핵심은 「막는가」가 아니라 **「다동을 안 막는가」**다 — 이름이 다르면 통과해야 한다.
   { name: '건물 이름 중복 판정',        cmd: 'npx tsx scripts/test-building-dup.mts' },

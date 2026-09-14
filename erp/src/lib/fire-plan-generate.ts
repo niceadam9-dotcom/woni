@@ -391,6 +391,10 @@ export async function assembleFirePlan(
   const fSec = sections
   if (fSec.location?.mapImage) refs.push({ path: fSec.location.mapImage, kind: 'map', caption: '위치도', priority: PRIORITY_FORM })
   if (fSec.fireAccess?.routeImage) refs.push({ path: fSec.fireAccess.routeImage, kind: 'route', caption: '소방차 진입경로', priority: PRIORITY_FORM })
+  // 2026-09-14 — 법정 서식 1.3 아래쪽 상자용 사진. 종전엔 이 자리를 채울 입력 자체가 없었다.
+  if (fSec.fireAccess?.entryImage) {
+    refs.push({ path: fSec.fireAccess.entryImage, kind: 'entry', caption: '소방차 진입장소 및 주변 소방시설 현황', priority: PRIORITY_FORM })
+  }
   for (const m of fSec.evacMaps ?? []) {
     if (m.image) refs.push({ path: m.image, kind: 'evacmap', caption: [m.floor, m.desc].filter(Boolean).join(' — '), priority: PRIORITY_FORM })
   }
