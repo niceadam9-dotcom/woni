@@ -14,7 +14,8 @@ import * as XLSX from 'xlsx'
 import { validateAnchors } from '../src/lib/xlsx-anchors.ts'
 import { toInjectTargets } from '../src/lib/xlsx-workbook.ts'
 import { injectWorkbook } from '../src/lib/xlsx-inject.ts'
-import { FIRE_PLAN_ANCHORS, FIRE_PLAN_FIELDS, FP_SHEET, ZONE_ROWS, ZONE_SHEET, ZONE_FIRST_ROW, BRIG_ROWS, BRIG_FIRST_ROW, isBoxLabelAnchor, isUnitLabelAnchor } from '../src/lib/fire-plan-anchors.ts'
+import { FIRE_PLAN_ANCHORS, FIRE_PLAN_FIELDS, FP_SHEET, ZONE_ROWS, ZONE_SHEET, ZONE_FIRST_ROW, BRIG_ROWS, BRIG_FIRST_ROW, isBoxLabelAnchor, isUnitLabelAnchor, isPrefixLabelAnchor, FORM14_ROWS, FORM14_SHEET, FORM14_NAME_CELL, FORM14_NAME_FIELD } from '../src/lib/fire-plan-anchors.ts'
+import { ALL_STANDARD_CODES } from '../src/lib/facility-codes.ts'
 import { brigadeRowOverflow, buildFirePlanValues, missingValueFields, planDate, zoneRowOverflow } from '../src/lib/fire-plan-xlsx-values.ts'
 import { FIRE_PLAN_MANIFEST, labelAt, boxGlyphAt } from '../src/lib/fire-plan-xlsx-manifest.ts'
 import { FIRE_PLAN_SCRUB_NEEDLES, FIRE_PLAN_MARK_CHECKED_RE } from '../src/lib/fire-plan-scrub.ts'
@@ -112,10 +113,16 @@ console.log('\n[3] 백지 불변식 — 템플릿에 표본의 답이 남아 있
   //   `isUnitLabelAnchor`는 등식이 아니라 **'남은 글자가 단위처럼 생겼는가'**를 묻는다.
   const dirty = FIRE_PLAN_ANCHORS.filter(a => {
     const t = cellText(a)
-    return t && !/^[□☐]$/.test(t) && !boxLabelOk(a) && !isUnitLabelAnchor(a)
+    return t && !/^[□☐]$/.test(t) && !boxLabelOk(a) && !isUnitLabelAnchor(a) && !isPrefixLabelAnchor(a)
   })
-  check('앵커 셀 공란(빈 상자·상자칸·단위칸만 예외)', dirty.length === 0,
+  check('앵커 셀 공란(빈 상자·상자칸·단위칸·접두라벨칸만 예외)', dirty.length === 0,
     dirty.slice(0, 5).map(a => `${a.sheet}!${a.cell}='${cellText(a)}'`).join(' · '))
+  const prefixCells = FIRE_PLAN_ANCHORS.filter(isPrefixLabelAnchor)
+  check('접두라벨칸 예외 수가 그대로(1.4 대상명 1칸)', prefixCells.length === 1,
+    prefixCells.map(a => `${a.sheet}!${a.cell}='${cellText(a)}'`).join(' · '))
+  // 🎯 표본 답이 이 예외 뒤에 숨지 못한다 — 콜론 뒤에 글자가 남았으면 그건 자구가 아니라 답이다
+  check('접두라벨칸에 답이 없다', prefixCells.every(a => /[:：]$/.test(cellText(a))),
+    prefixCells.filter(a => !/[:：]$/.test(cellText(a))).map(a => `${a.sheet}!${a.cell}`).join(','))
   const boxOnly = FIRE_PLAN_ANCHORS.filter(a => /^[□☐]$/.test(cellText(a)))
   check('빈 상자만 남은 앵커는 소수', boxOnly.length <= 3, boxOnly.map(a => `${a.sheet}!${a.cell}`).join(','))
   const boxLabel = FIRE_PLAN_ANCHORS.filter(isBoxLabelAnchor)
@@ -124,7 +131,9 @@ console.log('\n[3] 백지 불변식 — 템플릿에 표본의 답이 남아 있
   // **늘어난 이유가 분명할 때만** 고친다 — 줄어들면 배선이 조용히 빠진 것이다.
   // 2026-09-09(2): 주차장 14행 자주식·기계식 4칸(L14·T14·AB14·AJ14)을 더 배선해 1.1이 21→25.
   //   법정 양식 hwpx 원문·manifest 양쪽에서 그 네 칸을 확인하고 늘렸다(추측 아님).
-  check('상자칸 예외 수가 그대로(1.5.1 3 + 1.1 25)', boxLabel.length === 28, `${boxLabel.length}칸`)
+  // 2026-09-14: 서식 1.4 설비 체크칸 40을 배선해 28→68. 이 시트는 종전 앵커 0이라 40종 전부가
+  //   `□`로 인쇄되고 있었다(PDF는 같은 값을 체크 중이었다 — D-7 갈라짐).
+  check('상자칸 예외 수가 그대로(1.5.1 3 + 1.1 25 + 1.4 40)', boxLabel.length === 68, `${boxLabel.length}칸`)
   check('상자칸은 템플릿에서 전부 미체크', boxLabel.every(a => !/■/.test(cellText(a))),
     boxLabel.filter(a => /■/.test(cellText(a))).map(a => a.cell).join(','))
   const unitCells = FIRE_PLAN_ANCHORS.filter(isUnitLabelAnchor)
@@ -304,6 +313,12 @@ console.log('\n[7] 값 맵 완결성 · 표기 규약')
     height: '15', structure: '철근콘크리트', roof: '슬라브',
     fireStation: '어딘가소방서', managerSelectedAt: '2025-01-14',
     contractStart: '2025-01-01', companyName: '어느소방이엔지',
+    /* 서식 1.4 — **설치·미설치를 둘 다** 담는다(전부 담으면 '늘 켜는 구현'이 통과한다).
+     * 고른 다섯은 축이 각각 다르다: 좌열 부모(소화기구)·좌열(유도등·자탐)·우열 AJ(옥외소화전)·
+     * 우열 **AI**(비상콘센트 — 23~25행만 열이 다르다). 바로 옆·아래 칸(유도표지 J20·
+     * 비상조명등 AJ19·옥내소화전 J4)은 **일부러 비워** 한 칸 밀림을 음성으로 잡는다. */
+    facilities: ['소화기구 및 자동소화장치', '유도등', '자동화재탐지설비 및 시각경보기',
+      '옥외소화전설비', '비상콘센트설비'],
     // ⚠ 1.1 §시설현황·운영현황(2026-09-08 배선)은 **켜짐과 꺼짐을 둘 다** 담아야 한다.
     //   전부 채우면 '늘 켜는 구현'이, 전부 비우면 '늘 끄는 구현'이 초록으로 통과한다.
     //   그래서 승강기는 승용·비상용만(피난용 없음), 계단은 직통만(특별피난 없음)으로 둔다.
@@ -465,6 +480,62 @@ console.log('\n[7] 값 맵 완결성 · 표기 규약')
     const marks = Object.keys(ws).filter(k => !k.startsWith('!'))
       .filter(k => String((ws[k] as XLSX.CellObject).v ?? '').includes('■')).length
     check('1.1 체크된 상자는 우리가 켠 9개뿐(미배선 칸은 손대지 않는다)', marks === 9, `${marks}개`)
+  }
+
+  /* ── 서식 1.4 소방시설 현황 (2026-09-14 배선) ──────────────────────────────────
+   *  🚨 이 시트는 앵커가 **0칸**이라 40종 전부가 `□`로 인쇄되고 있었다(사용자 신고: 소화기구·
+   *    유도등). 같은 값을 PDF는 체크하고 있었으므로 두 산출물이 갈라져 있었다(D-7).
+   *  🚨 켜짐만 묻지 않는다 — '전부 체크하는 구현'도 켜짐 검사는 통과한다. 칸마다 **짝**을 건다. */
+  {
+    const rowOf = (code: string) => {
+      const r = FORM14_ROWS.find(x => x.code === code)
+      if (!r) throw new Error(`검사가 낡았다 — 1.4에 코드 '${code}'가 없다`)
+      return r
+    }
+    const f14 = (code: string) => at(FORM14_SHEET, rowOf(code).cell)
+
+    // ① 전사(全射) — 표준 코드가 하나라도 칸을 못 얻으면 그 설비는 영원히 미체크다
+    check('1.4 표준 코드 전건이 칸을 얻었다', FORM14_ROWS.length === ALL_STANDARD_CODES.length,
+      `${FORM14_ROWS.length}/${ALL_STANDARD_CODES.length}종`)
+    check('1.4 칸·필드에 중복이 없다',
+      new Set(FORM14_ROWS.map(r => r.cell)).size === FORM14_ROWS.length
+      && new Set(FORM14_ROWS.map(r => r.field)).size === FORM14_ROWS.length)
+
+    // ② 양성 — 사용자가 신고한 바로 그 두 칸
+    check('1.4 소화기구 및 자동소화장치 체크', f14('소화기구 및 자동소화장치').includes('■'),
+      f14('소화기구 및 자동소화장치'))
+    check('1.4 유도등 체크', f14('유도등').includes('■'), f14('유도등'))
+    check('1.4 우열 AJ(옥외소화전) 체크', f14('옥외소화전설비').includes('■'), f14('옥외소화전설비'))
+    // 🎯 23~25행만 우열이 AI다 — AJ로 적었으면 여기만 조용히 빗나간다
+    check('1.4 우열 AI(비상콘센트) 체크', f14('비상콘센트설비').includes('■'), f14('비상콘센트설비'))
+
+    // ③ 음성 — 유도등 바로 아래(유도표지)·바로 옆(비상조명등)이 함께 켜지면 좌표가 밀린 것이다
+    check('1.4 유도표지는 미체크(미설치)', !f14('유도표지').includes('■'), f14('유도표지'))
+    check('1.4 비상조명등은 미체크(미설치)', !f14('비상조명등').includes('■'), f14('비상조명등'))
+    check('1.4 옥내소화전은 미체크(미설치)', !f14('옥내소화전설비').includes('■'), f14('옥내소화전설비'))
+    check('1.4 무선통신보조는 미체크(미설치)', !f14('무선통신보조설비').includes('■'), f14('무선통신보조설비'))
+
+    // ④ 법정 자구 보존 — 상자만 갈아 끼워야지 문구를 덮어쓰면 안 된다
+    const restored = (r: { cell: string }) =>
+      at(FORM14_SHEET, r.cell).replace('■', boxGlyphAt(FORM14_SHEET, r.cell)).trim()
+    const broken = FORM14_ROWS.filter(r => restored(r) !== labelAt(FORM14_SHEET, r.cell).trim())
+    check('1.4 법정 자구 보존(상자 글자만 바뀐다)', broken.length === 0,
+      broken.slice(0, 4).map(r => `${r.cell}='${at(FORM14_SHEET, r.cell)}'`).join(' · '))
+
+    // ⑤ 시트 전체 ■ 수 — 배선하지 않은 칸(R16·R17 피난기구 하위, AJ2 안내문)이 켜지면 늘어난다.
+    //   ⚠ A2 대상명은 `■`로 시작하는 **불릿**이라 체크가 아니다 — 세지 않는다(좌표로 빼지 않고
+    //     그 앵커의 칸으로 빼서, 서식이 밀려도 검사가 따라간다).
+    {
+      const ws = wb2.Sheets[FORM14_SHEET] ?? {}
+      const marks = Object.keys(ws).filter(k => !k.startsWith('!') && k !== FORM14_NAME_CELL)
+        .filter(k => String((ws[k] as XLSX.CellObject).v ?? '').includes('■')).length
+      check('1.4 체크된 상자는 우리가 켠 5개뿐(미배선 칸은 손대지 않는다)', marks === 5, `${marks}개`)
+    }
+
+    // ⑥ 대상명 — 서식 자구는 남고 값이 뒤에 붙는다
+    check('1.4 대상명 착지(자구 + 값)',
+      atF(FORM14_NAME_FIELD).includes('대상명') && atF(FORM14_NAME_FIELD).endsWith('가상건물'),
+      atF(FORM14_NAME_FIELD))
   }
 
   /* ── 제2장 서식 2.2 자위소방대 편성표 (2단계 · Q-1) ────────────────────────────

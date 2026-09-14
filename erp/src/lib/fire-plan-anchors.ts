@@ -15,6 +15,7 @@
  */
 import type { Anchor } from '@/lib/xlsx-anchors'
 import { labelAt, labelBlockRows, sheetManifest, tokenRowBudget } from '@/lib/fire-plan-xlsx-manifest'
+import { ALL_STANDARD_CODES } from '@/lib/facility-codes'
 
 /* ────────────────────────── 시트명 (manifest 키) ────────────────────────── */
 
@@ -23,6 +24,7 @@ export const FP_SHEET = {
   F1_1: '1.1 건축물 일반현황',
   F1_2_1: '1.2.1 구역별 세부현황',
   F1_3_ROUTE: '1.3 소방차 진입경로',
+  F1_4: '1.4 소방시설 현황',
   F1_5_1: '1.5.1 피난·방화시설 현황',
   F1_7_1: '1.7.1 소방안전관리자 선임현황',
   F1_8: '1.8 업무대행 현황',
@@ -298,6 +300,96 @@ const ZONE_SEEDS: Seed[] = Array.from({ length: ZONE_ROWS }, (_, i) =>
   })),
 ).flat()
 
+/* ══════════════════ 1.4 소방시설 현황 — 설비 체크칸 40 + 대상명 ══════════════════
+ *
+ *  🚨 **이 시트는 통째로 미배선이었다**(2026-09-14 사용자 지적: 「소화기구·유도등 체크가 안 돼 있다」).
+ *  앵커가 한 칸도 없어 40종 **전부**가 템플릿 원본 `□` 그대로 인쇄됐고, 같은 시트의 대상명도
+ *  공란이었다. 같은 값을 PDF(`fire-plan-template` facilityRows)는 `d.facilities`로 체크하고
+ *  있었으므로 **PDF와 엑셀이 갈라진 상태**였다(D-7). 씨앗에 `{{token}}`이 없어 자동 생성이
+ *  못 보던 자리라 §구멍·주차장 13행과 같은 갈래다.
+ *
+ *  ⭐ 좌표를 손으로 적되 **믿지는 않는다** — 아래 `FORM14_ROWS`가 모듈 적재 시점에
+ *    `labelAt`의 자구와 대조해 하나라도 어긋나면 throw 한다(라우트가 500으로 낸다).
+ *    좌표가 밀린 채 조용히 옆 줄을 체크하는 것이 이 서식에서 가장 위험한 방향이다.
+ *  ⭐ 코드 문자열은 `ALL_STANDARD_CODES`의 그 항목명이다(설비 대장 어휘) — 전사(全射)를
+ *    함께 단언하므로 서식에 줄이 생기거나 표준 코드가 늘면 여기가 먼저 붉어진다.
+ *
+ *  ⚠ **일부러 안 세운 칸** (조용히 넘기지 않는다):
+ *    · `R16`·`R17` 피난기구 하위 8칸(공기안전매트·피난사다리·(간이)완강기·미끄럼대·구조대 /
+ *      다수인피난장비·승강식피난기·하향식피난구용내림식사다리) — 그 축은 대장이 아니라
+ *      **세부제원** `s36_evac.evac_equipment.types`(`evacTypesFromSpecs` 단일 원천)인데
+ *      `assembleFirePlan`이 `customer_facility_specs`를 읽지 않는다. 여기서 질의를 새로 짜면
+ *      `report9-assemble`의 건물 우선·공통 폴백 병합을 베끼는 두 번째 원천이 생긴다(사본 금지).
+ *      → 조립에 `evacTypes`를 실어 주는 별건으로 남긴다. 부모 `J16 피난기구`는 대장 축이라 배선했다.
+ *    · `AJ2 ※ □에는 해당되는 곳에 √표를 합니다` — 상자가 있지만 **안내문**이다(체크 대상 아님).
+ */
+export const FORM14_SHEET = FP_SHEET.F1_4
+
+/** [설비 대장 코드, 설치 체크칸] — 서식 좌열(J)·우열(AJ/AI). 실측 2026-09-14(manifest labels 전수) */
+const FORM14_CELLS: ReadonlyArray<readonly [code: string, cell: string]> = [
+  // 소화설비 15
+  ['소화기구 및 자동소화장치', 'J3'],
+  ['옥내소화전설비', 'J4'],   ['옥외소화전설비', 'AJ4'],
+  ['스프링클러설비', 'J5'],   ['이산화탄소소화설비', 'AJ5'],
+  ['간이스프링클러설비', 'J6'], ['할론소화설비', 'AJ6'],
+  ['화재조기진압용 스프링클러설비', 'J7'], ['할로겐화합물 및 불활성기체소화설비', 'AJ7'],
+  ['물분무소화설비', 'J8'],   ['분말소화설비', 'AJ8'],
+  ['미분무소화설비', 'J9'],   ['강화액소화설비', 'AJ9'],
+  ['포소화설비', 'J10'],      ['고체에어로졸소화설비', 'AJ10'],
+  // 경보설비 9
+  ['단독경보형감지기', 'J11'], ['통합감시시설', 'AJ11'],
+  ['비상경보설비', 'J12'],    ['자동화재속보설비', 'AJ12'],
+  ['자동화재탐지설비 및 시각경보기', 'J13'], ['누전경보기', 'AJ13'],
+  ['화재알림설비', 'J14'],    ['가스누설경보기', 'AJ14'],
+  ['비상방송설비', 'J15'],
+  // 피난구조설비 7 — 하위 8칸(R16·R17)은 위 ⚠ 참조
+  ['피난기구', 'J16'],
+  ['인명구조기구', 'J18'],    ['피난유도선', 'AJ18'],
+  ['유도등', 'J19'],          ['비상조명등', 'AJ19'],
+  ['유도표지', 'J20'],        ['휴대용비상조명등', 'AJ20'],
+  // 소화용수설비 2
+  ['상수도소화용수설비', 'J21'], ['소화수조 및 저수조', 'AJ21'],
+  // 소화활동설비 7 — ⚠ 우열이 AJ가 아니라 **AI**다(23~25행)
+  ['거실제연설비', 'J22'],
+  ['부속실 등 제연설비', 'J23'], ['비상콘센트설비', 'AI23'],
+  ['연결송수관설비', 'J24'],     ['무선통신보조설비', 'AI24'],
+  ['연결살수설비', 'J25'],       ['연소방지설비', 'AI25'],
+]
+
+/** 상자 글자·공백을 걷어낸 비교 축 — 서식 자구와 대장 어휘의 띄어쓰기 흔들림만 흡수한다 */
+const bareLabel = (s: string) => s.replace(/[□☐]/g, '').replace(/\s+/g, '')
+
+export type Form14Row = { code: string; cell: string; field: string }
+
+/** 설비 코드 ↔ 체크칸 — **적재 시점에 서식 자구와 대조**한다(좌표만 믿지 않는다) */
+export const FORM14_ROWS: Form14Row[] = (() => {
+  const rows = FORM14_CELLS.map(([code, cell]) => {
+    const lbl = labelAt(FORM14_SHEET, cell)          // 없으면 여기서 throw
+    if (bareLabel(lbl) !== bareLabel(code)) {
+      throw new Error(`fire-plan-anchors: 1.4!${cell} 자구가 '${lbl.trim()}' 인데 코드는 '${code}' — 좌표가 밀렸다`)
+    }
+    // 필드 이름은 좌표에서 기계로 만든다(손으로 지으면 오타·중복이 가능해진다)
+    return { code, cell, field: `f14_${cell}` }
+  })
+  // 🚨 전사(全射) — 표준 코드가 하나라도 칸을 못 얻으면 그 설비는 **영원히 미체크**로 인쇄된다.
+  //   이 결함이 처음 샌 경로가 바로 '아무도 그 칸을 안 본다'였으므로 여기서 막는다.
+  const wired = new Set(rows.map(r => r.code))
+  const missing = ALL_STANDARD_CODES.filter(c => !wired.has(c))
+  if (missing.length) throw new Error(`fire-plan-anchors: 1.4에 칸이 없는 표준 코드 — ${missing.join(', ')}`)
+  const extra = rows.filter(r => !ALL_STANDARD_CODES.includes(r.code))
+  if (extra.length) throw new Error(`fire-plan-anchors: 1.4에 미등록 코드 — ${extra.map(r => r.code).join(', ')}`)
+  return rows
+})()
+
+/** 대상명 — 서식 자구가 `■ 대상명 : ` 이고 값이 **뒤에** 붙는다(§접두라벨칸) */
+export const FORM14_NAME_FIELD = 'form14_target_name'
+export const FORM14_NAME_CELL = 'A2'
+
+const FORM14_SEEDS: Seed[] = [
+  ...FORM14_ROWS.map(r => ({ field: r.field, sheet: FORM14_SHEET, cell: r.cell, labelCell: r.cell })),
+  { field: FORM14_NAME_FIELD, sheet: FORM14_SHEET, cell: FORM14_NAME_CELL, labelCell: FORM14_NAME_CELL },
+]
+
 /* ══════════════════════ 조립 ══════════════════════ */
 
 /**
@@ -318,7 +410,7 @@ function assemble(seeds: Seed[]): Anchor[] {
   })
 }
 
-export const FIRE_PLAN_ANCHORS: Anchor[] = assemble([...FIXED_SEEDS, ...ZONE_SEEDS, ...BRIG_SEEDS])
+export const FIRE_PLAN_ANCHORS: Anchor[] = assemble([...FIXED_SEEDS, ...ZONE_SEEDS, ...BRIG_SEEDS, ...FORM14_SEEDS])
 
 /**
  * **라벨동반 상자칸인가**(§상자칸) — 그 칸의 manifest 라벨이 빈 상자를 품고 있는가.
@@ -343,6 +435,21 @@ export function isBoxLabelAnchor(a: { sheet: string; cell: string }): boolean {
 export function isUnitLabelAnchor(a: { sheet: string; cell: string }): boolean {
   const lbl = sheetManifest(a.sheet).labels[a.cell]
   return !!lbl && /^[가-힣㎡]{1,2}$/.test(lbl.trim())
+}
+
+/**
+ * **접두라벨칸인가**(2026-09-14, 1.4 대상명) — 자구가 `:`로 끝나 **값이 뒤에 올 자리**인가.
+ *
+ * 단위칸의 거울상이다(거긴 자구가 값 뒤, 여긴 앞). `■ 대상명 : ` 은 상자칸이 아니라 불릿이라
+ * `isBoxLabelAnchor`에 안 걸리고, 두 글자 단위도 아니라 `isUnitLabelAnchor`에도 안 걸린다.
+ *
+ * 🚨 판별을 `셀 글자 == manifest 라벨`에 맡기지 않는 이유는 단위칸과 같다 — 그건 항진명제라
+ *   표본 답이 예외 뒤에 숨는다. 여기서는 **'구분자로 끝나 아직 아무 답도 없는가'**를 묻는다:
+ *   표본이 답을 적어 두었다면(`■ 대상명 : 강순기`) 콜론이 끝이 아니게 되어 곧바로 붉어진다.
+ */
+export function isPrefixLabelAnchor(a: { sheet: string; cell: string }): boolean {
+  const lbl = sheetManifest(a.sheet).labels[a.cell]
+  return !!lbl && /[:：]\s*$/.test(lbl)
 }
 
 /** 값 맵이 반드시 채워야 하는 필드 전수(중복 제거) — S7-2 완결성 검사와 S5가 같은 목록을 본다 */

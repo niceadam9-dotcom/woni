@@ -20,7 +20,10 @@
 import type { CellValue } from '@/lib/xlsx-inject'
 import type { BrigadeRow, FirePlanGenData } from '@/lib/fire-plan-template'
 import { formatTel } from '@/lib/format-contact'
-import { BRIG_ROWS, FIRE_PLAN_ANCHORS, FP_SHEET, ZONE_ROWS, ZONE_SHEET } from '@/lib/fire-plan-anchors'
+import {
+  BRIG_ROWS, FIRE_PLAN_ANCHORS, FORM14_NAME_CELL, FORM14_NAME_FIELD, FORM14_ROWS, FORM14_SHEET,
+  FP_SHEET, ZONE_ROWS, ZONE_SHEET,
+} from '@/lib/fire-plan-anchors'
 import { boxGlyphAt, labelAt, tokenTemplateAt } from '@/lib/fire-plan-xlsx-manifest'
 import { purposeCover, purposeShort } from '@/lib/purpose-label'
 /* 주차장 체크 판정 — 별지 9호 2쪽이 쓰는 그 함수(사본 금지). 순수 함수라 클라이언트도 쓴다 */
@@ -110,6 +113,19 @@ export function unitCell(sheet: string, cell: string, value: string | number | n
 /** 유·무가 한 칸인 칸(`□유 □무`). `null`(미입력)이면 **둘 다** 비운다 — 미입력과 '무'는 다르다 */
 export function yesNoCell(sheet: string, cell: string, yes: boolean | null): string {
   return stampBoxes(sheet, cell, i => (i === 0 ? yes === true : i === 1 ? yes === false : false))
+}
+
+/**
+ * **접두라벨칸** — 자구가 값 **앞에** 오는 칸(`■ 대상명 : {값}`). `unitCell`의 거울상이다.
+ *
+ * 손으로 `` `■ 대상명 : ${name}` `` 이라 적지 않는 이유도 같다 — 양식이 「대상명」을
+ * 「대상물 명칭」으로 개정하면 코드가 옛 자구를 들고 있는다. manifest 원문을 읽어 잇는다.
+ * ⚠ 값이 없어도 자구는 남긴다(빈 서식). 지우면 `대상명` 줄 자체가 사라진다.
+ */
+export function prefixCell(sheet: string, cell: string, value: string | null | undefined): string {
+  const label = labelAt(sheet, cell)
+  const v = txt(value)
+  return v ? `${label}${label.endsWith(' ') ? '' : ' '}${v}` : label
 }
 
 /* ────────────────────────── 값 조립 ────────────────────────── */
@@ -236,6 +252,18 @@ export function buildFirePlanValues(d: FirePlanGenData): Map<string, CellValue> 
 
   // ── 서식 1.3 소방차 진입경로 ──
   v.set('fire_station', txt(d.fireStation))
+  /* ── 서식 1.4 소방시설 현황 (2026-09-14) ────────────────────────────────────
+   *  🚨 이 시트는 통째로 미배선이라 **40종 전부**가 `□`로 나가고 있었다(앵커 §1.4 참조).
+   *  값은 새로 계산하지 않는다 — PDF(`facilityRows`)가 쓰는 `d.facilities` **그대로**다.
+   *  두 산출물이 같은 집합을 보므로 갈라질 수 없다(D-7). 상자만 갈아 끼운다(§상자칸).
+   *  ⚠ `d.facilities`는 이미 표준 코드로 정규화·필터된 값(`assembleFirePlan`)이지만, 비교는
+   *    `xlsx-form4`와 같은 공백무시 규약을 쓴다 — 대장 어휘의 띄어쓰기 흔들림을 흡수한다.
+   */
+  const facSet = new Set((d.facilities ?? []).map(c => c.replace(/\s+/g, '')))
+  for (const r of FORM14_ROWS) {
+    v.set(r.field, boxLabelCell(FORM14_SHEET, r.cell, facSet.has(r.code.replace(/\s+/g, ''))))
+  }
+  v.set(FORM14_NAME_FIELD, prefixCell(FORM14_SHEET, FORM14_NAME_CELL, d.buildingName))
 
   // ── 서식 1.5.1 방화구획 ── 화면의 네 갈래(면적별·층별·면적별·층별·해당없음)를 법정 상자 축으로 편다.
   // ⭐ '면적별·층별'은 **새 상자가 아니다** — 양식엔 상자가 둘뿐이고 둘을 함께 체크하는 것이 그 표기다.
