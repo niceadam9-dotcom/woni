@@ -11,8 +11,8 @@
   },
   "asset": {
     "file": "templates/fire-plan-workbook.xlsx",
-    "sha256": "7eee90c2d889c038b8dadf85c53a2a88870ba375b0dae829a7c148a0b38fc1ac",
-    "contentSha256": "a4e26faa110e8421cc6df6ea0a3eb35f55add02f48e6cead7982b63075d29d7a",
+    "sha256": "d6ced7d63edef508c8db7a900a66bedcc0063acdb81c97e1fe799de0618f3056",
+    "contentSha256": "ccf1fe3576b1575a9e0d6b54bfdc3f773cd38e39f316045632f4ee6c4e754685",
     "bytes": 1739461,
     "styles": 160
   },

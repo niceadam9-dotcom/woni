@@ -27,6 +27,7 @@ import {
   buildXlsx, cellRef, isDarkFill, type BuildSheet, type BuildCell, type CellStyle, type HAlign,
 } from '../src/lib/xlsx-build.ts'
 import { classifyAlign } from '../src/lib/fire-plan-align.ts'
+import { neededRowHeights, PAGE_BODY_PT } from '../src/lib/xlsx-wrap-height.ts'
 import {
   scrubText, uncheckText, FIRE_PLAN_SCRUB_NEEDLES, FIRE_PLAN_MARK_CHECKED_RE,
 } from '../src/lib/fire-plan-scrub.ts'
@@ -42,6 +43,11 @@ const FINE_N = 60
 /** 🎯 **인쇄 글자 크기를 정하는 값**. 가로 1쪽에 맞추면 폰트가 약분되고
  *  `쪽폭 ÷ (열 수 × 열 폭)`만 남는다 — 실측 최적 1.8(2.2는 축소돼 작아지고, 1.1은 줄바꿈). */
 const FINE_COL_W = 1.8
+
+/** 확장 **이전부터** 한 쪽(A4 세로)을 넘던 시트 — 원본 hwpx 자체가 여러 쪽인 서식이다.
+ *  🚨 「넘치면 실패」 가드의 면제 목록이지 봐주기가 아니다: 여기 없는 시트가 넘치면 빌드가 선다.
+ *    실측(2026-09-14, 확장 도입 직전 자산): 2.4=1350pt · 2.5=851pt · 나머지 전부 838pt 이하. */
+const PAGE_SPILL_KNOWN = ['2.4 개별임무카드', '2.5 지휘통제팀']
 
 /* ══════════════════════ 제1장 시트 지도 ══════════════════════
  *
@@ -550,6 +556,9 @@ let scrubHits = 0
 let uncheckHits = 0
 let tokenCellCount = 0
 let blankHits = 0
+/** 줄바꿈 높이 자동 확장 기록 — 콘솔 전용(자산엔 결과만 실린다) */
+const wrapGrowLog: string[] = []
+let wrapGrowTotal = 0
 
 for (const sec of SECTIONS) {
   const gridParts = sec.parts.filter(p => p.kind === 'grid') as Extract<Part, { kind: 'grid' }>[]
@@ -678,6 +687,7 @@ for (const sec of SECTIONS) {
      *   열 축에 같은 구멍을 남겨 둔 것이다 — 좌표를 잇는 사실은 **전부** 여기서 나가야 한다.
      *   `cols[i]` = 표의 i번째 열이 시작하는 시트 열(0-based), 길이는 colCnt+1(마지막은 끝 경계). */
     m.gridTops.push({ table: gp.table, top, rows: g.rowCnt, cols: proj })
+
     for (const c of g.cells) {
       const r0 = top + c.row
       const c0 = proj[c.col]
@@ -741,10 +751,19 @@ for (const sec of SECTIONS) {
   manifests.push(m)
   /* 미세 격자는 열 폭이 **균일**하다 — 비율은 「병합이 몇 칸을 먹는가」가 담는다(Q-9).
    *  ⚠ 폭 값이 인쇄 글자 크기를 정한다(FINE_COL_W 주석 참조) — 크게 하려면 이 값을 줄인다. */
+  const colWidths = Array.from({ length: FINE_N }, () => FINE_COL_W)
+  /* 🎯 **줄바꿈 높이 자동 확장**(2026-09-14). hwpx 행 높이는 «원본 글자 크기» 기준인데 우리는
+   *  전 칸을 10pt 한 벌로 쓴다 — 좁은 칸에서 한 줄이 두 줄이 되고, 행이 안 늘어 **아래가 잘린다**
+   *  (실측: 서식 2.1 `□ 비상연락팀`이 상자만 남고 이름이 테두리 밖으로 밀렸다).
+   *  늘리기만 하므로 원본 여백은 보존된다 — 규칙과 상수 유래는 `xlsx-wrap-height.ts`. */
+  const grownHeights = neededRowHeights({ colWidths, rowHeights: heights, cells, merges })
+  const grownRows = grownHeights.filter((h, i) => h > heights[i] + 0.05).length
+  if (grownRows) wrapGrowLog.push(`      ${sec.name}: ${grownRows}행 (합 ${heights.reduce((a, b) => a + b, 0).toFixed(0)} → ${grownHeights.reduce((a, b) => a + b, 0).toFixed(0)}pt)`)
+  wrapGrowTotal += grownRows
   sheets.push({
     name: sec.name,
-    colWidths: Array.from({ length: FINE_N }, () => FINE_COL_W),
-    rowHeights: heights, cells, merges,
+    colWidths,
+    rowHeights: grownHeights, cells, merges,
   })
 }
 
@@ -803,6 +822,23 @@ notes.push(`스크럽 ${scrubHits}칸 · 체크 되돌림 ${uncheckHits}칸 · �
 // 선언한 만큼 실제로 비웠는가 — 좌표가 밀리면 조용히 0칸이 된다(항진명제 방지)
 if (blankHits !== SAMPLE_ANSWER_CELLS.length) {
   fail(`표본답 비움 ${blankHits}칸 ≠ 선언 ${SAMPLE_ANSWER_CELLS.length}칸 — 좌표가 밀렸다`)
+}
+
+/* 줄바꿈 높이 자동 확장 — **늘어난 만큼 쪽이 밀리지 않았는지**를 함께 본다.
+ * 🚨 확장 자체보다 이 가드가 중요하다: 한 시트가 한 쪽을 넘기면 뒤 서식이 통째로 밀려
+ *   「서식 하나 = 한 쪽」이라는 납품 규약이 조용히 깨진다. 넘치면 빌드를 세운다. */
+{
+  for (const line of wrapGrowLog) console.log(line)
+  ok(`줄바꿈 높이 확장 ${wrapGrowTotal}행 / ${wrapGrowLog.length}시트`)
+  notes.push(`줄바꿈 높이 확장 ${wrapGrowTotal}행`)
+  // 확장이 0이면 규칙이 눈먼 것이다(양식에 두 줄짜리 좁은 칸이 실재한다)
+  if (!wrapGrowTotal) fail('줄바꿈 높이 확장 0행 — 추정기가 눈멀었다(좁은 두 줄 칸이 실재한다)')
+  const spilled = sheets
+    .map(s => ({ name: s.name, pt: s.rowHeights.reduce((a, b) => a + b, 0) }))
+    // 원래부터 한 쪽을 넘던 시트(개별임무카드 등)는 확장 이전에도 넘쳤다 — 새로 넘친 것만 본다
+    .filter(s => s.pt > PAGE_BODY_PT && !PAGE_SPILL_KNOWN.includes(s.name))
+  if (spilled.length) fail(`확장 뒤 한 쪽을 넘긴 시트 — ${spilled.map(s => `${s.name} ${s.pt.toFixed(0)}pt`).join(' · ')}`)
+  else ok(`전 시트 한 쪽 이내(한도 ${PAGE_BODY_PT}pt, 기지 예외 ${PAGE_SPILL_KNOWN.length}장)`)
 }
 
 // 규칙 축도 **정확히** 단언한다. 0건은 '깨끗하다'가 아니라 '규칙이 눈멀었다'일 수 있다
