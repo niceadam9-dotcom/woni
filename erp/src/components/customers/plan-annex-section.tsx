@@ -191,7 +191,7 @@ export function PlanAnnexSection({ customerId, canRegister = false, initialData 
   function openSingle(r: CustomerRound, type: PreviewDoc['type']) {
     if (!r.docs) return
     prefetchPreviews(r, type)   // 연 문서 1건만 조립한다(나머지 3종은 누를 때)
-    setFullPreview({ inspectionId: r.docs.inspectionId, label: `${r.year}년 ${r.sequenceNum}차`, only: type })
+    setFullPreview({ inspectionId: r.docs.inspectionId, label: `${r.year}년`, only: type })
   }
 
   /* ── 문서 행 배선 — CustomerDocsView와 동일 (재사용 규약) ── */
@@ -250,7 +250,7 @@ export function PlanAnnexSection({ customerId, canRegister = false, initialData 
   const current = currentRoundOf(rounds)
 
   const renderCard = (r: CustomerRound) => {
-    const label = `${r.year}년 ${r.sequenceNum}차`
+    const label = `${r.year}년`
     return (
       <PlanAnnexRoundCard
         key={roundKey(r)} r={r} isOpen alwaysOpen
@@ -270,9 +270,10 @@ export function PlanAnnexSection({ customerId, canRegister = false, initialData 
 
   return (
     <div className="space-y-3">
-      {/* 머리 안내 — 회차·종류·연도는 전부 자동 (사용승인일 법정 축) */}
+      {/* 머리 안내 — 종류·연도는 전부 자동 (사용승인일 법정 축).
+          ⚠ 「차수」를 뺐다(2026-09-14) — 회차 번호 표시를 폐지했으므로 안내가 없는 것을 설명하면 거짓이 된다 */}
       <p className="text-form-xs text-ink-meta">
-        연도·차수·종합/작동/최초는 사용승인일 기준으로 ERP가 자동 판정해 문서에 기입합니다 —
+        연도·종합/작동/최초는 사용승인일 기준으로 ERP가 자동 판정해 문서에 기입합니다 —
         점검표는 여기서 바로 입력하고, 별지는 누를 때 현재 데이터로 생성됩니다
       </p>
 

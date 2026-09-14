@@ -7,6 +7,7 @@ import type { ComposeAnnexNo } from '@/components/inspections/annex-compose-pane
 import { InspectionDocRows } from '@/components/reports/customer-docs'
 import { PlanAnnexSheetTree, PlanAnnexSheetHeader } from '@/components/customers/plan-annex-sheet-tree'
 import { inspectionNatureBadge } from '@/lib/inspection-nature'
+import { roundPill, type RoundPillKind } from '@/lib/annex-round-state'
 import { hasSheetDefect } from '@/lib/inspection-step-status'
 import { openAnnexPdf } from '@/lib/annex-filename'
 import type { InspectionType, PlanType } from '@/types'
@@ -36,16 +37,22 @@ function fileNameOf(res: Response): string | null {
   return m ? decodeURIComponent(m[1]) : null
 }
 
+/** 배지 색 — 판정은 `lib/annex-round-state`가 한다(왜 이렇게 갈랐는지도 거기 적혀 있다).
+ *  ⚠ 붉은색은 `overdue` **하나뿐**이다. 미시작 예정을 붉게 칠하면 「예정 지연 N일 ⚠」이
+ *    자체점검 292건에 되돌아온다(2026-09-14 실측 — 전체의 37.5%). */
+const PILL_CLS: Record<RoundPillKind, string> = {
+  planned:    'bg-blue-50 text-blue-600',
+  due:        'bg-blue-50 text-blue-600',
+  thisMonth:  'bg-blue-50 text-blue-600',
+  elapsed:    'bg-amber-50 text-amber-700',
+  inProgress: 'bg-brand-tint text-brand',
+  completed:  'bg-green-50 text-green-700',
+  overdue:    'bg-red-50 text-red-600',
+}
+
 export function statePill(r: CustomerRound): { label: string; cls: string } {
-  if (r.state === 'planned') {
-    const d = r.plannedDate ? Math.round((new Date(r.plannedDate).getTime() - new Date(todayStr()).getTime()) / 86400000) : null
-    if (d === null) return { label: '예정', cls: 'bg-blue-50 text-blue-600' }
-    if (d < 0) return { label: `예정 지연 ${-d}일 ⚠`, cls: 'bg-red-50 text-red-600' }
-    return { label: `예정 D-${d}`, cls: 'bg-blue-50 text-blue-600' }
-  }
-  if (r.state === 'completed') return { label: '완료', cls: 'bg-green-50 text-green-700' }
-  if (r.state === 'overdue') return { label: '기한초과', cls: 'bg-red-50 text-red-600' }
-  return { label: '진행중', cls: 'bg-brand-tint text-brand' }
+  const p = roundPill(r, todayStr())
+  return { label: p.label, cls: PILL_CLS[p.kind] }
 }
 
 export function PlanAnnexRoundCard({
@@ -78,7 +85,11 @@ export function PlanAnnexRoundCard({
   const nb = inspectionNatureBadge(inspectionType as InspectionType, r.planType as PlanType | null)
   const pill = statePill(r)
   const done = r.state === 'completed'
-  const label = `${r.year}년 ${r.sequenceNum}차`
+  // 회차(N차)는 화면에서 뺀다 (2026-09-14 사용자 확정) — 「2026년 2차」가 「2026년 1차」보다
+  // **앞선 달**에 오는 고객이 있어(기산월 7~12, 활성 305명 중 8명) 번호가 순서를 거짓으로 말했다.
+  // ⚠ DB의 `sequence_num`은 그대로다 — 계획 생성의 멱등 축(UNIQUE plan_id,customer_id,sequence_num)이자
+  //   1차/2차로 일반관리·종합·작동을 가르는 **의미 축**이다. 지운 것은 표시뿐.
+  const label = `${r.year}년`
   // 소방계획서_27 — 갑지 통합 워크북 내려받기 상태(이 카드 안에서만 쓴다)
   const [xlsx, setXlsx] = useState<{ busy: boolean; msg: string; ok: boolean }>({ busy: false, msg: '', ok: true })
   // 설치 설비 중 응답 0건 수 — 아래 점검표 트리가 조회한 값을 위 별지 블록 제목에 복제한다

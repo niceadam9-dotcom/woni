@@ -1,5 +1,5 @@
 import type { createAdminClient } from '@/lib/supabase/admin'
-import { resolveAnchor, plannedDateFor } from '@/lib/plan-anchor'
+import { resolveAnchor, plannedDateFor, desiredSlotsFor, desiredSlotsInYear, anchorDayOf } from '@/lib/plan-anchor'
 import { planSpecialSlots, planDemoteStraySpecials, planStrayMonthly, type SlotRow, type SlotOp } from '@/lib/plan-special-slot'
 import { rowInspectionType, INITIAL_INSPECTION_DAYS } from '@/lib/inspection-round'
 import { generateYearlyPlanItems, loadHolidaySet } from '@/lib/inspection-plan-generator'
@@ -114,11 +114,9 @@ async function planFrom(
   }
   if (!anchor.date) return empty
 
-  const ad = new Date(anchor.date)
-  const anchorMonth = ad.getMonth() + 1
-  const anchorDay = ad.getDate()
-  const desired = [{ sequence_num: 1, month: anchorMonth, planType: `special_${sub}` }]
-  if (sub === '종합') desired.push({ sequence_num: 2, month: ((anchorMonth - 1 + 6) % 12) + 1, planType: 'special_작동' })
+  // 법정 달 산식은 lib/plan-anchor가 정본 — 등록 화면 미리보기도 같은 함수를 쓴다(2026-09-14)
+  const anchorDay = anchorDayOf(anchor.date)
+  const desired = desiredSlotsFor(anchor.date, sub)
 
   // 최초점검 창 — 종합 대상이고 **사용승인일이 기산점일 때만** 의미가 있다.
   // 재건축·대수선으로 소방시설이 새로 설치되면 이 창이 다시 열린다(시행규칙 [별표 3]).
@@ -141,13 +139,19 @@ async function planFrom(
   const ops: SlotOp[] = []
   const keptStarted: ReconcilePlan['keptStarted'] = []
   const notes: string[] = []
+  // 해를 넘긴 2차는 **전 해 주기의 2차**다 — 계획 첫 해에는 짝이 될 종합이 없으므로 그 해에서 뺀다.
+  // 빼지 않으면 재배치가 생성기가 막 없앤 고아를 **되살린다**(지평리56 2026-03-26이 그 자리였다).
+  const firstYear = Math.min(...years)
   for (const year of years) {
-    const p = planSpecialSlots(year, desired, rows)
+    const want = desiredSlotsInYear(desired, year, firstYear)
+    const p = planSpecialSlots(year, want, rows)
     ops.push(...p.ops); keptStarted.push(...p.keptStarted); notes.push(...p.notes)
     const claimed = new Set(ops.flatMap(o => (o.kind === 'create' ? [] : [o.id])))
-    ops.push(...planDemoteStraySpecials(year, desired, rows, claimed, !isGeneral))
+    // 첫 해에서 빠진 감긴 2차는 여기서 **잔재로 걸려 치워진다**(seq=2라 remove) — 그게 고아 청소다
+    ops.push(...planDemoteStraySpecials(year, want, rows, claimed, !isGeneral))
     // 정기 잔재는 **법정 달 목록만** 있으면 판정된다 — 생성이 끝나야 알 수 있는 게 아니다.
     // 그래서 미리보기에서도 그대로 보여줄 수 있다(집행 순서만 뒤로 둔다).
+    // ⚠ 여기는 `desired`(달력 축)를 쓴다 — 첫 해라도 그 달엔 정기를 두지 않는다(생성기 specialKey와 같은 축).
     if (!isGeneral) {
       const claimed2 = new Set(ops.flatMap(o => (o.kind === 'create' ? [] : [o.id])))
       ops.push(...planStrayMonthly(year, desired, rows).filter(o => !claimed2.has(o.id)))

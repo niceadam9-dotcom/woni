@@ -88,6 +88,68 @@ export function anchorChanged(before: AnchorInput, after: AnchorInput): boolean 
   return resolveAnchor(before).date !== resolveAnchor(after).date
 }
 
+/** 법정 자체점검 달 — 기산일이 속하는 달에 1차, 종합 대상이면 +6개월에 2차(작동).
+ *
+ *  시행규칙 [별표 3]: 종합점검은 **사용승인일이 속하는 달**, 작동점검은 **그 6개월이 되는 달**.
+ *
+ *  ⚠ `reconcile-special-slots.planFrom`이 쓰던 계산을 **여기로 올린 것**이다. 사본을 두면
+ *    「미리보기가 말한 달」과 「실제로 생기는 달」이 갈린다 — 등록 화면 미리보기가 이 함수를
+ *    같이 쓰기 때문에 더 그렇다(2026-09-14).
+ *  ⚠ 월·일은 **문자열에서 뽑는다**. `new Date('YYYY-MM-DD')`는 UTC 자정이라 음수 오프셋
+ *    지역에서 하루 앞 달이 나올 수 있다. */
+export type DesiredSlot = {
+  sequence_num: number
+  month: number
+  planType: string
+  /** **2차가 해를 넘기는가** — 기산월이 7~12면 +6개월이 다음 해로 간다.
+   *
+   *  🚨 2026-09-14 사용자 신고로 뒤집은 결정이다. 종전에는 감긴 달을 **같은 해에** 두어
+   *  (`((m-1+6)%12)+1`), 기산월 9인 고객의 「2차 작동」이 「1차 종합」보다 **6개월 앞선**
+   *  3월에 앉았다(지평리56: 1차 09-28 · 2차 03-26). 그러면 둘이 생긴다:
+   *   · 회차 번호가 순서를 거짓으로 말한다(2차가 1차보다 먼저)
+   *   · 첫 해의 2차는 **짝이 되는 종합이 없다** — 법정 규칙은 「종합점검을 받은 달부터
+   *     6개월이 되는 달」인데, 2026-03의 짝은 2025-09 종합이고 그 해 계획은 없다.
+   *     태어날 때부터 과거라 누구도 제때 할 수 없고, 화면엔 영원히 「미실시」로 남는다.
+   *
+   *  ⚠ **정상 상태의 점검 날짜는 한 칸도 안 바뀐다.** 2026-09 종합 → 2027-03 작동 →
+   *    2027-09 종합 → 2028-03 작동으로 6개월 간격은 종전과 같다. 사라지는 것은
+   *    **첫 해의 고아 2차 하나**뿐이다(활성 305명 중 기산월 7~12인 종합 대상 8명). */
+  yearOffset: 0 | 1
+}
+
+export function desiredSlotsFor(anchorISO: string, sub: '종합' | '작동'): DesiredSlot[] {
+  const anchorMonth = Number(anchorISO.slice(5, 7))
+  const out: DesiredSlot[] = [
+    { sequence_num: 1, month: anchorMonth, planType: `special_${sub}`, yearOffset: 0 },
+  ]
+  if (sub === '종합') {
+    const m2 = anchorMonth + 6          // 7~18 — 12를 넘으면 다음 해다
+    out.push({
+      sequence_num: 2, month: ((m2 - 1) % 12) + 1, planType: 'special_작동',
+      yearOffset: m2 > 12 ? 1 : 0,
+    })
+  }
+  return out
+}
+
+/** 달력 **연도 `year`에 실제로 있어야 할** 자체점검 자리.
+ *
+ *  해를 넘긴 2차는 「그 해의 2차」가 아니라 **전 해 주기의 2차**다. 그래서 `year`의 2차는
+ *  주기 `year-1`이 계획돼 있을 때만 존재한다 — 계획 첫 해에는 짝이 될 종합이 없으므로 뺀다.
+ *  (이게 지평리56의 2026-03-26 고아를 만들던 자리다.)
+ *
+ *  @param firstYear 이 고객의 계획이 시작되는 해. `year === firstYear`이면 감긴 2차를 뺀다. */
+export function desiredSlotsInYear(
+  slots: readonly DesiredSlot[], year: number, firstYear: number,
+): DesiredSlot[] {
+  return slots.filter(d => d.yearOffset === 0 || year - d.yearOffset >= firstYear)
+}
+
+/** 기산일의 '일' — 위와 같은 이유로 문자열에서 뽑는다 */
+export function anchorDayOf(anchorISO: string): number {
+  return Number(anchorISO.slice(8, 10))
+}
+
 /** 기산일의 '일'을 그 달에 놓고 영업일로 맞춘 예정일 — 'YYYY-MM-DD'. **그 달을 벗어나지 않는다.**
  *
  *  ⚠ 생성기(`generateYearlyPlanItems`)와 자리 재배치(`reconcileSpecialSlots`)가 **같은 날짜**를

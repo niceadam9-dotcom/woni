@@ -15,6 +15,7 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { planRowInspectionEntry } from '../src/lib/calendar-plan-row.ts'
+import { codeOnly, strippedStats } from './_code-only.mts'
 
 const ROOT = process.cwd()
 const read = (...p: string[]) => readFileSync(join(ROOT, ...p), 'utf8')
@@ -25,13 +26,9 @@ function check(label: string, ok: boolean, detail = '') {
   else { fail++; console.log(`  ❌ ${label}${detail ? ` — ${detail}` : ''}`) }
 }
 
-/** 주석 제거 — 블록 주석과 줄 주석 둘 다. 문자열 안의 '//'까지 지울 수 있지만
- *  이 파일의 단언 대상(JSX 분기 구조)에는 URL 리터럴이 없어 안전하다. */
-function codeOnly(src: string): string {
-  return src
-    .replace(/\/\*[\s\S]*?\*\//g, ' ')
-    .split('\n').map(l => l.replace(/(^|[^:])\/\/.*$/, '$1')).join('\n')
-}
+// 🚨 2026-09-14: 여기 있던 사본이 **CRLF에서 한 줄도 안 걷어내고 있었다**(이 파일 소스는 전부 CRLF).
+//    즉 이 검사가 머리말에 적어 둔 "주석을 먼저 걷어낸다"는 방어가 **죽어 있었다**.
+//    공유 모듈로 올리고 아래 [B-1]에서 계측기 자체를 단언한다.
 
 console.log('▶ 점검달력 계획 행 — 정기 점검 입구 폐지')
 
@@ -66,6 +63,14 @@ check('[A8] 시작된 일반 건에는 ▶와 [점검 보기]가 동시에 뜨�
 // 순수 함수만 단언하면 「함수는 옳은데 화면은 옛 조건 그대로」가 초록으로 통과한다.
 const CAL_RAW = read('src', 'components', 'inspections', 'inspection-calendar-client.tsx')
 const CAL = codeOnly(CAL_RAW)
+
+// 계측기 자기 검사 — **걷어냈다고 믿는 것**과 **걷어낸 것**은 다르다.
+// 이게 없어서 CRLF 불발을 넉 달 가까이 아무도 몰랐다(2026-09-14 발견).
+{
+  const s = strippedStats(CAL_RAW)
+  check('[B-1] codeOnly가 줄 주석을 실제로 걷어냈다 (계측기 자기 검사)',
+    s.leftover === 0 && s.removed > 0, `남은 줄주석 ${s.leftover}줄 · 지운 글자 ${s.removed}`)
+}
 
 check('[B1] 달력이 planRowInspectionEntry를 import한다',
   /import \{[^}]*planRowInspectionEntry[^}]*\} from '@\/lib\/calendar-plan-row'/.test(CAL))

@@ -1,7 +1,7 @@
 import type { createAdminClient } from '@/lib/supabase/admin'
 import type { InspectionType } from '@/types'
 import { rowInspectionType, rowPlanType, rowSubType } from '@/lib/inspection-round'
-import { resolveAnchor, plannedDateFor, type AnchorSource } from '@/lib/plan-anchor'
+import { resolveAnchor, plannedDateFor, desiredSlotsFor, type AnchorSource } from '@/lib/plan-anchor'
 
 type Admin = ReturnType<typeof createAdminClient>
 
@@ -203,8 +203,8 @@ export async function generateYearlyPlanItems(
     : inspection_type === '종합' ? '종합' : '작동'
   const isGeneral = inspection_category === '일반관리'
 
+  // 달은 더 이상 여기서 세지 않는다 — `desiredSlotsFor`가 단일 원천이다(아래 참조).
   const approvalDate  = new Date(anchorDate)
-  const approvalMonth = approvalDate.getMonth() + 1
   const approvalDay   = approvalDate.getDate()
 
   function toStr(d: Date) {
@@ -227,22 +227,22 @@ export async function generateYearlyPlanItems(
     rowType: InspectionType; rowSub: '종합' | '작동'
   }> = []
 
-  // 1차 특별점검 (사용승인월) — 고객의 점검 종류 그대로
-  specialKey.add(`${targetYear}-${approvalMonth}`)
-  toCreate.push({
-    year: targetYear, month: approvalMonth, sequence_num: 1,
-    planType: rowPlanType(inspection_sub_type, 1),
-    rowType: rowTypeFor(1), rowSub: rowSubType(inspection_sub_type, 1),
-  })
-
-  // 종합 대상: +6개월 2차 특별점검 — 2차 자체는 **작동**점검이다.
-  // (판정은 고객 축 inspection_sub_type으로, 저장은 행 축 '작동'으로 — 두 축이 다르다)
-  if (inspection_sub_type === '종합') {
-    const mo2 = ((approvalMonth - 1 + 6) % 12) + 1
-    specialKey.add(`${targetYear}-${mo2}`)
+  // 법정 달은 lib/plan-anchor의 `desiredSlotsFor`가 단일 원천이다.
+  // 🚨 종전엔 여기에 `((approvalMonth - 1 + 6) % 12) + 1`을 **베껴 두었다** — 재배치
+  //   (reconcileSpecialSlots)와 등록 미리보기는 desiredSlotsFor를 쓰는데 생성기만 사본을 들고 있어,
+  //   한쪽만 고치면 경로에 따라 다른 달이 잡힌다. 날짜(`plannedDateFor`)는 이미 공유하고 있었으므로
+  //   **달 산식만 사본으로 남아 있던 것**이다(2026-09-14).
+  // 2차는 해를 넘길 수 있다(기산월 7~12) — 그 해의 2차가 아니라 **이 주기의 2차**이므로
+  // `targetYear + yearOffset`에 앉힌다. 자세한 내력은 DesiredSlot.yearOffset 주석에 있다.
+  for (const d of desiredSlotsFor(anchorDate, inspection_sub_type)) {
+    const seq = d.sequence_num as 1 | 2
+    // 정기 제외는 **달력 연도 기준**이다 — 감긴 2차가 다음 해로 가더라도 이 해의 그 달에는
+    // 전 주기의 2차가 앉으므로(정상 상태), 여기서 정기를 만들면 한 달에 방문이 둘이 된다.
+    specialKey.add(`${targetYear}-${d.month}`)
     toCreate.push({
-      year: targetYear, month: mo2, sequence_num: 2, planType: rowPlanType(inspection_sub_type, 2),
-      rowType: rowTypeFor(2), rowSub: rowSubType(inspection_sub_type, 2),
+      year: targetYear + d.yearOffset, month: d.month, sequence_num: seq,
+      planType: rowPlanType(inspection_sub_type, seq),
+      rowType: rowTypeFor(seq), rowSub: rowSubType(inspection_sub_type, seq),
     })
   }
 
@@ -268,23 +268,33 @@ export async function generateYearlyPlanItems(
   // 고객 등록 한 번이 최대 12개월 × 2~3왕복이라, 왕복 200ms인 원격 DB에서 계획 생성에만
   // 2.4초(6건)~5초(12건)가 들었다(실측 — _probe-customer-create-latency.mts).
   // 월은 최대 12개로 정해져 있으므로 **한 번에 조회하고 없는 것만 한 번에 만든다**.
+  // ⚠ 감긴 2차가 targetYear+1로 가므로 **두 해에 걸칠 수 있다** — `.eq('year', targetYear)`로
+  //   물으면 그 2차의 plan_id를 못 찾아 행이 조용히 빠진다(아래 `if (!planId) continue`).
+  //   그래서 (연,월) 쌍으로 묻는다. 왕복 수는 그대로 2회다.
+  const wantPairs = [...new Set(toCreate.map(c => `${c.year}-${c.month}`))]
+  const years  = [...new Set(toCreate.map(c => c.year))]
   const months = [...new Set(toCreate.map(c => c.month))]
   const planIdOf = new Map<string, string>()   // `${year}-${month}` → plan_id
   {
     const { data: plans } = await admin.from('inspection_plans')
-      .select('id, year, month').eq('year', targetYear).in('month', months)
+      .select('id, year, month').in('year', years).in('month', months)
     for (const p of (plans ?? []) as Array<{ id: string; year: number; month: number }>) {
       planIdOf.set(`${p.year}-${p.month}`, p.id)
     }
-    const missing = months.filter(m => !planIdOf.has(`${targetYear}-${m}`))
+    const missing = wantPairs.filter(k => !planIdOf.has(k))
     if (missing.length > 0) {
       // 동시 등록이 겹치면 UNIQUE 충돌이 날 수 있다 — 무시하고 아래에서 다시 읽는다(멱등)
       await admin.from('inspection_plans').upsert(
-        missing.map(m => ({ year: targetYear, month: m, status: 'draft', auto_generated: true, created_by: createdBy })) as Record<string, unknown>[],
+        missing.map(k => {
+          const [y, m] = k.split('-').map(Number)
+          return { year: y, month: m, status: 'draft', auto_generated: true, created_by: createdBy }
+        }) as Record<string, unknown>[],
         { onConflict: 'year,month', ignoreDuplicates: true },
       )
       const { data: after } = await admin.from('inspection_plans')
-        .select('id, year, month').eq('year', targetYear).in('month', missing)
+        .select('id, year, month')
+        .in('year', [...new Set(missing.map(k => Number(k.split('-')[0])))])
+        .in('month', [...new Set(missing.map(k => Number(k.split('-')[1])))])
       for (const p of (after ?? []) as Array<{ id: string; year: number; month: number }>) {
         planIdOf.set(`${p.year}-${p.month}`, p.id)
       }

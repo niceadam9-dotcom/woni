@@ -20,6 +20,7 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { layoutPlanChips, PLAN_CHIP_NAME_MAX } from '../src/lib/calendar-chips.ts'
+import { codeOnly, strippedStats } from './_code-only.mts'
 
 const ROOT = process.cwd()
 const read = (...p: string[]) => readFileSync(join(ROOT, ...p), 'utf8')
@@ -30,12 +31,8 @@ function check(label: string, ok: boolean, detail = '') {
   else { fail++; console.log(`  ❌ ${label}${detail ? ` — ${detail}` : ''}`) }
 }
 
-/** 주석 제거 — 블록 주석과 줄 주석 둘 다. 단언 대상에 URL 리터럴이 없어 안전하다. */
-function codeOnly(src: string): string {
-  return src
-    .replace(/\/\*[\s\S]*?\*\//g, ' ')
-    .split('\n').map(l => l.replace(/(^|[^:])\/\/.*$/, '$1')).join('\n')
-}
+// 🚨 codeOnly 사본이 CRLF에서 불발하던 것을 공유 모듈로 올렸다(2026-09-14) — `_code-only.mts` 참조.
+//    이 파일의 [B-0]이 계측기 자체를 단언한다.
 
 console.log('▶ 점검달력 계획 항목 표시 — 자체점검 적재 + 정기 집계 펴기')
 
@@ -122,7 +119,16 @@ for (const t of ['special_종합', 'special_작동', 'event']) {
 // ── B. 배선 ① — 서버가 자체점검 계획을 싣는가 ────────────────────
 // 순수 함수만 단언하면 「규칙은 옳은데 서버가 그 행을 안 준다」가 초록으로 통과한다.
 // 실제로 그게 ①의 정체였다.
-const PAGE = codeOnly(read('src', 'app', '(dashboard)', 'inspections', 'calendar', 'page.tsx'))
+const PAGE_RAW = read('src', 'app', '(dashboard)', 'inspections', 'calendar', 'page.tsx')
+const PAGE = codeOnly(PAGE_RAW)
+
+// 계측기 자기 검사 — 이 파일이 특히 위험하다: 주석에 「종전엔 monthly·event만 실어」가 적혀 있어
+// 걷히지 않으면 코드를 되돌려도 설명글에 걸려 초록이 된다. 실측상 종전 사본은 여기서 **0글자**를 지웠다.
+{
+  const s = strippedStats(PAGE_RAW)
+  check('[B-0] codeOnly가 줄 주석을 실제로 걷어냈다 (계측기 자기 검사)',
+    s.leftover === 0 && s.removed > 0, `남은 줄주석 ${s.leftover}줄 · 지운 글자 ${s.removed}`)
+}
 
 const inMatch = PAGE.match(/\.in\('plan_type',\s*\[([^\]]*)\]\)/)
 check('[B0] 달력 서버가 plan_type 목록으로 계획을 조회한다 (앵커 생존)', Boolean(inMatch))
