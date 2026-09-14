@@ -10,12 +10,13 @@ import {
   suggestSurroundingsAction,
 } from '@/app/(dashboard)/customers/fire-plan-form-actions'
 import {
-  getFireRouteAction, generateRouteImageAction, importCoverPhotoAsRouteImageAction,
+  getFireRouteAction, generateRouteImageAction, importCoverPhotoAsRouteImageAction, getCoverPhotoUrlAction,
 } from '@/app/(dashboard)/customers/fire-route-actions'
 import { NumField, useUnsavedWarning } from '@/components/ui/fields'
 import { prepareImageFile } from '@/lib/image-prep'
 import { readClipboardImage, CLIPBOARD_EMPTY_MSG } from '@/lib/clipboard-image'
 import { ImageAnnotator, parseAnnots, type AnnotDoc } from '@/components/customers/image-annotator'
+import { isRetiredRouteDraft } from '@/lib/fire-plan-image-refs'
 
 /** 서식 1.3 건축물 위치·운영현황 및 소방차 세부진입 계획 — 섹션 카드 2개 (소방계획서_4.md §3)
  *  sections.location(위치도·주변 현황·관할 소방서·거리·도착예상·운영 개요) + sections.fireAccess(진입경로·경로도·진입장소·주변 소방시설) */
@@ -38,6 +39,17 @@ export type AnnotBinding = {
   onChange: (v: { basePath: string | null; annots: string | null }) => void
 }
 
+/** **대역(代役)** — 이 칸에 제 그림이 없을 때 문서에 *대신 인쇄되는* 사진 (2026-09-14 진입 경로도←표지 사진).
+ *
+ *  빈 상자를 보여주면 사용자는 문서에 무엇이 나갈지 알 수 없다. 인쇄가 대역을 세운다면
+ *  **화면도 같은 것을 보여야** 한다 — 이 짝은 그 한 가지를 위해 있다.
+ *  `adopt`는 대역을 이 칸의 **제 그림으로 들이는** 절차(복사)이고, [화살표]를 누를 때 비로소 불린다. */
+export type SlotFallback = {
+  url: string | null                     // 대역 사진의 미리보기 (없으면 종전대로 빈 상자)
+  note: string                           // 왜 이 사진이 여기 보이는지 — 사용자가 읽는 유일한 설명
+  adopt: () => Promise<string | null>    // 이 칸의 그림으로 복사 → 새 경로(실패면 null)
+}
+
 /** 라벨 → 파일명. 끝의 괄호(‘(이미지)’)는 화면 안내지 이름이 아니라 떼고, 파일명 금지 문자를 걷어낸다 */
 const safeName = (s: string) => s.replace(/\s*\([^)]*\)\s*$/, '').replace(/[\\/:*?"<>|]/g, '_').trim() || 'image'
 
@@ -46,13 +58,14 @@ const safeName = (s: string) => s.replace(/\s*\([^)]*\)\s*$/, '').replace(/[\\/:
  *  2026-09-08: [지도·사진] 슬롯(customer-assets-client)에만 있던 편의를 여기로 맞췄다.
  *  종전엔 같은 '이미지 넣는 칸'인데 슬롯에선 캡처 붙여넣기가 되고 여기선 안 돼, 사용자가
  *  칸마다 다른 방법을 외워야 했다. 업로드 전 EXIF 회전 보정·리사이즈(prepareImageFile)도 함께 붙는다. */
-export function ImageSlot({ customerId, canManage, path, onChange, label, annot, testId }: {
+export function ImageSlot({ customerId, canManage, path, onChange, label, annot, fallback, testId }: {
   customerId: string
   canManage: boolean
   path: string | null
   onChange: (path: string | null) => void
   label: string
   annot?: AnnotBinding   // 주면 [화살표] 버튼이 붙고, 원본·주석을 부모 상태에 함께 보관해 재편집이 된다
+  fallback?: SlotFallback  // 주면 칸이 비었을 때 '대신 인쇄되는 사진'을 그 자리에 비춘다
   testId?: string
 }) {
   const fileRef = useRef<HTMLInputElement>(null)
@@ -153,6 +166,22 @@ export function ImageSlot({ customerId, canManage, path, onChange, label, annot,
     }
   }
 
+  /** 화살표 편집 진입 — **대역 상태에서 누르면 그때 비로소 복사한다.**
+   *
+   *  🚨 대역은 남의 파일(표지 자산)을 그대로 가리킨다. 편집은 바탕 위에 합성본을 만들고
+   *  원본을 배경으로 붙들어 두므로, 복사 없이 편집에 들어가면 **표지 사진 자체가 편집 대상이 된다**.
+   *  복사를 여기(편집 직전)로 미루는 덕에 화살표를 넣지 않는 고객에겐 파일이 하나도 안 생긴다. */
+  async function startAnnot() {
+    if (path) { setAnnotOpen(true); return }
+    if (!fallback) return
+    setBusy(true)
+    setMsg(null)
+    const next = await fallback.adopt()
+    setBusy(false)
+    if (!next) return                    // 실패 문구는 adopt 쪽(부모)이 자기 자리에 띄운다
+    setAnnotOpen(true)
+  }
+
   /** 편집기가 만들어 온 합성 이미지를 올리고, 원본·주석을 부모에 남긴다 */
   async function saveAnnot(file: File, doc: AnnotDoc) {
     if (!annot || !path) return
@@ -191,14 +220,19 @@ export function ImageSlot({ customerId, canManage, path, onChange, label, annot,
 
   const btn = 'inline-flex items-center gap-1 h-form-7 px-2 rounded-lg border border-brand-line text-form-xs text-brand hover:bg-brand-tint transition-colors disabled:opacity-50'
 
+  // 제 그림이 없을 때만 대역이 선다 — 제 그림이 생기는 순간(업로드·복사·합성) 조용히 물러난다
+  const standIn = !path ? (fallback?.url ?? null) : null
+  const shownUrl = url ?? standIn
+
   return (
     <div {...dropProps} data-testid={testId}
       className={dragOver ? 'rounded-lg border border-dashed border-brand bg-brand-tint p-1.5 -m-1.5' : undefined}>
       <p className="text-form-xs font-medium text-ink-sub mb-1">{label}</p>
-      {url ? (
+      {shownUrl ? (
         <button type="button" onClick={() => setLightbox(true)} title="클릭하면 크게 봅니다" className="block">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={url} alt={label} data-testid={testId ? `${testId}-thumb` : undefined}
+          <img src={shownUrl} alt={label} data-testid={testId ? `${testId}-thumb` : undefined}
+            data-standin={standIn ? '1' : undefined}
             className="max-h-40 rounded-lg border border-brand-line-soft cursor-zoom-in hover:opacity-90 transition-opacity" />
         </button>
       ) : path ? (
@@ -208,6 +242,11 @@ export function ImageSlot({ customerId, canManage, path, onChange, label, annot,
           <ImageIcon className="size-4" />
           <span className="text-form-2xs">{canManage ? '미등록 — 끌어다 놓기·캡처 후 붙여넣기(Ctrl+V) 가능' : '이미지 없음'}</span>
         </div>
+      )}
+      {standIn && (
+        <p className="text-form-2xs text-ink-meta mt-0.5" data-testid={testId ? `${testId}-standin-note` : undefined}>
+          {fallback?.note}
+        </p>
       )}
       {canManage && (
         <div className="flex items-center gap-1.5 flex-wrap mt-1">
@@ -222,8 +261,10 @@ export function ImageSlot({ customerId, canManage, path, onChange, label, annot,
             title="지도·화면을 캡처(Win+Shift+S)한 뒤 클릭하면 클립보드 이미지가 등록됩니다">
             <ClipboardPaste className="size-3" /> 붙여넣기
           </button>
-          {path && annot && (
-            <button onClick={() => setAnnotOpen(true)} disabled={busy} className={btn}
+          {/* 대역만 있을 때도 화살표를 눌러야 한다 — 그 한 번의 클릭이 '표지 사진 위에 진입 방향을
+              표시한다'는 이 칸의 목적 전체다. 복사는 startAnnot이 그 자리에서 처리한다. */}
+          {(path || standIn) && annot && (
+            <button onClick={() => { void startAnnot() }} disabled={busy} className={btn}
               data-testid={testId ? `${testId}-annotate` : undefined}
               title="이미지 위에 진입 방향 화살표·글자·번호를 얹습니다 (원본은 보존되어 다시 고칠 수 있습니다)">
               <MoveUpRight className="size-3" /> {annot.annots ? '화살표 고치기' : '화살표 넣기'}
@@ -246,7 +287,7 @@ export function ImageSlot({ customerId, canManage, path, onChange, label, annot,
       )}
       {msg && <p className={`text-form-xs mt-0.5 ${msg.ok ? 'text-green-600' : 'text-red-600'}`}>{msg.ok ? '✅' : '❌'} {msg.text}</p>}
 
-      {lightbox && url && (
+      {lightbox && shownUrl && (
         <div className="fixed inset-0 z-[80] flex flex-col items-center justify-center bg-black/80 p-4"
           onClick={() => setLightbox(false)} role="dialog" aria-modal="true" aria-label={`${label} 미리보기`}>
           <div className="flex w-full max-w-4xl items-center justify-between px-1 pb-2">
@@ -257,7 +298,7 @@ export function ImageSlot({ customerId, canManage, path, onChange, label, annot,
             </button>
           </div>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={url} alt={label} onClick={e => e.stopPropagation()}
+          <img src={shownUrl} alt={label} onClick={e => e.stopPropagation()}
             className="max-h-[85vh] max-w-4xl rounded-lg object-contain shadow-2xl" />
           <p className="mt-2 text-form-xs text-white/60">빈 곳·✕·Esc 로 닫기</p>
         </div>
@@ -440,7 +481,8 @@ export function PlanForm13({
   }
 
   async function applyRouteImage() {
-    if (fa.routeImage && !window.confirm('이미 등록된 진입 경로도를 새 초안으로 바꿀까요?')) return
+    // 폐지된 자동 초안뿐이면 묻지 않는다 — 화면엔 이미 대역이 서 있어 '등록된 경로도'가 아니다
+    if (routePath && !window.confirm('이미 등록된 진입 경로도를 새 초안으로 바꿀까요?')) return
     setRouteBusy('image')
     setDraftMsg('')
     const r = await generateRouteImageAction(customerId, { station: effectiveStation })
@@ -454,7 +496,7 @@ export function PlanForm13({
   /** 표지 건물 사진(위성 항공뷰)을 경로도 바탕으로 가져온다 (2026-09-14 사용자 확정 B안).
    *  경로 조회와 무관한 축이라 [지도·사진]에 표지만 있으면 소방서를 안 골라도 쓸 수 있다. */
   async function applyCoverPhoto() {
-    if (fa.routeImage && !window.confirm('이미 등록된 진입 경로도를 표지 건물 사진으로 바꿀까요? (넣어 둔 화살표는 지워집니다)')) return
+    if (routePath && !window.confirm('이미 등록된 진입 경로도를 표지 건물 사진으로 바꿀까요? (넣어 둔 화살표는 지워집니다)')) return
     setRouteBusy('cover')
     setDraftMsg('')
     const r = await importCoverPhotoAsRouteImageAction(customerId)
@@ -462,6 +504,40 @@ export function PlanForm13({
     if (r.error || !r.path) { setDraftMsg(`❌ ${r.error ?? '표지 사진을 가져오지 못했습니다.'}`); return }
     await replaceRouteImage(r.path)
     setDraftMsg('표지 건물 사진을 경로도 바탕으로 가져왔습니다 — 아래 [화살표 넣기]로 진입 방향을 표시하세요. [서식 1.3 저장]을 눌러야 확정됩니다.')
+  }
+
+  /** 경로도 칸이 비었을 때 그 자리에 비출 **표지 건물 사진**(대역) — 인쇄가 하는 일을 화면이 그대로 비춘다.
+   *
+   *  2026-09-14 — [표지 사진 가져오기] 버튼만 두었더니 "여전히 표지와 다르다"는 지적이 돌아왔다.
+   *  누르기 전까지는 아무것도 바뀌지 않았고, 기존 고객 전체가 그 상태였다. 그래서 **기본값을 뒤집었다**:
+   *  제 경로도가 없으면 표지 사진이 곧 진입 경로도다(`assembleFirePlan`의 PRIORITY_FALLBACK).
+   *
+   *  ⚠ 이 URL은 **복사본이 아니라 표지 원본**을 가리킨다 — 그래서 표지를 바꾸면 여기도 따라 바뀐다.
+   *  복사는 사용자가 화살표를 얹겠다고 할 때만 일어난다(ImageSlot.startAnnot → adopt). */
+  const [coverUrl, setCoverUrl] = useState<string | null>(null)
+
+  /** 화면이 「제 경로도」로 치는 것 — **인쇄와 같은 기준이라야 한다.**
+   *  폐지된 자동 초안(주행경로 지도)은 인쇄가 대역에 밀어내므로 화면도 없는 것으로 친다.
+   *  두 표면이 여기서 갈리면 화면엔 옛 지도가, 문서엔 표지 사진이 나가 아무도 무엇이 맞는지 모른다
+   *  (이 저장소가 여러 번 겪은 부류다 — 관할소방서·별지10호 일자). */
+  const routePath = isRetiredRouteDraft(fa.routeImage) ? null : fa.routeImage
+
+  useEffect(() => {
+    // 제 그림이 있으면 조회하지 않는다. 들고 있던 값을 여기서 비우지는 않는다 —
+    // ImageSlot이 `!path`일 때만 대역을 세우므로 남아 있어도 보이지 않고,
+    // 효과 본문의 setState는 연쇄 렌더를 부른다(react-hooks/set-state-in-effect).
+    if (routePath) return
+    let alive = true
+    getCoverPhotoUrlAction(customerId).then(r => { if (alive) setCoverUrl(r.url ?? null) })
+    return () => { alive = false }
+  }, [customerId, routePath])
+
+  /** 대역을 이 칸의 제 그림으로 들인다 — 화살표 편집 직전에만 불린다 */
+  async function adoptCoverPhoto(): Promise<string | null> {
+    const r = await importCoverPhotoAsRouteImageAction(customerId)
+    if (r.error || !r.path) { setDraftMsg(`❌ ${r.error ?? '표지 사진을 가져오지 못했습니다.'}`); return null }
+    await replaceRouteImage(r.path)
+    return r.path
   }
 
   /** D-1 레거시 정리 — 서식에 저장돼 있던 옛 위치도 제거([지도·사진] 슬롯으로 일원화) */
@@ -698,12 +774,17 @@ export function PlanForm13({
           <textarea value={fa.routeDesc} onChange={e => patchFa({ routeDesc: e.target.value })} disabled={!canManage}
             rows={2} placeholder="예: ○○로에서 정문 방면 진입 후 우측 주차장" className={taCls} />
         </div>
-        <ImageSlot customerId={customerId} canManage={canManage} path={fa.routeImage} testId="form13-route-image"
+        <ImageSlot customerId={customerId} canManage={canManage} path={routePath} testId="form13-route-image"
           onChange={p => patchFa({ routeImage: p })} label="진입 경로도 (이미지)"
           annot={{
             basePath: fa.routeImageBase ?? null,
             annots: fa.routeAnnots ?? null,
             onChange: v => patchFa({ routeImageBase: v.basePath, routeAnnots: v.annots }),
+          }}
+          fallback={{
+            url: coverUrl,
+            note: '표지 건물 사진이 진입 경로도로 인쇄됩니다 — [화살표 넣기]를 누르면 이 사진을 가져와 진입 방향을 표시할 수 있습니다.',
+            adopt: adoptCoverPhoto,
           }} />
         <div>
           <label className="text-form-xs font-medium text-ink-sub block mb-1">진입 장소</label>

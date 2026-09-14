@@ -8,7 +8,7 @@ import {
   hasMapsCredentials, type LngLat,
 } from '@/lib/ncp-directions'
 import { renderRouteMapPng } from '@/lib/static-map-compose'
-import { listCustomerAssetEntries, ASSET_BUCKET } from '@/lib/customer-assets'
+import { listCustomerAssetEntries, listCustomerAssets, ASSET_BUCKET } from '@/lib/customer-assets'
 
 /** 소방차 진입 경로 (소방계획서_11.md §9 — D-4′ 채택 2026-08-07)
  *
@@ -343,4 +343,21 @@ export async function importCoverPhotoAsRouteImageAction(
   const { error } = await admin.storage.from(ASSET_BUCKET).copy(cover.path, path)
   if (error) return { error: `표지 사진을 가져오지 못했습니다: ${error.message}` }
   return { path }
+}
+
+/** B-5 — 표지 건물 사진의 미리보기 URL. 서식 1.3이 **경로도가 비었을 때** 그 자리에 이 사진을 보여준다.
+ *
+ *  화면이 이 URL을 쓰는 것은 **인쇄가 하는 일을 그대로 비추기 위해서**다 —
+ *  `assembleFirePlan`이 경로도가 없으면 표지 사진을 진입경로 자리에 인쇄한다(PRIORITY_FALLBACK).
+ *  화면만 빈 상자로 두면 사용자는 문서에 무엇이 나갈지 알 수 없다.
+ *
+ *  ⚠ 여기서 **복사하지 않는다.** 대역은 원본을 그대로 가리키므로 표지를 바꾸면 경로도도 따라 바뀐다.
+ *  그게 「동일하게」의 뜻이다. 사용자가 화살표를 얹는 순간에만 복사가 일어나고
+ *  (`importCoverPhotoAsRouteImageAction`), 그때부터 두 칸은 독립한다. */
+export async function getCoverPhotoUrlAction(
+  customerId: string,
+): Promise<{ url?: string; error?: string }> {
+  await requirePermission('customer_manage')   // 형제 미리보기(getPlanAssetUrlAction)와 같은 문턱
+  const cover = (await listCustomerAssets(customerId)).find(a => a.slot === 'cover')
+  return cover ? { url: cover.url } : {}
 }

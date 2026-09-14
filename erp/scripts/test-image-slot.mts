@@ -54,6 +54,10 @@ try {
   custId = await mkCustomer({ customer_name: '이미지슬롯E2E고객', created_by: userId, address: '경기도 광주시 마유산로 1' })
 
   const l = await launch(); browser = l.browser; const page = l.page
+  // 공용 기본값 15초는 이 스위트엔 짧다 — `_mutate-route-cover.mjs`가 소스를 고쳐 가며 돌리므로
+  // 매 주행이 **터보팩 냉간 재컴파일**을 만난다. 15초에서는 변이 9개가 전부 '스위트 완주' 실패로
+  // 죽어 단언이 아무것도 재지 못했다(2026-09-14 실측). 재는 것은 화면이지 컴파일 속도가 아니다.
+  page.setDefaultTimeout(45000)
   await login(page, EMAIL)
   await page.goto(`${BASE}/customers/${custId}?tab=plan&form=1.3`)
   await page.locator('[data-testid="form13-route-image"]').waitFor({ state: 'visible', timeout: 25000 })
@@ -253,6 +257,97 @@ try {
   const { data: left } = await raw.storage.from(BUCKET).list(`${custId}/plan-assets`)
   check('경로도 파일이 스토리지에서 사라짐', (left ?? []).length === 0,
     JSON.stringify((left ?? []).map((f: { name: string }) => f.name)))
+
+  // ── 9. 대역 — 경로도가 비면 표지 건물 사진이 그 자리에 선다 (2026-09-14) ───
+  //  왜 이 절이 생겼나: [표지 사진 가져오기]를 **버튼으로만** 만든 것이 어제의 결함이었다.
+  //  누르기 전엔 아무것도 바뀌지 않아 기존 고객 전부가 옛 그림으로 남았고, 사용자가 본 것이 그것이다.
+  //  이제 제 경로도가 없으면 표지 사진이 곧 진입 경로도다 — **화면도 인쇄와 같은 것을 보여야** 한다.
+  //  ⚠ 이 절은 8절(삭제) 뒤라야 성립한다 — 표지는 7절이 심어 두었고 경로도는 8절이 비웠다.
+  console.log('— 9. 대역(표지 건물 사진)')
+  const emptied = await saveAndWait(page, fa => !fa.routeImage)
+  check('경로도가 빈 채로 저장됨 (이 절의 전제)', !emptied.routeImage, JSON.stringify(emptied))
+
+  await page.goto(`${BASE}/customers/${custId}?tab=plan&form=1.3`)
+  await page.locator('[data-testid="form13-route-image"]').waitFor({ state: 'visible', timeout: 25000 })
+  const standIn = page.locator('[data-testid="form13-route-image-thumb"]')
+  // ⚠ 여기서 `waitFor`를 쓰면 **재려는 그것**을 기다리게 된다 — 대역이 안 서는 변이(M6)가
+  //   단언이 아니라 타임아웃 예외로 죽어 스위트가 통째로 멈추고 무엇이 깨졌는지 못 말한다
+  //   (2026-09-14 실측). 기다리되 **끝에는 count()로 묻는다**.
+  for (let i = 0; i < 40 && await standIn.count() === 0; i++) await new Promise(r => setTimeout(r, 300))
+  check('빈 칸에 표지 건물 사진이 대신 보인다', await standIn.count() === 1)
+  check('그것이 제 그림이 아니라 대역임을 화면이 밝힌다', await standIn.getAttribute('data-standin') === '1')
+  check('왜 이 사진이 여기 있는지 문구로 설명한다',
+    (await page.locator('[data-testid="form13-route-image-standin-note"]').innerText()).includes('표지 건물 사진'))
+  // 대역은 **남의 파일**이다 — 여기서 [삭제]·[다운로드]를 내주면 표지 원본을 건드리게 된다
+  check('대역 상태엔 [삭제]가 없다 (표지 원본을 지우게 된다)',
+    await page.locator('[data-testid="form13-route-image-delete"]').count() === 0)
+  check('대역 상태엔 [다운로드]가 없다',
+    await page.locator('[data-testid="form13-route-image-download"]').count() === 0)
+  check('그래도 DB는 비어 있다 — 대역은 복사가 아니라 **비추는 것**이다',
+    !(await readFireAccess()).routeImage)
+
+  // 화살표만은 눌러야 한다 — '표지 사진 위에 진입 방향을 표시한다'가 이 칸의 목적 전체다.
+  // 그 한 번의 클릭이 비로소 복사를 일으킨다(그전까지 이 고객에겐 파일이 하나도 안 생긴다).
+  check('대역 상태에서도 [화살표 넣기]는 있다',
+    await page.locator('[data-testid="form13-route-image-annotate"]').count() === 1)
+  await page.locator('[data-testid="form13-route-image-annotate"]').click()
+
+  // ⚠ 대기를 **재려는 그것**에 걸지 않는다. 편집기가 뜨는 것은 복사의 *결과*라,
+  //   편집기를 waitFor하면 '복사를 건너뛴다' 변이가 단언이 아니라 타임아웃 예외로 죽어
+  //   무엇이 깨졌는지 못 말한다(같은 함정을 7절에서 이미 한 번 밟았다).
+  let adoptedNames: string[] = []
+  for (let i = 0; i < 40; i++) {
+    const { data } = await raw.storage.from(BUCKET).list(`${custId}/plan-assets`)
+    adoptedNames = (data ?? []).map((f: { name: string }) => f.name)
+    if (adoptedNames.length) break
+    await new Promise(r => setTimeout(r, 300))
+  }
+  check('화살표를 누르는 순간에야 복사가 일어난다',
+    adoptedNames.length === 1 && adoptedNames[0].startsWith('route-cover-'), JSON.stringify(adoptedNames))
+
+  const modal3 = page.locator('[data-testid="image-annotator"]')
+  await modal3.waitFor({ state: 'visible', timeout: 30000 })
+  check('복사된 그 그림을 배경으로 편집기가 열린다',
+    (await modal3.locator('[data-testid="annot-canvas"] image').getAttribute('href'))?.startsWith('data:image/') === true)
+  const { data: adoptedBlob } = await raw.storage.from(BUCKET).download(`${custId}/plan-assets/${adoptedNames[0]}`)
+  check('복사된 바탕이 표지 사진과 **바이트까지 같다**',
+    Buffer.from(await adoptedBlob!.arrayBuffer()).equals(coverPng))
+  check('표지 원본은 그대로 남는다 (대역을 들여도 이동이 아니다)',
+    !!(await raw.storage.from(BUCKET).list(`${custId}/assets`)).data
+      ?.some((f: { name: string }) => f.name === 'cover.png'))
+
+  // ── 10. 폐지된 자동 초안(주행경로 지도)은 화면에서도 「없는 것」이다 ────────
+  //  [경로도 초안 만들기]가 만든 `route-<숫자>.png`는 사용자가 폐기하기로 확정한 주행경로 지도다.
+  //  인쇄가 그것을 대역에 밀어내므로 **화면도 같은 기준이라야 한다** — 여기서 갈리면 화면엔 옛 지도가,
+  //  문서엔 표지 사진이 나가 아무도 무엇이 맞는지 모르게 된다(이 저장소가 여러 번 겪은 부류다).
+  console.log('— 10. 폐지된 주행경로 초안')
+  await page.keyboard.press('Escape')
+  await modal3.waitFor({ state: 'detached', timeout: 25000 })
+
+  // 표지(파랑)와 **다른 색**(빨강)이라야 화면에 남은 것이 둘 중 무엇인지 색으로 가를 수 있다
+  const draftPng = await sharp({
+    create: { width: 320, height: 240, channels: 3, background: { r: 200, g: 40, b: 40 } },
+  }).png().toBuffer()
+  const draftPath = `${custId}/plan-assets/route-${Date.now()}.png`
+  await raw.storage.from(BUCKET).upload(draftPath, draftPng, { contentType: 'image/png', upsert: true })
+  const { data: formRow } = await raw.from('fire_plan_forms').select('sections').eq('customer_id', custId).single()
+  await raw.from('fire_plan_forms').update({
+    sections: {
+      ...(formRow!.sections as Record<string, unknown>),
+      fireAccess: { ...(await readFireAccess()), routeImage: draftPath, routeImageBase: null, routeAnnots: null },
+    },
+  }).eq('customer_id', custId)
+  check('옛 주행경로 초안을 심었다 (이 절의 전제)', (await readFireAccess()).routeImage === draftPath)
+
+  await page.goto(`${BASE}/customers/${custId}?tab=plan&form=1.3`)
+  await page.locator('[data-testid="form13-route-image"]').waitFor({ state: 'visible', timeout: 25000 })
+  const thumb10 = page.locator('[data-testid="form13-route-image-thumb"]')
+  // 9절과 같은 이유로 waitFor를 쓰지 않는다 — 여기선 썸네일이 **뜨긴 뜬다**(옛 지도로).
+  // 판정은 '떴는가'가 아니라 **'뜬 것이 무엇인가'**라, 기다림이 판정을 가리면 안 된다.
+  for (let i = 0; i < 40 && await thumb10.count() === 0; i++) await new Promise(r => setTimeout(r, 300))
+  check('폐지된 초안 자리에도 표지 건물 사진이 선다', await thumb10.getAttribute('data-standin') === '1')
+  check('옛 주행경로 지도가 화면에 남지 않는다',
+    !(await thumb10.getAttribute('src'))?.includes(draftPath.split('/').pop()!))
 } catch (e) {
   console.error('실행 중 오류:', e)
   check('스위트 완주', false, String(e))
