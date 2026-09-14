@@ -89,9 +89,14 @@ async function assembleAnnex1011(
     submitTo: cust.fire_station ? `${cust.fire_station}장` : '관할 소방서장',
   }
 
+  /** 자동 산출(불량 실측) 기간 — 아래 ③ 오버레이에서 `resolveActionPeriod`에 넘긴다.
+   *  우선순위(수기 > 자동 > 법정 기본)를 여기서 다시 적으면 갑지 엑셀과 갈라진다(D-7). */
+  let autoPeriod: ReturnType<typeof actionPlanPeriod> = null
+  let plannedCount = 0
   if (kind === 'report10') {
     // E10-4(B-8 감사): 종료일만 입력된 불량도 계획 건으로 편입 — 종전 필터는 표·총기간에서 통째 탈락시켰다
     const planned = defects.filter(d => d.action_plan || d.action_start || d.action_end)
+    plannedCount = planned.length
     // 「이행조치 계획사항」은 **설비 구분 7행 고정**이다(서식 원문·갑지 계획서 시트와 같은 구조,
     // 2026-09-07 image-77). 문구(fold)·그룹별 일자는 별지 9호 조립본이 유일한 원천이라 그대로
     // 파생시킨다 — 여기서 그룹 판정을 다시 적으면 8쪽·엑셀과 갈라진다(D-7).
@@ -113,9 +118,8 @@ async function assembleAnnex1011(
       data.totalPeriod = `${kdate(period.startISO)} ~ ${kdate(period.endISO)}`
       data.totalDays = String(period.days)
     }
+    autoPeriod = period
     if (planned.length === 0) missing.push('이행조치 계획 미입력')
-    // E10-3(B-8 감사): 총 이행기간은 시작·종료가 둘 다 있어야 산출된다 — 공란으로 나가는 걸 표면화
-    else if (!data.totalPeriod) missing.push('총 이행기간 — 계획 시작일·종료일이 모두 있는 건이 없어 산출 불가')
   } else {
     const done = defects.filter(d => d.action_completed_at)
     // ⚠ 완료 축은 **lib의 annexDoneRows 단일 원천**이다(D-7) — 갑지 엑셀 `완료보고서!B19:B22`·
@@ -174,6 +178,27 @@ async function assembleAnnex1011(
     // 작성 패널 daterange는 "YYYY-MM-DD ~ YYYY-MM-DD"로 저장 — 자동 산출과 같은 한국어 날짜로 변환 (과거 자유 텍스트는 그대로 통과)
     if (fstr(fields, 'totalPeriod')) data.totalPeriod = fstr(fields, 'totalPeriod').replace(/\d{4}-\d{2}-\d{2}/g, m => kdate(m))
     if (fstr(fields, 'totalDays')) data.totalDays = fstr(fields, 'totalDays')
+    /* 🎯 **법정 기본(3순위)** — 수기도 자동도 없으면 보고일+10일을 깐다 (2026-09-14 사용자 확정).
+     *   종전엔 여기서 멈춰 법정 서식의 이행조치기간이 **공란으로 제출**됐다. 2순위(자동)의 원천인
+     *   불량별 계획 시작·종료일 입력이 2026-09-11에 폐지돼, ④에서 손으로 넣지 않으면 반드시 빈다.
+     * ⚠ 규칙은 `resolveActionPeriod` 한 곳에 있다 — 갑지 엑셀(`workbook/route`)이 **같은 함수·같은
+     *   재료**(별지 10호 보고일·불량 유무)를 쓴다. 여기 조건을 다시 적으면 두 문서가 갈라진다.
+     * ⚠ 자유 텍스트 수기값('8월 중')은 위에서 이미 `data.totalPeriod`를 채웠으므로 여기 안 온다 —
+     *   `manualActionPeriod`가 못 읽는 값이라도 **사용자가 적은 것이 이긴다**. */
+    if (!data.totalPeriod) {
+      const legal = resolveActionPeriod(fields, autoPeriod, {
+        reportDateISO: annexReportDateISO(fields),
+        hasDefect: plannedCount > 0,
+      })
+      if (legal) {
+        data.totalPeriod = `${kdate(legal.startISO)} ~ ${kdate(legal.endISO)}`
+        data.totalDays = String(legal.days)
+        // 지어낸 값이라는 사실을 숨기지 않는다 — 사용자가 ④에서 확정하도록 고지에 남긴다
+        missing.push('총 이행기간 미입력 — 법정 기본 10일(수리·정비)로 인쇄됩니다. ④ 제출 단계의 「별지 10호 — 총 이행기간」에서 확정하세요')
+      } else if (plannedCount > 0) {
+        missing.push('총 이행기간 미입력 — ④ 제출 단계의 「별지 10호 — 총 이행기간」에서 정하세요')
+      }
+    }
     // 계획 내용 요약 — 이행조치 사항 표의 첫 행으로 출력하되 개별 계획 항목과 구분한다(E10-5).
     // 종전엔 구분 없이 얹혀 있어 기간이 빈 요약 줄이 '기간 미정인 이행조치 1건'처럼 읽혔다.
     const summary = fstr(fields, 'summary')
@@ -191,10 +216,13 @@ async function assembleAnnex1011(
     //     수기 보정만 있는 회차가 서로 다른 표를 인쇄한다.
     //   ⚠ Q-5 b안은 **기간이 없을 때** 산다: 그때는 이 블록이 통째로 안 돌고(`data.totalPeriod` 없음)
     //     렌더가 isNote 줄에 `—`를 찍는다. 미대상 설비에 빈 자리표가 서는 일은 여전히 없다.
-    //   ⚠ `days`는 계속 비운다 — 총 일수는 「이행조치 필요기간」이 단독으로 싣는다.
+    //   🚨 2026-09-14 정정 — **일수도 함께 찍는다.** 종전엔 `days: ''`로 비웠다("기간을 여덟 번
+    //     말해도 일수까지 여덟 번 말하지는 않는다"). 그 결과 **갑지 엑셀 계획서 21칸은 일수를
+    //     찍는데 PDF 7행만 안 찍어** 두 산출물이 달랐다. 사용자 확정: 7행에도 찍는다.
     if (data.planRows && data.totalPeriod) {
       const total = data.totalPeriod
-      data.planRows = data.planRows.map(r => ({ ...r, period: total, days: '' }))
+      const days = data.totalDays ?? ''
+      data.planRows = data.planRows.map(r => ({ ...r, period: total, days }))
     }
   } else {
     // 완료 보고 문구 — 있을 때만 서명 블록 위 1줄 (report1011.ts note)

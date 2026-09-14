@@ -152,8 +152,13 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
    *   종전엔 report11(보고일)만 읽어서, ④에서 기간을 고치면 **PDF 10호만 바뀌고 엑셀은
    *   자동 산출값**이었다 — 개요!G9·I9·J9·G10과 계획서 21칸이 통째로 PDF와 다른 날짜를 말했다.
    *   위 주석의 「annex_inputs 수동 오버레이까지 그대로 따라온다」는 그때까지 보고일에만 참이었다.
-   * ⚠ 우선순위 규칙은 `resolveActionPeriod` 한 곳에 있다 — 여기 다시 적으면 또 갈라진다(D-7). */
-  const actionPeriod = resolveActionPeriod(plan10Fields, r9.data.actionPeriod)
+   * ⚠ 우선순위 규칙은 `resolveActionPeriod` 한 곳에 있다 — 여기 다시 적으면 또 갈라진다(D-7).
+   * ⚠ 3순위 「법정 기본」의 재료를 넘긴다(2026-09-14) — **PDF 10호와 같은 재료라야** 한다.
+   *   기산일은 별지 10호의 보고일(`plan10Fields`)이다: 11호(완료보고) 보고일이 아니다. */
+  const actionPeriod = resolveActionPeriod(plan10Fields, r9.data.actionPeriod, {
+    reportDateISO: annexReportDateISO(plan10Fields),
+    hasDefect: r9.data.defectRows.length > 0,
+  })
 
   const values = buildWorkbookValues({
     official: official.data,

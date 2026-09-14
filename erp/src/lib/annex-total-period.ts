@@ -21,6 +21,7 @@
  *    격리 워크트리 tsc가 이걸 잡았다 — 공유 트리에서는 남의 미커밋 덕에 초록이었다.
  */
 import type { AnnexDone } from '@/lib/doc-templates/report9'
+import { legalActionRange, DEFAULT_ACTION_PERIOD_DAYS } from '@/lib/action-period-legal'
 
 export type ActionPeriod = { startISO: string; endISO: string; days: number }
 
@@ -58,13 +59,40 @@ export function manualActionPeriod(fields: Record<string, unknown>): ActionPerio
   return { startISO, endISO, days }
 }
 
-/** 수기값이 있으면 그것, 없으면 자동 산출값 — 호출부가 우선순위를 다시 적지 않게 한다.
- *  PDF(`report9-actions`의 report10 분기)도 같은 우선순위다: 수기 > 자동. */
+/** 3순위 「법정 기본」의 재료 — 기산일(보고일)과 「이 회차에 이행할 것이 있는가」. */
+export type LegalFallbackCtx = {
+  /** 조문의 기산일 = 보고일(`annexReportDateISO`). 날짜꼴이 아니면 기본을 깔지 않는다 */
+  reportDateISO?: string | null
+  /** 불량(이행조치 계획)이 하나라도 있는가 — 없으면 이행기간 자체가 뜻이 없다 */
+  hasDefect?: boolean
+}
+
+/** 수기 > 자동 > **법정 기본** — 호출부가 우선순위를 다시 적지 않게 한다.
+ *  PDF(`report9-actions`의 report10 분기)와 갑지 엑셀(`workbook/route`)이 **같은 이 함수**를 탄다.
+ *
+ *  ## 3순위를 붙인 이유 (2026-09-14 사용자 확정)
+ *  종전엔 「수기 > 자동」 둘뿐이었고, 둘 다 없으면 법정 서식의 이행조치기간이 **공란으로 제출**됐다.
+ *  그런데 2순위(자동)의 원천인 **불량별 계획 시작·종료일 입력이 2026-09-11에 폐지**되어
+ *  (`defect-grid` 입력 열 제거) 새 회차에서는 영영 0건이다. 즉 ④에서 손으로 넣지 않으면
+ *  **반드시** 빈다. 스테이징 실측이 그대로였다 — 불량 있는 7회차 중 5회차가 공란, 수기 입력은 0건.
+ *
+ *  🚨 **없는 값을 지어내는 것**이므로 경계를 좁게 둔다:
+ *   ① 불량이 없으면 깔지 않는다 — 이행할 것이 없는 회차에 기간이 서면 거짓이다.
+ *   ② 기산일이 날짜꼴이 아니면 깔지 않는다.
+ *   ③ **10일**(1호 수리·정비)이다 — 짧은 쪽이라, 틀렸을 때 사용자는 늘리는 쪽으로 고치게 되고
+ *     법정 상한(20일)을 넘긴 기간이 조용히 인쇄되지 않는다(`DEFAULT_ACTION_PERIOD_DAYS` 주석).
+ *   ④ **저장하지 않는다.** 화면은 이걸 자동값으로 비추기만 하고, 사용자가 고른 값만
+ *     `annex_inputs`에 남는다 — 저장하면 그 순간 수동값이 되어 보고일을 고쳐도 옛 기간이 굳는다
+ *     (공문 자동값 `getAnnexAutoDefaultsAction`이 같은 이유로 같은 규약을 쓴다). */
 export function resolveActionPeriod(
   fields: Record<string, unknown>,
   auto?: ActionPeriod | null,
+  legal?: LegalFallbackCtx | null,
 ): ActionPeriod | null {
-  return manualActionPeriod(fields) ?? auto ?? null
+  const chosen = manualActionPeriod(fields) ?? auto ?? null
+  if (chosen) return chosen
+  if (!legal?.hasDefect) return null
+  return legalActionRange((legal.reportDateISO ?? '').slice(0, 10), DEFAULT_ACTION_PERIOD_DAYS)
 }
 
 /** 별지 11호 「이행완료 사항」 일자 = **총 이행기간 종료일**로 통일 (2026-09-10 사용자 지시).

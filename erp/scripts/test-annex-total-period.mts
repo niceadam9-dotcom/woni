@@ -47,7 +47,33 @@ const AUTO = { startISO: '2026-07-01', endISO: '2026-07-03', days: 3 }
 ok(resolveActionPeriod({ totalPeriod: '2026-08-05 ~ 2026-08-14' }, AUTO)?.startISO === '2026-08-05', '수기 있으면 수기')
 ok(resolveActionPeriod({}, AUTO)?.startISO === '2026-07-01', '수기 없으면 자동')
 ok(resolveActionPeriod({ totalPeriod: '8월 중' }, AUTO)?.startISO === '2026-07-01', '수기가 판정 불가면 자동으로 떨어진다')
-ok(resolveActionPeriod({}, null) === null, '둘 다 없으면 null')
+ok(resolveActionPeriod({}, null) === null, '둘 다 없으면 null (법정 재료 미공급)')
+
+console.log('── C-2. 3순위 법정 기본 (2026-09-14 신설) ──')
+/* 왜 3순위가 생겼나: 2순위(자동)의 원천인 **불량별 계획 시작·종료일 입력이 2026-09-11에 폐지**됐다.
+   그래서 ④에서 손으로 넣지 않으면 법정 서식의 이행조치기간이 **반드시** 공란으로 제출된다
+   (스테이징 실측: 불량 있는 7회차 중 5회차 공란, 수기 입력 0건). 지어내는 값이므로 경계가 핵심이다. */
+const LEGAL = { reportDateISO: '2026-09-11', hasDefect: true }
+const L = resolveActionPeriod({}, null, LEGAL)
+ok(L?.startISO === '2026-09-11', `기산일 = 보고일 (실제 ${L?.startISO})`)
+ok(L?.days === 10, `법정 기본 10일 — 1호 수리·정비(짧은 쪽) (실제 ${L?.days})`)
+ok(L?.endISO === '2026-09-20', `종료 = 시작 + 9 (양끝 포함 10일, 실제 ${L?.endISO})`)
+
+// 🚨 경계 — 지어내면 안 되는 자리에서 지어내지 않는가. 양성만 물으면 「늘 깔린다」도 초록이다.
+ok(resolveActionPeriod({}, null, { reportDateISO: '2026-09-11', hasDefect: false }) === null,
+  '🎯 불량이 없으면 안 깐다 — 이행할 것이 없는 회차에 기간이 서면 거짓이다')
+ok(resolveActionPeriod({}, null, { reportDateISO: '', hasDefect: true }) === null,
+  '기산일이 없으면 안 깐다')
+ok(resolveActionPeriod({}, null, { reportDateISO: '8월 중', hasDefect: true }) === null,
+  '기산일이 날짜꼴이 아니면 안 깐다')
+
+// 🚨 서열 — 법정 기본은 **맨 아래**다. 위 두 순위가 있으면 절대 이기지 못한다.
+ok(resolveActionPeriod({}, AUTO, LEGAL)?.startISO === '2026-07-01',
+  '🎯 자동 산출이 있으면 법정 기본이 안 선다')
+ok(resolveActionPeriod({ totalPeriod: '2026-08-05 ~ 2026-08-14' }, AUTO, LEGAL)?.startISO === '2026-08-05',
+  '🎯 수기가 있으면 법정 기본이 안 선다')
+ok(resolveActionPeriod({ totalPeriod: '2026-08-05 ~ 2026-08-14' }, null, LEGAL)?.days === 10,
+  '수기만 있고 자동이 없어도 수기가 이긴다')
 
 console.log('── D·E·F. 갑지 엑셀 착지 (대조군 대조) ──')
 type R9 = Parameters<typeof buildWorkbookValues>[0]['report9']
@@ -160,6 +186,13 @@ ok(loads.some(a => a.includes("'report11'")), "(대조군) report11 조회는 �
 const resolves = [...routeSrc.matchAll(/(?<!function\s)resolveActionPeriod\(([^)]*)\)/g)].map(m => m[1])
 ok(resolves.length >= 1, `resolveActionPeriod 호출 ${resolves.length}건`)
 ok(resolves.every(a => a.includes(',')), '자동 폴백까지 넘긴다(인자 2개) — 하나만 넘기면 수기 없는 회차가 공란이 된다')
+/* 🎯 3순위 재료(2026-09-14) — **두 표면이 같은 것을 넘겨야** 한다. 기산일을 한쪽만 report11
+   보고일로 잡으면 같은 회차의 PDF와 엑셀이 열흘 어긋난 기간을 인쇄한다(D-7).
+   ⚠ 인자 세 개를 세는 것으로는 부족하다 — **무엇을** 넘기는지를 본다. */
+const routeLegal = /resolveActionPeriod\(plan10Fields[\s\S]{0,240}?annexReportDateISO\(plan10Fields\)[\s\S]{0,120}?hasDefect/.test(routeSrc)
+ok(routeLegal, '🎯 엑셀 라우트가 법정 기본 재료를 **별지 10호 보고일**로 넘긴다')
+ok(!/resolveActionPeriod\(plan10Fields[\s\S]{0,240}?annexReportDateISO\(done11Fields\)/.test(routeSrc),
+  '(음성) 기산일을 11호 보고일로 잡지 않았다')
 // 그 결과가 실제로 값 빌더까지 가는가 — 계산해 놓고 안 넘기면 아무 일도 일어나지 않는다
 ok(/report9:\s*\{[^}]*actionPeriod/s.test(routeSrc), '🎯 계산한 기간을 buildWorkbookValues(report9)에 넘긴다')
 
@@ -221,6 +254,14 @@ const actResolves = [...actionsSrc.matchAll(/(?<!function\s)resolveActionPeriod\
 ok(actResolves.length >= 1, `🎯 PDF 11호 조립도 resolveActionPeriod를 부른다 (${actResolves.length}건)`)
 ok(actionsSrc.includes("loadAnnexInputs(admin, inspectionId, 'report10')"),
   "🎯 11호 분기가 report10 칸을 따로 읽는다 (그 분기의 fields는 report11이다)")
+// 🎯 PDF 10호도 같은 3순위 재료를 넘긴다 — 한쪽만 걸면 두 산출물이 다시 갈라진다
+ok(/resolveActionPeriod\(fields,\s*autoPeriod,[\s\S]{0,200}?annexReportDateISO\(fields\)[\s\S]{0,120}?hasDefect/.test(actionsSrc),
+  '🎯 PDF 10호도 법정 기본 재료를 넘긴다(엑셀과 같은 기산일·같은 조건)')
+// 지어낸 값을 조용히 인쇄하지 않는가 — 고지에 남기는지 소스로 확인
+ok(/법정 기본 10일/.test(actionsSrc), '🎯 법정 기본으로 인쇄될 때 고지에 남긴다(조용히 지어내지 않는다)')
+// 🚨 폐지된 입력을 가리키는 낡은 안내가 되살아나면 붉어진다 (2026-09-11 입력 열 제거)
+ok(!/계획 시작일·종료일이 모두 있는 건이 없어/.test(actionsSrc),
+  '(음성) 안내가 **폐지된 불량별 계획 시작·종료일 칸**을 가리키지 않는다')
 
 console.log(`\n${fail === 0 ? '✅' : '❌'} ${pass}/${pass + fail} 통과`)
 process.exit(fail === 0 ? 0 : 1)

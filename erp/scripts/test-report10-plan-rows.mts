@@ -156,14 +156,19 @@ console.log('── C-3. Q-5 — 자동 문구 행의 일자 칸(자리표 대�
    *   **생산자가 7행 전부에 실었는가**를 직접 물어 렌더 한쪽만 고치는 회귀를 막는다. */
   ok(realRows.every(r => r.period !== ''),
     '🎯 (생산자) 7행 전부에 period가 실린다 — 불량 없는 구분도 포함')
-  ok(realRows.every(r => r.days === ''),
-    '(생산자) days는 전부 비어 있다 — 총 일수는 「필요기간」이 단독으로 싣는다')
+  /* 🚨 2026-09-14 계약 교체 — 종전 계약은 `days === ''`(「기간을 여덟 번 말해도 일수까지 여덟 번
+     말하지는 않는다」)였다. 그런데 **갑지 엑셀 계획서 21칸은 일수를 찍고 있어** 같은 회차의 두
+     산출물이 다른 표를 인쇄했다(D-7이 깨진 자리). 사용자 확정으로 PDF도 찍는다.
+     지우지 않고 **반대 방향으로 갈아끼운다** — 되돌리면 여기가 붉어진다. */
+  ok(realRows.every(r => r.days !== ''),
+    '🎯 (생산자) days가 7행 전부에 실린다 — 엑셀 21칸과 같은 표')
   for (const g of realRows) {
     const seg = rowsOnly.slice(rowsOnly.indexOf(`>${g.group}<`))
     const cell = seg.slice(0, seg.indexOf('</tr>'))
     ok(cell.includes(TOTAL_TEXT), `${g.group} 일자 칸 = 총 이행기간`)
-    // 총 일수는 「이행조치 필요기간」이 단독으로 싣는다 — days가 비면 꼬리를 안 붙인다
-    ok(!cell.includes('row-days'), `${g.group} 일자 칸에 (총 N 일) 꼬리가 없다`)
+    // 2026-09-14 — 일수 꼬리도 함께 찍는다(엑셀 21칸과 같은 모양)
+    ok(cell.includes('row-days') && cell.includes('(총 10 일)'),
+      `${g.group} 일자 칸에 (총 N 일) 꼬리가 있다`)
   }
   /* 🚨 음성 대조 ① — **불량 내용 원문이 10호 7행에 새면 안 된다**. 「결과참조」로 접는 것이
    *   2026-09-11 변경의 핵심이고, 되돌리면 여기가 붉어진다.
@@ -171,9 +176,10 @@ console.log('── C-3. Q-5 — 자동 문구 행의 일자 칸(자리표 대�
    *     그 축은 test-defect-fold·test-applicable-surfaces가 본다. 여기서 재는 건 10호뿐이다. */
   ok(!rowsOnly.includes('거주자 등이 손 쉽게'),
     '(음성) 불량 내용 원문은 10호 7행에 안 나온다')
-  // 🚨 음성 대조 ①-b — 총 **일수**는 7행에 안 붙는다(필요기간 행이 단독)
-  ok(!rowsOnly.includes('(총 10 일)') && !rowsOnly.includes('row-days'),
-    '(음성) 총 일수 꼬리는 7행에 없다')
+  /* 🚨 음성 대조 ①-b 교체(2026-09-14) — 이제 붙는다. 다만 **그 구분의 기간이 아니라 총 기간의
+     일수**여야 한다: 설비 구분별 일수로 되돌아가면(09-07 판) 여기가 붉어진다. */
+  ok(rowsOnly.includes('(총 10 일)') && !rowsOnly.includes('(총 3 일)'),
+    '🎯 7행의 일수는 총 이행기간의 일수다(구분별 일수가 아니다)')
   // 🚨 음성 대조 ② — 그보다 앞선 규칙(설비 구분별 기간)도 어디에도 안 나온다
   ok(!bodyOnly.includes('2026년 8월 18일') && !bodyOnly.includes('(총 3 일)'),
     '(음성) 설비 구분별 기간은 어디에도 안 나온다')
@@ -182,8 +188,8 @@ console.log('── C-3. Q-5 — 자동 문구 행의 일자 칸(자리표 대�
     '총 이행기간은 필요기간 행에 그대로')
   // 7행이 **전부 같은 한 값** — 그룹별 기간으로 되돌아가거나 일부만 실으면 여기가 붉어진다
   const periods = new Set(realRows.map(r => `${r.period}|${r.days}`))
-  ok(periods.size === 1 && [...periods][0] === `${TOTAL_TEXT}|`,
-    `7행 전부가 총 이행기간 한 값 (실측 ${[...periods].join(' / ')})`)
+  ok(periods.size === 1 && [...periods][0] === `${TOTAL_TEXT}|10`,
+    `7행 전부가 총 이행기간·총 일수 한 벌 (실측 ${[...periods].join(' / ')})`)
 }
 
 console.log('── D. 하위 호환(planRows 미공급) ──')
@@ -219,7 +225,17 @@ console.log('── F. 액션 덧칠 배선(소스 축) ──')
    *   서로 다른 표를 인쇄한다. 음성으로 세워 제외가 되살아나면 붉어지게 한다. */
   ok(!/isNote\s*\?\s*r\s*:/.test(overlay),
     '🎯 덧칠이 isNote 줄을 제외하지 않는다(7행 전부 같은 축)')
-  ok(/days:\s*''/.test(overlay), "덧칠은 days를 비운다(「(총 N 일)」 중복 인쇄 차단)")
+  /* 🚨 2026-09-14 계약 교체 — 종전엔 `days: ''`였다. 조립본과 덧칠이 **같은 축**이라야 하므로
+     (한쪽만 고치면 자동 산출 회차와 수기 보정 회차가 다른 표를 낸다) 덧칠도 일수를 싣는다. */
+  //   ⚠ 축약 표기(`{ ...r, period: total, days }`)라 `days: days`로 찾으면 빗나간다 — 모양을 그대로 적는다
+  ok(/\{\s*\.\.\.r,\s*period:\s*total,\s*days\s*\}/.test(overlay) && !/days:\s*''/.test(overlay),
+    '🎯 덧칠도 일수를 싣는다(조립본과 같은 축 — 빈 문자열로 되돌아가지 않았다)')
+  /* 🚨 모양만 물으면 **값이 빈 채로도 초록**이다 — 변이 실험(M7)이 그걸 실증했다:
+     `const days = data.totalDays ?? ''`를 `const days = ''`로 바꿔도 위 단언이 통과했다.
+     덧칠 경로(수기 보정만 있고 자동 산출이 없는 회차)는 렌더 축으로 잴 방법이 없으니
+     **값의 출처**를 직접 묻는다. */
+  ok(/const days\s*=\s*data\.totalDays/.test(src),
+    '🎯 덧칠의 일수가 data.totalDays에서 온다(빈 문자열 상수가 아니다)')
 }
 
 console.log(`\n결과: ${pass} 통과 / ${fail} 실패`)
