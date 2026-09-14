@@ -41,6 +41,7 @@ import JSZip from 'jszip'
 import { escXml, sheetFileMap } from '@/lib/xlsx-inject'
 import { FIRE_PLAN_MANIFEST, sheetManifest } from '@/lib/fire-plan-xlsx-manifest'
 import { FIRE_PLAN_MARK_CHECKED_RE } from '@/lib/fire-plan-scrub'
+import { CHECKBOX_BOX_OFFSETS } from '@/lib/fire-plan-checkbox-offsets'
 
 /**
  * 컨트롤을 다는 시트 = **워크북 전체**(2026-09-14 확대. 종전엔 `['1.4 소방시설 현황']` 하나였다).
@@ -56,9 +57,23 @@ export const CHECKBOX_SHEETS: readonly string[] = FIRE_PLAN_MANIFEST.sheets.map(
 
 /** 빈 상자 글자(F-6 — 원본이 두 글자를 섞어 쓴다) */
 const EMPTY_BOX_RE = /[□☐]/
-/** 상자를 비울 때 쓰는 글자. **전각** 공백이라야 폭이 보존된다 —
- *  반각으로 바꾸면 뒤 문구가 7.5pt 왼쪽으로 밀려 컨트롤 밑으로 들어간다. */
-const BLANK = '　'
+/** 지금 칸에 있는 **상자 자리** 전부 — 꺼진 것(`□ ☐`)과 켜진 것을 함께 센다.
+ *  ⚠ 켜짐 쪽 정본은 `FIRE_PLAN_MARK_CHECKED_RE`이고 여기 목록은 그 **한 글자 갈래**다. */
+const BOX_ANY_RE = /[□☐■☑▣]/g
+/** 칸 왼쪽 끝 → **글자가 시작하는 자리**(px). 적격 칸이 전부 `indent="1"`이라 상수다(실측).
+ *
+ *  🚨 이만큼 안 밀면 컨트롤이 원래 상자보다 왼쪽에 선다 — 43·44회차로 나간 582개가 그 상태였고,
+ *    「적용본 vs 원본」 렌더를 나란히 놓고 **첫 잉크 덩어리의 왼쪽 끝**을 비교해 처음 드러났다
+ *    (`_probe-cb-xshift.mts`, 14렌더px ≒ 15시트px). 눈이 아니라 렌더가 정한 값이다. */
+const TEXT_INSET_PX = 15
+/* 🚨 **상자 글자를 다른 글자로 바꾸지 않는다. 색만 배경색으로 칠한다.**
+ *
+ *  종전엔 전각 공백(`　`)으로 갈아 끼웠는데, 칸 안에서 `□`는 **SegoeUISymbol**(윈도 글꼴 대체)이고
+ *  `　`는 맑은 고딕이라 **전진 폭이 다르다**. 그래서 상자 하나를 비울 때마다 **뒤 글자가 왼쪽으로
+ *  밀렸고**, 다중상자 칸에서는 라벨이 컨트롤 밑으로 파고들었다(인쇄 렌더로 확인).
+ *  글자를 그대로 두고 색만 바꾸면 **배치가 한 픽셀도 안 움직인다** — 그래서 측정한 오프셋이
+ *  그대로 맞고, 덤으로 칸 값에 법정 문구가 **글자 그대로** 남는다. */
+const HIDDEN_FILL_DEFAULT = 'FFFFFFFF'
 /** 컨트롤 폭(미세 격자 열 수). 1열=13px이고 상자 글자가 13px이라 2열이면 딱 덮는다. */
 const CTRL_COLS = 2
 const PX_PER_COL = 13
@@ -70,18 +85,38 @@ export type CheckboxCell = {
   col: number
   /** 0-based */
   row0: number
+  /** 이 칸에서 **몇 번째 상자**인가(0부터). 한 상자짜리 칸은 늘 0 */
+  boxIndex: number
+  /** 칸의 첫 상자로부터 이 상자까지의 가로 거리(px). 첫 상자는 0 */
+  offsetPx: number
 }
 
 const colNum = (s: string) => [...s].reduce((a, ch) => a * 26 + ch.charCodeAt(0) - 64, 0) - 1
 
+/** 시트 왼쪽부터의 px → `(열, 그 열 안 오프셋)`.
+ *  큰 오프셋을 한 열에 몰아 주면 뷰어가 열 폭으로 **클램프**해 왼쪽에 붙는다(사진 상자 실사고).
+ *  그래서 열을 옮기고 **나머지만** 오프셋으로 준다. 미세 격자라 열 폭이 균일해 나눗셈 한 번이다. */
+function splitPx(px: number): { col: number; off: number } {
+  const col = Math.floor(px / PX_PER_COL)
+  return { col, off: Math.round(px - col * PX_PER_COL) }
+}
+
 /**
- * 컨트롤을 달 칸 — **manifest의 `labels`만으로** 판정한다(템플릿 바이트 불필요).
+ * 컨트롤을 달 **상자** — **manifest의 `labels`만으로** 판정한다(템플릿 바이트 불필요).
  *
- * 지금 다는 것은 「상자 1개 · 문자열 맨 앞 · 한 줄」인 칸뿐이다. 나머지는 일부러 뺀다:
- *  · 상자가 여럿인 칸(`□ 유 □ 무`) — 둘째 상자부터는 **앞 글의 폭**이 위치를 정한다(글꼴 계산).
+ * 반환 단위는 「칸」이 아니라 **「상자」**다(2026-09-14 다중상자 지원). `□ 유   □ 무` 한 칸은
+ * 둘을 낸다 — 사용자가 「유」와 「무」를 **따로** 눌러야 하기 때문이다.
+ *
+ * 다는 조건: 「상자가 문자열 맨 앞 · 한 줄」. 그리고 상자가 여럿이면 **그 글자의 오프셋 표가
+ * 있어야** 한다. 나머지는 일부러 뺀다:
  *  · 상자가 글 중간인 칸(`※ □에는 …`) — 애초에 체크박스가 아니라 **산문**이다.
  *  · 여러 줄인 칸 — 상자는 첫 줄에 있는데 글 덩어리는 가운데 정렬이라 세로로 어긋난다.
  * 뺀 칸은 오늘처럼 `□` 글자로 남는다. **퇴행이 아니라 미적용**이다.
+ *
+ * 🚨 둘째 상자부터의 가로 자리는 **계산하지 않는다.** 한 칸 안에서 글꼴이 섞이고(상자는
+ *   SegoeUISymbol) 공백이 자간 보정으로 벌어져, 글자 폭 모델은 9%까지 어긋났다(실패 기록).
+ *   값은 `fire-plan-checkbox-offsets.ts` — **Excel이 인쇄한 것을 렌더 차이로 잰** 표다.
+ * ⚠ 표에 없는 다중상자 칸은 **통째로 뺀다**(반만 달면 오늘보다 나쁘다). 검사가 그 수를 못 박는다.
  */
 export function firePlanCheckboxCells(sheet: string): CheckboxCell[] {
   const man = sheetManifest(sheet)
@@ -89,15 +124,20 @@ export function firePlanCheckboxCells(sheet: string): CheckboxCell[] {
   for (const cell of Object.keys(man.boxes)) {
     const label = man.labels[cell]
     if (label === undefined) continue
-    if ((label.match(/[□☐]/g) ?? []).length !== 1) continue
+    const at = [...label.matchAll(/[□☐]/g)].map(m => m.index!)
+    if (!at.length) continue
     if (!EMPTY_BOX_RE.test(label.trim()[0] ?? '')) continue
     if (label.includes('\n')) continue
     const m = /^([A-Z]+)(\d+)$/.exec(cell)
     if (!m) continue
-    out.push({ cell, col: colNum(m[1]), row0: Number(m[2]) - 1 })
+    const col = colNum(m[1]), row0 = Number(m[2]) - 1
+    if (at.length === 1) { out.push({ cell, col, row0, boxIndex: 0, offsetPx: 0 }); continue }
+    const offs = CHECKBOX_BOX_OFFSETS[label]
+    if (!offs || offs.length !== at.length) continue        // 표 없는 칸은 통째로 미적용
+    for (let i = 0; i < at.length; i++) out.push({ cell, col, row0, boxIndex: i, offsetPx: offs[i] })
   }
   // 좌표 순 — VML의 z-index와 컨트롤 이름이 매 생성마다 같은 순서로 나오게 한다(산출물 재현성)
-  return out.sort((a, b) => a.row0 - b.row0 || a.col - b.col)
+  return out.sort((a, b) => a.row0 - b.row0 || a.col - b.col || a.boxIndex - b.boxIndex)
 }
 
 export type CheckboxApplyResult = {
@@ -106,6 +146,21 @@ export type CheckboxApplyResult = {
   applied: number
   /** 달지 못한 칸 — 조용히 버리지 않는다. 그 칸은 상자 글자를 **그대로 둔다**(오늘과 동일) */
   skipped: string[]
+}
+
+/** 칸 스타일 → 배경색(ARGB). 상자를 **그 칸의 바탕색**으로 칠해 안 보이게 한다 —
+ *  흰색으로 고정하면 색 깔린 칸(실측 17칸)에서 흰 네모가 드러난다. */
+function fillColorTable(styles: string): (styleIdx: number) => string {
+  const xfs = [...(/<cellXfs[^>]*>([\s\S]*?)<\/cellXfs>/.exec(styles)?.[1] ?? '')
+    .matchAll(/<xf\b[\s\S]*?(?:\/>|<\/xf>)/g)].map(m => m[0])
+  const fills = [...(/<fills[^>]*>([\s\S]*?)<\/fills>/.exec(styles)?.[1] ?? '')
+    .matchAll(/<fill>[\s\S]*?<\/fill>/g)].map(m => m[0])
+  return (styleIdx: number) => {
+    const fid = Number(/fillId="(\d+)"/.exec(xfs[styleIdx] ?? '')?.[1] ?? 0)
+    const f = fills[fid] ?? ''
+    if (!f || f.includes('patternType="none"')) return HIDDEN_FILL_DEFAULT
+    return /<fgColor rgb="([0-9A-Fa-f]{8})"/.exec(f)?.[1] ?? HIDDEN_FILL_DEFAULT
+  }
 }
 
 /** 시트 XML에서 `시작칸 → 끝 행(1-based)` 병합 표 */
@@ -148,6 +203,7 @@ export async function applyFirePlanCheckboxes(
 ): Promise<CheckboxApplyResult> {
   const zip = await JSZip.loadAsync(bytes)
   const files = await sheetFileMap(zip)
+  const fillOf = fillColorTable(await zip.file('xl/styles.xml')!.async('string'))
   const skipped: string[] = []
   let applied = 0
   let ctrlPropNo = 0          // 워크북 전역 번호 — 시트마다 1부터 세면 파트가 서로 덮어쓴다
@@ -183,37 +239,70 @@ export async function applyFirePlanCheckboxes(
      *    LibreOffice도 노드도 통과시켰다. 잡은 것은 Excel COM 검증뿐이다. */
     const idBlock = vmlNo
 
+    // 🚨 상자가 아니라 **칸 단위로 묶어** 돈다. 한 칸에 상자가 여럿이면 글자 교체가 서로를
+    //   밀어내기 때문이다 — 첫 상자를 비운 뒤 「두 번째 상자」를 다시 찾으면 이미 하나가 사라져
+    //   순번이 어긋난다. 한 칸의 상자를 **한 번에** 처리하고 글자도 한 번에 갈아 끼운다.
+    const byCell = new Map<string, CheckboxCell[]>()
     for (const c of cells) {
+      const list = byCell.get(c.cell)
+      if (list) list.push(c); else byCell.set(c.cell, [c])
+    }
+
+    for (const [cellRef, boxes] of byCell) {
+      const c = boxes[0]
       // ── 이 칸이 지금 어떤 글을 들고 있나. 자기닫힘 `<c …/>`를 함께 받지 않으면
       //    `[^>]*`가 `/`까지 삼키고 다음 `</c>`까지 먹어 **엉뚱한 칸**을 고친다(xlsx-inject와 같은 함정).
-      const re = new RegExp(`<c r="${c.cell}"((?:[^>/]|/(?!>))*)>([\\s\\S]*?)</c>`)
+      const re = new RegExp(`<c r="${cellRef}"((?:[^>/]|/(?!>))*)>([\\s\\S]*?)</c>`)
       const m = re.exec(xml)
-      if (!m) { skipped.push(`${sheet}!${c.cell}`); continue }
-      const inner = m[2]
-      const tm = /(<t[^>]*>)([\s\S]*?)(<\/t>)/.exec(inner)
-      if (!tm) { skipped.push(`${sheet}!${c.cell}`); continue }
+      const tm = m ? /(<t[^>]*>)([\s\S]*?)(<\/t>)/.exec(m[2]) : null
+      if (!m || !tm) { for (const b of boxes) skipped.push(`${sheet}!${cellRef}#${b.boxIndex}`); continue }
       const text = tm[2]
         .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&amp;/g, '&')
-      const checked = FIRE_PLAN_MARK_CHECKED_RE.test(text)
-      // 켜진 칸은 `■`, 꺼진 칸은 `□`/`☐`. 둘 다 없으면 이 칸은 우리가 아는 상자 칸이 아니다
-      //  — 주입이 값을 통째로 비웠거나 서식이 바뀐 것이다. **글자를 건드리지 않고** 물러난다.
-      const boxAt = text.search(checked ? FIRE_PLAN_MARK_CHECKED_RE : EMPTY_BOX_RE)
-      if (boxAt < 0) { skipped.push(`${sheet}!${c.cell}`); continue }
 
-      const blanked = text.slice(0, boxAt) + BLANK + text.slice(boxAt + 1)
-      const endRow1 = merges.get(c.cell) ?? c.row0 + 1     // 병합이 없으면 자기 행 하나
+      // 지금 이 칸에 실제로 있는 상자 글자들(켜짐·꺼짐 함께).
+      // ⚠ 개수가 manifest와 다르면 주입이 값을 통째로 갈았거나 서식이 바뀐 것이다 —
+      //   그 칸은 **글자를 건드리지 않고** 통째로 물러난다(반만 달면 오늘보다 나쁘다).
+      const hits = [...text.matchAll(BOX_ANY_RE)]
+      if (hits.length !== boxes.length) { for (const b of boxes) skipped.push(`${sheet}!${cellRef}#${b.boxIndex}`); continue }
+
+      // 상자 글자를 **그 칸의 바탕색으로 칠한다**(글자는 그대로 → 배치가 안 움직인다).
+      const fill = fillOf(Number(/ s="(\d+)"/.exec(m[1])?.[1] ?? 0))
+      const hidden = new Set(hits.map(h => h.index!))
+      const runs: string[] = []
+      let buf = ''
+      const flush = () => { if (buf) { runs.push(`<r><t xml:space="preserve">${escXml(buf)}</t></r>`); buf = '' } }
+      { let s = 0
+        for (const ch of text) {
+          if (hidden.has(s)) { flush(); runs.push(`<r><rPr><color rgb="${fill}"/></rPr><t xml:space="preserve">${escXml(ch)}</t></r>`) }
+          else buf += ch
+          s += ch.length
+        } }
+      flush()
+      const isBody = runs.join('')
+
+      const endRow1 = merges.get(cellRef) ?? c.row0 + 1     // 병합이 없으면 자기 행 하나
+      const topPt = (topPxOf(c.row0 + 1) * 0.75).toFixed(2)
+      const wPt = (CTRL_COLS * PX_PER_COL * 0.75).toFixed(2)
+      let hPx = 0
+      for (let r = c.row0 + 1; r <= endRow1; r++) hPx += rowPx.get(r) ?? defaultPx
+      const hPt = (hPx * 0.75).toFixed(2)
+
+      for (let bi = 0; bi < boxes.length; bi++) {
+      const b = boxes[bi]
+      const checked = FIRE_PLAN_MARK_CHECKED_RE.test(hits[bi][0])
       // 이 시트(=이 VML 파트)가 소유한 블록 안에서 1부터. 블록당 1023개가 상한인데 한 시트
       // 최대가 124칸이라 여유가 크다 — 그래도 넘으면 조용히 밀리므로 아래에서 막는다.
       const shapeId = idBlock * 1024 + shapes.length + 1
       const propNo = ++ctrlPropNo
       const rid = `rIdCb${propNo}`
 
-      const leftPt = (c.col * PX_PER_COL * 0.75).toFixed(2)
-      const topPt = (topPxOf(c.row0 + 1) * 0.75).toFixed(2)
-      const wPt = (CTRL_COLS * PX_PER_COL * 0.75).toFixed(2)
-      let hPx = 0
-      for (let r = c.row0 + 1; r <= endRow1; r++) hPx += rowPx.get(r) ?? defaultPx
-      const hPt = (hPx * 0.75).toFixed(2)
+      /* 가로 자리 = 칸 왼쪽 + **글자 들여쓰기** + 이 상자의 오프셋.
+       * 오프셋이 칸 경계를 넘으면 열을 옮기고 나머지만 준다(`splitPx`) — 미세 격자에서 큰
+       * 오프셋을 한 열에 몰아 주면 뷰어가 클램프해 왼쪽에 붙는다(사진 상자 실사고). */
+      const leftPx = c.col * PX_PER_COL + TEXT_INSET_PX + b.offsetPx
+      const from = splitPx(leftPx)
+      const to = splitPx(leftPx + CTRL_COLS * PX_PER_COL)
+      const leftPt = (leftPx * 0.75).toFixed(2)
 
       // 🚨 아래 모서리는 **「다음 행의 꼭대기」가 아니라 「마지막 덮는 행 + 그 행 높이」**로 적는다.
       //   같은 자리를 가리키지만 **끝 행 번호가 한 칸 작아진다**. 앞의 표기는 시트의 마지막 행에
@@ -236,7 +325,7 @@ export async function applyFirePlanCheckboxes(
         + `<v:textbox style='mso-direction-alt:auto' o:singleclick="f"><div style='text-align:left'></div></v:textbox>`
         // ⚠ ClientData의 자식 **순서는 스키마 sequence다**. Excel이 저장한 순서를 그대로 따른다.
         + '<x:ClientData ObjectType="Checkbox"><x:SizeWithCells/>'
-        + `<x:Anchor>${c.col}, 0, ${c.row0}, 0, ${c.col + CTRL_COLS}, 0, ${toRow0}, ${toRowOffPx}</x:Anchor>`
+        + `<x:Anchor>${from.col}, ${from.off}, ${c.row0}, 0, ${to.col}, ${to.off}, ${toRow0}, ${toRowOffPx}</x:Anchor>`
         + '<x:AutoFill>False</x:AutoFill><x:AutoLine>False</x:AutoLine><x:TextVAlign>Center</x:TextVAlign>'
         + (checked ? '<x:Checked>1</x:Checked>' : '')
         + '<x:NoThreeD/></x:ClientData></v:shape>')
@@ -246,9 +335,9 @@ export async function applyFirePlanCheckboxes(
         + `<control shapeId="${shapeId}" r:id="${rid}" name="Check Box ${propNo}">`
         + '<controlPr defaultSize="0" autoFill="0" autoLine="0" autoPict="0">'
         + '<anchor moveWithCells="1">'
-        + `<from><xdr:col>${c.col}</xdr:col><xdr:colOff>0</xdr:colOff>`
+        + `<from><xdr:col>${from.col}</xdr:col><xdr:colOff>${from.off * EMU_PER_PX}</xdr:colOff>`
         + `<xdr:row>${c.row0}</xdr:row><xdr:rowOff>0</xdr:rowOff></from>`
-        + `<to><xdr:col>${c.col + CTRL_COLS}</xdr:col><xdr:colOff>0</xdr:colOff>`
+        + `<to><xdr:col>${to.col}</xdr:col><xdr:colOff>${to.off * EMU_PER_PX}</xdr:colOff>`
         + `<xdr:row>${toRow0}</xdr:row><xdr:rowOff>${toRowOffPx * EMU_PER_PX}</xdr:rowOff></to>`
         + '</anchor></controlPr></control></mc:Choice></mc:AlternateContent>')
 
@@ -258,10 +347,12 @@ export async function applyFirePlanCheckboxes(
         + '<formControlPr xmlns="http://schemas.microsoft.com/office/spreadsheetml/2009/9/main"'
         + ` objectType="CheckBox"${checked ? ' checked="Checked"' : ''} lockText="1" noThreeD="1"/>`)
 
-      // 글자 교체는 **컨트롤 조립이 다 끝난 뒤**에 한다 — 위에서 중간에 물러나면 글자가 안 바뀐다
-      const patched = m[0].replace(/(<t[^>]*>)([\s\S]*?)(<\/t>)/, () => `${tm[1]}${escXml(blanked)}${tm[3]}`)
-      xml = xml.replace(m[0], () => patched)
       applied++
+      }
+
+      // 색칠은 **이 칸의 컨트롤 조립이 다 끝난 뒤 한 번**에 한다 — 중간에 물러나면 글자가 안 바뀐다.
+      const patched = m[0].replace(/<is>[\s\S]*?<\/is>/, () => `<is>${isBody}</is>`)
+      xml = xml.replace(m[0], () => patched)
     }
 
     if (!shapes.length) { vmlNo--; continue }

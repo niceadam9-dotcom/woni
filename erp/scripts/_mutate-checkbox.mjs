@@ -18,13 +18,25 @@ const ALIGN = path.join(HERE, '..', 'src', 'lib', 'fire-plan-align.ts')
 const TEST = 'npx tsx scripts/test-fire-plan-checkbox.mts'
 
 const MUTATIONS = [
-  { name: '여러 행 병합 무시(컨트롤을 첫 행에만)', from: 'merges.get(c.cell) ?? c.row0 + 1', to: 'c.row0 + 1' },
+  { name: '여러 행 병합 무시(컨트롤을 첫 행에만)', from: 'merges.get(cellRef) ?? c.row0 + 1', to: 'c.row0 + 1' },
   { name: '여러 줄 칸 제외 규칙 삭제', from: "    if (label.includes('\\n')) continue\n", to: '' },
   { name: '「상자가 맨 앞」 규칙 삭제(산문 포함됨)', from: "    if (!EMPTY_BOX_RE.test(label.trim()[0] ?? '')) continue\n", to: '' },
-  { name: '「상자 1개」 규칙 삭제(다중 상자 포함됨)', from: "    if ((label.match(/[□☐]/g) ?? []).length !== 1) continue\n", to: '' },
+  // 🔁 「상자 1개」 규칙은 2026-09-14에 **폐지**됐다(다중상자를 달기 시작). 그 자리를 대신하는
+  //   축은 아래 [다중상자] 셋이다 — 변이를 지우지 않고 **옮겼다**.
   { name: 'ctrlProp이 체크를 안 싣는다', from: `\${checked ? ' checked="Checked"' : ''}`, to: "${''}" },
   { name: 'VML이 체크를 안 싣는다', from: "+ (checked ? '<x:Checked>1</x:Checked>' : '')", to: "+ ''" },
-  { name: '상자를 반각 공백으로 비움(폭 유실)', from: "const BLANK = '　'", to: "const BLANK = ' '" },
+  // 🔁 종전 변이(「상자를 반각 공백으로 비움」)는 대상이 사라졌다 — 이제 글자를 아예 안 바꾸고
+  //   **색만** 칠한다. 그 계약을 되돌리는 변이로 **교체**한다(지우기만 하면 그 축이 무검증이 된다).
+  {
+    name: '[실사고] 색칠 대신 글자를 갈아 끼움(전각 공백) — 폭이 달라 뒤 글자가 밀린다',
+    from: `runs.push(\`<r><rPr><color rgb="\${fill}"/></rPr><t xml:space="preserve">\${escXml(ch)}</t></r>\`)`,
+    to: `runs.push(\`<r><t xml:space="preserve">　</t></r>\`)`,
+  },
+  {
+    name: '[실사고] 배경색 대신 흰색 고정(색 깔린 17칸에서 흰 네모가 드러난다)',
+    from: 'const fill = fillOf(Number(/ s="(\\d+)"/.exec(m[1])?.[1] ?? 0))',
+    to: "const fill = 'FFFFFFFF'",
+  },
   { name: '컨트롤 폭 2열 → 0열', from: 'const CTRL_COLS = 2', to: 'const CTRL_COLS = 0' },
   { name: 'Content_Types에 ctrlProp Override 안 넣음', from: 'ct = ct.replace(\'</Types>\', overrides.join(\'\') + \'</Types>\')', to: "ct = ct" },
   { name: '루트 mc namespace 안 넣음', from: 'if (!/xmlns:mc=/.test(root)) root = root.replace', to: 'if (false) root = root.replace' },
@@ -68,6 +80,26 @@ const MUTATIONS = [
   {
     name: '[확대·실사고] 아래 모서리를 「다음 행 꼭대기」로(인쇄물에 점선 띠가 생긴다)',
     from: '${toRow0}, ${toRowOffPx}</x:Anchor>', to: '${endRow1}, 0</x:Anchor>',
+  },
+
+  /* ── 다중상자(`□ 유 □ 무`) 축 — 2026-09-14 ─────────────────────────────────────── */
+  {
+    name: '[다중상자] 상자가 여럿인 칸을 도로 뺀다(유/무를 못 누르게 된다)',
+    from: 'if (at.length === 1) { out.push({ cell, col, row0, boxIndex: 0, offsetPx: 0 }); continue }',
+    to: 'if (at.length !== 1) continue\n    if (at.length === 1) { out.push({ cell, col, row0, boxIndex: 0, offsetPx: 0 }); continue }',
+  },
+  {
+    name: '[다중상자] 실측 오프셋을 버리고 0으로(상자가 전부 첫 자리에 겹친다)',
+    from: 'out.push({ cell, col, row0, boxIndex: i, offsetPx: offs[i] })',
+    to: 'out.push({ cell, col, row0, boxIndex: i, offsetPx: 0 })',
+  },
+  // ⚠ 「표에 없는 칸도 그냥 단다」 변이는 **동등 변이라 목록에서 뺐다** — 지금은 다중상자 17칸이
+  //   전부 표에 있어서 그 갈래를 아무도 안 밟는다(밟게 하려면 표를 지워야 하는데 그건 다른 변이다).
+  //   가드 자체는 남겨 둔다: 서식이 새 다중상자 칸을 얻으면 그때 이 갈래가 살아난다.
+  //   ⭐ 「잡힐 수 없는 변이」를 목록에 두면 놓침으로 세어져 프로브가 늘 빨갛다(45 교훈).
+  {
+    name: '[들여쓰기] 보정을 0으로(컨트롤이 상자보다 15px 왼쪽에 선다 — 배포본의 상태)',
+    from: 'const TEXT_INSET_PX = 15', to: 'const TEXT_INSET_PX = 0',
   },
 ]
 

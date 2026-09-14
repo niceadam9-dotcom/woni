@@ -23,13 +23,19 @@ import { injectWorkbook } from '../src/lib/xlsx-inject.ts'
 import { applyFirePlanCheckboxes, firePlanCheckboxCells, CHECKBOX_SHEETS } from '../src/lib/fire-plan-checkbox-controls.ts'
 import { FIRE_PLAN_MANIFEST, labelAt, sheetManifest } from '../src/lib/fire-plan-xlsx-manifest.ts'
 import { classifyAlign } from '../src/lib/fire-plan-align.ts'
+import { CHECKBOX_BOX_OFFSETS } from '../src/lib/fire-plan-checkbox-offsets.ts'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const XLSX_PATH = resolve(HERE, '../templates/fire-plan-workbook.xlsx')
 const S14 = '1.4 소방시설 현황'
-/** 확대 기대치 — 실측으로 못 박는다(추정 금지). 규칙이 느슨해지면 이 수부터 움직인다. */
-const TOTAL = 582
-const SHEETS_WITH = 28
+/** 확대 기대치 — 실측으로 못 박는다(추정 금지). 규칙이 느슨해지면 이 수부터 움직인다.
+ *  2026-09-14 다중상자 지원으로 582 → 626(칸 599 → 상자 626), 시트 28 → 29. */
+const TOTAL = 626
+const SHEETS_WITH = 29
+/** 전 워크북에서 **상자를 품은 칸** 수(실측). 그중 599칸이 적격이고 나머지 59칸은
+ *  `□` 글자로 남는다 — **의도된 미적용**(산문 23 · 여러 줄 20 · 표 없는 다중상자 16). */
+const ALL_BOX_CELLS = 658
+const ELIGIBLE_CELLS = 599
 
 let pass = 0, fail = 0
 const check = (label: string, ok: boolean, detail = '') => {
@@ -51,23 +57,32 @@ console.log('\n[A] 대상 선정 (manifest만으로)')
 const cells14 = firePlanCheckboxCells(S14)
 const refs14 = new Set(cells14.map(c => c.cell))
 
-check('1.4 대상 40칸', cells14.length === 40, `${cells14.length}칸`)
+check('1.4 대상 48개 상자(한 상자 40 + 다중상자 8)', cells14.length === 48, `${cells14.length}개`)
 check('J3(소화기구)이 대상이다 — 양성', refs14.has('J3'))
 const j3 = cells14.find(c => c.cell === 'J3')!
 check('J3 좌표 col=9 row0=2', j3?.col === 9 && j3?.row0 === 2, `col=${j3?.col} row0=${j3?.row0}`)
 
-// 🚨 이 셋이 음성 축이다. 하나라도 대상에 들어오면 산문·다중상자에 컨트롤이 박힌다.
+// 🚨 음성 축. 산문에 컨트롤이 박히면 안 된다(이건 영구 제외다).
 check('AJ2(※ 안내문장)는 대상이 아니다 — 산문이지 체크박스가 아니다', !refs14.has('AJ2'),
   JSON.stringify(labelAt(S14, 'AJ2')))
-check('R16(상자 5개)은 대상이 아니다', !refs14.has('R16'))
-check('R17(상자 3개)은 대상이 아니다', !refs14.has('R17'))
 
-// 대상 칸은 전부 「상자 1개·맨 앞·한 줄」이어야 한다 — 규칙과 결과를 따로 물어 서로를 물게 한다
+// 🔁 종전 계약(「R16·R17은 대상이 아니다」)을 **폐지하고 이 쌍으로 교체**한다. 2026-09-14부터
+//    다중상자도 단다 — 지우기만 하면 「몇 개를 다는가」를 아무도 안 묻게 되어 하나만 달아도 초록이다.
+const boxesOf = (ref: string) => cells14.filter(c => c.cell === ref).map(c => c.boxIndex)
+check('R16(상자 5개)이 대상이고 상자 5개가 0..4로 다 나온다',
+  boxesOf('R16').join(',') === '0,1,2,3,4', boxesOf('R16').join(','))
+check('R17(상자 3개)도 0..2', boxesOf('R17').join(',') === '0,1,2', boxesOf('R17').join(','))
+check('R16 오프셋이 **오름차순**이고 첫 상자는 0',
+  (() => { const o = cells14.filter(c => c.cell === 'R16').map(c => c.offsetPx)
+    return o[0] === 0 && o.every((v, i) => i === 0 || v > o[i - 1]) })(),
+  cells14.filter(c => c.cell === 'R16').map(c => c.offsetPx).join(' '))
+
+// 대상 칸은 전부 「상자가 맨 앞·한 줄」이어야 한다 — 규칙과 결과를 따로 물어 서로를 물게 한다
 const badRule = cells14.filter(c => {
   const t = labelAt(S14, c.cell)
-  return (t.match(/[□☐]/g) ?? []).length !== 1 || !/^[□☐]/.test(t.trim()) || t.includes('\n')
+  return !/^[□☐]/.test(t.trim()) || t.includes('\n')
 })
-check('대상 40칸 전부가 규칙을 만족', badRule.length === 0, badRule.map(c => c.cell).join(' '))
+check('대상 48개 전부가 규칙을 만족', badRule.length === 0, badRule.map(c => c.cell).join(' '))
 
 // 법정 불릿은 상자가 아니다 — 전 시트에서 한 칸도 대상에 들면 안 된다
 let bulletHit = 0, totalEligible = 0
@@ -80,6 +95,29 @@ for (const s of FIRE_PLAN_MANIFEST.sheets) {
   for (const c of picked) if (bullets.has(c.cell)) bulletHit++
 }
 check('법정 불릿(bulletCells)이 대상에 섞이지 않는다 — 전 시트', bulletHit === 0, `${bulletHit}칸`)
+
+console.log('\n[A-1b] 다중상자 오프셋 표 — **계산이 아니라 실측**이라는 계약')
+// 🚨 둘째 상자부터의 가로 자리는 글자 폭 계산으로는 못 낸다(한 칸에서 글꼴이 섞이고 공백이
+//   자간 보정으로 벌어진다 — 모델이 9%까지 어긋났다). 값은 렌더 차이로 잰 표에서만 온다.
+let multiCells = 0, multiBoxes = 0, noTable = 0
+for (const s of FIRE_PLAN_MANIFEST.sheets) {
+  const man = sheetManifest(s.name)
+  for (const cell of Object.keys(man.boxes)) {
+    const label = man.labels[cell]
+    if (label === undefined || label.includes('\n')) continue
+    const at = [...label.matchAll(/[□☐]/g)].map(mm => mm.index!)
+    if (at.length < 2 || !/[□☐]/.test(label.trim()[0] ?? '')) continue
+    multiCells++; multiBoxes += at.length
+    const offs = CHECKBOX_BOX_OFFSETS[label]
+    if (!offs || offs.length !== at.length) noTable++
+  }
+}
+check('다중상자 대상 17칸 · 상자 44개', multiCells === 17 && multiBoxes === 44, `${multiCells}칸 ${multiBoxes}개`)
+check('그 17칸이 전부 오프셋 표에 있다 — 표 없는 칸은 통째로 빠진다', noTable === 0, `${noTable}칸 누락`)
+check('표의 첫 값은 늘 0(첫 상자는 기준점)',
+  Object.values(CHECKBOX_BOX_OFFSETS).every(o => o[0] === 0))
+// 음성 짝 — 표가 **아무 글자나 받아 주는 게 아님**을 보인다
+check('음성 짝: 없는 글자는 표에 없다', CHECKBOX_BOX_OFFSETS['□ 없는문구 □ 없음'] === undefined)
 // 전 워크북 적격 수를 못 박는다: 제외 규칙이 느슨해지면 이 수가 올라가며 먼저 붉어진다
 check(`전 워크북 적격 ${TOTAL}칸(규칙 드리프트 감시)`, totalEligible === TOTAL, `${totalEligible}칸`)
 
@@ -136,7 +174,8 @@ check('legacyDrawing·controls 존재', sh8.includes('<legacyDrawing') && sh8.in
 check('CT_Worksheet 순서: pageSetup < legacyDrawing < controls',
   sh8.indexOf('<pageSetup') < sh8.indexOf('<legacyDrawing')
   && sh8.indexOf('<legacyDrawing') < sh8.indexOf('<controls>'))
-check('1.4 control 요소 40개(시트별 수는 확대해도 그대로)', (sh8.match(/<control shapeId=/g) ?? []).length === 40)
+check('1.4 control 요소 48개(한 상자 40 + 다중상자 8)', (sh8.match(/<control shapeId=/g) ?? []).length === 48,
+  `${(sh8.match(/<control shapeId=/g) ?? []).length}개`)
 // 사진 단계가 `<drawing>`을 끼울 자리(legacyDrawing 앞)가 실제로 있는지 — 배선 전제를 단언한다
 check('사진 단계가 <drawing>을 끼울 앵커(<legacyDrawing)가 있다', sh8.includes('<legacyDrawing'))
 
@@ -168,10 +207,12 @@ check('controls 블록의 끝 행·오프셋도 VML과 같다',
 // 🔁 폭 결합을 **되살린다**. 종전엔 `<to><xdr:col>11</xdr:col>` 리터럴이 이 축을 우연히 물고
 //    있었는데, 위 단언을 새 표기로 옮기며 그 결합이 사라졌다(변이 「컨트롤 폭 2열 → 0열」이
 //    초록으로 뚫렸다 — 변이가 내 검사의 회귀를 잡은 것이다). 이번엔 **폭 자체**를 묻는다.
-check('J16 controls 블록의 끝 열이 시작+2 (폭 2열)',
-  new RegExp(`<to><xdr:col>${a16[0] + 2}</xdr:col><xdr:colOff>0</xdr:colOff>`).test(sh8), `from열=${a16[0]}`)
+check('J16 controls 블록의 끝 열·오프셋이 VML과 같다(폭 2열)',
+  new RegExp(`<from><xdr:col>${a16[0]}</xdr:col><xdr:colOff>${a16[1] * 9525}</xdr:colOff>`).test(sh8)
+  && new RegExp(`<to><xdr:col>${a16[4]}</xdr:col><xdr:colOff>${a16[5] * 9525}</xdr:colOff>`).test(sh8),
+  `from=${a16[0]}+${a16[1]} to=${a16[4]}+${a16[5]}`)
 
-console.log('\n[B-2] 글자 — 상자만 사라지고 법정 문구는 남는가 (전 워크북)')
+console.log('\n[B-2] 글자 — **한 글자도 안 바뀐다**(상자는 색만 감춘다, 전 워크북)')
 // 워크북 시트명 → sheetN.xml
 const wb = await zOff.file('xl/workbook.xml')!.async('string')
 const wbRels = await zOff.file('xl/_rels/workbook.xml.rels')!.async('string')
@@ -183,30 +224,76 @@ for (const m of wb.matchAll(/<sheet name="([^"]+)"[^>]*r:id="([^"]+)"/g)) {
   if (t) sheetPart.set(unesc(m[1]), 'xl/' + t.replace(/^\/?xl\//, ''))
 }
 
-let glyphLeft = 0, wordingBroken = 0, checkedCells = 0
+/* 🔁 계약이 바뀌었다(2026-09-14): 종전엔 상자 글자를 **전각 공백으로 갈아** 끼웠고 검사도
+ *    「상자 글자가 사라졌다」를 물었다. 그런데 칸 안에서 `□`는 SegoeUISymbol, `　`는 맑은 고딕이라
+ *    **전진 폭이 달라 뒤 글자가 왼쪽으로 밀렸고**, 다중상자 칸에서 라벨이 컨트롤 밑으로 파고들었다.
+ *    이제 글자는 그대로 두고 **색만 배경색으로** 칠한다. 그래서 단언을 두 개로 갈아끼운다:
+ *      ① 칸 값이 원문과 **글자 단위로 같다**(종전보다 강한 보존)
+ *      ② 상자 글자가 **배경색 런**으로 감싸여 있다(안 보인다 = 이중 표시 금지)
+ *    ①만 두면 색칠을 통째로 빼도 초록이고, ②만 두면 글자를 망가뜨려도 초록이다. */
+let hiddenMissing = 0, wordingBroken = 0, checkedBoxes = 0
 const brokenEx: string[] = []
 for (const [sheet] of perSheetEligible) {
   const xml = await zOff.file(sheetPart.get(sheet)!)!.async('string')
+  const seen = new Set<string>()
   for (const c of firePlanCheckboxCells(sheet)) {
+    checkedBoxes++
+    if (seen.has(c.cell)) continue
+    seen.add(c.cell)
     const now = cellText(xml, c.cell) ?? ''
-    if (/[□☐■☑▣]/.test(now)) glyphLeft++
-    // 전각 공백을 원래 상자 글자로 되돌리면 manifest 라벨과 **글자 단위로** 같아야 한다
-    const restored = now.replace('　', sheetManifest(sheet).boxes[c.cell])
-    if (restored !== labelAt(sheet, c.cell)) {
+    if (now !== labelAt(sheet, c.cell)) {
       wordingBroken++
       if (brokenEx.length < 4) brokenEx.push(`${sheet}!${c.cell}`)
     }
-    checkedCells++
+    // 상자 글자마다 `<rPr><color …/></rPr>` 런이 하나씩 있어야 한다
+    const cellXml = new RegExp(`<c r="${c.cell}"((?:[^>/]|/(?!>))*)>([\\s\\S]*?)</c>`).exec(xml)?.[0] ?? ''
+    const boxCount = (labelAt(sheet, c.cell).match(/[□☐]/g) ?? []).length
+    const colored = [...cellXml.matchAll(/<r><rPr><color rgb="[0-9A-F]{8}"\/><\/rPr><t[^>]*>([^<]*)<\/t><\/r>/g)]
+    if (colored.length !== boxCount || colored.some(mm => !/^[□☐■☑▣]$/.test(mm[1]))) hiddenMissing++
   }
 }
-check(`전 워크북 ${TOTAL}칸을 대조했다(공허 통과 방지)`, checkedCells === TOTAL, `${checkedCells}칸`)
-check(`${TOTAL}칸 모두 상자 글자가 사라졌다`, glyphLeft === 0, `${glyphLeft}칸 잔존`)
-check(`${TOTAL}칸 모두 법정 문구가 글자 단위로 보존`, wordingBroken === 0, `${wordingBroken}칸 훼손 ${brokenEx.join(' ')}`)
+check(`전 워크북 ${TOTAL}개 상자를 대조했다(공허 통과 방지)`, checkedBoxes === TOTAL, `${checkedBoxes}개`)
+check(`① 칸 값이 서식 원문과 **글자 단위로 같다**(체크박스 단계는 글자를 안 바꾼다)`,
+  wordingBroken === 0, `${wordingBroken}칸 훼손 ${brokenEx.join(' ')}`)
+check('② 상자 글자가 전부 배경색 런으로 감싸였다 — 안 보인다(이중 표시 금지)',
+  hiddenMissing === 0, `${hiddenMissing}칸`)
 
-// 음성 축: 대상이 아닌 칸은 **건드리지 않았다**. 확대 뒤에도 부적격 칸은 `□` 글자 그대로다
-//  — 이것이 지금의 「미적용 범위」이고, 퇴행이 아니라 **의도된 잔여**다(다중상자·산문·여러 줄 76칸).
-check('AJ2(안내문장) 원문 그대로', cellText(sh8, 'AJ2') === labelAt(S14, 'AJ2'))
-check('R16(상자 5개) 원문 그대로', cellText(sh8, 'R16') === labelAt(S14, 'R16'))
+// 🚨 ③ **그 칸의 바탕색**이어야 한다. 흰색으로 고정하면 색 깔린 칸에서 흰 네모가 드러난다
+//   (실측: 색 있는 칸 17 — 1.1 AB19 등 `FFFFE0CC`, 표지 M1 `FFE0E5FA`). 변이가 이 구멍을 잡았다.
+{
+  const tinted: [string, string, string][] = [
+    ['표지', 'M1', 'FFE0E5FA'],
+    ['1.1 건축물 일반현황', 'AB19', 'FFFFE0CC'],
+  ]
+  let wrongFill = 0
+  const ex: string[] = []
+  for (const [sheet, ref, want] of tinted) {
+    const xml = await zOff.file(sheetPart.get(sheet)!)!.async('string')
+    const cellXml = new RegExp(`<c r="${ref}"((?:[^>/]|/(?!>))*)>([\\s\\S]*?)</c>`).exec(xml)?.[0] ?? ''
+    const got = /<rPr><color rgb="([0-9A-F]{8})"\/><\/rPr>/.exec(cellXml)?.[1]
+    if (got !== want) { wrongFill++; ex.push(`${sheet}!${ref} ${got} ≠ ${want}`) }
+  }
+  check('③ 색 깔린 칸은 **그 칸의 바탕색**으로 칠한다(흰색 고정이 아니다)', wrongFill === 0, ex.join(' · '))
+  // 음성 짝 — 바탕 없는 칸은 흰색이다(위 단언이 「아무 색이나 통과」가 아님을 보인다)
+  const plain = new RegExp(`<c r="J3"((?:[^>/]|/(?!>))*)>([\\s\\S]*?)</c>`).exec(sh8)?.[0] ?? ''
+  check('음성 짝: 바탕 없는 칸(1.4!J3)은 흰색', /<color rgb="FFFFFFFF"\/>/.test(plain))
+}
+
+// 🚨 ④ **들여쓰기 보정**. 컨트롤은 칸 왼쪽 끝이 아니라 「글자가 시작하는 자리」에 서야 한다 —
+//   보정을 빼면 상자보다 15px 왼쪽에 선다(43·44회차 배포본이 그 상태였다). 변이가 이 구멍을 잡았다.
+{
+  const c = cells14.find(x => x.cell === 'J3')!          // col 9, 첫 상자(offsetPx 0)
+  const want = c.col * 13 + 15                            // 칸 왼쪽 + 들여쓰기
+  const a = anchorOf(vmlOff, cells14.findIndex(x => x.cell === 'J3'))!
+  check('④ 첫 상자 앵커 = 칸 왼쪽 + 들여쓰기 15px(칸 왼쪽 끝이 아니다)',
+    a[0] * 13 + a[1] === want, `앵커 ${a[0]}열+${a[1]}px = ${a[0] * 13 + a[1]} · 기대 ${want}`)
+}
+
+// 음성 축: 대상이 아닌 칸은 **런조차 안 생긴다**. 부적격 칸은 `□`가 그대로 보인다 —
+//  지금의 「미적용 범위」이고, 퇴행이 아니라 **의도된 잔여**다(산문·여러 줄 32칸).
+check('AJ2(안내문장) 원문 그대로·색칠 없음',
+  cellText(sh8, 'AJ2') === labelAt(S14, 'AJ2')
+  && !/<c r="AJ2"[\s\S]*?<rPr>/.test(new RegExp(`<c r="AJ2"((?:[^>/]|/(?!>))*)>([\\s\\S]*?)</c>`).exec(sh8)?.[0] ?? ''))
 let residual = 0
 for (const s of FIRE_PLAN_MANIFEST.sheets) {
   const part = sheetPart.get(s.name)
@@ -218,8 +305,8 @@ for (const s of FIRE_PLAN_MANIFEST.sheets) {
     if (/[□☐]/.test(cellText(xml, cell) ?? '')) residual++
   }
 }
-check('부적격 76칸은 상자 글자가 그대로 남아 있다(의도된 미적용 · 종전 「1.4 밖은 전부 남는다」의 승계 계약)',
-  residual === 658 - TOTAL, `${residual}칸 (기대 ${658 - TOTAL})`)
+check(`부적격 ${ALL_BOX_CELLS - ELIGIBLE_CELLS}칸은 상자가 글자로 남아 있다(의도된 미적용)`,
+  residual === ALL_BOX_CELLS - ELIGIBLE_CELLS, `${residual}칸 (기대 ${ALL_BOX_CELLS - ELIGIBLE_CELLS})`)
 
 // 미체크 파일에는 checked 표시가 한 건도 없어야 한다
 check('미체크: VML에 x:Checked 0건 (1.4)', !vmlOff.includes('<x:Checked>'))
@@ -247,9 +334,14 @@ check(`워크북 전체 ctrlProp checked 정확히 4건(다른 시트로 안 샌
 
 // 켜진 칸도 글자는 비고 문구는 남아야 한다(체크 표시가 글자로 남으면 이중 표시가 된다)
 const sh8On = await zOn.file('xl/worksheets/sheet8.xml')!.async('string')
-let onGlyph = 0
-for (const ref of ON) if (/[■☑▣□☐]/.test(cellText(sh8On, ref) ?? '')) onGlyph++
-check('켜진 4칸도 상자 글자가 사라졌다 — 컨트롤과 이중 표시 금지', onGlyph === 0, `${onGlyph}칸`)
+// 🔁 계약 교체: 글자는 남고 **색으로 감춘다**. 켜진 칸은 주입이 적은 `■`가 그대로 있어야 하고,
+//    그 글자가 배경색 런 안에 있어야 한다(안 그러면 컨트롤의 체크와 글자 `■`가 이중 표시된다).
+let onHidden = 0
+for (const ref of ON) {
+  const cellXml = new RegExp(`<c r="${ref}"((?:[^>/]|/(?!>))*)>([\\s\\S]*?)</c>`).exec(sh8On)?.[0] ?? ''
+  if (/<r><rPr><color rgb="[0-9A-F]{8}"\/><\/rPr><t[^>]*>■<\/t><\/r>/.test(cellXml)) onHidden++
+}
+check('켜진 4칸의 ■도 배경색 런 안에 있다 — 컨트롤 체크와 이중 표시 금지', onHidden === ON.length, `${onHidden}/${ON.length}칸`)
 
 // 🚨 가장 중요한 단언: 켜짐이 **그 칸의** 컨트롤과 짝이 맞는가. 수만 세면 엉뚱한 칸이 켜져도 초록이다.
 //    확대 뒤엔 1.4의 ctrlProp 번호가 **1부터가 아니다**(앞 시트들이 먼저 쓴다) — 그래서 순번을
@@ -263,7 +355,7 @@ const propsOfSheet = async (z: JSZip, part: string): Promise<string[]> => {
   })
 }
 const props14 = await propsOfSheet(zOn, 'xl/worksheets/sheet8.xml')
-check('1.4의 control → ctrlProp 경로가 40개 다 풀린다', props14.length === 40 && props14.every(p => zOn.file(p)),
+check('1.4의 control → ctrlProp 경로가 48개 다 풀린다', props14.length === 48 && props14.every(p => zOn.file(p)),
   `${props14.length}개`)
 const onRefs = new Set(ON)
 let mispaired = 0

@@ -257,8 +257,14 @@ const steps: Step[] = [
   // ⚠ 이 검사는 「Excel이 받아들이는가」를 **못 묻는다**(노드에 Excel이 없다). CT_Worksheet
   //   순서 위반은 LibreOffice는 통과하고 **Excel만** 복구 대화상자를 띄운다 → 그 축은
   //   `scripts/_verify-checkbox-excel.ps1`이 실제 Excel COM으로 따로 본다(Windows 전용이라 미등재).
-  //   변이 프로브: `node scripts/_mutate-checkbox.mjs` (10/10 빨강 실측 2026-09-14 — 그중 하나는
-  //   `xmlns:mc` 단언이 `<controls>` 블록의 **인라인 선언**에 걸려 초록이던 사각을 드러냈다)
+  //   변이 프로브: `node scripts/_mutate-checkbox.mjs` (21/21 빨강 실측 2026-09-14)
+  // 🚨 이 축의 결함은 **노드 검사가 전부 초록인 채로** 세 번 났고 매번 다른 자[尺]가 잡았다:
+  //   ① 두 행 병합에서 상자만 떠 있던 것 → **렌더**  ② Excel이 컨트롤을 두 배로 센 것(VML idmap
+  //   블록 충돌) → **Excel COM**  ③ 인쇄물 표 아래 점선 띠(앵커가 dimension을 넘음) → **렌더 대조군**.
+  // 🚨 다중상자(`□ 유 □ 무`)의 둘째 상자 자리는 **계산으로 못 낸다** — 한 칸 안에서 글꼴이 섞이고
+  //   (상자는 SegoeUISymbol) 공백이 자간 보정으로 벌어져 글자 폭 모델이 9%까지 어긋났다.
+  //   값은 `src/lib/fire-plan-checkbox-offsets.ts` — 상자만 색을 바꿔 인쇄하고 **원본 렌더와
+  //   픽셀을 뺀** 표다(재생성: `_probe-cb-mark` → 시트 PDF → PNG → `_probe-cb-diffmeasure`).
   { name: '소방계획서 체크박스',        cmd: 'npx tsx scripts/test-fire-plan-checkbox.mts' },
   // 건물 이름 중복 확인(2026-09-09) — 같은 고객에 같은 이름 동이 조용히 두 번 등록된 실사고.
   // ⚠ 핵심은 「막는가」가 아니라 **「다동을 안 막는가」**다 — 이름이 다르면 통과해야 한다.

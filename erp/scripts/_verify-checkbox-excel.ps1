@@ -62,27 +62,40 @@ try {
 
   # ---- geometry / state / wording, across ALL sheets. Excel's own Range is the ruler.
   if ($grand -eq $expect.total) {
-    $badCell = @(); $badState = @(); $badText = @(); $checkedSeen = 0
+    $badCell = @(); $badState = @(); $badText = @(); $badHide = @(); $checkedSeen = 0
     foreach ($s in $expect.sheets) {
       $ws = $wb.Worksheets.Item($s.index)
       $cbs = $ws.CheckBoxes()
       for ($i = 1; $i -le $cbs.Count; $i++) {
         $cb = $cbs.Item($i); $e = $s.cells[$i - 1]; $rg = $ws.Range($e.ref)
-        if ([Math]::Abs($cb.Left - $rg.Left) -gt 1.0 -or [Math]::Abs($cb.Top - $rg.Top) -gt 1.0) {
-          $badCell += ("{0}!{1} ctrl=({2},{3}) cell=({4},{5})" -f $s.name, $e.ref, $cb.Left, $cb.Top, $rg.Left, $rg.Top)
+        # 2026-09-14: a cell can hold several boxes ("box1 yes  box2 no"), so the expected left edge
+        # is the CELL's left plus THIS box's own offset -- not the cell's left. Those offsets were
+        # obtained by printing the sheet and diffing the render, so the ruler is still Excel's.
+        $wantLeft = $rg.Left + [double]$e.offsetPt
+        if ([Math]::Abs($cb.Left - $wantLeft) -gt 1.5 -or [Math]::Abs($cb.Top - $rg.Top) -gt 1.0) {
+          $badCell += ("{0}!{1}#{2} ctrl=({3},{4}) want=({5},{6})" -f $s.name, $e.ref, $e.box, [Math]::Round($cb.Left,1), [Math]::Round($cb.Top,1), [Math]::Round($wantLeft,1), [Math]::Round($rg.Top,1))
         }
-        if (($cb.Value -eq 1) -ne [bool]$e.checked) { $badState += ("{0}!{1} got={2} want={3}" -f $s.name, $e.ref, $cb.Value, $e.checked) }
+        if (($cb.Value -eq 1) -ne [bool]$e.checked) { $badState += ("{0}!{1}#{2} got={3} want={4}" -f $s.name, $e.ref, $e.box, $cb.Value, $e.checked) }
         if ($cb.Value -eq 1) { $checkedSeen++ }
+        # 2026-09-14 CONTRACT CHANGE: the box glyph is no longer swapped for a blank -- it stays and
+        # is PAINTED IN THE CELL'S BACKGROUND COLOUR. Swapping it moved every following character
+        # (the box renders in SegoeUISymbol, the blank in Malgun Gothic -- different advance), which
+        # dragged labels under the controls. So the checks flip:
+        #   before: "the glyph is gone"      ->  now: "the text is byte-identical to the form"
+        #   and, new: "the glyph is invisible" == its font colour equals the cell's background.
         $v = [string]$rg.Value2
-        # NOTE: box glyphs MUST be built from code points. A literal U+25A1 etc. in a PS string
-        # gets mangled to cp949 garbage and the regex dies with "Unterminated [] set".
-        if ($v.IndexOfAny($BOX_GLYPHS) -ge 0) { $badText += ("{0}!{1} still has a box glyph" -f $s.name, $e.ref) }
-        elseif ($e.label.Length -gt 0 -and -not $v.Contains($e.label)) { $badText += ("{0}!{1} lost wording: '{2}'" -f $s.name, $e.ref, $v) }
+        if ($v -ne $e.expectText) { $badText += ("{0}!{1} text differs: '{2}'" -f $s.name, $e.ref, $v) }
+        else {
+          $bg = if ($rg.Interior.ColorIndex -eq -4142) { 16777215 } else { [int]$rg.Interior.Color }
+          $fg = [int]$rg.Characters([int]$e.boxAt, 1).Font.Color
+          if ($fg -ne $bg) { $badHide += ("{0}!{1}#{2} glyph colour {3} != background {4}" -f $s.name, $e.ref, $e.box, $fg, $bg) }
+        }
       }
     }
     Check "each control sits on its own cell's top-left (<=1pt, Excel is the ruler)" ($badCell.Count -eq 0) (($badCell | Select-Object -First 6) -join ' | ')
     Check "checked states pair 1:1 with the injected data" ($badState.Count -eq 0) (($badState | Select-Object -First 6) -join ' | ')
-    Check "box glyph gone, legal wording intact" ($badText.Count -eq 0) (($badText | Select-Object -First 6) -join ' | ')
+    Check "legal wording byte-identical to the form (text is never rewritten)" ($badText.Count -eq 0) (($badText | Select-Object -First 6) -join ' | ')
+    Check "the box glyph is painted in the cell background (invisible, no double mark)" ($badHide.Count -eq 0) (($badHide | Select-Object -First 6) -join ' | ')
     # empty positive control: if nothing was ever checked the state assertion above proves nothing
     $wantChecked = 0
     foreach ($s in $expect.sheets) { foreach ($c in $s.cells) { if ($c.checked) { $wantChecked++ } } }
