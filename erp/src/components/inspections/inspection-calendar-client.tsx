@@ -21,6 +21,8 @@ import { moveMonthlyPlanItemAction } from '@/app/(dashboard)/inspections/plan-da
 // 가드가 그 경로에만 있으므로 여기서 복제하면 두 곳이 갈라진다(sms-actions.ts:391-394의 교훈)
 import { bulkMovePlanDatesAction } from '@/app/(dashboard)/inspections/sms-actions'
 import { stepInputLink } from '@/lib/inspection-step-links'
+import { planRowInspectionEntry } from '@/lib/calendar-plan-row'
+import { layoutPlanChips } from '@/lib/calendar-chips'
 import { hangulMatch } from '@/lib/hangul'
 import { kstDate, todayKst } from '@/lib/kst-date'
 import { CustomerFilterSearch } from '@/components/ui/customer-filter-search'
@@ -63,7 +65,7 @@ export type CalendarPlanItem = {
   customer_code: string
   /** 방문 준비 지도용 (S5-7 확산) */
   customer_address?: string | null
-  plan_type: 'monthly' | 'event'
+  plan_type: PlanType
   /** 일반관리 세부 유형(종합/작동) — 일반(종합)/일반(작동) 라벨용 (2026-08-04) */
   sub_type?: '종합' | '작동' | null
   scheduled_date: string
@@ -77,6 +79,32 @@ export type CalendarPlanItem = {
 /** 일반(event) 계획 라벨 — 일반관리도 종합/작동 구분 병기 (2026-08-04 사용자 확정) */
 export function eventPlanLabel(subType?: '종합' | '작동' | null): string {
   return subType ? `일반(${subType})` : '일반'
+}
+
+/** 달력이 싣는 계획 유형 — 정기·일반에 더해 **자체점검(special_*)** 까지 (2026-09-14).
+ *  종전엔 자체점검 계획이 달력에 아예 안 실려, [종합]·[작동] 탭에서는 점검이 실제로 시작돼
+ *  `inspections` 행이 생기기 전까지 그 고객이 어느 날짜에도 나타나지 않았다. */
+export type PlanType = 'monthly' | 'event' | 'special_종합' | 'special_작동'
+
+/** 계획 유형 라벨 — 달력 칩·데이 패널·배지가 **한 곳에서** 읽는다.
+ *  🚨 종전엔 `plan_type === 'monthly' ? '정기' : eventPlanLabel(sub)` 삼항이 **네 군데**에 흩어져
+ *  있었다. 자체점검을 더하는 순간 그 네 곳이 전부 자체점검을 '일반(종합)'이라 답한다 —
+ *  사본이 아니라 같은 파일 안의 드리프트라 눈으로는 안 잡힌다. */
+export function planTypeLabel(planType: PlanType, subType?: '종합' | '작동' | null): string {
+  if (planType === 'monthly') return '정기'
+  if (planType === 'special_종합') return '종합'
+  if (planType === 'special_작동') return '작동'
+  return eventPlanLabel(subType)
+}
+
+/** 자체점검 계획인가 — 문자열 비교를 여기저기 흩지 않는다 */
+export const isSpecialPlan = (t: PlanType) => t === 'special_종합' || t === 'special_작동'
+
+/** 데이 패널 유형 배지 색 — 라벨과 짝이라 같은 자리에 둔다(한쪽만 늘어나면 색이 거짓말을 한다) */
+export function planTypeBadgeClass(planType: PlanType): string {
+  if (planType === 'monthly') return 'bg-gray-100 text-gray-600'
+  if (isSpecialPlan(planType)) return 'bg-violet-50 text-violet-600'
+  return 'bg-sky-50 text-sky-600'
 }
 
 /** 데이 패널 정기 이동 버튼 — 클릭하면 네이티브 달력이 바로 열리고 날짜 선택 즉시 이동
@@ -135,7 +163,7 @@ type CalEventResource = {
   kind?: 'step' | 'plan' | 'plan-group'
   /** plan-group: 묶인 건수 */
   groupCount?: number
-  planType?: 'monthly' | 'event'
+  planType?: PlanType
   planStatus?: 'planned' | 'confirmed' | 'completed'
   inspectionId: string
   stepId: string
@@ -509,11 +537,14 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
 
   // 정기(monthly)·일반(event) 계획 항목 — 현재 필터가 적용된 표시 대상 (달력 집계 칩 + 데이 패널 공용)
   const visiblePlanItems = useMemo<CalendarPlanItem[]>(() => {
-    if (calMode === 'comp' || calMode === 'oper') return []
     return planItems.filter(p => {
-      // 모드별 계획 유형 필터 — 정기점검 탭=monthly, 일반관리 탭=event
+      // 모드별 계획 유형 필터 — 정기 탭=monthly, 일반 탭=event, 종합·작동 탭=자체점검 계획.
+      // 종전엔 종합·작동 탭에서 계획을 통째로 버렸다(`return []`) — 그래서 자체점검 예정일이
+      // 잡혀 있어도 그 탭에서는 아무 날짜에도 안 보였다(2026-09-14 지평리56 신고).
       if (calMode === 'regular' && p.plan_type !== 'monthly') return false
       if (calMode === 'event' && p.plan_type !== 'event') return false
+      if (calMode === 'comp' && p.plan_type !== 'special_종합') return false
+      if (calMode === 'oper' && p.plan_type !== 'special_작동') return false
       if (custQuery && !hangulMatch(p.customer_name, custQuery)) return false
       // 담당자 미배정·퇴사자 담당 항목은 담당자 필터와 무관하게 표시
       if (viewMode === 'employee' && p.assigned_employee_id && knownEmployeeIds.has(p.assigned_employee_id) && !selectedEmployeeIds.has(p.assigned_employee_id)) return false
@@ -537,76 +568,73 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
   // 계획 이벤트 — 정기(monthly)=날짜별 집계 칩 1개 (하루 100건+ "+N개 더 보기" 방지),
   // 일반(event)=개별 이벤트 (종합/작동처럼 건별 표시·완료 취소선, 라벨 일반(종합)/일반(작동) — 2026-08-04 사용자 확정)
   const planEvents = useMemo<CalEvent[]>(() => {
-    // 일반(event) — 건별 개별 이벤트 (kind 'plan': 완료=취소선, 클릭=데이 패널, 드래그 제외)
-    const eventItems: CalEvent[] = visiblePlanItems
-      .filter(p => p.plan_type === 'event')
-      .map(p => {
-        const isCompleted = p.status === 'completed'
-        const isOverdue = !isCompleted && p.scheduled_date < today
-        const suffix = isCompleted ? ' ✓' : isOverdue ? ' ⚠' : ''
-        const eventDate = new Date(p.scheduled_date + 'T12:00:00')
-        return {
-          id: `planitem-${p.id}`,
-          // 담당 미배정은 칩에서 바로 보이게(2026-09-07 미배정 표면화 — 자동 배정 없이 알 수 있게만)
-          title: `[${eventPlanLabel(p.sub_type)}${p.assigned_employee_id ? '' : '·미배정'}] ${p.customer_name}${suffix}`,
-          start: eventDate,
-          end: eventDate,
-          allDay: true as const,
-          resource: {
-            kind: 'plan' as const,
-            planType: 'event' as const,
-            planStatus: p.status,
-            inspectionId: p.inspection_id ?? p.id,
-            stepId: `plan-${p.id}`,
-            stepNum: 0,
-            stepStatus: p.status,
-            dueDate: p.scheduled_date,
-            completedAt: null,
-            customerName: p.customer_name,
-            inspectionType: '일반관리' as InspectionType,
-            year: parseInt(p.scheduled_date.slice(0, 4), 10),
-            sequenceNum: 1,
-            assignedEmployeeId: p.assigned_employee_id ?? '',
-            assignedEmployeeName: p.assigned_employee_name,
-            isOverdue,
-            isReceiveStep: false,
-            color: '#0ea5e9',
-          } satisfies CalEventResource,
-        }
-      })
-
-    // 정기(monthly) — 기존 날짜별 집계 칩
-    const groups = new Map<string, { date: string; planType: 'monthly' | 'event'; count: number; done: number; overdue: number }>()
-    for (const p of visiblePlanItems) {
-      if (p.plan_type === 'event') continue
+    /** 계획 1건 = **고객 이름이 보이는** 개별 칩 (kind 'plan': 완료=취소선, 클릭=데이 패널) */
+    const asIndividual = (p: CalendarPlanItem): CalEvent => {
       const isCompleted = p.status === 'completed'
       const isOverdue = !isCompleted && p.scheduled_date < today
-      const key = `${p.scheduled_date}|${p.plan_type}`
-      const g = groups.get(key) ?? { date: p.scheduled_date, planType: p.plan_type, count: 0, done: 0, overdue: 0 }
-      g.count += 1
-      if (isCompleted) g.done += 1
-      if (isOverdue) g.overdue += 1
-      groups.set(key, g)
+      const suffix = isCompleted ? ' ✓' : isOverdue ? ' ⚠' : ''
+      const eventDate = new Date(p.scheduled_date + 'T12:00:00')
+      const label = planTypeLabel(p.plan_type, p.sub_type)
+      return {
+        id: `planitem-${p.id}`,
+        // 담당 미배정은 칩에서 바로 보이게(2026-09-07 미배정 표면화 — 자동 배정 없이 알 수 있게만)
+        title: `[${label}${p.assigned_employee_id ? '' : '·미배정'}] ${p.customer_name}${suffix}`,
+        start: eventDate,
+        end: eventDate,
+        allDay: true as const,
+        resource: {
+          kind: 'plan' as const,
+          planType: p.plan_type,
+          planStatus: p.status,
+          inspectionId: p.inspection_id ?? p.id,
+          stepId: `plan-${p.id}`,
+          stepNum: 0,
+          stepStatus: p.status,
+          dueDate: p.scheduled_date,
+          completedAt: null,
+          customerName: p.customer_name,
+          inspectionType: '일반관리' as InspectionType,
+          year: parseInt(p.scheduled_date.slice(0, 4), 10),
+          sequenceNum: 1,
+          assignedEmployeeId: p.assigned_employee_id ?? '',
+          assignedEmployeeName: p.assigned_employee_name,
+          isOverdue,
+          isReceiveStep: false,
+          color: p.plan_type === 'monthly' ? '#6b7280' : isSpecialPlan(p.plan_type) ? '#7c3aed' : '#0ea5e9',
+        } satisfies CalEventResource,
+      }
     }
 
-    const monthlyChips = Array.from(groups.values()).map(g => {
-      const typeLabel = g.planType === 'monthly' ? '정기' : '일반'
+    // 개별 칩 / 날짜별 집계 칩을 가르는 규칙은 **화면 밖 순수 모듈**이 단일 원천이다.
+    // (`lib/calendar-chips.ts` — 왜 꺼냈는지·두 결함의 내력이 거기 적혀 있다.)
+    //  · 일반(event)·자체점검(special_*) = 언제나 건별
+    //  · 정기(monthly) = 날짜별로 모으되 검색 중이거나 상한 이하면 펴서 이름을 보여준다
+    const { individuals, groups } = layoutPlanChips(visiblePlanItems, { searching: Boolean(custQuery) })
+
+    const planChips: CalEvent[] = individuals.map(asIndividual)
+
+    planChips.push(...groups.map(g => {
+      // 집계는 정기만 도달한다(layoutPlanChips가 monthly만 묶는다) — 타입으로도 못 박는다
+      const planType = 'monthly' as const
+      const count = g.items.length
+      const done = g.items.filter(p => p.status === 'completed').length
+      const overdue = g.items.filter(p => p.status !== 'completed' && p.scheduled_date < today).length
       const eventDate = new Date(g.date + 'T12:00:00')
-      const allDone = g.done === g.count
-      const suffix = g.overdue > 0 ? ` ⚠${g.overdue}` : allDone ? ' ✓' : g.done > 0 ? ` ✓${g.done}` : ''
+      const allDone = done === count
+      const suffix = overdue > 0 ? ` ⚠${overdue}` : allDone ? ' ✓' : done > 0 ? ` ✓${done}` : ''
       return {
-        id: `plangroup-${g.date}-${g.planType}`,
-        title: `${typeLabel} ${g.count}건${suffix}`,
+        id: `plangroup-${g.date}-${planType}`,
+        title: `정기 ${count}건${suffix}`,
         start: eventDate,
         end: eventDate,
         allDay: true as const,
         resource: {
           kind: 'plan-group' as const,
-          groupCount: g.count,
-          planType: g.planType,
+          groupCount: count,
+          planType,
           planStatus: allDone ? 'completed' as const : 'planned' as const,
           inspectionId: '',
-          stepId: `group-${g.date}-${g.planType}`,
+          stepId: `group-${g.date}-${planType}`,
           stepNum: 0,
           stepStatus: 'group',
           dueDate: g.date,
@@ -617,15 +645,15 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
           sequenceNum: 1,
           assignedEmployeeId: '',
           assignedEmployeeName: '',
-          isOverdue: g.overdue > 0,
+          isOverdue: overdue > 0,
           isReceiveStep: false,
-          color: g.planType === 'monthly' ? '#6b7280' : '#0ea5e9',
+          color: '#6b7280',
         } satisfies CalEventResource,
       }
-    })
+    }))
 
-    return [...eventItems, ...monthlyChips]
-  }, [visiblePlanItems, today])
+    return planChips
+  }, [visiblePlanItems, today, custQuery])
 
   const allEvents = useMemo<CalEvent[]>(() => [...events, ...planEvents], [events, planEvents])
 
@@ -755,7 +783,7 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
       .filter(p => p.scheduled_date === dayPanelDate && p.status !== 'completed' && !p.inspection_id)
       .map(p => ({
         itemId: p.id,
-        typeLabel: p.plan_type === 'monthly' ? '정기' : eventPlanLabel(p.sub_type),
+        typeLabel: planTypeLabel(p.plan_type, p.sub_type),
         label: p.customer_name,
       }))
       .sort((a, b) => a.label.localeCompare(b.label, 'ko'))
@@ -1676,6 +1704,11 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
                         const isOverdue = !isCompleted && p.scheduled_date < today
                         const canAct = canMovePlan && !isCompleted && !p.inspection_id
                         const movable = isMovablePlan(p)
+                        const entry = planRowInspectionEntry(p, { canAct, moveSelectMode })
+                        // [날짜 이동] 아이콘 조건 = 일괄 이동 대상 판정과 **같은 식**(:724 주석의 약속).
+                        // 종전엔 `plan_type === 'monthly' && canAct`를 여기 따로 적어 두 벌이었다 — 같은 값이라
+                        // 어긋난 적은 없지만, 한쪽만 고치면 조용히 갈라지는 자리라 원천 하나로 합친다.
+                        const showMove = movable && !moveSelectMode
                         return (
                           <div key={p.id}>
                             <div className={`flex items-center gap-2 px-2 py-1.5 rounded-lg ${isOverdue ? 'bg-red-50/60' : 'hover:bg-paper'}`}>
@@ -1693,8 +1726,8 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
                               ) : (
                                 <span className="size-3.5 shrink-0" title="이동 대상이 아닙니다 (정기·미시작 항목만 이동)" />
                               ))}
-                              <span className={`text-form-2xs font-medium px-1.5 py-0.5 rounded-full shrink-0 ${p.plan_type === 'monthly' ? 'bg-gray-100 text-gray-600' : 'bg-sky-50 text-sky-600'}`}>
-                                {p.plan_type === 'monthly' ? '정기' : eventPlanLabel(p.sub_type)}
+                              <span className={`text-form-2xs font-medium px-1.5 py-0.5 rounded-full shrink-0 ${planTypeBadgeClass(p.plan_type)}`}>
+                                {planTypeLabel(p.plan_type, p.sub_type)}
                               </span>
                               <span className={`text-xs flex-1 min-w-0 truncate ${isCompleted ? 'text-ink-meta line-through' : 'text-ink'}`} title={`담당 ${p.assigned_employee_name}`}>
                                 {p.customer_name}
@@ -1707,29 +1740,37 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
                               {!p.assigned_employee_id && !isCompleted && <span className="text-form-2xs text-red-500 font-semibold shrink-0">미배정</span>}
                               {isOverdue && <span className="text-form-2xs text-red-600 font-semibold shrink-0">지연⚠</span>}
                               {isCompleted && <Check className="size-3.5 text-green-600 shrink-0" />}
-                              {p.inspection_id ? (
+                              {/* 🚨 정기(monthly)는 점검표 입력을 하지 않는다 (2026-09-14 사용자 확정) —
+                                  ▶[시작·완료]와 [점검 보기]가 **둘 다** 점검 레코드=점검표 입력 화면으로 가는
+                                  입구라 정기 행에서는 둘 다 붙이지 않는다. 판정은 JSX가 아니라
+                                  lib/calendar-plan-row.ts가 한다(여기 묻어 두면 아무도 단언하지 못한다).
+                                  [날짜 이동]은 그 함수 밖 — isMovablePlan(:724)이 단일 원천이다. */}
+                              {entry.viewInspection ? (
                                 <Link href={`/inspections/${p.inspection_id}`} className="shrink-0 text-form-2xs text-green-600 hover:underline flex items-center gap-0.5">
                                   <ExternalLink className="size-3" />점검 보기
                                 </Link>
-                              ) : canAct && !moveSelectMode ? (
+                              ) : null}
+                              {(showMove || entry.startComplete) && (
                                 <span className="flex items-center gap-0.5 shrink-0">
-                                  {p.plan_type === 'monthly' && (
+                                  {showMove && (
                                     <PanelMoveButton
                                       scheduledDate={p.scheduled_date}
                                       moving={movingPlanId === p.id}
                                       onPick={to => handlePanelPick(p, to)}
                                     />
                                   )}
-                                  <button
-                                    title="점검 시작·완료 처리"
-                                    disabled={startingPlanId === p.id}
-                                    onClick={() => handleStartFromPanel(p)}
-                                    className="p-1 rounded text-ink-faint hover:bg-brand-tint hover:text-brand transition-colors disabled:opacity-50"
-                                  >
-                                    {startingPlanId === p.id ? <Loader2 className="size-3.5 animate-spin" /> : <PlayCircle className="size-3.5" />}
-                                  </button>
+                                  {entry.startComplete && (
+                                    <button
+                                      title="점검 시작·완료 처리"
+                                      disabled={startingPlanId === p.id}
+                                      onClick={() => handleStartFromPanel(p)}
+                                      className="p-1 rounded text-ink-faint hover:bg-brand-tint hover:text-brand transition-colors disabled:opacity-50"
+                                    >
+                                      {startingPlanId === p.id ? <Loader2 className="size-3.5 animate-spin" /> : <PlayCircle className="size-3.5" />}
+                                    </button>
+                                  )}
                                 </span>
-                              ) : null}
+                              )}
                             </div>
                           </div>
                         )

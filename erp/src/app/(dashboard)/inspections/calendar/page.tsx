@@ -43,8 +43,14 @@ export default async function InspectionCalendarPage({
     .gte('date', `${currentYear - 1}-01-01`)
     .lte('date', `${currentYear + 1}-12-31`)
 
-  // 정기(monthly)·일반관리(event) 계획 항목 — 자체점검 6단계와 달리 계획 예정일 1건짜리 일정
+  // 정기(monthly)·일반관리(event)·자체점검(special_*) 계획 항목 — 계획 예정일 1건짜리 일정
   // 확정 전 항목은 scheduled_date가 없으므로 planned_date(예정일)로도 표시
+  //
+  // 2026-09-14: 자체점검(special_종합·special_작동)을 **대상에 추가**했다. 종전엔 monthly·event만
+  // 실어, [종합]·[작동] 탭은 `inspections` 행이 생긴 뒤에야 무언가를 보여줬다 — 즉 예정일이 잡혀
+  // 있어도 점검이 실제로 시작되기 전까지 그 고객은 달력 어느 날짜에도 없었다(지평리56 신고).
+  // ⚠ 시작된 자체점검(inspection_id 있음)은 여기서 빼고 inspections 축이 그린다 — 시작일과
+  //   예정일이 같은 날이라 둘 다 실으면 같은 칸에 두 번 그려진다.
   const rangeStart = `${currentYear - 1}-01-01`
   const rangeEnd   = `${currentYear + 1}-12-31`
   // 1000행씩 끝까지 받아온다 — PostgREST 요청당 상한이 1000이라 한 번에 받으면 조용히 잘린다
@@ -53,7 +59,7 @@ export default async function InspectionCalendarPage({
   const planItemsQuery = fetchAllRows((from, to) => admin
     .from('inspection_plan_items')
     .select('id, customer_id, plan_type, inspection_sub_type, scheduled_date, planned_date, status, assigned_employee_id, inspection_id, customers(customer_name, customer_code, address, is_active)')
-    .in('plan_type', ['monthly', 'event'])
+    .in('plan_type', ['monthly', 'event', 'special_종합', 'special_작동'])
     .neq('status', 'cancelled')
     .or(`and(scheduled_date.gte.${rangeStart},scheduled_date.lte.${rangeEnd}),and(scheduled_date.is.null,planned_date.gte.${rangeStart},planned_date.lte.${rangeEnd})`)
     .order('planned_date')
@@ -180,7 +186,7 @@ export default async function InspectionCalendarPage({
   const holidays = ((holidaysRes.data ?? []) as Array<{ date: string; name: string }>)
 
   type PlanItemRow = {
-    id: string; customer_id: string; plan_type: 'monthly' | 'event'
+    id: string; customer_id: string; plan_type: 'monthly' | 'event' | 'special_종합' | 'special_작동'
     inspection_sub_type: string | null
     scheduled_date: string | null; planned_date: string | null
     status: string; assigned_employee_id: string | null; inspection_id: string | null
@@ -191,6 +197,8 @@ export default async function InspectionCalendarPage({
     if (!date) return []
     // 삭제(비활성) 고객의 계획은 상태 무관 제외 — 자동취소를 벗어난 완료 항목도 달력에서 뺀다
     if (p.customers?.is_active === false) return []
+    // 이미 시작된 자체점검은 inspections 축이 6단계로 그린다 — 계획 칩까지 실으면 같은 날 두 번 나온다
+    if ((p.plan_type === 'special_종합' || p.plan_type === 'special_작동') && p.inspection_id) return []
     return [{
       id: p.id,
       customer_id: p.customer_id,
