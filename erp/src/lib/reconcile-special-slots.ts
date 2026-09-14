@@ -74,6 +74,12 @@ export type ReconcilePlan = {
     use_approval_date: string | null
     plan_anchor_date: string | null
     plan_anchor_manual: boolean | undefined
+    /** 고객의 담당 — 생성기가 새로 만드는 항목이 **물려받아야** 한다.
+     *  🚨 종전엔 ctx에 없어서 실행부가 `assigned_employee_id: null`을 박아 넘겼다(2026-09-14 발견).
+     *    그래서 재배치가 만든 자체점검은 **고객에 담당이 있어도 미배정으로 태어났고**,
+     *    자동시작 크론이 미배정을 건너뛰므로(auto-start-inspections:48) 아무도 시작하지 않았다.
+     *    지평리56의 2026-03-26이 그 자리였다(운영 4건·스테이징 7건 실측). */
+    assigned_employee_id: string | null
   }
 }
 
@@ -85,6 +91,8 @@ async function planFrom(
   c: {
     use_approval_date: string | null; plan_anchor_date: string | null
     inspection_type: InspectionType; inspection_category: string | null; inspection_sub_type: string | null
+    /** 새로 만들 항목이 물려받을 담당 — 없으면 미배정으로 태어나 크론이 영영 건너뛴다 */
+    assigned_employee_id: string | null
   },
 ): Promise<ReconcilePlan> {
   // plan_anchor_manual은 없는 컬럼일 수 있다(155 미적용) — 관용 조회
@@ -107,6 +115,8 @@ async function planFrom(
   const ctxBase = {
     sub, isGeneral, inspection_type: c.inspection_type, inspection_category: c.inspection_category,
     use_approval_date: c.use_approval_date, plan_anchor_date: c.plan_anchor_date, plan_anchor_manual: manual,
+    // 새로 만들 항목이 물려받을 담당 — 없으면 미배정으로 태어나 크론이 영영 건너뛴다
+    assigned_employee_id: c.assigned_employee_id,
   }
   const empty: ReconcilePlan = {
     anchor, desired: [], ops: [], keptStarted: [], initialWindow: null,
@@ -173,12 +183,13 @@ export async function planReconcile(
   override?: ReconcileOverride,
 ): Promise<ReconcilePlan | null> {
   const { data: cRaw } = await admin.from('customers')
-    .select('id, use_approval_date, plan_anchor_date, inspection_type, inspection_category, inspection_sub_type')
+    .select('id, use_approval_date, plan_anchor_date, inspection_type, inspection_category, inspection_sub_type, assigned_employee_id')
     .eq('id', customerId).maybeSingle()
   if (!cRaw) return null
   const c0 = cRaw as {
     use_approval_date: string | null; plan_anchor_date: string | null
     inspection_type: InspectionType; inspection_category: string | null; inspection_sub_type: string | null
+    assigned_employee_id: string | null
   }
   const c = {
     ...c0,
@@ -313,7 +324,10 @@ export async function reconcileSpecialSlots(
           id: customerId, inspection_type: c.inspection_type,
           inspection_category: c.inspection_category, inspection_sub_type: sub,
           plan_anchor_date: c.plan_anchor_date, use_approval_date: c.use_approval_date,
-          plan_anchor_manual: manual, assigned_employee_id: null,
+          // 🚨 여기 `null`이 박혀 있었다(2026-09-14 수리) — 고객에 담당이 있어도 재배치가 만든
+          //   항목은 미배정으로 태어났고, 자동시작 크론이 미배정을 건너뛰어 아무도 시작하지 않았다.
+          //   생성기(:322)는 넘겨받은 값을 그대로 상속하므로 **넘기지 않으면 잃는다**.
+          plan_anchor_manual: manual, assigned_employee_id: plan.ctx.assigned_employee_id,
         },
         y, createdBy, hd,
       )

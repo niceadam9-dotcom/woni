@@ -326,5 +326,35 @@ const isSpecial = (_type, planType) => !planType || planType.startsWith('special
     r => `${r.c.customer_code} ${r.c.customer_name} ${r.y}년: ${r.n}건`)
 }
 
+// ── INV-D14: 담당 전파 — 고객엔 담당이 있는데 **미시작** 계획 항목만 미배정인가 ──
+// 🚨 2026-09-14 실사고: `reconcile-special-slots.ts`가 생성기에 `assigned_employee_id: null`을
+//   박아 넘겨, 고객에 담당이 있어도 재배치가 만든 자체점검은 **미배정으로 태어났다**. 자동시작
+//   크론은 미배정을 말없이 건너뛰므로(auto-start-inspections:48) 그 항목은 아무도 시작하지
+//   않는다 — 화면 어디에도 신호가 없어 스테이징 7건·운영 4건이 방치돼 있었다.
+//   코드는 고쳤지만 같은 구멍은 **새 호출부가 생길 때마다** 다시 난다(생성기는 넘겨받은 값을
+//   그대로 쓸 뿐이라 안 넘기면 잃는다). 그래서 결과 축에서 상시로 감시한다.
+// ⚠ 시작된 항목(inspection_id 있음)은 제외 — 실행자를 소급해 바꾸면 서식이 사실과 달라진다.
+//   고객도 미배정인 건은 정상이다(없는 담당을 지어내지 않는다).
+// ⚠ 1,000행 상한 — PostgREST는 조용히 자른다(INV-D13이 그래서 위반 2건을 57건으로 부풀렸다).
+{
+  const pageAll = async (table, cols) => {
+    const out = []
+    for (let from = 0; ; from += 1000) {
+      const { data, error } = await admin.from(table).select(cols).order('id').range(from, from + 999)
+      if (error) break
+      out.push(...(data ?? []))
+      if (!data || data.length < 1000) break
+    }
+    return out
+  }
+  const custs = await pageAll('customers', 'id, customer_code, customer_name, assigned_employee_id, is_active')
+  const owned = new Map(custs.filter(c => c.is_active !== false && c.assigned_employee_id).map(c => [c.id, c]))
+  const items = await pageAll('inspection_plan_items', 'id, customer_id, plan_type, status, scheduled_date, assigned_employee_id, inspection_id')
+  const bad = items.filter(i =>
+    !i.assigned_employee_id && !i.inspection_id && i.status !== 'cancelled' && owned.has(i.customer_id))
+  report('INV-D14 담당 전파 누락(고객 배정 O · 미시작 항목 미배정)', bad,
+    r => `${owned.get(r.customer_id).customer_code} ${owned.get(r.customer_id).customer_name} ${r.scheduled_date} ${r.plan_type}`)
+}
+
 console.log(`\n${violations === 0 ? '✅ 전체 불변식 통과' : `❌ 총 위반 ${violations}건`}`)
 process.exit(violations > 0 ? 1 : 0)
