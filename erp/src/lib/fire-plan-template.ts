@@ -14,6 +14,7 @@ import { compartmentHasArea, compartmentHasFloor } from '@/lib/evac-compartment'
  * ⚠ `fire-plan-xlsx-values`에서 끌어오지 않는다 — 그쪽은 앵커·manifest를 물고 오고 manifest는
  *   모듈 적재 시점에 throw 할 수 있어, 엑셀 격자가 밀리면 PDF까지 500이 된다(의존 없는 소모듈). */
 import { purposeCover } from '@/lib/purpose-label'
+import { LOCATION_BOX_KINDS, pickFirstKind } from '@/lib/fire-plan-image-kinds'
 /* 주차장 체크 판정 — 별지 9호 2쪽이 쓰는 그 함수를 그대로 쓴다(사본 금지, 순환 없음: report9는 이 파일을 안 문다) */
 import { parseParkingSummary, parseParkingByType } from '@/lib/doc-templates/report9'
 import type { EtcFacilitySection } from '@/components/customers/plan-form16'
@@ -384,8 +385,11 @@ export function buildFirePlanHtml(
     .map(r => `<tr><td class="l">${v(r.name)}</td><td class="l">${v(r.location)}</td><td>${v(r.qty)}</td></tr>`).join('')
 
   const coverImgs = imgsOf('cover')
-  const mapImgs = imgsOf('map')
   const evacImgs = imgsOf('evacuation')
+  /* 서식 1.3 「건축물 위치」 — **엑셀 상자와 같은 규칙**을 쓴다(표지 건물 사진 > 위치도 약도).
+     우선순위를 여기 손으로 적으면 한쪽만 고쳐 두 산출물이 다른 그림을 인쇄한다(2026-09-14 사용자 확정). */
+  const locationKind = pickFirstKind(LOCATION_BOX_KINDS, k => imgsOf(k).length > 0)
+  const locationImgs = locationKind ? imgsOf(locationKind).slice(0, 1) : []
 
   // 보고서 커버 (마지막 페이지, 2026-08-10) — 빈 값은 자동값(연도=생성 연도, 업체명=고객명).
   // 앞표지 연도 표기도 이 값을 따라 앞뒤가 어긋나지 않게 한다 (생성 바 연도 입력칸 폐지의 단일 표기처).
@@ -521,8 +525,9 @@ ${(d.autoFilled?.length ?? 0) > 0
     <tr><th>진입 지점</th><td class="l" colspan="3">${v(acc?.entryPoint)}</td>
         <th>인근 소방시설</th><td class="l">${v(acc?.nearbyFacilities)}</td></tr>
   </table>
-  <h3>건축물 위치도</h3>
-  ${mapImgs.length ? imgBlock(mapImgs, 340) : slotPlaceholder('위치도(약도)')}
+  ${/* 제목도 엑셀 상자 라벨(1.3!A2 「건축물 위치」)에 맞춘다 — 들어가는 것이 약도가 아니라 사진이다 */''}
+  <h3>건축물 위치</h3>
+  ${locationImgs.length ? imgBlock(locationImgs, 340) : slotPlaceholder('표지 건물 사진(위성 항공뷰)')}
   ${imgsOf('route').length ? `<h3>소방차 진입경로</h3>${imgBlock(imgsOf('route'), 300)}` : ''}
   ${/* 2026-09-14 — 엑셀 1.3 아래쪽 상자와 **같은 그림**이다. 한쪽만 인쇄하면 두 표면이 갈라진다(D-7) */''}
   ${imgsOf('entry').length ? `<h3>소방차 진입장소 및 주변 소방시설 현황</h3>${imgBlock(imgsOf('entry'), 300)}` : ''}

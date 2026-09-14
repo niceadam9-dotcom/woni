@@ -16,9 +16,12 @@ import type { AssetSlot, CustomerAsset } from '@/lib/customer-assets'
  *  H-11: 업로드 전 클라이언트에서 EXIF 회전 보정 + 장변 1600px 리사이즈(JPEG q0.85) — 서버 sharp 의존 없음.
  *  업로드는 [서식 1.3 저장]과 무관하게 즉시 스토리지에 확정된다(서식 JSON에 담기지 않음). */
 
+/* 2026-09-14 사용자 확정 — 서식 1.3 「건축물 위치」 칸은 **표지 건물 사진**이 채운다(약도가 아니다).
+   약도는 표지 사진이 아직 없는 고객을 위한 **폴백**으로만 남는다. 규칙은 `fire-plan-image-kinds.ts`.
+   ⚠ 이 안내 문구가 규칙보다 낡으면 사용자가 약도를 등록해 놓고 인쇄되기를 기다린다. */
 const SLOTS: Array<{ slot: 'cover' | 'map_location'; label: string; hint: string }> = [
-  { slot: 'cover', label: '표지 건물 사진', hint: '소방계획서 표지에 들어갑니다 (1장)' },
-  { slot: 'map_location', label: '위치도·약도', hint: '위치도 페이지에 들어갑니다 (1장)' },
+  { slot: 'cover', label: '표지 건물 사진', hint: '소방계획서 표지와 서식 1.3 「건축물 위치」에 들어갑니다 (1장)' },
+  { slot: 'map_location', label: '위치도·약도', hint: '표지 건물 사진이 없을 때만 서식 1.3에 들어갑니다 (1장)' },
 ]
 
 export function CustomerAssetsClient({ customerId, canManage, initialAssets = [], embedded = false }: {
@@ -90,8 +93,8 @@ export function CustomerAssetsClient({ customerId, canManage, initialAssets = []
       setMsg({
         key: slot,
         text: slot === 'cover'
-          ? '✅ 위성 항공사진을 생성했습니다 — 정면 사진이 필요하면 현장 촬영본으로 교체하세요'
-          : '✅ 주소 기반 위치도를 생성했습니다 — 문서 생성 시 자동 삽입됩니다',
+          ? '✅ 위성 항공사진을 생성했습니다 — 표지와 서식 1.3 「건축물 위치」에 인쇄됩니다(정면 사진이 필요하면 현장 촬영본으로 교체하세요)'
+          : '✅ 주소 기반 위치도를 생성했습니다 — 표지 건물 사진이 없을 때만 인쇄됩니다',
         ok: true,
       })
     })

@@ -26,6 +26,8 @@ import {
   FIRE_PLAN_IMAGE_ANCHORS, FIRE_PLAN_IMAGE_BOXES, FP_SHEET, imageBoxDescr,
 } from '../src/lib/fire-plan-anchors.ts'
 import { embedFirePlanImages, planFirePlanImages } from '../src/lib/fire-plan-xlsx-images.ts'
+// PDF 축 — 같은 표본을 두 조립기에 먹여 「두 표면이 갈라지지 않았는가」를 여기서 함께 잰다
+import { buildFirePlanHtml, type FirePlanGenData } from '../src/lib/fire-plan-template.ts'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const XLSX_PATH = resolve(HERE, '../templates/fire-plan-workbook.xlsx')
@@ -93,7 +95,8 @@ const HUE: Record<string, { r: number; g: number; b: number }> = {
   entry: { r: 30, g: 60, b: 220 },     // 파랑
   evacmap0: { r: 230, g: 200, b: 20 }, // 노랑
   evacmap1: { r: 180, g: 40, b: 200 }, // 보라
-  cover: { r: 90, g: 90, b: 90 },      // 회색 — 상자가 없는 종류(음성축)
+  cover: { r: 90, g: 90, b: 90 },      // 회색 — 1.3 「건축물 위치」의 임자(2026-09-14)
+  building: { r: 20, g: 180, b: 180 }, // 청록 — 상자가 없는 종류(음성축)
 }
 const solid = (c: { r: number; g: number; b: number }, w = 640, h = 400) =>
   sharp({ create: { width: w, height: h, channels: 3, background: c } }).png().toBuffer()
@@ -152,6 +155,7 @@ type Img = { file: string; kind: string; caption: string }
 const srcs = {
   map: await solid(HUE.map), route: await solid(HUE.route), entry: await solid(HUE.entry),
   evac0: await solid(HUE.evacmap0), evac1: await solid(HUE.evacmap1), cover: await solid(HUE.cover),
+  building: await solid(HUE.building),
 }
 const fullImages: Img[] = [
   { file: 'img_0.png', kind: 'cover', caption: '' },
@@ -160,6 +164,9 @@ const fullImages: Img[] = [
   { file: 'img_3.png', kind: 'entry', caption: '소방차 진입장소 및 주변 소방시설 현황' },
   { file: 'img_4.png', kind: 'evacmap', caption: '2층' },
   { file: 'img_5.png', kind: 'evacmap', caption: '3층' },
+  /* 상자가 **아예 없는** 종류 — 음성축의 분모다. 종전엔 표지 사진이 이 자리였는데 표지가
+     1.3 「건축물 위치」의 임자가 되면서(2026-09-14) 그 갈래를 아무도 안 밟게 됐다. */
+  { file: 'img_b.png', kind: 'building', caption: '건물 전경' },
 ]
 const fullAssets = [
   { name: 'img_0.png', data: new Uint8Array(srcs.cover) },
@@ -168,6 +175,7 @@ const fullAssets = [
   { name: 'img_3.png', data: new Uint8Array(srcs.entry) },
   { name: 'img_4.png', data: new Uint8Array(srcs.evac0) },
   { name: 'img_5.png', data: new Uint8Array(srcs.evac1) },
+  { name: 'img_b.png', data: new Uint8Array(srcs.building) },
 ]
 const plan = planFirePlanImages(fullImages, fullAssets, av.anchors)
 check('상자 5칸이 모두 배정됐다', plan.targets.length === 5, `${plan.targets.length}칸`)
@@ -175,7 +183,11 @@ check('상자 5칸이 모두 배정됐다', plan.targets.length === 5, `${plan.t
   const at = (sheet: string, cell: string) => plan.targets.find(t => t.sheet === sheet && t.cell === cell)
   // ⭐ 바이트 동일성으로 판정 — 「그 상자에 무언가 들어갔다」가 아니라 「**그 그림**이 들어갔다」
   const same = (a: Uint8Array | undefined, b: Buffer) => !!a && Buffer.from(a).equals(b)
-  check('위치도 → 1.3 위치·운영현황!A3', same(at(FP_SHEET.F1_3_LOC, 'A3')?.data, srcs.map))
+  /* ⭐ 2026-09-14 사용자 확정 — 이 칸은 **표지 건물 사진**이다(위치도 약도가 아니다).
+   *   둘 다 있는 표본으로 묻는 것이 요점이다: 「map이 안 들어갔다」만 물으면 map을 빼도 초록이고,
+   *   「cover가 들어갔다」만 물으면 우선순위가 없어도 초록이다. 둘이 **경쟁하는 표본**이라야 규칙을 잰다. */
+  check('표지 건물 사진 → 1.3 위치·운영현황!A3', same(at(FP_SHEET.F1_3_LOC, 'A3')?.data, srcs.cover))
+  check('위치도는 그 상자를 못 얻는다(밀렸다)', !same(at(FP_SHEET.F1_3_LOC, 'A3')?.data, srcs.map))
   check('경로도 → 1.3 진입경로!A2', same(at(FP_SHEET.F1_3_ROUTE, 'A2')?.data, srcs.route))
   check('진입장소 사진 → 1.3 진입경로!A4', same(at(FP_SHEET.F1_3_ROUTE, 'A4')?.data, srcs.entry))
   check('평면도 1장째 → 1.5.2!A4', same(at(FP_SHEET.F1_5_2, 'A4')?.data, srcs.evac0))
@@ -183,15 +195,42 @@ check('상자 5칸이 모두 배정됐다', plan.targets.length === 5, `${plan.t
   // 자리표 비우기는 **1.5.2 두 칸뿐**이다(나머지 상자엔 안내 글자가 없다)
   const bc = plan.blankCells.map(c => `${c.sheet}!${c.cell}`).sort()
   check('자리표 비우기 = 1.5.2 두 칸', bc.length === 2 && bc.every(s => s.startsWith(FP_SHEET.F1_5_2)), bc.join(' · '))
-  // 음성축 — 상자 없는 종류는 조용히 사라지지 않는다
-  check('표지 사진은 「상자 없음」으로 고지된다',
-    plan.notes.some(n => n.includes('cover') && n.includes('상자가 없어')), plan.notes.join(' | '))
+  // 음성축 — 밀린 위치도는 **조용히** 사라지지 않는다(문서엔 흔적이 안 남으므로 고지가 유일한 창구)
+  check('밀린 위치도가 고지된다',
+    plan.notes.some(n => n.includes('위치도') && n.includes('표지 건물 사진') && n.includes('미표기')),
+    plan.notes.join(' | '))
+  // 음성축 — 상자가 아예 없는 종류도 조용히 사라지지 않는다(PDF에는 인쇄된다는 것까지 말한다)
+  check('상자 없는 종류(건물 전경)는 「상자 없음」으로 고지된다',
+    plan.notes.some(n => n.includes('건물 전경') && n.includes('상자가 없어')), plan.notes.join(' | '))
+}
+/* ── 폴백 — 표지 사진이 없는 고객의 상자가 백지가 되지 않는다(사용자 확정 2026-09-14) ──
+ *  ⚠ 이 절이 없으면 「폴백을 지운다」 변이가 위 단언들을 전부 통과한다(표본에 표지가 늘 있으므로). */
+{
+  const noCover = fullImages.filter(i => i.kind !== 'cover')
+  const p = planFirePlanImages(noCover, fullAssets, av.anchors)
+  const box = p.targets.find(t => t.sheet === FP_SHEET.F1_3_LOC && t.cell === 'A3')
+  check('표지 사진이 없으면 위치도가 그 상자를 채운다',
+    !!box && Buffer.from(box.data).equals(srcs.map), box ? '(다른 그림)' : '(상자 비어 있음)')
+  check('폴백으로 들어갔으면 「밀렸다」 고지는 없다',
+    !p.notes.some(n => n.includes('우선순위는')), p.notes.join(' | '))
+}
+{
+  // 둘 다 없으면 그 상자만 비고 나머지는 그대로 — 「없으면 아무거나」가 아니다
+  const neither = fullImages.filter(i => i.kind !== 'cover' && i.kind !== 'map')
+  const p = planFirePlanImages(neither, fullAssets, av.anchors)
+  check('표지·위치도 둘 다 없으면 그 상자는 비고 나머지 4칸은 채워진다',
+    p.targets.length === 4 && !p.targets.some(t => t.sheet === FP_SHEET.F1_3_LOC),
+    `${p.targets.length}칸`)
 }
 {
   // 넘침 — 평면도 3장이면 2칸만 쓰고 1장은 **고지**한다
   const many = [...fullImages, { file: 'img_6.png', kind: 'evacmap', caption: '4층' }]
   const p = planFirePlanImages(many, [...fullAssets, { name: 'img_6.png', data: new Uint8Array(srcs.evac0) }], av.anchors)
-  check('평면도 3장 → 2칸 + 넘침 고지', p.targets.length === 5 && p.notes.some(n => n.includes('1장 미표기')),
+  /* ⚠ 「'1장 미표기'가 고지에 있는가」로만 물으면 안 된다 — 같은 표본의 **밀린 위치도 고지**가
+   *   그 조각을 그대로 갖고 있어, 넘침 고지를 통째로 지워도 초록이 된다(M9가 실증).
+   *   무엇이 몇 칸 때문에 밀렸는지까지 물어야 그 줄을 잰다. */
+  check('평면도 3장 → 2칸 + 넘침 고지',
+    p.targets.length === 5 && p.notes.some(n => n.includes('평면도') && n.includes('1장 미표기') && n.includes('양식 상자')),
     p.notes.join(' | '))
 }
 {
@@ -348,6 +387,61 @@ console.log('\n[6] 대체 텍스트 — 자구를 베끼지 않는다')
   check('1.5.2 상자 설명이 manifest 자구', imageBoxDescr(b).includes('평면도'), imageBoxDescr(b))
   const r = FIRE_PLAN_IMAGE_BOXES.find(x => x.field === 'img_entry')!
   check('진입장소 상자 설명이 manifest 자구', imageBoxDescr(r).includes('진입장소'), imageBoxDescr(r))
+}
+
+/* ══════════════════════ [7] PDF 축 — 두 표면이 같은 그림을 인쇄하는가 ══════════════════════
+ *
+ *  🚨 여태 PDF 쪽 이 칸을 재는 단언은 **0건**이었다. 엑셀만 고치면 위 106건이 전부 초록인 채로
+ *    PDF는 옛 약도를 계속 인쇄한다 — 이 저장소가 여러 번 겪은 「두 표면이 갈라지는」 자리다.
+ *    그래서 같은 표본을 PDF 조립기에도 먹여 **같은 종류가 나오는지** 묻는다.
+ */
+console.log('\n[7] PDF 축 — 서식 1.3 「건축물 위치」에 무엇이 인쇄되는가')
+{
+  const fx: FirePlanGenData = {
+    year: 2026, revisionDate: '2026-01-02', revisionNote: '최초 작성', revisions: [],
+    buildingName: '검사용 표준건물', address: '서울특별시 중구 세종대로 110',
+    grade: '2급', purpose: '업무시설', useApprovalDate: '2010-03-04',
+    totalArea: '4500', buildingArea: '900', floors: '지하1층 / 지상5층', height: '21',
+    structure: '철근콘크리트', roof: '슬래브', receiverLocation: '1층 방재실',
+    ownerName: '표준소유자', ownerPhone: '02-0000-0000',
+    managerName: '표준관리자', managerPhone: '010-0000-0000', managerSelectedAt: '2025-01-02',
+    fireStation: '중부소방서', stationDistance: '2.4', stationEta: '6',
+    facilities: ['소화기구 및 자동소화장치'],
+    companyName: '표준소방', companyAddress: '서울특별시 중구 1', companyPhone: '02-1111-1111',
+    contractStart: '2025-01-01', inspectionCycle: '매월 1회',
+    operationMonth: '2026년 7월', comprehensiveMonth: '', trainingMonth: null,
+    brigade: [], evacRoutes: [], assembly: '건물 앞 주차장', evacNote: '',
+    evacFalseAlarm: '', evacMethod: '', zones: [], hazards: [], photos: [],
+  }
+  /** 서식 1.3 **한 쪽만** 잘라 본다 — 문서 전체에서 파일명을 세면 표지 페이지의 표지 사진과 섞인다 */
+  const page13 = (html: string) => {
+    const i = html.indexOf('서식 1.3')
+    const j = html.indexOf('서식 1.4', i + 1)
+    return i < 0 || j < 0 ? '' : html.slice(i, j)
+  }
+  const pdfImgs = fullImages.map(i => ({ file: i.file, kind: i.kind, caption: i.caption }))
+
+  const both = page13(buildFirePlanHtml(fx, pdfImgs))
+  // ① 분모 가드 — 구간을 못 잘랐으면 아래 '약도 없음'이 항진명제가 된다
+  check('PDF 서식 1.3 구간을 잘랐다', both.length > 400, `${both.length}자`)
+  check('PDF 1.3에 표지 건물 사진이 인쇄된다', both.includes('img_0.png'))
+  check('PDF 1.3에 위치도 약도가 인쇄되지 않는다', !both.includes('img_1.png'))
+  // ② 엑셀이 그 상자에 앉힌 것과 **같은 종류**인가 — 이것이 이 절의 본론이다
+  const xlsxCover = plan.targets.some(t =>
+    t.sheet === FP_SHEET.F1_3_LOC && t.cell === 'A3' && Buffer.from(t.data).equals(srcs.cover))
+  check('엑셀 상자와 PDF가 같은 종류를 인쇄한다(표지 사진)', xlsxCover && both.includes('img_0.png'))
+
+  // ③ 폴백도 두 표면이 같다
+  const noCover = page13(buildFirePlanHtml(fx, pdfImgs.filter(i => i.kind !== 'cover')))
+  check('PDF도 표지가 없으면 위치도로 폴백한다', noCover.includes('img_1.png'))
+  const neither = page13(buildFirePlanHtml(fx, pdfImgs.filter(i => i.kind !== 'cover' && i.kind !== 'map')))
+  check('PDF는 둘 다 없으면 「표지 건물 사진 미등록」 안내를 낸다',
+    neither.includes('표지 건물 사진') && neither.includes('미등록'))
+
+  // ④ 존속 단언 — 표지 페이지의 표지 사진은 그대로다(내가 그 자리를 건드리지 않았다)
+  const full = buildFirePlanHtml(fx, pdfImgs)
+  const coverPage = full.slice(0, full.indexOf('서식 1.1') < 0 ? 4000 : full.indexOf('서식 1.1'))
+  check('PDF 앞표지의 표지 사진은 그대로다', coverPage.includes('img_0.png'))
 }
 
 console.log(`\n결과: ${pass} pass / ${fail} fail`)

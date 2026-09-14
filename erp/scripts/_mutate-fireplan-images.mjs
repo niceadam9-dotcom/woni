@@ -14,6 +14,8 @@ import { execSync } from 'node:child_process'
 
 const LIB = 'src/lib/fire-plan-xlsx-images.ts'
 const ANCH = 'src/lib/fire-plan-anchors.ts'
+const KINDS = 'src/lib/fire-plan-image-kinds.ts'   // 엑셀·PDF가 공유하는 우선순위 규칙 (2026-09-14)
+const TMPL = 'src/lib/fire-plan-template.ts'       // PDF 축 — 엑셀만 고치는 실수를 잡는다
 
 /* ⚠ `npx tsx …`을 쓰지 않는다 — execSync는 cmd.exe로 도는데 거기서는 `npx`가 tsx를 못 찾아
  *   ("'tsx' is not recognized") **테스트가 한 줄도 안 돌고 종료코드만 1**이 된다. 그러면 전 변이가
@@ -26,8 +28,8 @@ const MUTANTS = [
   {
     name: 'M1 상자 좌표를 라벨 줄로 옮긴다(진입경로도 A2→A1)',
     file: ANCH,
-    from: "{ field: 'img_route',        kind: 'route', index: 0, sheet: FP_SHEET.F1_3_ROUTE, cell: 'A2', labelCell: 'A1' },",
-    to: "{ field: 'img_route',        kind: 'route', index: 0, sheet: FP_SHEET.F1_3_ROUTE, cell: 'A1', labelCell: 'A1' },",
+    from: "{ field: 'img_route',        kinds: ['route'], index: 0, sheet: FP_SHEET.F1_3_ROUTE, cell: 'A2', labelCell: 'A1' },",
+    to: "{ field: 'img_route',        kinds: ['route'], index: 0, sheet: FP_SHEET.F1_3_ROUTE, cell: 'A1', labelCell: 'A1' },",
     expect: 'img_route 상자가 크다',
   },
   {
@@ -56,9 +58,41 @@ const MUTANTS = [
   {
     name: 'M4 배정에서 index를 무시한다(평면도 2칸에 같은 장이 들어간다)',
     file: LIB,
-    from: '    const im = byKind.get(b.kind)?.[b.index]',
-    to: '    const im = byKind.get(b.kind)?.[0]',
+    from: '    const im = byKind.get(kind)![b.index]',
+    to: '    const im = byKind.get(kind)![0]',
     expect: '평면도 2장째',
+  },
+  {
+    // 🚨 사용자 확정(2026-09-14): 1.3 「건축물 위치」는 표지 건물 사진이다. 우선순위를 뒤집으면
+    //    옛 동작(네이버 약도)으로 **말없이** 되돌아간다 — 표본에 둘 다 있어야 잡힌다.
+    name: 'M13 「건축물 위치」 우선순위를 뒤집는다(약도가 표지 사진을 이긴다)',
+    file: KINDS,
+    from: "export const LOCATION_BOX_KINDS = ['cover', 'map'] as const",
+    to: "export const LOCATION_BOX_KINDS = ['map', 'cover'] as const",
+    expect: '표지 건물 사진 → 1.3',
+  },
+  {
+    name: 'M14 폴백을 없앤다(표지 사진이 없으면 상자가 백지가 된다)',
+    file: KINDS,
+    from: '  return kinds.find(k => has(k)) ?? null',
+    to: '  return has(kinds[0]) ? kinds[0] : null',
+    expect: '표지 사진이 없으면 위치도가 그 상자를 채운다',
+  },
+  {
+    // 🚨 이 저장소의 단골 결함 — 한 표면만 고치고 다른 표면은 옛 그림을 계속 인쇄한다.
+    //    엑셀 축 106건은 전부 초록인 채로 지나간다.
+    name: 'M16 PDF만 옛 배선으로 되돌린다(엑셀은 표지 사진, PDF는 약도)',
+    file: TMPL,
+    from: "  const locationImgs = locationKind ? imgsOf(locationKind).slice(0, 1) : []",
+    to: "  const locationImgs = imgsOf('map')",
+    expect: 'PDF 1.3에 표지 건물 사진이 인쇄된다',
+  },
+  {
+    name: 'M15 우선순위에 밀린 그림을 조용히 버린다(고지 없음)',
+    file: LIB,
+    from: '      notes.push(`${imageKindLabel(kind)} ${list.length - n}장 미표기 — 그 상자의 우선순위는 ${imageKindLabel(winner)}입니다(PDF도 같습니다)`)',
+    to: '      void winner',
+    expect: '밀린 위치도가 고지된다',
   },
   {
     name: 'M5 미디어 확장자를 .jpg로 쓴다(파일은 열리는데 그림만 안 보인다)',
@@ -91,15 +125,15 @@ const MUTANTS = [
   {
     name: 'M9 넘친 장수를 조용히 버린다',
     file: LIB,
-    from: "    if (have > slots) notes.push(`${kind} 이미지 ${have - slots}장 미표기(양식 상자 ${slots}칸)`)",
-    to: '    void have; void slots',
+    from: '      notes.push(`${imageKindLabel(kind)} ${list.length - n}장 미표기(양식 상자 ${slots}칸)`)',
+    to: '      void slots',
     expect: '넘침 고지',
   },
   {
-    name: 'M10 상자 없는 종류(표지 사진)를 조용히 버린다',
+    name: 'M10 상자 없는 종류(건물 전경)를 조용히 버린다',
     file: LIB,
-    from: "    notes.push(`${kind} 이미지 ${list.length}장은 엑셀 서식에 상자가 없어 미표기(PDF에는 인쇄됩니다)`)",
-    to: '    void list',
+    from: '      notes.push(`${imageKindLabel(kind)} ${list.length}장은 엑셀 서식에 상자가 없어 미표기(PDF에는 인쇄됩니다)`)',
+    to: '      void list',
     expect: '상자 없음',
   },
   {

@@ -610,9 +610,12 @@ export function PlanForm13({
         {assetsSlot}
         {loc.mapImage && (
           <p className="text-form-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1">
+            {/* 2026-09-14 — 서식 1.3 「건축물 위치」 칸의 임자가 **표지 건물 사진**으로 바뀌었다.
+                위치도는 표지가 없을 때만 쓰이므로, '인쇄됩니다'라고만 적어 두면 거짓이 된다. */}
             이 서식에 저장된 옛 위치도가 있습니다 — {hasMapAsset
-              ? '문서에는 위 [지도·사진]의 위치도만 인쇄됩니다(중복 방지).'
-              : '위 [지도·사진]이 비어 있어 문서에는 이 이미지가 인쇄됩니다.'}
+              ? '위 [지도·사진]의 위치도가 이 이미지보다 우선입니다(중복 방지).'
+              : '위 [지도·사진]이 비어 있어 위치도 자리에는 이 이미지가 쓰입니다.'}
+            {' '}서식 1.3 「건축물 위치」 칸은 <strong>표지 건물 사진</strong>이 우선이라, 위치도는 표지가 없을 때만 인쇄됩니다.
             {canManage && (
               <button type="button" onClick={removeLegacyMap} data-testid="form13-remove-legacy-map"
                 className="ml-1 underline hover:text-red-600">삭제</button>

@@ -16,6 +16,7 @@
 import type { Anchor } from '@/lib/xlsx-anchors'
 import { labelAt, labelBlockRows, sheetManifest, tokenRowBudget } from '@/lib/fire-plan-xlsx-manifest'
 import { ALL_STANDARD_CODES } from '@/lib/facility-codes'
+import { LOCATION_BOX_KINDS } from '@/lib/fire-plan-image-kinds'
 
 /* ────────────────────────── 시트명 (manifest 키) ────────────────────────── */
 
@@ -434,8 +435,10 @@ export const FIRE_PLAN_ANCHORS: Anchor[] = assemble([...FIXED_SEEDS, ...ZONE_SEE
 
 /** 상자 하나 — 어떤 그림(kind)의 몇 번째 장이 어디에 앉는가 */
 export type FirePlanImageBox = Seed & {
-  /** `assembleFirePlan()`이 붙이는 이미지 종류 */
-  kind: 'map' | 'route' | 'entry' | 'evacmap'
+  /** `assembleFirePlan()`이 붙이는 이미지 종류 — **우선순위 순서**다.
+   *  앞의 것이 있으면 뒤의 것은 이 상자에 못 앉고 **고지로 나간다**(조용히 버리지 않는다).
+   *  대부분 한 종류뿐이고, 두 개인 곳은 1.3 「건축물 위치」뿐이다(표지 사진 > 위치도 약도). */
+  kinds: readonly ('cover' | 'map' | 'route' | 'entry' | 'evacmap')[]
   /** 같은 kind가 여러 장일 때 몇 번째를 이 상자에 넣는가(0부터) */
   index: number
   /** 그림이 앉으면 **그 칸의 글자를 비운다** — `[해당 층 평면도]` 같은 '여기 붙이시오' 안내다.
@@ -445,11 +448,13 @@ export type FirePlanImageBox = Seed & {
 }
 
 export const FIRE_PLAN_IMAGE_BOXES: FirePlanImageBox[] = [
-  { field: 'img_location_map', kind: 'map',   index: 0, sheet: FP_SHEET.F1_3_LOC,   cell: 'A3', labelCell: 'A2' },
-  { field: 'img_route',        kind: 'route', index: 0, sheet: FP_SHEET.F1_3_ROUTE, cell: 'A2', labelCell: 'A1' },
-  { field: 'img_entry',        kind: 'entry', index: 0, sheet: FP_SHEET.F1_3_ROUTE, cell: 'A4', labelCell: 'A3' },
-  { field: 'img_evacmap_1', kind: 'evacmap', index: 0, sheet: FP_SHEET.F1_5_2, cell: 'A4', labelCell: 'A1', clearPlaceholder: true },
-  { field: 'img_evacmap_2', kind: 'evacmap', index: 1, sheet: FP_SHEET.F1_5_2, cell: 'A6', labelCell: 'A1', clearPlaceholder: true },
+  /* 「건축물 위치」 칸은 **표지 건물 사진**이다(위치도 약도가 아니다) — 우선순위는 PDF와 공유하는
+     `LOCATION_BOX_KINDS`가 정한다. 여기에 배열을 베껴 적으면 두 표면이 갈라진다. */
+  { field: 'img_location_map', kinds: LOCATION_BOX_KINDS, index: 0, sheet: FP_SHEET.F1_3_LOC,   cell: 'A3', labelCell: 'A2' },
+  { field: 'img_route',        kinds: ['route'], index: 0, sheet: FP_SHEET.F1_3_ROUTE, cell: 'A2', labelCell: 'A1' },
+  { field: 'img_entry',        kinds: ['entry'], index: 0, sheet: FP_SHEET.F1_3_ROUTE, cell: 'A4', labelCell: 'A3' },
+  { field: 'img_evacmap_1', kinds: ['evacmap'], index: 0, sheet: FP_SHEET.F1_5_2, cell: 'A4', labelCell: 'A1', clearPlaceholder: true },
+  { field: 'img_evacmap_2', kinds: ['evacmap'], index: 1, sheet: FP_SHEET.F1_5_2, cell: 'A6', labelCell: 'A1', clearPlaceholder: true },
 ]
 
 /** 사진 상자의 라벨 검증용 앵커 — 라우트가 `validateAnchors(bytes, FIRE_PLAN_IMAGE_ANCHORS)`로 쓴다 */

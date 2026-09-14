@@ -8,13 +8,14 @@ import sharp from 'sharp'
 import { escXml, sheetFileMap } from '@/lib/xlsx-inject'
 import type { Anchor } from '@/lib/xlsx-anchors'
 import { FIRE_PLAN_IMAGE_BOXES, imageBoxDescr } from '@/lib/fire-plan-anchors'
+import { imageKindLabel, pickFirstKind } from '@/lib/fire-plan-image-kinds'
 
 /** 소방계획서 엑셀 — **기존 시트의 빈 상자에 사진·도면을 앉힌다** (2026-09-14)
  *
  *  여태 소방계획서 엑셀은 그림을 **한 장도** 싣지 않았다. 라우트가 `assembleFirePlan()`의
  *  `images`·`assets`를 받지도 않았고(xlsx/route.ts는 `{ data, missing }`만 구조분해했다),
  *  주입 파이프라인(`xlsx-inject`)에는 media·drawing을 다루는 코드가 0줄이었다. 그래서
- *  법정 서식이 사진을 붙이라고 비워 둔 상자(1.3 위치도·진입경로도·1.5.2 평면도)가
+ *  법정 서식이 사진을 붙이라고 비워 둔 상자(1.3 건축물 위치·진입경로도·1.5.2 평면도)가
  *  **고객이 사진을 올렸든 말든 늘 백지로** 나갔다 — PDF에는 같은 그림이 인쇄되고 있었으므로
  *  두 표면이 갈라진 자리다(D-7).
  *
@@ -228,8 +229,11 @@ export type ImagePlan = {
  * 좌표는 `validateAnchors`가 돌려준 것(= 라벨 대조·자가치유를 통과한 것)만 받는다.
  * 상자보다 그림이 많으면 **버렸다는 사실을 고지에 싣는다** — 조용한 절단도 조용한 누락이다.
  *
- * ⚠ 상자가 아예 없는 종류(표지 건물 사진·피난경로도)는 여기서 **소리 내어 건너뛴다**.
+ * ⚠ 상자가 아예 없는 종류(피난경로도 등)는 여기서 **소리 내어 건너뛴다**.
  *   법정 엑셀 서식에 그 칸이 없는 것이지 우리가 잃은 게 아니고, PDF에는 그대로 인쇄된다.
+ *
+ * ⚠ 한 상자가 **여러 종류를 우선순위로** 받을 수 있다(1.3 「건축물 위치」 = 표지 사진 > 위치도).
+ *   밀린 쪽도 조용히 사라지지 않는다 — 「그 상자는 …이 우선입니다」로 고지에 싣는다.
  */
 export function planFirePlanImages(
   images: Array<{ file: string; kind: string; caption: string }>,
@@ -249,10 +253,16 @@ export function planFirePlanImages(
     byKind.set(im.kind, arr)
   }
 
-  const boxedKinds = new Set(FIRE_PLAN_IMAGE_BOXES.map(b => b.kind as string))
+  const boxedKinds = new Set(FIRE_PLAN_IMAGE_BOXES.flatMap(b => b.kinds as readonly string[]))
+  /** 실제로 상자를 얻은 장수 — 넘침 판정의 분모다(상자 **수**가 아니다: 바이트가 깨지면 못 앉는다) */
+  const placed = new Map<string, number>()
+  /** 우선순위에 밀려 상자를 못 얻은 종류 → 그 상자를 가져간 종류 */
+  const preemptedBy = new Map<string, string>()
   for (const b of FIRE_PLAN_IMAGE_BOXES) {
-    const im = byKind.get(b.kind)?.[b.index]
-    if (!im) continue
+    // 상자가 받는 종류 중 **그림이 실제로 있는 첫째**. 규칙은 PDF와 공유한다(`pickFirstKind`).
+    const kind = pickFirstKind(b.kinds, k => !!byKind.get(k)?.[b.index])
+    if (!kind) continue
+    const im = byKind.get(kind)![b.index]
     const data = byName.get(im.file)
     // 🚨 `images[i].file`은 `assets[i].name`과 짝이다(collectImages가 한 번에 만든다).
     //   짝이 깨졌다면 조립이 어긋난 것이라 조용히 넘기지 않는다.
@@ -261,18 +271,31 @@ export function planFirePlanImages(
     if (!a) throw new Error(`fire-plan-xlsx-images: 상자 '${b.field}' 의 검증된 좌표가 없다`)
     targets.push({ sheet: a.sheet, cell: a.cell, data, descr: im.caption?.trim() || imageBoxDescr(b) })
     if (b.clearPlaceholder) blankCells.push({ sheet: a.sheet, cell: a.cell })
+    placed.set(kind, (placed.get(kind) ?? 0) + 1)
+    // 뒤로 밀린 종류를 여기서 기억해 둔다 — 아래에서 **고지**로 낸다(이 갈래가 없으면
+    // 표지 사진이 있는 고객의 위치도가 아무 말 없이 사라진다)
+    for (const lost of b.kinds.slice(b.kinds.indexOf(kind) + 1)) {
+      if (byKind.has(lost)) preemptedBy.set(lost, kind)
+    }
   }
 
-  // 넘친 장수 — 상자가 있는 종류에서만 셀 수 있다
-  for (const kind of boxedKinds) {
-    const have = byKind.get(kind)?.length ?? 0
-    const slots = FIRE_PLAN_IMAGE_BOXES.filter(b => b.kind === kind).length
-    if (have > slots) notes.push(`${kind} 이미지 ${have - slots}장 미표기(양식 상자 ${slots}칸)`)
-  }
-  // 상자가 없는 종류 — 엑셀엔 칸이 없고 PDF에는 인쇄된다
+  // 인쇄되지 못한 장수 — 사유를 갈라 적는다(셋 다 '미표기'지만 사람이 할 일이 다르다)
   for (const [kind, list] of byKind) {
-    if (boxedKinds.has(kind)) continue
-    notes.push(`${kind} 이미지 ${list.length}장은 엑셀 서식에 상자가 없어 미표기(PDF에는 인쇄됩니다)`)
+    const n = placed.get(kind) ?? 0
+    if (list.length <= n) continue
+    const winner = preemptedBy.get(kind)
+    if (winner) {
+      // ① 상자는 있는데 우선순위에 밀렸다 — PDF도 같은 규칙이라 그쪽에도 안 나간다
+      // ⚠ 조사를 붙이지 않는다 — 이름이 무엇으로 바뀌어도(받침 유무) 문장이 성립해야 한다
+      notes.push(`${imageKindLabel(kind)} ${list.length - n}장 미표기 — 그 상자의 우선순위는 ${imageKindLabel(winner)}입니다(PDF도 같습니다)`)
+    } else if (boxedKinds.has(kind)) {
+      // ② 상자보다 그림이 많다
+      const slots = FIRE_PLAN_IMAGE_BOXES.filter(b => (b.kinds as readonly string[]).includes(kind)).length
+      notes.push(`${imageKindLabel(kind)} ${list.length - n}장 미표기(양식 상자 ${slots}칸)`)
+    } else {
+      // ③ 엑셀 서식에 그 칸 자체가 없다
+      notes.push(`${imageKindLabel(kind)} ${list.length}장은 엑셀 서식에 상자가 없어 미표기(PDF에는 인쇄됩니다)`)
+    }
   }
 
   return { targets, blankCells, notes }
