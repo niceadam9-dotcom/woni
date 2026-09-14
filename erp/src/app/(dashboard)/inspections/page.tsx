@@ -10,7 +10,14 @@ import type { InspectionStatus, InspectionType, PlanType, UserRole } from '@/typ
 import { inspectionNatureBadge } from '@/lib/inspection-nature'
 import { isSelfInspection, visibleStepNums } from '@/lib/inspection-step-status'
 import { fetchAllRows, fetchAllRowsByIds } from '@/lib/supabase/paginate'
-import { todayKst } from '@/lib/kst-date'
+import { todayKst, daysBetween } from '@/lib/kst-date'
+import { can } from '@/lib/permissions'
+import { PendingPlanStartList, type PendingPlanRow } from '@/components/inspections/pending-plan-start-list'
+
+/** 「시작 대기」 칸에 세우는 임박 기준 — 예정일 N일 전부터.
+ *  ⚠ 이 숫자는 화면에도 그대로 적는다(PendingPlanStartList) — 규칙이 안 보이면 사용자는
+ *    무엇이 왜 떴는지, 그리고 **안 뜬 것이 왜 안 떴는지**를 알 수 없다. */
+const PENDING_WINDOW_DAYS = 14
 
 const STATUS_LABELS: Record<InspectionStatus, string> = {
   scheduled: '예정',
@@ -135,6 +142,77 @@ export default async function InspectionsPage({
   const allProfiles = (profilesRes.data ?? []) as Array<{ id: string; name: string; position: string | null; is_active: boolean }>
   const employees = allProfiles.filter(e => e.is_active)
   const empMap = new Map(allProfiles.map(e => [e.id, e]))
+
+  // ── 「시작 대기」 — 예정일이 임박했지만 아직 시작되지 않은 계획 항목 ──────────────────
+  //
+  // 이 화면이 읽는 `inspections`는 **시작된 점검**뿐이라, 계획만 있고 아직 시작 안 한 건은
+  // 어디에도 안 떴다(2026-09-14 실측: 지평리56은 계획 17건 전부 미시작이라 목록에 없었다).
+  // 자동 시작 크론은 캐치업 창이 3일이고 미배정을 건너뛰므로, 그 창을 놓친 건은 **영원히**
+  // 아무 화면에도 안 나온다.
+  //
+  // 🚨 여기서 DB를 미리 바꾸지 않는다 — 표시만 한다. 「고객등록 즉시 점검업무 등록」안을 접은
+  //    이유가 이것이다(계획 5,205건이 completed로 뒤집히고 점검일자가 등록일로 박힌다).
+  //
+  // ⚠ 하한을 두지 않는다 — 예정일이 지난 건은 계속 세운다. 그게 이 칸의 존재 이유다(방치분).
+  //   다만 **조용한 절단 금지** 규약대로, 표시 상한을 넘으면 전체 건수를 화면에 함께 적는다.
+  // 🚨 **기본은 나열하지 않는다**(2026-09-14 사용자 결정). 전건을 펼치면 스테이징 기준 295건이
+  //    쏟아져 「지금 할 일」 화면이 도리어 안 보인다. 평소에는 건수만 한 줄로 알리고,
+  //    **고객명을 검색했을 때만** 그 고객의 대기 건을 편다 — 찾으러 온 사람에게만 답한다.
+  const pendingWindowEnd = todayKst(Date.now() + PENDING_WINDOW_DAYS * 86400000)
+  const PENDING_SHOW_MAX = 50
+  /** 대기 항목 조회 — 건수·행이 같은 규칙을 보도록 한 곳에서 만든다. */
+  function buildPendingQuery() {
+    let qy = admin.from('inspection_plan_items').select(
+      `id, customer_id, inspection_type, plan_type, scheduled_date, assigned_employee_id,
+       customers:customer_id!inner (id, customer_name, is_active)`,
+      { count: 'exact' },
+    )
+      .is('inspection_id', null)
+      .eq('status', 'confirmed')
+      .lte('scheduled_date', pendingWindowEnd)
+      .eq('customers.is_active', true)
+      // 정기(monthly)는 제외한다 — 정기의 창구는 점검 달력·고객 상세 회차 카드이고,
+      // 「시작 대기」는 사람이 [시작]을 눌러야 움직이는 자체점검을 세우는 칸이다.
+      // ⚠ `.neq()`만 걸면 안 된다 — PostgREST에서 NULL은 neq에 매치되지 않아 plan_type이
+      //   null인 자체점검 구건이 **함께 사라진다**. null 허용을 or로 명시한다.
+      .or('plan_type.is.null,plan_type.neq.monthly')
+    if (custIdFilter) qy = qy.in('customer_id', custIdFilter) as typeof qy
+    if (employeeFilter) qy = qy.eq('assigned_employee_id', employeeFilter) as typeof qy
+    // 연도 필터는 점검의 `year`가 아니라 **예정일의 연도**로 건다(계획엔 year 컬럼이 없다)
+    if (yearFilter && Number.isInteger(yearNum)) {
+      qy = qy.gte('scheduled_date', `${yearNum}-01-01`).lte('scheduled_date', `${yearNum}-12-31`) as typeof qy
+    }
+    return qy
+  }
+
+  // 고객명 검색이 없으면 **조회조차 하지 않는다** — 화면에 안 쓸 값을 세느라 왕복을 늘리지 않는다.
+  // (종전 「시작 대기 295건」 상시 요약은 전사 누적치라 혼동을 줘 폐지했다.)
+  const pendingRes = q
+    ? await buildPendingQuery().order('scheduled_date', { ascending: true }).limit(PENDING_SHOW_MAX)
+    : null
+  const pendingTotal = pendingRes?.count ?? 0
+  const pendingData = pendingRes?.data ?? []
+
+  type PendingItemRow = {
+    id: string; customer_id: string; inspection_type: InspectionType
+    plan_type: PlanType | null; scheduled_date: string; assigned_employee_id: string | null
+    customers: { id: string; customer_name: string; is_active: boolean } | null
+  }
+  const pendingRows: PendingPlanRow[] = ((pendingData ?? []) as unknown as PendingItemRow[]).map(it => {
+    const nb = inspectionNatureBadge(it.inspection_type, it.plan_type)
+    const emp = it.assigned_employee_id ? empMap.get(it.assigned_employee_id) : undefined
+    return {
+      planItemId: it.id,
+      customerId: it.customer_id,
+      customerName: it.customers?.customer_name ?? '—',
+      scheduledDate: it.scheduled_date,
+      dday: daysBetween(today, it.scheduled_date),
+      badgeLabel: nb.label,
+      badgeClass: nb.className,
+      employeeLabel: emp ? `${emp.name}${emp.position ? ` (${emp.position})` : ''}` : null,
+    }
+  })
+  const canStartPending = can(profile.role as UserRole, 'inspection_plan_manage')
 
   // 단계 진행률 및 마감임박 정보 로드
   //
@@ -296,6 +374,23 @@ export default async function InspectionsPage({
         <div className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
           목록을 끝까지 불러오지 못했습니다 — 아래 {inspections.length}건은 <b>전체가 아닙니다</b>.
           연도·상태·담당으로 범위를 좁히거나 페이지 보기(25·50·100건)로 조회해 주세요.
+        </div>
+      )}
+
+      {/* 시작 대기 — 아직 `inspections`가 없는 계획 항목. 아래 목록과 **모집단이 다르므로**
+          같은 표에 섞지 않는다(페이징 count가 두 집합의 합이 되어 어긋난다). */}
+      <PendingPlanStartList
+        rows={pendingRows}
+        total={pendingTotal}
+        windowDays={PENDING_WINDOW_DAYS}
+        canStart={canStartPending}
+        searchQuery={q}
+        mainListEmpty={inspections.length === 0}
+      />
+      {/* 검색 결과가 상한에 걸린 경우에만 — 검색 전에는 애초에 행을 펴지 않는다 */}
+      {q && pendingTotal > pendingRows.length && (
+        <div className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+          「{q}」의 시작 대기가 <b>{pendingTotal}건</b>인데 예정일이 급한 {pendingRows.length}건만 표시했습니다.
         </div>
       )}
 
