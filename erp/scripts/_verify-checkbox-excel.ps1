@@ -7,8 +7,13 @@
 # The ruler for position is Excel's own Range.Left/Top, not our formula. If the generator's
 # geometry were wrong we would be comparing a bent ruler against itself.
 #
+# 2026-09-14 SCOPE CHANGE: controls now span the WHOLE workbook (582 across 28 sheets), not
+# just sheet '1.4'. The old contract "no stray controls on the other 49 sheets" is REPLACED by
+# the pair below -- present on every eligible sheet / absent on every other. Deleting it instead
+# of replacing it would leave "where should they be?" unasked, and a half-done rollout green.
+#
 # NOTE: keep all string literals ASCII -- PS 5.1 reads BOM-less UTF-8 .ps1 as cp949.
-# Sheet '1.4' is workbook order 7 (0-based) = Worksheets.Item(8).
+# Sheet names are read from the JSON (UTF8) instead, and matched by name -- never assumed by index.
 param([string]$File = (Join-Path $env:TEMP 'fireplan-prod.xlsx'))
 $ErrorActionPreference = 'Stop'
 $expect = Get-Content ($File + '.expect.json') -Raw -Encoding UTF8 | ConvertFrom-Json
@@ -25,43 +30,77 @@ $xl.Visible = $false
 $xl.DisplayAlerts = $false
 try {
   $wb = $xl.Workbooks.Open($File)
-  Check "50 worksheets survive" ($wb.Worksheets.Count -eq 50) "got $($wb.Worksheets.Count)"
-  $ws = $wb.Worksheets.Item(8)
-  $cbs = $ws.CheckBoxes()
-  Check "Excel parsed all controls (a repair would drop them)" ($cbs.Count -eq $expect.Count) "got $($cbs.Count), want $($expect.Count)"
+  Check "all worksheets survive" ($wb.Worksheets.Count -eq $expect.sheetCount) "got $($wb.Worksheets.Count), want $($expect.sheetCount)"
 
-  $other = 0
-  for ($i = 1; $i -le $wb.Worksheets.Count; $i++) { if ($i -ne 8) { $other += $wb.Worksheets.Item($i).CheckBoxes().Count } }
-  Check "no stray controls on the other 49 sheets" ($other -eq 0) "got $other"
+  # ---- total across the workbook. A repair drops controls silently, so a POSITIVE total is the signal.
+  $grand = 0
+  for ($i = 1; $i -le $wb.Worksheets.Count; $i++) { $grand += $wb.Worksheets.Item($i).CheckBoxes().Count }
+  Check "Excel parsed every control (a repair would drop them)" ($grand -eq $expect.total) "got $grand, want $($expect.total)"
 
-  if ($cbs.Count -eq $expect.Count) {
-    $badCell = @(); $badState = @(); $badText = @()
-    for ($i = 1; $i -le $cbs.Count; $i++) {
-      $cb = $cbs.Item($i); $e = $expect[$i - 1]; $rg = $ws.Range($e.ref)
-      if ([Math]::Abs($cb.Left - $rg.Left) -gt 1.0 -or [Math]::Abs($cb.Top - $rg.Top) -gt 1.0) {
-        $badCell += ("{0} ctrl=({1},{2}) cell=({3},{4})" -f $e.ref, $cb.Left, $cb.Top, $rg.Left, $rg.Top)
+  # ---- name-indexed expectation. Index is asserted, not assumed.
+  $wantBySheet = @{}
+  foreach ($s in $expect.sheets) {
+    $ws = $wb.Worksheets.Item($s.index)
+    if ($ws.Name -ne $s.name) { Check ("sheet index {0} is the expected sheet" -f $s.index) $false ("got '" + $ws.Name + "'") }
+    $wantBySheet[$ws.Name] = $s
+  }
+
+  # ---- REPLACES "only sheet 8 has controls": present where eligible / absent where not.
+  $missingSheets = @(); $straySheets = @(); $countOff = @()
+  for ($i = 1; $i -le $wb.Worksheets.Count; $i++) {
+    $ws = $wb.Worksheets.Item($i)
+    $n = $ws.CheckBoxes().Count
+    if ($wantBySheet.ContainsKey($ws.Name)) {
+      $w = $wantBySheet[$ws.Name].cells.Count
+      if ($n -eq 0) { $missingSheets += $ws.Name }
+      elseif ($n -ne $w) { $countOff += ("{0} got={1} want={2}" -f $ws.Name, $n, $w) }
+    } elseif ($n -ne 0) { $straySheets += ("{0}={1}" -f $ws.Name, $n) }
+  }
+  Check "every eligible sheet has its controls (positive)" ($missingSheets.Count -eq 0) ($missingSheets -join ' | ')
+  Check "per-sheet counts match exactly" ($countOff.Count -eq 0) ($countOff -join ' | ')
+  Check "no controls on sheets that have none eligible (negative pair)" ($straySheets.Count -eq 0) ($straySheets -join ' | ')
+
+  # ---- geometry / state / wording, across ALL sheets. Excel's own Range is the ruler.
+  if ($grand -eq $expect.total) {
+    $badCell = @(); $badState = @(); $badText = @(); $checkedSeen = 0
+    foreach ($s in $expect.sheets) {
+      $ws = $wb.Worksheets.Item($s.index)
+      $cbs = $ws.CheckBoxes()
+      for ($i = 1; $i -le $cbs.Count; $i++) {
+        $cb = $cbs.Item($i); $e = $s.cells[$i - 1]; $rg = $ws.Range($e.ref)
+        if ([Math]::Abs($cb.Left - $rg.Left) -gt 1.0 -or [Math]::Abs($cb.Top - $rg.Top) -gt 1.0) {
+          $badCell += ("{0}!{1} ctrl=({2},{3}) cell=({4},{5})" -f $s.name, $e.ref, $cb.Left, $cb.Top, $rg.Left, $rg.Top)
+        }
+        if (($cb.Value -eq 1) -ne [bool]$e.checked) { $badState += ("{0}!{1} got={2} want={3}" -f $s.name, $e.ref, $cb.Value, $e.checked) }
+        if ($cb.Value -eq 1) { $checkedSeen++ }
+        $v = [string]$rg.Value2
+        # NOTE: box glyphs MUST be built from code points. A literal U+25A1 etc. in a PS string
+        # gets mangled to cp949 garbage and the regex dies with "Unterminated [] set".
+        if ($v.IndexOfAny($BOX_GLYPHS) -ge 0) { $badText += ("{0}!{1} still has a box glyph" -f $s.name, $e.ref) }
+        elseif ($e.label.Length -gt 0 -and -not $v.Contains($e.label)) { $badText += ("{0}!{1} lost wording: '{2}'" -f $s.name, $e.ref, $v) }
       }
-      if (($cb.Value -eq 1) -ne [bool]$e.checked) { $badState += ("{0} got={1} want={2}" -f $e.ref, $cb.Value, $e.checked) }
-      $v = [string]$rg.Value2
-      # NOTE: box glyphs MUST be built from code points. A literal U+25A1 etc. in a PS string
-      # gets mangled to cp949 garbage and the regex dies with "Unterminated [] set".
-      if ($v.IndexOfAny($BOX_GLYPHS) -ge 0) { $badText += ("{0} still has a box glyph" -f $e.ref) }
-      elseif (-not $v.Contains($e.label)) { $badText += ("{0} lost wording: '{1}'" -f $e.ref, $v) }
     }
-    Check "each control sits on its own cell's top-left (<=1pt, Excel is the ruler)" ($badCell.Count -eq 0) ($badCell -join ' | ')
-    Check "checked states pair 1:1 with the injected data" ($badState.Count -eq 0) ($badState -join ' | ')
-    Check "box glyph gone, legal wording intact" ($badText.Count -eq 0) ($badText -join ' | ')
+    Check "each control sits on its own cell's top-left (<=1pt, Excel is the ruler)" ($badCell.Count -eq 0) (($badCell | Select-Object -First 6) -join ' | ')
+    Check "checked states pair 1:1 with the injected data" ($badState.Count -eq 0) (($badState | Select-Object -First 6) -join ' | ')
+    Check "box glyph gone, legal wording intact" ($badText.Count -eq 0) (($badText | Select-Object -First 6) -join ' | ')
+    # empty positive control: if nothing was ever checked the state assertion above proves nothing
+    $wantChecked = 0
+    foreach ($s in $expect.sheets) { foreach ($c in $s.cells) { if ($c.checked) { $wantChecked++ } } }
+    Check "the checked sample was non-empty (state assertion is not vacuous)" ($wantChecked -gt 0 -and $checkedSeen -eq $wantChecked) "seen=$checkedSeen want=$wantChecked"
 
-    $c1 = $cbs.Item(1); $before = [int]$c1.Value
-    $c1.Value = if ($before -eq 1) { -4146 } else { 1 }
-    Check "controls are live (toggle changes value)" ([int]$c1.Value -ne $before) "before=$before"
-    $c1.Value = $before
+    # live toggle, on a sheet other than the original one -- proves the expansion is interactive too
+    $last = $expect.sheets[$expect.sheets.Count - 1]
+    $lc = $wb.Worksheets.Item($last.index).CheckBoxes().Item(1)
+    $before = [int]$lc.Value
+    $lc.Value = if ($before -eq 1) { -4146 } else { 1 }
+    Check ("controls are live on a newly covered sheet (toggle changes value)") ([int]$lc.Value -ne $before) "before=$before"
+    $lc.Value = $before
   }
 
   $pdf = Join-Path $env:TEMP 'fireplan-prod.pdf'
   if (Test-Path $pdf) { Remove-Item $pdf -Force }
-  $ws.ExportAsFixedFormat(0, $pdf)
-  Check "sheet prints (PDF produced)" (Test-Path $pdf) "no pdf"
+  $wb.ExportAsFixedFormat(0, $pdf)
+  Check "workbook prints (PDF produced)" (Test-Path $pdf) "no pdf"
   Write-Output ("  pdf: {0}" -f $pdf)
   $wb.Close($false)
 } finally {

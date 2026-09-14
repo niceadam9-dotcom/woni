@@ -14,8 +14,15 @@
  *    양끝 오프셋이 0이므로 **픽셀 산술이 식에서 사라진다**. 상자 수백 개가 글꼴 계산 하나
  *    때문에 한꺼번에 밀리는 사고를 구성적으로 막는 것이 이 설계의 전부다.
  *
+ *  · **가로 정렬은 규칙이 보장한다** — 적격 조건이 「상자가 문자열 맨 앞」인데, 생성기의
+ *    `classifyAlign` ②가 「체크 글리프 선두 → 좌」다. 즉 **적격이면 왼쪽 정렬**이라 컨트롤을
+ *    칸 왼쪽 끝에 앉히는 이 설계가 성립한다(582/582 `horizontal="left"` 실측 · 우연이 아니다).
+ *    🚨 그 규칙이 바뀌면 여기가 조용히 깨진다 — 검사가 두 술어의 결합을 직접 단언한다.
+ *
  *  · **세로 정렬은 공짜다** — 대상 칸이 전부 `vertical="center"`이고 컨트롤도 `TextVAlign=Center`라
- *    행 높이가 24pt든 40pt든 글자와 함께 가운데에 선다(1.4 시트 42/42 실측).
+ *    행 높이가 24pt든 40pt든 글자와 함께 가운데에 선다(**582/582 실측**, 확대 전엔 1.4 42/42).
+ *
+ *  · **컨트롤 폭 2열이 옆 칸을 안 덮는다** — 적격 칸의 병합 폭 최솟값이 **3열**이다(582칸 실측).
  *    🚨 단 **병합이 여러 행에 걸치면 끝 행까지 걸어야 한다** — 첫 행에만 걸었더니
  *      「피난기구」(J16:Q17)의 상자만 글자보다 위로 떠 보였다(렌더로 잡았다. 수치 검사는 통과했다).
  *
@@ -32,11 +39,20 @@
  */
 import JSZip from 'jszip'
 import { escXml, sheetFileMap } from '@/lib/xlsx-inject'
-import { sheetManifest } from '@/lib/fire-plan-xlsx-manifest'
+import { FIRE_PLAN_MANIFEST, sheetManifest } from '@/lib/fire-plan-xlsx-manifest'
 import { FIRE_PLAN_MARK_CHECKED_RE } from '@/lib/fire-plan-scrub'
 
-/** 컨트롤을 다는 시트. 단계적으로 넓힌다 — 늘릴 때 이 배열만 고치면 된다. */
-export const CHECKBOX_SHEETS: readonly string[] = ['1.4 소방시설 현황']
+/**
+ * 컨트롤을 다는 시트 = **워크북 전체**(2026-09-14 확대. 종전엔 `['1.4 소방시설 현황']` 하나였다).
+ *
+ * 목록을 손으로 적지 않고 manifest에서 낸다 — 서식이 시트를 하나 얻으면 그 시트의 상자도 자동으로
+ * 대상이 된다. 손목록이면 **새 시트만 조용히 빠지고** 아무도 모른다(적격 판정은 어차피
+ * `firePlanCheckboxCells`가 하므로, 상자 없는 시트는 여기 있어도 0칸으로 지나간다).
+ *
+ * 🚨 이 상수를 「일부만」으로 되돌리려거든 **왜 빼는지**를 여기 적을 것. 종전의 「단계적으로
+ *   넓힌다」는 넓히고 나면 근거가 사라지는 말이라, 남아 있으면 다음 사람이 축소를 정상으로 읽는다.
+ */
+export const CHECKBOX_SHEETS: readonly string[] = FIRE_PLAN_MANIFEST.sheets.map(s => s.name)
 
 /** 빈 상자 글자(F-6 — 원본이 두 글자를 섞어 쓴다) */
 const EMPTY_BOX_RE = /[□☐]/
@@ -157,6 +173,15 @@ export async function applyFirePlanCheckboxes(
     const rels: string[] = []
     const vmlPart = `xl/drawings/vmlDrawing${++vmlNo}.vml`
     const vmlRid = 'rIdCbVml'
+    /** 🚨 **VML shape id 블록**. `<o:idmap data="N">`은 「이 그림이 id 블록 N을 소유한다」는 선언이고,
+     *  그 블록의 shape id는 `N*1024 … N*1024+1023`이다. 파트마다 **다른 N**이어야 한다.
+     *
+     *  ⚠ 이걸 몰라 28개 파트가 전부 `data="1"`을 주장한 판을 만들었더니, 노드 검사 52/0·변이 15/15가
+     *    전부 초록인데 **실제 Excel이 컨트롤을 두 배로 셌다**(582 → 1163). 시트마다 shape id가
+     *    모호해져 `<control shapeId>`가 VML shape와 짝을 못 짓고 각각 별개 객체가 된 것이다.
+     *    한 시트만 달 때는 블록이 하나뿐이라 **존재할 수 없던 결함**이다 — 확대가 만든 결함이고,
+     *    LibreOffice도 노드도 통과시켰다. 잡은 것은 Excel COM 검증뿐이다. */
+    const idBlock = vmlNo
 
     for (const c of cells) {
       // ── 이 칸이 지금 어떤 글을 들고 있나. 자기닫힘 `<c …/>`를 함께 받지 않으면
@@ -177,7 +202,9 @@ export async function applyFirePlanCheckboxes(
 
       const blanked = text.slice(0, boxAt) + BLANK + text.slice(boxAt + 1)
       const endRow1 = merges.get(c.cell) ?? c.row0 + 1     // 병합이 없으면 자기 행 하나
-      const shapeId = 1025 + applied
+      // 이 시트(=이 VML 파트)가 소유한 블록 안에서 1부터. 블록당 1023개가 상한인데 한 시트
+      // 최대가 124칸이라 여유가 크다 — 그래도 넘으면 조용히 밀리므로 아래에서 막는다.
+      const shapeId = idBlock * 1024 + shapes.length + 1
       const propNo = ++ctrlPropNo
       const rid = `rIdCb${propNo}`
 
@@ -187,6 +214,17 @@ export async function applyFirePlanCheckboxes(
       let hPx = 0
       for (let r = c.row0 + 1; r <= endRow1; r++) hPx += rowPx.get(r) ?? defaultPx
       const hPt = (hPx * 0.75).toFixed(2)
+
+      // 🚨 아래 모서리는 **「다음 행의 꼭대기」가 아니라 「마지막 덮는 행 + 그 행 높이」**로 적는다.
+      //   같은 자리를 가리키지만 **끝 행 번호가 한 칸 작아진다**. 앞의 표기는 시트의 마지막 행에
+      //   붙은 컨트롤에서 `to row`가 dimension을 **넘어서고**, 그러면 엑셀이 그 다음 빈 행까지
+      //   인쇄 범위에 넣어 **표 아래에 점선 테두리가 띠처럼 찍힌다**(28장 중 3장: 1.11.1·1.14.1·2.5).
+      //   ⚠ 수치 검사·변이·LibreOffice는 전부 통과했고, **인쇄 렌더를 대조군과 나란히 놓았을 때만**
+      //     드러났다. 1.4 한 장만 달던 시절엔 그 시트가 넘치지 않아 존재할 수 없던 결함이다.
+      //   ⚠ 오프셋이 0이 아닌 곳은 여기 하나뿐이고, 값은 글꼴이 아니라 **행 높이 실측**이다.
+      //     틀리면 Excel COM 위치 검사(칸 좌상단 ≤1pt)가 전 워크북에서 문다.
+      const toRow0 = endRow1 - 1
+      const toRowOffPx = rowPx.get(endRow1) ?? defaultPx
 
       shapes.push(
         `<v:shape id="_x0000_s${shapeId}" type="#_x0000_t201" style='position:absolute;`
@@ -198,7 +236,7 @@ export async function applyFirePlanCheckboxes(
         + `<v:textbox style='mso-direction-alt:auto' o:singleclick="f"><div style='text-align:left'></div></v:textbox>`
         // ⚠ ClientData의 자식 **순서는 스키마 sequence다**. Excel이 저장한 순서를 그대로 따른다.
         + '<x:ClientData ObjectType="Checkbox"><x:SizeWithCells/>'
-        + `<x:Anchor>${c.col}, 0, ${c.row0}, 0, ${c.col + CTRL_COLS}, 0, ${endRow1}, 0</x:Anchor>`
+        + `<x:Anchor>${c.col}, 0, ${c.row0}, 0, ${c.col + CTRL_COLS}, 0, ${toRow0}, ${toRowOffPx}</x:Anchor>`
         + '<x:AutoFill>False</x:AutoFill><x:AutoLine>False</x:AutoLine><x:TextVAlign>Center</x:TextVAlign>'
         + (checked ? '<x:Checked>1</x:Checked>' : '')
         + '<x:NoThreeD/></x:ClientData></v:shape>')
@@ -210,8 +248,8 @@ export async function applyFirePlanCheckboxes(
         + '<anchor moveWithCells="1">'
         + `<from><xdr:col>${c.col}</xdr:col><xdr:colOff>0</xdr:colOff>`
         + `<xdr:row>${c.row0}</xdr:row><xdr:rowOff>0</xdr:rowOff></from>`
-        + `<to><xdr:col>${c.col + CTRL_COLS}</xdr:col><xdr:colOff>${0 * EMU_PER_PX}</xdr:colOff>`
-        + `<xdr:row>${endRow1}</xdr:row><xdr:rowOff>0</xdr:rowOff></to>`
+        + `<to><xdr:col>${c.col + CTRL_COLS}</xdr:col><xdr:colOff>0</xdr:colOff>`
+        + `<xdr:row>${toRow0}</xdr:row><xdr:rowOff>${toRowOffPx * EMU_PER_PX}</xdr:rowOff></to>`
         + '</anchor></controlPr></control></mc:Choice></mc:AlternateContent>')
 
       rels.push(`<Relationship Id="${rid}" Type="${REL_NS}/ctrlProp" Target="../ctrlProps/ctrlProp${propNo}.xml"/>`)
@@ -227,11 +265,14 @@ export async function applyFirePlanCheckboxes(
     }
 
     if (!shapes.length) { vmlNo--; continue }
+    // 블록 하나는 1023개까지다. 넘으면 다음 블록을 침범해 **다른 시트의 컨트롤과 섞인다** —
+    // 조용히 틀리느니 끊는다(현재 최대 시트가 124칸이라 실제로 걸릴 일은 없다).
+    if (shapes.length > 1023) throw new Error(`체크박스 ${shapes.length}개 > 블록 상한 1023 — ${sheet}`)
 
     zip.file(vmlPart,
       '<xml xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office"'
       + ' xmlns:x="urn:schemas-microsoft-com:office:excel">'
-      + '<o:shapelayout v:ext="edit"><o:idmap v:ext="edit" data="1"/></o:shapelayout>'
+      + `<o:shapelayout v:ext="edit"><o:idmap v:ext="edit" data="${idBlock}"/></o:shapelayout>`
       + VML_SHAPETYPE + shapes.join('') + '</xml>')
 
     // ── 시트 rels. 이 템플릿엔 없지만 **있으면 이어 붙인다**(사진 단계가 뒤에 또 붙인다)
