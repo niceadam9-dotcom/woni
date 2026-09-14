@@ -2,11 +2,12 @@
 
 import { useState, useTransition } from 'react'
 import { Phone, Mail, Pencil, Plus, Check, X, User, Briefcase, BookUser, Copy, Flame, MessageSquare, Crown } from 'lucide-react'
-import { upsertContactAction, getMyAddressContactsAction, setContactSmsRecipientAction, setRepRoleAction, setPrimaryContactAction } from '@/app/(dashboard)/customers/actions'
+import { upsertContactAction, getMyAddressContactsAction, setContactSmsRecipientAction, setPrimaryContactAction } from '@/app/(dashboard)/customers/actions'
 import { InspectionSmsModal } from '@/components/sms/inspection-sms-modal'
 import { DateInput } from '@/components/ui/date-input'
 import { formatPhoneKR } from '@/components/ui/fields'
 import { formatTel } from '@/lib/format-contact'
+import { useRepRole } from './rep-role-sync'
 import type { CustomerContact, ContactRole } from '@/types'
 
 const ROLES: ContactRole[] = ['대표', '직원1', '직원2']
@@ -49,9 +50,10 @@ export function EditContactsClient({ customerId, customerName = '', canSendSms =
   // 문자 수신 지정(Q-10) — 서버 왕복을 기다리지 않고 화면을 먼저 반영한다(체크 반응이 느리면 두 번 누른다)
   const [smsPick, setSmsPick] = useState<Record<string, boolean>>(
     Object.fromEntries(contacts.map(c => [c.id, c.sms_recipient === true])))
-  // 대표자 구분(A안 2026-09-03) — [소방안전관리] 구역과 같은 컬럼(rep_role), 여기는 **클릭 즉시 저장**.
-  // [저장] 버튼 의존이 '골랐는데 문서엔 소유자'(강순건물) 사고를 냈다 — 문자 받음 토글과 같은 패턴으로 간다.
-  const [rep, setRep] = useState(repRole)
+  // 대표자 구분(A안 2026-09-03) — [소방안전관리] 구역과 같은 컬럼(rep_role), **클릭 즉시 저장**.
+  // ⚠ 2026-09-14: 여기서 자기 state를 들고 있으면 아래 [소방안전관리] 패널과 값이 갈린다
+  //   (거기서 저장하면 낡은 값이 여기서 고른 값을 덮어썼다). 이제 값은 RepRoleProvider 하나에만 산다.
+  const { repRole: rep, pick: pickRepRole, pending: repPending, error: repError } = useRepRole()
 
   const pickedCount = Object.values(smsPick).filter(Boolean).length
 
@@ -61,16 +63,6 @@ export function EditContactsClient({ customerId, customerName = '', canSendSms =
     startTransition(async () => {
       const res = await setContactSmsRecipientAction(customerId, contactId, next)
       if (res.error) { setError(res.error); setSmsPick(s => ({ ...s, [contactId]: !next })) }
-    })
-  }
-
-  function pickRepRole(value: string) {
-    const prev = rep
-    const next = rep === value ? '' : value  // 같은 값 재클릭 = 해제(문서는 '소유자' 폴백)
-    setRep(next)
-    startTransition(async () => {
-      const res = await setRepRoleAction(customerId, next)
-      if (res.error) { setError(res.error); setRep(prev) }
     })
   }
 
@@ -321,7 +313,7 @@ export function EditContactsClient({ customerId, customerName = '', canSendSms =
                   <div className="flex rounded-lg border border-brand-line overflow-hidden">
                     {(['소유자', '관리자', '점유자'] as const).map(r => (
                       <button key={r} type="button"
-                        disabled={!canManage || isPending}
+                        disabled={!canManage || isPending || repPending}
                         onClick={() => pickRepRole(r)}
                         title="별지 서식 «대표자» 구분 — 누르면 바로 저장됩니다"
                         className={`px-2.5 h-form-7 text-form-xs transition-colors ${
@@ -332,6 +324,7 @@ export function EditContactsClient({ customerId, customerName = '', canSendSms =
                     ))}
                   </div>
                   {!rep && <span className="text-form-2xs text-ink-meta">미선택 — 문서에는 소유자로 표기됩니다</span>}
+                  {repError && <span className="text-form-2xs text-red-500">{repError}</span>}
                 </div>
               )}
             </div>

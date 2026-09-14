@@ -20,7 +20,6 @@ import { requirePermission } from '@/lib/auth'
  */
 
 const GRADES = ['특급', '1급', '2급', '3급']
-const REP_ROLES = ['소유자', '관리자', '점유자']
 const APPOINT_TYPES = ['소방기술자격', '소방안전관리자수첩', '업무대행감독', '겸직', '기타']
 
 export type FireSafetyManagerInput = {
@@ -31,7 +30,11 @@ export type FireSafetyManagerInput = {
   managerSelectedAt: string
   managerEduDate: string
   managerAppointType: string
-  repRole: string
+  /** ⚠ `repRole`은 **여기 없다**(2026-09-14 제거). 대표자 구분은 관계인 카드와 같은 컬럼인데
+   *  이 패널이 자기 state로 들고 있다가 [저장] 때 낡은 값으로 덮어썼다 — E2E로 재현했다
+   *  (카드에서 「관리자」 → DB 저장됨 → 패널 저장 → rep_role=null).
+   *  이제 그 값의 유일한 창구는 `setRepRoleAction`(클릭 즉시 저장)이고, 화면은 RepRoleProvider가
+   *  공유한다. **여기에 필드를 되살리면 덮어쓰기가 같이 살아난다.** */
 }
 
 export async function saveFireSafetyManagerAction(
@@ -40,7 +43,6 @@ export async function saveFireSafetyManagerAction(
   await requirePermission('customer_manage')
   const admin = createAdminClient()
 
-  if (input.repRole && !REP_ROLES.includes(input.repRole)) return { error: '대표자 구분 값을 확인해주세요.' }
   if (input.managerLicenseGrade && !GRADES.includes(input.managerLicenseGrade)) return { error: '자격구분 값을 확인해주세요.' }
   if (input.managerAppointType && !APPOINT_TYPES.includes(input.managerAppointType)) return { error: '선임 형태 값을 확인해주세요.' }
 
@@ -57,7 +59,7 @@ export async function saveFireSafetyManagerAction(
     manager_selected_at: input.managerSelectedAt || null,
     manager_edu_date: input.managerEduDate || null,
     manager_appointment_type: input.managerAppointType || null,
-    rep_role: input.repRole || null,
+    // rep_role은 **의도적으로 없다** — 위 타입 주석 참조(2026-09-14 덮어쓰기 제거).
     // 급수(building_grade)는 여기서 쓰지 않는다 — **대상물** 속성이라 계획서 1.1이 정본이다
     // (2026-09-14 사용자 확정). 양쪽이 같은 컬럼을 쓰면 나중에 마운트된 화면의 낡은 상태가
     // 상대가 방금 저장한 값을 덮어쓴다 — 선임일에서 실제로 터진 사고와 같은 구조다.

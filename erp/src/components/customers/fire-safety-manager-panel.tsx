@@ -7,6 +7,7 @@ import { Save, Loader2, ShieldCheck, ExternalLink, Phone } from 'lucide-react'
 import { DateInput } from '@/components/ui/date-input'
 import { useUnsavedWarning } from '@/components/ui/fields'
 import { formatTel } from '@/lib/format-contact'
+import { useRepRole } from './rep-role-sync'
 import { saveFireSafetyManagerAction, type FireSafetyManagerInput } from '@/app/(dashboard)/customers/fire-safety-manager-actions'
 import type { CustomerContact } from '@/types'
 
@@ -49,6 +50,11 @@ export function FireSafetyManagerPanel({ customerId, contacts, canManage, initia
     setD(p => ({ ...p, [k]: v })); setDirty(true); setMsg('')
   }
   const toggle = (k: keyof FireSafetyManagerInput, v: string) => set(k, d[k] === v ? '' : v)
+
+  // 대표자 구분은 **이 패널이 소유하지 않는다** — 관계인 카드와 같은 값이라 공유 상태에서 읽고
+  // 클릭은 그 자리에서 저장된다(2026-09-14). 종전엔 여기 낡은 값이 [저장] 때 카드에서 고른 값을
+  // 덮어썼다(E2E 재현: rep_role=null). `d`에서 뺐으므로 실을 방법 자체가 없다.
+  const { repRole, pick: pickRepRole, pending: repPending, error: repError } = useRepRole()
 
   const picked = useMemo(() => contacts.find(c => c.id === d.managerContactId) ?? null, [contacts, d.managerContactId])
 
@@ -145,10 +151,12 @@ export function FireSafetyManagerPanel({ customerId, contacts, canManage, initia
           <label className={labelCls}>대표자 구분</label>
           <div className="flex rounded-lg border border-brand-line overflow-hidden mt-0.5">
             {REP_ROLES.map(r => (
-              <button key={r} disabled={!canManage} onClick={() => toggle('repRole', r)}
-                className={segBtn(d.repRole === r)}>{r}</button>
+              <button key={r} disabled={!canManage || repPending} onClick={() => pickRepRole(r)}
+                title="관계인 카드의 [구분]과 같은 값 — 누르면 바로 저장됩니다"
+                className={segBtn(repRole === r)}>{r}</button>
             ))}
           </div>
+          {repError && <p className="text-form-2xs text-red-500 mt-0.5">{repError}</p>}
         </div>
       </div>
 

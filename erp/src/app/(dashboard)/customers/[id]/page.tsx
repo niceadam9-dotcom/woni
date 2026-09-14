@@ -8,6 +8,7 @@ import { loadFacilityFormData, type FacilityBuildingRow } from '@/lib/facility-f
 import { formatBizNo, formatTel } from '@/lib/format-contact'
 import { AssignEmployeeInline } from '@/components/customers/assign-employee-inline'
 import { EditContactsClient } from '@/components/customers/edit-contacts-client'
+import { RepRoleProvider } from '@/components/customers/rep-role-sync'
 import { FireSafetyManagerPanel } from '@/components/customers/fire-safety-manager-panel'
 import { EditInspectionTypeClient } from '@/components/customers/edit-inspection-type-client'
 import { EditCustomerInfoClient } from '@/components/customers/edit-customer-info-client'
@@ -568,6 +569,9 @@ export default async function CustomerDetailPage({
             </a>
           )}
         </div>
+        {/* 대표자 구분(rep_role)은 아래 두 블록이 **같은 값**을 만진다 — 각자 state를 들면
+            늦게 저장하는 쪽이 상대 값을 덮어쓴다(2026-09-14 E2E 재현). 하나로 묶어 준다. */}
+        <RepRoleProvider customerId={customer.id} initial={planInfoInitial.repRole}>
         <EditContactsClient
           customerId={customer.id}
           customerName={customer.customer_name}
@@ -575,7 +579,6 @@ export default async function CustomerDetailPage({
           contacts={contacts}
           canManage={canManage}
           brigadeByName={Object.fromEntries(planInfoInitial.brigade.map(m => [m.name, m.team]))}
-          repRole={planInfoInitial.repRole}
         />
         {/* 소방안전관리 (2026-08-20) — 별지 9호 2쪽 «소방안전정보» 한 블록을 여기서 다 채운다.
             종전엔 이 블록이 관계인 탭·계획서 1.1 ②·계획서 1.7 세 곳에 흩어져 320곳 중 1곳만 완성돼 있었다. */}
@@ -590,10 +593,10 @@ export default async function CustomerDetailPage({
               managerSelectedAt: planInfoInitial.managerSelectedAt,
               managerEduDate: planInfoInitial.managerEduDate,
               managerAppointType: planInfoInitial.managerAppointType,
-              repRole: planInfoInitial.repRole,
             }}
           />
         </div>
+        </RepRoleProvider>
       </div>
   )
 
