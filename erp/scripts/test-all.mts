@@ -661,6 +661,28 @@ const steps: Step[] = [
   // 그대로 발송해 '돈은 나갔는데 기록이 없는' 건이 생길 수 있었다(→ 화면은 미발송 → 재발송·이중 과금).
   // 자격증명을 넣은 상태로 시험해야 변별력이 생긴다 — 키가 없으면 어차피 안 나가기 때문
   { name: 'SMS 기록 실패 시 발송 중단(프로브)', cmd: 'npx tsx --conditions=react-server scripts/_probe-sms-claim-fail.mts' },
+  // ── 2026-09-14 네 축 계약 검사 ──────────────────────────────────────────────
+  // 전부 **계약**을 단언한다(구현을 베끼지 않는다). 판정축은 DOM 문자열이 아니라 DB와의 대조다.
+  // 🎯 이 여섯은 오늘 **실제로 재현된 결함**을 고정한다 — 되돌아가면 여기서 빨강이 된다.
+  // 🚨 계측기가 먼저 틀린 경우를 네 번 겪었고 각 스크립트 주석에 박아 두었다
+  //    (선택 판정을 bg-brand로 → hover:bg-brand-tint가 걸린다 / isVisible()은 기다리지 않는다 /
+  //     「값이 사라졌는가」 대기는 **계산 중** 상태가 만족시킨다 / 오라클이 화면과 다른 규칙이면
+  //     제품이 옳은데 검사가 빨개진다). 초록이 아니라 **왜 초록인지**를 먼저 의심할 것.
+  //
+  // 데이터 유실 축 둘 — 화면에 아무 신호가 없어 사람이 못 보던 것들이다.
+  //   · 대표자 구분: 한 컬럼을 두 화면이 각자 state로 들고 있어 뒤에 저장한 쪽이 앞선 선택을 지웠다
+  //     (카드에서 「관리자」 → DB 저장 → 패널 저장 → rep_role=null). 별지 9호엔 폴백 「소유자」가 인쇄된다.
+  //   · 사용승인일 알림: 바뀔 때만 뜨는가. 늘 뜨면 사람이 안 읽게 되어 **정작 바뀔 때의 경고까지 죽는다**.
+  { name: '대표자 구분 단일 원천(E2E)',   cmd: 'node scripts/_verify-reprole-sync.mjs',              needServer: true },
+  { name: '기산점 변경 알림 관문(E2E)',   cmd: 'node scripts/_verify-anchor-notice-when-needed.mjs', needServer: true },
+  // 등록 화면이 **입력값이 안 쓰인다는 사실**을 말하는가(요일·밀린 사유 포함), 예외 체크가 DB·실제 일정까지 가는가.
+  //   실측 근거: 법정 축 고객 162명 중 158명이 입력한 점검일자와 다른 날짜로 일정이 서 있었다.
+  { name: '등록 법정일정 미리보기(E2E)',  cmd: 'node scripts/_verify-new-schedule-preview.mjs',      needServer: true },
+  { name: '기산점 예외 저장·전파(E2E)',   cmd: 'node scripts/_verify-anchor-manual-persist.mjs',     needServer: true },
+  // 「시작 대기」 — 계획만 있고 시작 안 한 건이 어느 화면에도 없던 것. 검색 전에는 **나열하지 않는다**
+  //   (전사 누적 건수를 상시로 띄웠더니 내 담당도 오늘 할 일도 아니라 혼동을 줬다 — 사용자 지적).
+  { name: '시작 대기 표시 계약(E2E)',     cmd: 'node scripts/_verify-pending-plan-list.mjs',         needServer: true },
+  { name: '시작 대기 [시작] 동작(E2E)',   cmd: 'node scripts/_verify-pending-plan-start-click.mjs',  needServer: true },
 ]
 
 let serverUp = false
