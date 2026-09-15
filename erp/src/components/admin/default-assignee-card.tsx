@@ -37,11 +37,19 @@ export function DefaultAssigneeCard({ current, employees, targetCount }: {
 
   function apply() {
     setMsg(null)
-    if (!window.confirm(`「일반」 유형 미배정 ${targetCount}명을 기본 담당자로 채웁니다.\n이미 담당이 있는 고객은 건드리지 않습니다. 진행할까요?`)) return
+    /* ⚠ 세는 단위는 **고객**이지 직원이 아니다. 바로 옆이 「직원 한 명을 고르는」 드롭다운이라
+     *    「2명」이라고만 쓰면 직원 2명으로 읽힌다(사용자 지적 2026-09-15). 형제 화면인
+     *    지역별 담당 배정도 「대상 고객 N건」을 쓴다 — 단위를 그쪽에 맞춘다.
+     *  ⚠ 누구로 채우는지도 이름으로 말한다. 기본 담당자 이름이 「일반관리」처럼 점검유형과
+     *    같은 글자면, 이름을 안 보여 주면 무엇이 들어가는지 알 수 없다. */
+    const who = employees.find(e => e.id === current)?.name ?? '기본 담당자'
+    if (!window.confirm(
+      `「일반」 유형이면서 담당이 비어 있는 고객 ${targetCount}건을 ${who}(으)로 채웁니다.\n`
+      + `이미 담당이 있는 고객은 건드리지 않습니다. 진행할까요?`)) return
     startTransition(async () => {
       const r = await applyDefaultAssigneeAction()
       if (r.error) { setMsg({ text: r.error, ok: false }); return }
-      setMsg({ text: `${r.applied ?? 0}명에게 적용했습니다 — 화면에 「(기본)」으로 표시됩니다`, ok: true })
+      setMsg({ text: `고객 ${r.applied ?? 0}건에 적용했습니다 — 화면에 「(기본)」으로 표시됩니다`, ok: true })
       router.refresh()
     })
   }
@@ -77,7 +85,7 @@ export function DefaultAssigneeCard({ current, employees, targetCount }: {
           data-testid="default-assignee-apply"
           className="h-9 rounded-lg border border-brand-line bg-surface px-3 text-sm text-brand hover:bg-brand-tint disabled:opacity-40 disabled:cursor-not-allowed"
         >
-          미배정 {targetCount}명에 적용
+          미배정 고객 {targetCount}건에 적용
         </button>
         <span className="text-xs text-ink-meta">
           {!current ? '기본 담당자를 고르면 적용할 수 있습니다'
