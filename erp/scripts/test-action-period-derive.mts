@@ -118,6 +118,46 @@ console.log('\n── C. 서버가 그 규칙을 실제로 부르는가 (배선)
   ok(!/\.split\(['"]\s*~/.test(ACTIONS), '(음성) 구분자를 직접 쪼개지 않는다')
 }
 
+console.log('\n── C-2. 법정 기본(3순위)이 **저장 경로에 새지 않는가** (경계·양성/음성 짝) ──')
+{
+  /* 🚨 2026-09-15 확인. `loadActionPeriod`는 `resolveActionPeriod`에 3순위(법정 기본)를
+     **일부러 넘기지 않는다** — 빠뜨린 것이 아니다.
+       · 그 3순위는 「문서 인쇄 전용」이고 자기 규약에 「④ 저장하지 않는다」가 못박혀 있다.
+       · 그런데 이 함수의 값은 `action_completed_at`으로 **DB에 저장된다**(완료 체크·전건 완료).
+       · 기산일(`annexReportDateISO`)은 수기 보고일이 없으면 **오늘**로 폴백해 기간이 매일 움직인다
+         (실측: 기간 없는 회차의 reportDate가 운영 1건·스테이징 5건 모두 없음).
+       → 넘기면 **매일 달라지는 지어낸 날짜를 영구 저장**한다. 인쇄는 되돌릴 수 있고 저장은 아니다.
+     「PDF·엑셀은 인자 3개, 여긴 2개」를 불일치로 보고 배선하려는 손을 여기서 막는다.
+     ⚠ 음성만 물으면 「아무도 안 쓴다」와 구별되지 않으므로 문서 경로의 **양성 대조**를 함께 둔다. */
+  const between = (s2: string, from: string, to: string) => {
+    const a = s2.indexOf(from)
+    if (a < 0) return ''
+    const b = s2.indexOf(to, a)
+    return b < 0 ? s2.slice(a) : s2.slice(a, b)
+  }
+  const near = (s2: string, needle: string, len = 240) => {
+    const a = s2.indexOf(needle)
+    return a < 0 ? '' : s2.slice(a, a + len)
+  }
+
+  const load = between(ACTIONS, 'async function loadActionPeriod(', '\n}\n')
+  ok(load.length > 0, 'loadActionPeriod가 있다(과녁 존재 — 이름이 바뀌면 여기서 먼저 빨강)')
+  ok(load.includes('resolveActionPeriod('), '저장 경로도 기간 결정은 공용 결정자를 쓴다')
+  for (const leak of ['reportDateISO', 'hasDefect', 'legalActionRange']) {
+    ok(!load.includes(leak), `(음성) 저장 경로가 법정 기본 재료를 넘기지 않는다: ${leak}`)
+  }
+
+  const R9 = src('../src/app/(dashboard)/inspections/report9-actions.ts')
+  const WB = src('../src/app/(dashboard)/inspections/[id]/workbook/route.ts')
+  ok(near(R9, 'resolveActionPeriod(').includes('reportDateISO'),
+    '(양성) PDF 경로는 법정 기본을 넘긴다 — 문서는 공란으로 제출하지 않는다')
+  ok(near(WB, 'resolveActionPeriod(').includes('reportDateISO'),
+    '(양성) 갑지 엑셀 경로도 법정 기본을 넘긴다')
+
+  ok(/일부러 넘기지 않는다/.test(ACTIONS) && /문서 인쇄 전용/.test(ACTIONS),
+    '경계의 **이유**가 코드에 적혀 있다(다음 사람이 누락으로 읽지 않게)')
+}
+
 console.log('\n── D. ⑥ 화면이 날짜 칸을 기본으로 그리지 않는가 (배선) ──')
 {
   ok(GRID.includes('type="checkbox"'), '⑥ 기본 칸이 체크박스다')

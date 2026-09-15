@@ -38,6 +38,24 @@ async function loadActionPeriod(
       .eq('inspection_id', inspectionId),
   ])
   const defects = (data ?? []) as Array<{ action_plan: string | null; action_start: string | null; action_end: string | null }>
+  // 🚨 **3순위(법정 기본)를 일부러 넘기지 않는다** — 빠뜨린 것이 아니다(2026-09-15 확인).
+  //
+  //   그 3순위는 「문서 인쇄 전용」이다. 자기 규약에 「④ **저장하지 않는다**」고 못박혀 있는데
+  //   (annex-total-period.resolveActionPeriod 주석), 이 함수의 값은 아래 두 경로에서 **DB에 쓰인다**:
+  //     · setDefectCompletionAction → `action_completed_at`에 period.endISO를 저장
+  //     · completeAllDefectsAction  → 같은 값으로 전건 저장
+  //   게다가 그 기산일(`annexReportDateISO`)은 수기 보고일이 없으면 **오늘**로 폴백하므로,
+  //   기간이 매일 하루씩 움직인다(실측: 기간 없는 회차의 reportDate가 운영 1건·스테이징 5건 모두 없음).
+  //   넘기면 **매일 달라지는 지어낸 날짜를 영구 저장**하게 된다.
+  //
+  //   그래서 여기서 null이 나오는 것은 옳은 동작이다 — 화면은 그때
+  //   「총 이행기간이 아직 없습니다 — ④ 소방서 제출에서 먼저 정해 주세요」를 그리고,
+  //   ⑥ 완료 체크칸·[전건 완료]는 아예 뜨지 않는다(defect-grid.tsx:388). 문서만 법정 기본으로
+  //   인쇄하고 그 사실을 고지에 남긴다 — 인쇄는 되돌릴 수 있고 저장은 되돌리기 어렵다.
+  //
+  //   ⚠ 이 자리를 「PDF·엑셀은 3개, 여긴 2개」라는 이유로 배선하지 말 것. 2026-09-15에 실제로
+  //     그러려다 저장 경로를 확인하고 철회했다. 검사가 음성으로 이 경계를 지킨다
+  //     (test-action-period-derive 섹션 C).
   return resolveActionPeriod(fields, actionPlanPeriod(defects))
 }
 
