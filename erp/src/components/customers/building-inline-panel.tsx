@@ -125,6 +125,23 @@ export const BUILDING_FIELD_IDS: Record<string, string> = {
 const inputCls = 'h-form-8 w-full rounded-lg border border-brand-line bg-surface px-2 text-form-sm outline-none focus:border-brand'
 const labelCls = 'text-form-xs font-medium text-ink-sub'
 
+/** 별지 9호 2쪽에 **인쇄되는** 칸의 라벨 — 비었을 때만 빨갛게 한다 (2026-09-15 사용자 요청).
+ *
+ *  ⚠ **상시 빨강으로 두지 않는다.** 실측(스테이징 활성 311동): 건축허가일 302동·건축면적 299동·
+ *    높이 303동이 공란이고 **넷 다 채운 동은 6동(1.9%)**뿐이다. 상시 빨강이면 채운 6동에게도
+ *    빨강이고 나머지에겐 늘 빨간 화면이라 아무 정보가 되지 않는다 —
+ *    「경고가 상시화되면 진짜 위반이 그 안에 묻힌다」(test-all 머리주석과 같은 축).
+ *
+ *  ⚠ 별표(`*`)와 **뜻이 다르다**: 별표는 「필수인가」, 이 빨강은 「지금 비었는가」다. 그래서 둘을
+ *    함께 둔다 — 별표만으로는 안 채워진다는 것이 이미 실증됐다(별표가 붙은 두 칸도 97%가 공란).
+ *
+ *  ⚠ 사용승인일은 이 화면에서 **고칠 수 없다**(고객 기본정보가 원천 — 점검 기산점 축).
+ *    빨갛게만 해두면 고치려다 막히므로 갈 곳(placeholder «고객 정보에서 입력»)을 함께 남긴다. */
+const a9Label = (blank: boolean) =>
+  blank ? 'text-form-xs font-medium text-red-500' : labelCls
+/** 문자·숫자 어느 쪽으로 와도 「비었는가」를 같은 규칙으로 판정한다(0은 채워진 것이다) */
+const a9Blank = (v: unknown) => v === null || v === undefined || String(v).trim() === ''
+
 export function BuildingListPanel({ customerId, customerName, customerAddress, buildings, canManage, initialOpenId, initialNew, purposes = [], useApprovalDate = null }: {
   customerId: string
   customerName: string
@@ -729,17 +746,21 @@ export function BuildingListPanel({ customerId, customerName, customerAddress, b
             </p>
             {/* ① 허가·승인·면적·규모 — 연면적·층수는 위 기본 정보 행에서 입력 */}
             <div className="flex flex-wrap gap-2 items-end">
-              <div className="w-32"><label className={labelCls}>건축허가일<span className="text-red-500 ml-0.5">*</span></label>
+              <div className="w-32" data-a9-blank={a9Blank(form.permit_date) ? '1' : '0'}>
+                <label className={a9Label(a9Blank(form.permit_date))}>건축허가일<span className="text-red-500 ml-0.5">*</span></label>
                 <DateInput id="bf-permit-date" value={form.permit_date} onChange={e => setField('permit_date', e.target.value)} disabled={!canManage} className={inputCls} /></div>
-              <div className="w-32"><label className={labelCls}>사용승인일</label>
+              <div className="w-32" data-a9-blank={a9Blank(useApprovalDate) ? '1' : '0'}>
+                <label className={a9Label(a9Blank(useApprovalDate))}>사용승인일</label>
                 <input value={useApprovalDate ?? ''} readOnly placeholder="고객 정보에서 입력"
                   title="사용승인일은 고객 기본 정보의 값입니다 — 점검 기산점 축이라 고객 정보에서 수정합니다"
                   className={`${inputCls} bg-paper`} /></div>
               {/* 건축면적 — 표시만 필수(빨간 *), 저장은 막지 않는다(2026-09-08 사용자 확정): 대장 표제부에
                   archArea가 없는 건물이 실재해(실호출 11/14) 차단하면 그 건물은 영영 저장이 안 된다 */}
-              <div className="w-28"><label className={labelCls}>건축면적(㎡)<span className="text-red-500 ml-0.5">*</span></label>
+              <div className="w-28" data-a9-blank={a9Blank(form.building_area) ? '1' : '0'}>
+                <label className={a9Label(a9Blank(form.building_area))}>건축면적(㎡)<span className="text-red-500 ml-0.5">*</span></label>
                 <input id="bf-building-area" type="number" value={form.building_area} onChange={e => setField('building_area', e.target.value)} disabled={!canManage} className={inputCls} /></div>
-              <div className="w-20"><label className={labelCls}>높이(m)</label>
+              <div className="w-20" data-a9-blank={a9Blank(form.height) ? '1' : '0'}>
+                <label className={a9Label(a9Blank(form.height))}>높이(m)</label>
                 <input id="bf-height" type="number" value={form.height} onChange={e => setField('height', e.target.value)} disabled={!canManage} className={inputCls} /></div>
               <div className="w-24"><label className={labelCls}>세대수</label>
                 <input id="bf-households" type="number" value={form.households} onChange={e => setField('households', e.target.value)} disabled={!canManage} className={inputCls} /></div>
