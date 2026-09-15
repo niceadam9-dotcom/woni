@@ -21,6 +21,7 @@ import { sheetFileMap } from '../src/lib/xlsx-inject.ts'
 import { validateAnchors, SCRUB_NEEDLES } from '../src/lib/xlsx-anchors.ts'
 import { DONOR_GROUPS, DONOR_TOC_SHEET, DONOR_TOC_BODY_CELLS, allDonorSheets } from '../src/lib/xlsx-donors.ts'
 import { extractDonorItemMap } from '../src/lib/xlsx-donor-itemmap-extract.ts'
+import { patchDoneDateNumFmt, DONEDATE_SHEET, DONEDATE_CELLS } from '../src/lib/xlsx-donedate-numfmt.ts'
 
 const SOFFICE = 'C:\\Program Files\\LibreOffice\\program\\soffice.com'
 const DONOR_SRC = 'F:/AI/ERP/erp/전체 보고서.xls'
@@ -416,6 +417,38 @@ if (dvFixed !== DONOR_DV_FIXES.length) throw new Error(`dv 수리 ${dvFixed}/${D
 }
 
 let bytes = new Uint8Array(await outZip.generateAsync({ type: 'uint8array' }))
+
+// ── ④d 자산 수리: 완료보고서 이행조치 일자 4행의 날짜 서식 ─────────────────
+// 🚨 2026-09-15 사용자 신고 — 이행조치 일자에 `46299`(시리얼 원값)가 인쇄됐다. 원본 자산이
+//   **4행 중 I20만** 날짜 서식을 갖고 있었고(나머지 General), 주입기는 스타일을 일부러
+//   보존하므로 그 General이 그대로 적용됐다. 규칙·근거는 lib/xlsx-donedate-numfmt.ts 머리주석.
+// ⚠ 여기서 고친다 — ⑤·⑤b·⑥ 검증과 sha256 매니페스트가 **수리된 산출물**을 보게 하려면
+//   `bytes` 생성 직후여야 한다. 디스크에 쓴 뒤 고치면 매니페스트 sha가 자산과 갈라진다.
+{
+  const stylesXml = await outZip.file('xl/styles.xml')!.async('string')
+  const wbXml = await outZip.file('xl/workbook.xml')!.async('string')
+  const relsXml = await outZip.file('xl/_rels/workbook.xml.rels')!.async('string')
+  const shs = [...wbXml.matchAll(/<sheet[^>]*name="([^"]+)"[^>]*r:id="([^"]+)"/g)].map(m => ({ name: m[1], rid: m[2] }))
+  const relMap = new Map([...relsXml.matchAll(/<Relationship[^>]*Id="([^"]+)"[^>]*Target="([^"]+)"/g)].map(m => [m[1], m[2]]))
+  const sh = shs.find(s => s.name === DONEDATE_SHEET)
+  if (!sh) throw new Error(`자산 수리 실패: 시트 「${DONEDATE_SHEET}」 부재`)
+  const sheetPath = 'xl/' + relMap.get(sh.rid)!.replace(/^\/?xl\//, '')
+  const sheetXml = await outZip.file(sheetPath)!.async('string')
+  const patched = patchDoneDateNumFmt(stylesXml, sheetXml)
+  const r = patched.result
+  // 🚨 **조용한 통과 금지.** 날짜 서식 id를 못 찾으면 자산 구조가 바뀐 것이다 — 세워야 한다
+  //   (여기서 넘어가면 다시 시리얼이 인쇄되고 아무도 모른다).
+  if (r.dateFmtId == null) throw new Error(`자산 수리 실패: ${DONEDATE_SHEET} 일자 4행에 날짜 서식이 하나도 없다 — ${r.notes.join(' / ')}`)
+  if (r.changed.length + r.skipped.length !== DONEDATE_CELLS.length)
+    throw new Error(`자산 수리 실패: 일자 칸 ${DONEDATE_CELLS.length}개 중 ${r.changed.length + r.skipped.length}개만 처리 — ${r.notes.join(' / ')}`)
+  if (r.changed.length) {
+    outZip.file('xl/styles.xml', patched.stylesXml)
+    outZip.file(sheetPath, patched.sheetXml)
+    bytes = new Uint8Array(await outZip.generateAsync({ type: 'uint8array' }))
+  }
+  console.log(`   ④d 일자 서식 수리 — 변경 ${r.changed.length}칸(${r.changed.join(',') || '없음'}) · 이미 날짜 ${r.skipped.length}칸 · numFmtId=${r.dateFmtId} · cellXfs ${r.xfsBefore}→${r.xfsAfter}`)
+}
+
 
 // ── ⑤ 사후 검증 ──────────────────────────────────────────────────────
 console.log('⑤ 사후 검증')

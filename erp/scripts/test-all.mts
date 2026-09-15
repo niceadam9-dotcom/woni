@@ -690,6 +690,12 @@ const steps: Step[] = [
   //   (전사 누적 건수를 상시로 띄웠더니 내 담당도 오늘 할 일도 아니라 혼동을 줬다 — 사용자 지적).
   { name: '시작 대기 표시 계약(E2E)',     cmd: 'node scripts/_verify-pending-plan-list.mjs',         needServer: true },
   { name: '시작 대기 [시작] 동작(E2E)',   cmd: 'node scripts/_verify-pending-plan-start-click.mjs',  needServer: true },
+  // 갑지 자산 계약 — 완료보고서 「이행조치 일자」 4행의 날짜 서식(2026-09-15 사용자 신고).
+  // 🚨 값은 옳은데 **표시만** 틀렸던 부류다: 시리얼 46299가 그대로 인쇄됐다(= 2026-10-04).
+  //   원본 자산이 4행 중 I20만 날짜 서식을 갖고 있었고, 주입기는 스타일을 일부러 보존하므로
+  //   나머지 General이 그대로 적용됐다. **불량 1건일 때만 드러나** 화면으로는 못 지킨다.
+  // 🎯 B절이 계측기 자기검사다 — 판별기가 죽으면 A의 초록이 무의미해진다. 서버 불필요.
+  { name: '완료보고서 일자 서식(자산)', cmd: 'npx tsx scripts/test-donedate-numfmt.mts' },
 ]
 
 let serverUp = false
