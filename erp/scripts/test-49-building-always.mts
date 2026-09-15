@@ -94,19 +94,42 @@ check('[F1] plan-form14에 건물 부재 조기 반환 가드가 있다', /if\s*
 }
 
 // ── H. §10-2 ②③ 「건물정보」 전환 ───────────────────────────────────────────────
-// 🚨 주석 안에 **복원용 스니펫**이 있어 `건물 등록`·`Plus` 문자열이 남아 있다. 날 것 그대로
-//    grep하면 버튼이 없는데도 「있다」로 읽는다 → **주석을 걷어낸 뒤** 판정한다.
+// 🔄 **2026-09-15: ② 하나만 되돌렸다.** 사용자 요청으로 [+ 건물 등록]을 복원했다(§10-4가 예고한
+//    그 복원). ③(「건물정보」 제목)은 그대로이므로 H1·H2는 손대지 않는다 — 셋을 한꺼번에 되짚지 말 것.
+//    🚨 H3·H4는 **지우지 않고 방향만 뒤집었다.** 「없다」 단언을 삭제하면 그 자리에 계약이 비고,
+//       버튼이 다시 조용히 사라져도 스위트가 초록이 된다(45·48차 교훈).
+// 🚨 주석 제거는 그대로 유지한다. 여기 주석은 버튼의 내력을 길게 적고 있어 `건물 등록`·`Plus`·
+//    `editing !== 'new'` 문자열이 **설명하는 글**로 남아 있다 — 날 것 grep은 그걸 코드로 읽는다.
 const PANEL_RAW = read('src', 'components', 'customers', 'building-inline-panel.tsx')
 const PANEL = PANEL_RAW.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')
 check('[H0] 주석 제거가 실제로 줄였다 (계측기 자기검증)', PANEL.length < PANEL_RAW.length,
   `${PANEL_RAW.length} → ${PANEL.length}자`)
 check('[H1] 제목이 「건물정보」', /<h2[^>]*>건물정보<\/h2>/.test(PANEL))
 check('[H2] 「건물 목록」 제목이 남아 있지 않다', !/<h2[^>]*>건물 목록<\/h2>/.test(PANEL))
-check('[H3] [+ 건물 등록] 버튼 JSX가 없다 (주석 밖)', !/onClick=\{openNew\}/.test(PANEL))
-check('[H4] lucide import에 Plus가 없다',
-  !/\bPlus\b/.test(PANEL.match(/^import .*lucide-react.*$/m)?.[0] ?? ''))
-// 되살릴 길이 남아 있는가 — 「지웠다」와 「못 되살린다」는 다르다
-check('[H5] openNew는 남아 있다 (복원·딥링크 경로)', /function openNew\(\)/.test(PANEL))
+check('[H3] [+ 건물 등록] 버튼 JSX가 있다 (주석 밖)', /onClick=\{openNew\}/.test(PANEL))
+check('[H4] lucide import에 Plus가 있다',
+  /\bPlus\b/.test(PANEL.match(/^import .*lucide-react.*$/m)?.[0] ?? ''))
+check('[H5] openNew는 남아 있다 (버튼·딥링크 공용 경로)', /function openNew\(\)/.test(PANEL))
+
+// 🎯 이 차수에서 가장 중요한 단언 — 「있는가」가 아니라 **「조건에 가려 숨지 않는가」**.
+//    이 버튼은 과거 `editing !== 'new'` 조건 탓에 영원히 숨어 「규현빌라」 2중 등록 사고의
+//    배경이 됐다. 그때도 JSX는 **있었다** — 그래서 H3만으로는 그 결함을 한 번도 못 잡는다.
+//    렌더 조건만 잘라 본다(`{canManage …` 부터 `onClick={openNew}` 직전까지).
+const btnIdx = PANEL.indexOf('onClick={openNew}')
+const gateStart = btnIdx >= 0 ? PANEL.lastIndexOf('{canManage', btnIdx) : -1
+const gate = gateStart >= 0 ? PANEL.slice(gateStart, btnIdx) : ''
+check('[H6a] 렌더 조건 추출 성공 (공허 통과 차단)', gate !== '', gate.replace(/\s+/g, ' ').slice(0, 60))
+check('[H6] 🎯 버튼이 `editing !== \'new\'`로 **숨겨지지** 않는다', gate !== '' && !/editing\s*!==\s*'new'/.test(gate))
+// 숨기는 대신 비활성 — 감추면 결함 재발, 그냥 두면 입력 중인 새 동이 빈 폼으로 초기화된다
+check('[H7] 등록 폼이 열려 있을 땐 disabled로 **보이되 눌리지 않는다**',
+  /disabled=\{editing === 'new'\}/.test(PANEL))
+
+// H6이 실제로 무는지 — 자기 점검(G1과 같은 장치). 통과해 버리면 단언이 헐렁하다.
+{
+  const mutated = gate.replace('{canManage', "{canManage && editing !== 'new'")
+  const caught = /editing\s*!==\s*'new'/.test(mutated)
+  check('[H8] 변이(조건 숨김 되살리기)를 H6이 잡는다', caught, caught ? '빨강으로 전환됨' : '🚨 변이 생존')
+}
 
 // ── I. 순수 함수를 **실제로 호출**한다 — 정규식이 아니라 동작을 문다 ───────────
 const { shouldHideBuildingTable, initialBuildingPanelTarget } =
@@ -116,9 +139,10 @@ const { primaryBuilding } = await import('../src/lib/primary-building.ts')
 const one = [{ id: 'b1' }]
 const two = [{ id: 'b1' }, { id: 'b2' }]
 check('[I1] 1동 + 그 동 펼침 → 표 감춤', shouldHideBuildingTable({ buildings: one, editing: 'b1' }) === true)
-// 🎯 이 차수에서 가장 중요한 단언 — 「감추는가」가 아니라 **「감추면 안 될 때 안 감추는가」**.
-//    버튼이 없어졌으므로 2동 고객에게는 **표가 유일한 편집 경로**다. 여기가 물면 그들이 갇힌다.
-check('[I2] 🎯 2동 → 표 감추지 않음 (기존 다동 고객의 유일한 편집 경로)',
+// 🎯 「감추는가」가 아니라 **「감추면 안 될 때 안 감추는가」**. 2동 고객에게 표는 **어느 동을
+//    고를지 정하는 유일한 경로**다(2026-09-15 버튼 복원 뒤에도 그대로 — 버튼은 「추가」이지
+//    「선택」이 아니다). 여기가 물면 2동째부터 편집할 동을 고를 수 없다.
+check('[I2] 🎯 2동 → 표 감추지 않음 (다동 고객이 동을 고르는 유일한 경로)',
   shouldHideBuildingTable({ buildings: two, editing: 'b1' }) === false)
 check('[I3] 등록 폼(new) → 표 감추지 않음', shouldHideBuildingTable({ buildings: one, editing: 'new' }) === false)
 check('[I4] 닫힘 → 표 감추지 않음', shouldHideBuildingTable({ buildings: one, editing: null }) === false)

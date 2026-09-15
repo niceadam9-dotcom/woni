@@ -2,8 +2,8 @@
 
 import { useEffect, useRef, useState, useTransition } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
-// `Plus`는 [+ 건물 등록] 버튼과 함께 빠졌다(소방계획서_49 §10-2 ②) — 버튼을 되살리면 같이 복원한다
-import { Building2, Search, Loader2, X } from 'lucide-react'
+// `Plus`는 [+ 건물 등록] 버튼과 한 몸이다 — 2026-09-11에 함께 빠졌다가 2026-09-15에 함께 돌아왔다
+import { Building2, Plus, Search, Loader2, X } from 'lucide-react'
 import { DateInput, isCompleteDate } from '@/components/ui/date-input'
 import { ComboInput } from '@/components/ui/combo-input'
 import { createBuildingAction, updateBuildingAction, deleteBuildingAction, setPrimaryBuildingAction } from '@/app/(dashboard)/buildings/actions'
@@ -282,11 +282,9 @@ export function BuildingListPanel({ customerId, customerName, customerAddress, b
     // 저장 차단에 걸리기 전에 채워준다(등록 폼 openNew와 같은 동작, 수기 값은 덮지 않음)
     if (canManage && !f.permit_date && b.bcode && b.address_jibun) fetchLedger(b.bcode, b.address_jibun, f)
   }
-  /** ⚠ 2026-09-11부터 **버튼에서 호출되지 않는다**([+ 건물 등록] 제거, §10-2 ②).
-   *  지우지 않고 남기는 이유 둘:
-   *   ① 되살릴 때 필요하다 — 버튼 JSX만 복원하면 그대로 동작한다(다동이 실제로 오면 그게 정답).
-   *   ② `initialNew`(URL 딥링크)로 `editing='new'`가 되는 경로가 살아 있어, 등록 폼 자체는
-   *      여전히 도달 가능하다 — 화면에 문을 두지 않을 뿐 기능을 없앤 것은 아니다. */
+  /** 호출부 둘: 머리줄의 [+ 건물 등록] 버튼, 그리고 `initialNew`(URL 딥링크) 경로.
+   *  ⚠ 2026-09-11~09-15 사이엔 버튼이 없어 딥링크 전용이었다 — 그때 이 함수를 **지우지 않고
+   *    남겨 둔 덕분에** 복원이 JSX 한 블록으로 끝났다. 비슷한 결정을 만나면 같은 방식으로. */
   function openNew() {
     const f = newForm()
     setForm(f); setEditing('new'); setSameAsCustomer(!!customerAddress)
@@ -530,24 +528,34 @@ export function BuildingListPanel({ customerId, customerName, customerAddress, b
           동일하게 건물정보만 추가가 되면 돼"). 고객 1 : 활성 건물 1이 **UI 불변식**이 됐으므로
           여기는 「목록」이 아니라 그 한 동의 **정보를 채우는 자리**다. 소방계획서_49 §10.
 
-          🚨 [+ 건물 등록] 버튼을 **의도적으로 없앴다.** 되살리려면 아래 주석 블록을 복원하면 된다:
-            {canManage && editing !== 'new' && (
-              <button onClick={openNew} …><Plus className="size-3" />건물 등록</button>
-            )}
-          ⚠ 이 버튼은 과거에 `editing !== 'new'` 조건 탓에 **영원히 숨어 있었고** 그게 「규현빌라」
-            2중 등록 사고의 배경이었다. 그래서 「조건에 가려 숨는 것」과 「의도적으로 없앤 것」은
-            **다르다** — 전자는 결함이고 후자는 결정이다. 조건을 붙여 되살리지 말 것.
-          ⚠ 없애도 첫 동은 만들 수 있다: `initialBuildingPanelTarget`이 건물 0개 + 등록 권한이면
-            `'new'` 폼을 자동으로 연다(`lib/building-panel-open.ts`). 게다가 커밋 `0039484` 이후
-            고객을 만들면 건물 1동이 **반드시** 생긴다(§10-2 ①).
-          ⚠ 잃는 것: **2번째 동을 추가하는 경로가 없다.** 기존 다동 고객의 수정은 되지만(행이 2개면
-            표가 보인다) 추가는 불가하다. 📏 실측(2026-09-11) 운영·스테이징 **다동 고객 0명**,
-            「건물동수」 2 이상 **0건** — 그래서 지금은 잃는 것이 없다. 다동이 실제로 오면
-            §10-4대로 이 버튼을 복원하는 것이 정답이다. */}
+          🔄 **[+ 건물 등록]은 2026-09-15 사용자 요청으로 되살렸다**(cf139d0에서 없앴던 것).
+            §10-4가 예고한 그 복원이다 — 「다동이 실제로 오면 이 버튼을 복원하는 것이 정답」.
+            갑지 「다수동일때」 시트(2·3·4동 블록)와 별지 9호 「동별」 쪽은 실재하는데 **그 칸을
+            채울 2번째 동을 넣는 문이 화면에 없다**는 것이 복원 사유다.
+          🚨 **조건으로 가리지 말 것.** 원래 이 버튼엔 `editing !== 'new'`가 붙어 있었고, 당시엔
+            등록 폼이 늘 열려 있어 그 조건이 버튼을 **영원히 숨겼다** — 그게 「규현빌라」 2중 등록
+            사고의 배경이다. 그래서 복원판은 `canManage`만 보고 **항상 그린다**.
+            대신 등록 폼이 이미 열려 있을 때는 `disabled`로 **보이되 눌리지 않게** 한다 —
+            감추면 결함이 재발하고, 그냥 두면 입력 중인 새 동이 빈 폼으로 초기화된다.
+            (「조건에 가려 숨는 것」과 「비활성으로 보이는 것」은 다르다. 전자는 결함이다.)
+          ⚠ 버튼이 없어도 첫 동은 만들 수 있었다 — 그 경로는 **그대로 살아 있다**:
+            `initialBuildingPanelTarget`이 건물 0개 + 등록 권한이면 `'new'` 폼을 자동으로 열고
+            (`lib/building-panel-open.ts`), 커밋 `0039484` 이후 고객을 만들면 1동이 **반드시**
+            생긴다(§10-2 ①). 버튼은 **2번째 동부터**가 본래 쓸모다.
+          📏 유지되는 것: 제목은 「건물정보」 그대로(§10-2 ③), 1동이면 표를 감추는 규칙도 그대로.
+            되돌린 것은 §10-2 **② 하나뿐**이다 — 셋을 한꺼번에 되짚지 말 것. */}
       <div className="flex items-center gap-2 mb-4">
         <Building2 className="size-4 text-brand" />
         <h2 className="text-form-base-title font-semibold text-ink">건물정보</h2>
         <span className="text-form-sm text-ink-meta ml-auto">{buildings.length}개</span>
+        {canManage && (
+          <button onClick={openNew} disabled={editing === 'new'}
+            title={editing === 'new' ? '등록 폼이 이미 열려 있습니다' : '건물(동)을 하나 더 등록합니다'}
+            className="inline-flex items-center gap-1 h-form-7 px-2.5 rounded-lg border border-brand-line text-form-sm text-brand hover:bg-brand-tint transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent">
+            <Plus className="size-3" />
+            건물 등록
+          </button>
+        )}
       </div>
 
       {/* 다동 안내 — 서식이 담는 동 수를 넘으면 **세어서 알린다**(조용히 자르면 인쇄물은 멀쩡해 보인다).
@@ -573,11 +581,11 @@ export function BuildingListPanel({ customerId, customerName, customerAddress, b
       {/* 1동뿐이고 **그 동의 상세가 이미 펼쳐져 있으면** 목록 표를 그리지 않는다 (2026-09-11 사용자 확정:
           "두번 보일 필요는 없어"). 자동 펼침을 넣자 같은 건물명이 목록 행과 폼에 **위아래로 두 번** 나왔다
           — 행 1개와 그 행의 상세는 같은 한 건이라, 표는 「고를 것이 있을 때」만 쓸모가 있다.
-          ⚠ 머리줄(「건물정보 · N개」)은 남긴다 — 개수가 거기서만 보인다.
-            🚨 2026-09-11 이전 이 자리엔 「거기에 2번째 동을 추가하는 문([+ 건물 등록])이 있으니
-              표째 감추면 그 결함이 모양만 바꿔 되살아난다」고 적혀 있었다. 그 버튼은 이제 **의도적으로
-              없다**(위 머리줄 주석) — 따라서 그 논거는 더 이상 성립하지 않는다. 남기는 이유가
-              바뀌었다는 것을 적어 두지 않으면, 다음 사람이 「버튼이 없으니 머리줄도 지우자」로 읽는다.
+          ⚠ 머리줄(「건물정보 · N개」)은 남긴다 — 개수가 거기서만 보이고, **[+ 건물 등록]이 거기
+            있다**(2026-09-15 복원). 표째 감추면 2번째 동을 추가하는 문까지 사라진다.
+            🚨 이 논거는 09-11~09-15 사이 잠시 무효였다(버튼이 없던 기간). 그때는 「개수 표시」만이
+              남기는 이유였다 — 이유가 두 번 바뀐 자리이니, 다음에 또 바뀌면 여기에 적을 것.
+              적어 두지 않으면 다음 사람이 「표를 감추는 김에 머리줄도」로 읽는다.
           ⚠ 규칙 본문은 `lib/building-panel-open`의 `shouldHideBuildingTable`에 있다 — 여기 JSX에
             묻어 두면 아무도 단언하지 못한다(그게 이 결함이 처음 새어 나온 경로였다). */}
       {shouldHideBuildingTable({ buildings, editing }) ? null
