@@ -556,9 +556,25 @@ export default async function InspectionDetailPage({
           customerId={inspection.customer_id}
           defectRows={defects}
           initialStepNum={initialStepNum}
+          /* 🚨 **슬롯 요소에는 전부 `key`가 있어야 한다**(2026-09-15, dev 오버레이 「1 Issue」).
+           *
+           *  작업대는 이 조각들을 `<Pane>{slots?.multiday}{slots?.sheet}{slots?.pumpTest}…</Pane>`
+           *  처럼 **여러 자식으로 나란히** 그린다. 한 파일 안에서 만든 JSX였다면 컴파일러가
+           *  「정적 자식」(jsxs)으로 표시해 React가 key를 묻지 않는다. 그런데 이 조각들은
+           *  **서버 컴포넌트가 만들어 RSC 페이로드로 건너간 것**이라 그 표시를 잃고 평범한 배열로
+           *  재구성된다 — 그래서 `reconcileChildrenArray`가 key를 요구했다:
+           *    「Check the render method of `Pane`. It was passed a child from InspectionDetailPage」
+           *
+           *  ⚠ key는 **만드는 자리**에 달아야 한다. 쓰는 자리(`{slots?.sheet}`)에서는 못 단다.
+           *  ⚠ 경고는 마운트가 아니라 **갱신**에서 난다(로그 실측: `?step=1` 전환 직후) —
+           *    처음 들어갈 때만 보고 「안 난다」고 판정하면 놓친다.
+           *  ⚠ 처음엔 `defects` 조각 **안쪽** 두 자식에 key를 달았는데 경고가 그대로였다 —
+           *    문제는 조각의 속이 아니라 **Pane이 받는 바깥 배열**이다(그때 단 key는 걷어냈다).
+           *  실측: 달기 전 1건 → 단 뒤 0건(같은 화면·같은 프로브, 옛 코드가 대조군). */
           slots={{
             multiday: (
               <InspectionMultidayClient
+                key="multiday"
                 inspectionId={id}
                 startDate={inspection.inspection_start_date}
                 endDate={(inspection as { inspection_end_date?: string | null }).inspection_end_date ?? null}
@@ -571,7 +587,7 @@ export default async function InspectionDetailPage({
                  소방계획서_21 R3에서 음성 점검표(V-1)를 제거해 지금 소비자는 점검표 카드 하나뿐이지만,
                  provider는 유지한다 — 월 축 저장 규약(month별 UNIQUE 분화)이 여기에 묶여 있어
                  지역 상태로 되돌리면 EX-4 회귀 위험이 있다 */
-              <ExteriorMonthProvider isExterior={inspPlanType === 'monthly' || inspPlanType === 'event'}>
+              <ExteriorMonthProvider key="sheet" isExterior={inspPlanType === 'monthly' || inspPlanType === 'event'}>
                 <InspectionSheetClient
                   inspectionId={id}
                   inspectionType={customer?.inspection_type ?? ''}
@@ -589,11 +605,12 @@ export default async function InspectionDetailPage({
             /* 펌프성능시험 실측치 — 점검표 바로 아래. 법정 별지 4호 표의 원천이고,
                이 자리가 생겨야 37시트 엑셀을 지울 수 있다(R5-6 선행, R5-7 대조 결과) */
             pumpTest: pumpSheetNos.length > 0 ? (
-              <PumpTestPanel inspectionId={id} sheetNos={pumpSheetNos} initial={pumpRows} canEdit={canEdit} />
+              <PumpTestPanel key="pumpTest" inspectionId={id} sheetNos={pumpSheetNos} initial={pumpRows} canEdit={canEdit} />
             ) : null,
             // 외관점검표 (§9-8d) — 월간 외관점검 건 전용, 별지 9호 준비 UI 재사용
             exterior: exteriorChecks ? (
               <InspectionReport9Client
+                key="exterior"
                 inspectionId={id}
                 canManage={canEdit}
                 checks={exteriorChecks}
@@ -605,6 +622,7 @@ export default async function InspectionDetailPage({
             ) : null,
             participants: (
               <InspectionParticipantsClient
+                key="participants"
                 inspectionId={id}
                 mainEmployee={employee ? { name: employee.name, license_no: employee.license_no } : null}
                 aux={auxParticipants}
@@ -617,6 +635,7 @@ export default async function InspectionDetailPage({
                 {/* 타임라인 ⑤ 전·후 사진 슬롯 앵커 — 기존 #defects 딥링크 유지 */}
                 <div id="defects" />
                 <InspectionDefectsClient
+                  key="defects"
                   inspectionId={id}
                   initialDefects={defects}
                   canEdit={canEdit}
