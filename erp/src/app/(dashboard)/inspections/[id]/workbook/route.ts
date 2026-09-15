@@ -6,7 +6,7 @@ import { getProfile, can } from '@/lib/auth'
 import type { UserRole } from '@/types'
 import { assembleOfficial, assembleDelegation } from '@/lib/annex-cover-official'
 import { assembleReport9, loadAnnexInputs, annexReportDateISO } from '@/lib/report9-assemble'
-import { resolveActionPeriod, unifyDoneDates } from '@/lib/annex-total-period'
+import { resolveActionPeriod, unifyDoneDates, hasDefectForLegalPeriod } from '@/lib/annex-total-period'
 import { validateAnchors, SCRUB_NEEDLES, DEFECT_SHEET } from '@/lib/xlsx-anchors'
 import { injectWorkbook, type InjectTarget } from '@/lib/xlsx-inject'
 import { buildWorkbookValues, toInjectTargets, defectOverflow, doneOverflow, s31RowOverflow } from '@/lib/xlsx-workbook'
@@ -157,7 +157,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
    *   기산일은 별지 10호의 보고일(`plan10Fields`)이다: 11호(완료보고) 보고일이 아니다. */
   const actionPeriod = resolveActionPeriod(plan10Fields, r9.data.actionPeriod, {
     reportDateISO: annexReportDateISO(plan10Fields),
-    hasDefect: r9.data.defectRows.length > 0,
+    hasDefect: hasDefectForLegalPeriod(r9.data.defectRows.length),
   })
 
   const values = buildWorkbookValues({

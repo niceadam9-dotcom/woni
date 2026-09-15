@@ -17,6 +17,8 @@
  */
 import { readFileSync } from 'node:fs'
 import { completionDateFrom, isPlanFillTarget } from '../src/lib/action-period-derive.ts'
+import { hasDefectForLegalPeriod } from '../src/lib/annex-total-period.ts'
+import { codeOnly } from './_code-only.mts'
 
 let pass = 0, fail = 0
 function ok(cond: boolean, label: string, detail?: string) {
@@ -156,6 +158,35 @@ console.log('\n── C-2. 법정 기본(3순위)이 **저장 경로에 새지 �
 
   ok(/일부러 넘기지 않는다/.test(ACTIONS) && /문서 인쇄 전용/.test(ACTIONS),
     '경계의 **이유**가 코드에 적혀 있다(다음 사람이 누락으로 읽지 않게)')
+}
+
+console.log('\n── C-3. 법정 기본의 관문 술어가 **PDF·엑셀에서 같은가** (2026-09-15 수리) ──')
+{
+  /* 🚨 갈라져 있었다. 양쪽 주석은 「같은 재료라야 한다」고 적혀 있었는데 코드는 달랐다:
+       PDF  hasDefect = plannedCount > 0        (폐지된 action_plan|start|end 보유 건)
+       엑셀 hasDefect = defectRows.length > 0   (점검표 X 응답 + 불량행 전건)
+     스테이징 실측 5회차가 실제로 갈라졌고 2건은 이미 completed였다 — **제출된 문서 두 장이
+     이행기간을 다르게 말했다**. 게다가 `action_plan`류는 쓰는 코드가 한 곳도 없어(읽기만)
+     PDF의 법정 기본은 새 회차에서 영영 안 깔렸다 — 762c8bf가 엑셀만 고쳐 놓은 상태였다.
+
+     🎯 값 축과 배선 축을 **둘 다** 본다. 순수 함수만 보면 「두 호출부가 그것을 부르는가」를
+       못 보고, 소스만 보면 술어가 뜻대로 동작하는지를 못 본다. */
+  ok(hasDefectForLegalPeriod(1) === true, '불량행 1건이면 관문이 열린다')
+  ok(hasDefectForLegalPeriod(0) === false, '(음성) 0건이면 안 깔린다 — 이행할 것 없는 회차에 기간이 서면 거짓이다')
+
+  const A = codeOnly(src('../src/app/(dashboard)/inspections/report9-actions.ts'))
+  const X = codeOnly(src('../src/app/(dashboard)/inspections/[id]/workbook/route.ts'))
+  for (const [label, body] of [['PDF(report9-actions)', A], ['갑지 엑셀(workbook/route)', X]] as const) {
+    ok(count(body, 'hasDefect: hasDefectForLegalPeriod(') === 1,
+      `${label}가 공유 술어를 **부른다**`, `${count(body, 'hasDefect: hasDefectForLegalPeriod(')}회`)
+    ok(count(body, 'hasDefect: plannedCount') === 0,
+      `(역방향) ${label}에 폐지된 계획 칸 술어가 남지 않았다`)
+  }
+  // 🚨 폴백도 폐지된 칸으로 내려가면 안 된다 — 조립 실패 시 `defects.length`여야 한다
+  ok(/legalDefectRows = defects\.length/.test(A),
+    'PDF 조립 실패 폴백이 **불량행 수**다(plannedCount 아님)')
+  ok(/legalDefectRows = d9\.defectRows\.length/.test(A),
+    'PDF 조립 성공 시 X 응답까지 포함한 수로 갈아낀다')
 }
 
 console.log('\n── D. ⑥ 화면이 날짜 칸을 기본으로 그리지 않는가 (배선) ──')

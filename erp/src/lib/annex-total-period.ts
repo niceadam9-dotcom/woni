@@ -61,10 +61,39 @@ export function manualActionPeriod(fields: Record<string, unknown>): ActionPerio
 
 /** 3순위 「법정 기본」의 재료 — 기산일(보고일)과 「이 회차에 이행할 것이 있는가」. */
 export type LegalFallbackCtx = {
-  /** 조문의 기산일 = 보고일(`annexReportDateISO`). 날짜꼴이 아니면 기본을 깔지 않는다 */
+  /** 조문의 기산일 = 보고일(`annexReportDateISO`). 날짜꼴이 아니면 기본을 깔지 않는다.
+   *  ⚠ 운영 호출부 둘은 모두 `annexReportDateISO()`를 넘기고 그 함수는 **없으면 오늘**을 준다 —
+   *    즉 이 경계는 실제로는 안 걸린다(픽스처·구 호출부용 방어로만 남아 있다). 인쇄되는 보고일도
+   *    같은 함수를 타므로 문서 안에서는 일관하다. **두 폴백이 갈라지면 그때가 결함**이다. */
   reportDateISO?: string | null
-  /** 불량(이행조치 계획)이 하나라도 있는가 — 없으면 이행기간 자체가 뜻이 없다 */
+  /** 이 회차에 이행할 것이 있는가 — 없으면 이행기간 자체가 뜻이 없다.
+   *  🚨 **`hasDefectForLegalPeriod`로 판정한다.** 직접 계산하지 말 것(아래 함수 주석이 이유다). */
   hasDefect?: boolean
+}
+
+/** 「이 회차에 이행할 것이 있는가」 — 3순위 법정 기본의 유일한 관문.
+ *
+ *  🚨 **2026-09-15 수리: 이 술어가 PDF와 엑셀에서 서로 달랐다.** 양쪽 주석은 「같은 재료라야
+ *    한다」고 적혀 있었는데 코드는 갈라져 있었다:
+ *      PDF (report9-actions)  hasDefect = plannedCount > 0
+ *                               = `inspection_defects` 중 action_plan|action_start|action_end 보유 건
+ *      엑셀(workbook/route)   hasDefect = d9.defectRows.length > 0
+ *                               = 점검표 **X 응답** + 불량행 전건
+ *    스테이징 실측 5회차가 실제로 갈라져 있었다(엑셀엔 법정 10일이 서고 PDF는 공란) —
+ *    그중 2건은 이미 `completed`, 즉 **제출된 문서 두 장이 이행기간을 다르게 말했다**.
+ *
+ *  🎯 옳은 쪽은 **defectRows**다. 근거는 두 개다:
+ *   ① 뜻 — 조문이 묻는 것은 「고칠 것이 있는가」이고, 점검표에 X가 있으면 고칠 것이 있다.
+ *     계획을 **사람이 적었는가**는 다른 질문이다(그건 `missing`의 「이행조치 계획 미입력」 축이다).
+ *   ② 구조 — `action_plan`·`action_start`·`action_end`는 2026-09-11에 입력이 폐지돼
+ *     **쓰는 코드가 한 곳도 없다**(전수 grep: 읽기만). 그래서 `plannedCount`는 새 회차에서
+ *     구조적으로 0이고, PDF의 법정 기본은 **영영 안 깔린다** — 762c8bf가 고치려던 바로 그
+ *     「별지10호 이행조치기간 공란 제출」이 PDF에선 그대로 남아 있었다. 엑셀만 고쳐져 있었다.
+ *
+ *  ⚠ 조립 실패 시의 폴백은 `defects.length > 0`(불량행)이다. X 응답을 못 세더라도
+ *    **불량행이 있으면 이행할 것이 있다** — 폐지된 계획 칸으로 내려가면 안 된다. */
+export function hasDefectForLegalPeriod(defectRowCount: number): boolean {
+  return defectRowCount > 0
 }
 
 /** 수기 > 자동 > **법정 기본** — 호출부가 우선순위를 다시 적지 않게 한다.
