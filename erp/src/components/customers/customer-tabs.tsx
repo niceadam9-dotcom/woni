@@ -28,11 +28,15 @@ export function useCustomerTabs() {
   return useContext(CustomerTabsContext)
 }
 
-export function CustomerTabs({ initialTab, tabs, panels, summary, fullWidthKeys, lazyKeys }: {
+export function CustomerTabs({ initialTab, tabs, panels, summary, banner, fullWidthKeys, lazyKeys }: {
   initialTab: string
   tabs: CustomerTabDef[]
   panels: Record<string, ReactNode>
   summary?: ReactNode        // 우측 고객 요약 패널 — fullWidth 탭에서는 접힘(숨김)
+  /** 탭 목록 **위**에 띠를 얹는다(신규등록 진행 안내 등).
+   *  🚨 Provider **안**에 그려야 한다 — 밖(페이지 본문)에 두면 `useCustomerTabs()`가 null이라
+   *  탭 이동을 못 한다. URL만 바꾸는 우회는 안 된다(활성 탭은 아래 state가 들고 있다). */
+  banner?: ReactNode
   fullWidthKeys?: string[]    // 전체 폭으로 펼칠 탭 키(예: ['plan']) — max-w-3xl 해제 + 요약 패널 접힘
   /** 처음 활성화될 때까지 패널을 렌더하지 않는다 (소방계획서_34 S2 — 마운트가 비싼 패널용).
    *  위 §설명대로 이 셸은 패널을 전부 렌더하므로, 마운트 즉시 서버액션을 왕복하는 패널(별지 서식의
@@ -124,6 +128,7 @@ export function CustomerTabs({ initialTab, tabs, panels, summary, fullWidthKeys,
     <CustomerTabsContext.Provider value={ctx}>
       {nav.dialog}
       {linkNav.dialog}
+      {banner && <div className="mb-4">{banner}</div>}
       <div className="flex gap-6 items-start">
         <div className={`flex-1 min-w-0 ${isFull ? '' : 'max-w-3xl'}`}>
           <div role="tablist" className="flex flex-wrap gap-1 border-b border-line">

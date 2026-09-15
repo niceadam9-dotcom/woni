@@ -344,12 +344,15 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
       if (result.error) { setError(result.error); return }
       // 다음 등록을 위한 최근 읍/면 기억
       if (form.region_myeon.trim()) localStorage.setItem('lastUsedMyeon', form.region_myeon.trim())
-      // §10-3: 등록 직후 상세(탭)로 — created=1 보완 안내 + H-25 온보딩(소방계획서 탭 진행 배너)
-      // 필수 최소만 강제된 상태에서 설비 대장·지도/사진·완성도를 이어서 안내(§4-D 국면 1)
+      // §10-3: 등록 직후 상세(탭)로 — created=1 보완 안내 + 온보딩 진행 띠
+      // 🚨 **`tab=plan`을 붙이지 않는다** (2026-09-15 사용자 확정). 종전엔 여기서 소방계획서로
+      //    직행시켜 건물·시설과 관계인을 통째로 건너뛰었다 — 그래서 용도가 비었다.
+      //    어느 탭을 열지는 **저장된 값을 아는 서버**가 정한다(첫 미완 탭 — lib/onboarding-steps).
+      //    폼 state로 여기서 고르면 대장 자동값·부분 실패와 어긋난다(화면과 데이터가 갈린다).
       // ⚠ router.refresh()를 뒤에 붙이지 않는다 — push가 이미 새 경로의 RSC를 받아오는데
       // refresh가 같은 페이지를 한 번 더 받아 **상세 화면 로딩이 두 번** 일어났다.
       // 목록 캐시는 액션의 revalidatePath('/customers')가 이미 무효화한다.
-      router.push(`/customers/${result.customerId}?created=1&tab=plan&onboarding=1`)
+      router.push(`/customers/${result.customerId}?created=1&onboarding=1`)
     })
   }
 

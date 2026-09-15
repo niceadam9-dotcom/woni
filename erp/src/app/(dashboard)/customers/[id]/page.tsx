@@ -35,6 +35,10 @@ import { PlanCh3, type EvacDetailRow, type EvacPlanSection, type VulnerableSecti
 import { recommendPresetType } from '@/lib/fire-plan-presets'
 import { BillingClient, type BillingProfile, type Autopay } from '@/components/customers/billing-client'
 import { CustomerTabs, type CustomerTabDef } from '@/components/customers/customer-tabs'
+import { OnboardingStrip } from '@/components/customers/onboarding-strip'
+import {
+  buildingsDone, contactsDone, nextOnboardingTab, onboardingSteps, onboardingHint, onboardingComplete,
+} from '@/lib/onboarding-steps'
 import { RecordRecentCustomer } from '@/components/customers/recent-customers-strip'
 import { BuildingListPanel, type BuildingPanelRow } from '@/components/customers/building-inline-panel'
 import { CustomerSummaryPanel } from '@/components/customers/customer-summary-panel'
@@ -393,8 +397,7 @@ export default async function CustomerDetailPage({
   } } | null)?.sections) ?? {}
 
   // ── 탭 상태 뱃지 (설계 §4) — 추가 쿼리 없이 이미 조회한 데이터로 계산 ──
-  const activeBlds = buildings.filter(b => b.is_active)
-  const hasRep = contacts.some(ct => ct.role === '대표')
+  // 건물·관계인 완성도는 lib/onboarding-steps가 정본이다(아래 obState) — 여기서 따로 세지 않는다
   const inspDates = inspections.map(i => i.inspection_start_date).filter(Boolean).sort()
   const lastInspectionDate = inspDates.length > 0 ? inspDates[inspDates.length - 1] : null
   const repContact = contacts.find(ct => ct.role === '대표') ?? null
@@ -422,10 +425,14 @@ export default async function CustomerDetailPage({
   const formFilled = Object.values(formStatus)
     .filter(v => (typeof v === 'object' ? v.done >= v.total : v === true)).length
   const formTotal = Object.keys(formStatus).length
+  // ── 신규등록 순서 (2026-09-15 사용자 확정) ──
+  // 🚨 술어를 여기 인라인으로 되돌리지 않는다. 탭 ⚠ 배지와 온보딩 이동이 **같은 함수**를 써야
+  //    「⚠인데 소방계획서로 직행시킨다」가 안 생긴다. 규칙·근거는 lib/onboarding-steps.ts.
+  const obState = { buildings: buildingsDone(buildings), contacts: contactsDone(contacts) }
   const tabDefs: CustomerTabDef[] = [
     { key: 'info', label: '기본정보', warn: !customer.plan_anchor_date || !customer.assigned_employee_id },
-    { key: 'buildings', label: '건물·시설', warn: !(activeBlds.length > 0 && activeBlds.some(b => b.purpose && b.total_area != null)) },
-    { key: 'contacts', label: '관계인', badge: `(${contacts.length})`, warn: !hasRep },
+    { key: 'buildings', label: '건물·시설', warn: !obState.buildings },
+    { key: 'contacts', label: '관계인', badge: `(${contacts.length})`, warn: !obState.contacts },
     // 일반관리도 소방계획서 대상 (소방계획서_6 W-14·D-6). 뱃지 = 목차 완성도 합산(§1-4)
     { key: 'plan', label: '소방계획서', badge: `${formFilled}/${formTotal}`, warn: readiness.done < readiness.total },
     // 별지 서식 — 소방계획서 트리의 한 노드였던 것을 최상위 탭으로 승격 (소방계획서_34 S1-2).
@@ -436,6 +443,13 @@ export default async function CustomerDetailPage({
     { key: 'billing', label: '청구·수금', warn: !billingProfileRes.data },
     { key: 'history', label: '이력', badge: lastInspectionDate ? lastInspectionDate.slice(5) : undefined },
   ]
+
+  // 등록 직후(?onboarding=1)에는 **첫 미완 탭**에서 시작한다 — 종전엔 등록 폼이 `tab=plan`을 붙여
+  // 건물·관계인을 건너뛰고 소방계획서로 직행했다. 사용자가 탭을 명시하면(?tab=) 그쪽이 이긴다.
+  // ⚠ 이 계산은 tabDefs **뒤**에 있어야 한다 — 위쪽 resolvedTab은 조회 전이라 완성도를 모른다.
+  const onboardingActive = onboarding === '1'
+  const obNext = nextOnboardingTab(obState)
+  const effectiveTab = onboardingActive && !initialTab ? obNext : resolvedTab
 
   // ── §6-E: 지역 기반 담당 추천 — 같은 시군구+읍면 고객들의 최빈 담당 (미배정일 때만, 물결 B에서 조회) ──
   let regionRecommend: { employeeId: string; name: string; regionLabel: string } | null = null
@@ -1012,8 +1026,8 @@ export default async function CustomerDetailPage({
         </span>
       </div>
 
-      {/* §10-3: 등록 직후 보완 안내 1줄 */}
-      {created === '1' && (
+      {/* §10-3: 등록 직후 보완 안내 1줄 — 온보딩 띠가 뜨는 동안은 띠가 같은 말을 하므로 비킨다 */}
+      {created === '1' && !onboardingActive && (
         <div className="max-w-3xl rounded-lg bg-green-50 border border-green-200 px-4 py-2.5 text-form-sm text-green-800">
           고객 등록 완료 — {tabDefs.some(t => t.warn)
             ? `보완할 항목: ${tabDefs.filter(t => t.warn).map(t => t.label).join(' · ')} (탭의 ⚠를 따라 입력하세요)`
@@ -1023,8 +1037,16 @@ export default async function CustomerDetailPage({
 
       {/* 탭 셸 + 우측 요약 패널 (설계 §2·§6-C-2) — 소방계획서 탭은 전체 폭(요약 패널 접힘, 2026-08-05) */}
       <CustomerTabs
-        initialTab={resolvedTab}
+        initialTab={effectiveTab}
         tabs={tabDefs}
+        banner={onboardingActive ? (
+          <OnboardingStrip
+            steps={onboardingSteps(obState)}
+            hint={onboardingHint(obNext, buildings)}
+            next={obNext}
+            complete={onboardingComplete(obState)}
+          />
+        ) : undefined}
         panels={{ info: infoTab, buildings: buildingsTab, contacts: contactsTab, plan: planTab, annex: annexTab, billing: billingTab, history: historyTab }}
         fullWidthKeys={['plan', 'annex']}
         // 별지 패널은 마운트 즉시 회차 조회를 왕복한다(plan-annex-section의 reload) —
