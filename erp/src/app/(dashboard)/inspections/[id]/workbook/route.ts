@@ -219,6 +219,20 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
   // ／로 치환·합성한다(종합→작동 전환 잔재 응답도 작동 문서에선 해당없음이 옳다 — D-7 자구 일치).
   const wbScope = sheetScope(row.plan_type, row.inspection_type)
   let donorResponses = r9.sheetResponses
+  /* 🎯 **미설치 중분류 자동 ／**(2026-09-15 사용자 확정) — 「법령이 정한 묶음」 안의 미등록 단위.
+   *   유도등만 1.4에 있고 유도표지·피난유도선이 없으면, 한 점검표 안의 21-B·21-C 12칸이
+   *   **빈칸으로 제출되고 있었다**(사용자 신고). 범례는 ○/×/／뿐이고 빈칸은 서식이 예정하지 않는다.
+   * ⚠ 판정은 여기서 **다시 하지 않는다** — `assembleReport9`가 PDF 마크를 만들며 계산한 것을 그대로
+   *   받는다(`r9.groupNaCodes`). 규칙을 두 곳에 적으면 같은 회차의 PDF와 엑셀이 또 갈라진다(D-7).
+   *   위 ● 자동 ／가 같은 꼴이다 — 응답과 무관하게 합성하되, 여기서는 **응답이 있으면 제외**된
+   *   목록이 와서 사람이 넣은 값을 덮지 않는다. */
+  if (r9.groupNaCodes.length) {
+    const already = new Set(donorResponses.map(r => r.item_code))
+    donorResponses = [
+      ...donorResponses,
+      ...r9.groupNaCodes.filter(c => !already.has(c)).map(code => ({ item_code: code, result: 'N' as const, month: 0 })),
+    ]
+  }
   if (wbScope.isOperational) {
     const compCodes = new Set((await getAllSheetItems()).filter(i => i.comprehensive_only).map(i => i.item_code))
     donorResponses = [

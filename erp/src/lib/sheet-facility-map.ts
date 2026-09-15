@@ -1,4 +1,4 @@
-import { ETC_CODES } from '@/lib/facility-codes'
+import { ETC_CODES, FIRE_SUB_BY_SUBGROUP } from '@/lib/facility-codes'
 
 /** 점검표 시트 ↔ 설치 시설(fire_facilities.facility_code) 매칭 (§9-4 빠른 입력 · 별지 9호 조립 공용)
  *  ※ 종전 V-1 음성 점검표 누락 감지도 이 함수를 썼으나 소방계획서_21 R3에서 음성 경로를 제거했다.
@@ -248,6 +248,29 @@ export function groupInstalledInSheet(
 ): boolean | null {
   if (!groupCode) return null
   const target = GROUP_BY_NORM.get(norm(sheetName))?.[groupCode]
+  if (!target) return null
+  const t = norm(target)
+  return facilityCodes.some(c => norm(c) === t)
+}
+
+/**
+ * **세부묶음**(대괄호 소제목)이 1.4 대장에 등록됐는가 — 중분류보다 한 겹 아래 축 (2026-09-15 사용자 확정).
+ *
+ *  1-B 자동소화장치가 그 자리다: 점검표는 `[주거용 주방]·[상업용 주방]·[캐비닛형]·[가스·분말·고체에어로졸]`
+ *  네 묶음인데, 1.4 대장은 이들을 **하위 행**(`FIRE_SUB_ITEMS`)으로 따로 등록한다. 부모
+ *  「소화기구 및 자동소화장치」는 묶음의 존재만 말하므로(`SUB_ROW_PARENT_ITEMS` — 결과칸이 늘 공란),
+ *  **어느 종류가 있는지는 하위 행만이 답한다.** 하위를 안 적었으면 그 종류는 없는 것이다(사용자 확정).
+ *
+ *  ⚠ 어휘가 두 벌이라 정규화 매칭이 안 된다 — 원문 '가스·분말·고체**에어로졸**' vs 대장 '가스·분말·고체'.
+ *    그래서 `FIRE_SUB_BY_SUBGROUP` **명시 매핑만** 쓴다(퍼지 금지, sheet-facility-map 상단 주석과 같은 이유).
+ *  ⚠ 이 표에 없는 세부묶음은 `null` — 판정하지 않는다. `1-A 소화기구`는 세부묶음 자체가 없어
+ *    여기 걸리지 않는다: 소화기 하위를 안 적은 고객에게 「소화기 해당없음」이 찍히는 일은 구조적으로 없다.
+ *  ⚠ 호출부 전제는 중분류 축과 같다 — **설치 매칭된 시트 안에서만** 묻는다.
+ */
+export function subgroupInstalledInSheet(
+  subgroupName: string | null | undefined, facilityCodes: string[],
+): boolean | null {
+  const target = subgroupName ? FIRE_SUB_BY_SUBGROUP[subgroupName.trim()] : undefined
   if (!target) return null
   const t = norm(target)
   return facilityCodes.some(c => norm(c) === t)

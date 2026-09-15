@@ -15,7 +15,10 @@ import {
   type AnnexDone,
 } from '@/lib/doc-templates/report9'
 import type { AnnexPlanRow } from '@/lib/doc-templates/report1011'
-import { form3ItemsForSheet, rollUpForm3Results, sheetMatchesFacilities, foldSheetGroupStats } from '@/lib/sheet-facility-map'
+import {
+  form3ItemsForSheet, rollUpForm3Results, sheetMatchesFacilities, foldSheetGroupStats,
+  groupInstalledInSheet, subgroupInstalledInSheet,
+} from '@/lib/sheet-facility-map'
 import { sheetScope } from '@/lib/sheet-scope'
 import { sheetItemGroupRef } from '@/lib/sheet-scope'
 import { specNaCodes, type SpecRow as NaSpecRow } from '@/lib/sheet-spec-na'
@@ -330,6 +333,10 @@ export async function assembleReport9(
   missing: string[]
   /** 별지 4호 전용 부가 조립분 — 별지 9호 렌더에는 쓰이지 않는다 (A4-2·A4-1 Q-2) */
   annex4: { companyRegNo: string; sheetSections: Report4SheetSection[] }
+  /** 미설치 중분류라 **자동 ／**로 인쇄되는 항목 코드(2026-09-15) — 응답이 있는 항목은 들어오지 않는다.
+   *  갑지 엑셀 도너 주입이 이 목록을 그대로 합성해 쓴다: PDF와 엑셀이 **한 번의 계산**을 나눠 가져야
+   *  "화면은 ／인데 문서는 빈칸"이 재발하지 않는다. */
+  groupNaCodes: string[]
   /** 점검표 원본 응답 — 아래에서 이미 읽은 것을 **재조회 없이** 그대로 내보낸다(D-7).
    *  워크북의 설비별 점검표 시트 주입(소방계획서_32 D트랙 S5-3)의 원천이자, 착지 고지의 **분모**다.
    *  ⚠ annex4.sheetSections를 대신 쓰면 안 된다 — 거기는 카탈로그 필터·중복 제거·빈 시트 제거를
@@ -585,11 +592,25 @@ export async function assembleReport9(
   // 법정 근거라 값을 지어내는 게 아니다: 작동 회차에서 종합 전용 항목은 정의상 해당없음이다.
   // 응답이 남아 있어도(종합→작동 전환 잔재) 작동 문서에는 ／가 옳다 — 입력 화면도 같은 축으로 숨긴다(isItemInScope).
   const annexScope = sheetScope(insp.plan_type, insp.inspection_type)
+  /* 🎯 **미설치 중분류 자동 ／** (2026-09-15 사용자 확정) — 「법령이 정한 묶음」 안에서 갈린다.
+   *
+   *  고시 별지4호 점검표 한 장은 시행령 별표1의 **소방시설 항목 하나**다. 그래서 유도등·유도표지·
+   *  피난유도선처럼 1.4 대장에서는 **따로 관리하는 설비**가 한 점검표에 묶여 온다. 그 묶음 안에서
+   *  등록하지 않은 단위는 **정의상 해당없음**이므로 ／가 옳다(범례 ○/×/／ — 빈칸은 서식이 예정하지 않는다).
+   *
+   *  🚨 판정식(`groupInstalledInSheet`)도 표(`SHEET_GROUP_FORM3_MAP`)도 **이미 있었다.** 입력 화면은
+   *    그 축으로 회색·／를 그리고 있었는데 **인쇄가 그 축을 안 봤다** — `sheet-spec-na.ts`가 열거한
+   *    「축이 갈라지면 안 되는 네 곳」 중 인쇄만 specNA를 받고 중분류 축은 못 받고 있었다.
+   *    그 결과가 "화면은 ／인데 문서는 빈칸"이고, 사용자가 유도표지 12칸으로 신고한 그것이다.
+   *  ⚠ **응답이 있으면 응답이 이긴다** — 아래 갈래 순서가 그 규약이다(사람이 넣은 값을 지우지 않는다).
+   *  ⚠ **시트째 미설치면 적용하지 않는다** — 그건 시트 축이 이미 다루는 상태다(종전 동작 보존). */
+  const groupNaCodes = new Set<string>()
   const sheetSections: Report4SheetSection[] = includedSheets
     .map(s => {
       const rows = (itemsBySheetId.get(s.id) ?? [])
         .sort((a, b) => ((a.order_num ?? 0) - (b.order_num ?? 0)) || a.item_code.localeCompare(b.item_code))
         .filter(it => (seenCodes.has(it.item_code) ? false : (seenCodes.add(it.item_code), true)))
+      const sheetInstalled = sheetMatchesFacilities(s.sheet_name, codes)
       return {
         no: Number(s.sheet_code.match(/^STD-(\d+)$/)![1]),   // 법정 번호 유지(S3-3) — 1~n 재번호 금지
         name: s.sheet_name,
@@ -606,7 +627,13 @@ export async function assembleReport9(
             mark: annexScope.isOperational && it.comprehensive_only ? 'N' as const
               : res === 'O' || res === 'X' || res === 'N' ? res
                 : specNa.has(it.item_code) ? 'N' as const
-                  : null,
+                  : sheetInstalled && groupInstalledInSheet(s.sheet_name, it.group_code ?? null, codes) === false
+                    ? (groupNaCodes.add(it.item_code), 'N' as const)
+                    // 세부묶음 축(2026-09-15) — 1-B 자동소화장치처럼 **대장이 하위 행으로** 갈라 두는 자리.
+                    // 부모 체크는 묶음의 존재만 말하므로 종류는 하위 행이 답한다(사용자 확정).
+                    : sheetInstalled && subgroupInstalledInSheet(it.subgroup_name, codes) === false
+                      ? (groupNaCodes.add(it.item_code), 'N' as const)
+                      : null,
             comprehensive: !!it.comprehensive_only,
             group: it.group_name != null ? `${prefix}. ${it.group_name}` : undefined,
             subgroup: it.subgroup_name,
@@ -999,5 +1026,11 @@ export async function assembleReport9(
   if (!data.drillDone && !data.drillNone) {
     missing.push(`전년도(${prevYear}) 소방훈련 실적 없음 — 2쪽 교육훈련 칸 공란(서식 1.11.4 기록부 입력 또는 1.10 「전년도 업무 실시사항」 확정)`)
   }
-  return { data, missing, annex4: { companyRegNo: company.management_reg_no ?? '', sheetSections }, sheetResponses: responses }
+  return {
+    data, missing,
+    annex4: { companyRegNo: company.management_reg_no ?? '', sheetSections },
+    sheetResponses: responses,
+    // 갑지 엑셀이 **다시 계산하지 않고** 그대로 쓴다 — 규칙이 두 곳에 있으면 또 갈라진다(D-7)
+    groupNaCodes: [...groupNaCodes],
+  }
 }

@@ -13,10 +13,10 @@
  *  대신 그 어휘가 표준 42종에 실재하는지를 마지막에 대조해, 오타로 검사가 헛도는 걸 막는다. */
 import {
   rollUpForm3Results, foldSheetResult, foldSheetGroupStats, sheetGroupMapErrors, distributeSubMarks,
-  groupInstalledInSheet, groupActiveInSheet,
+  groupInstalledInSheet, groupActiveInSheet, subgroupInstalledInSheet,
   SHEET_FACILITY_MAP, SHEET_GROUP_FORM3_MAP, type SheetGroupStat,
 } from '../src/lib/sheet-facility-map.ts'
-import { ALL_STANDARD_CODES, SUB_ROW_PARENT_ITEMS } from '../src/lib/facility-codes.ts'
+import { ALL_STANDARD_CODES, SUB_ROW_PARENT_ITEMS, FIRE_SUB_BY_SUBGROUP, FIRE_SUB_ITEMS } from '../src/lib/facility-codes.ts'
 import { readdirSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 
@@ -271,6 +271,47 @@ console.log('\n── 9) 부모 결과칸은 항상 공란 — 소화기구·피
     SUB_ROW_PARENT_ITEMS.length === 2
     && SUB_ROW_PARENT_ITEMS.every(p => ALL_STANDARD_CODES.includes(p)),
     JSON.stringify(SUB_ROW_PARENT_ITEMS))
+}
+
+console.log('\n── 11) 세부묶음 축(2026-09-15) — 1-B 자동소화장치는 대장 하위 행이 종류를 정한다')
+{
+  // 부모(「소화기구 및 자동소화장치」)는 묶음의 존재만 말한다 — 어느 종류가 있는지는 하위 행만이 답한다.
+  // 사용자 확정(2026-09-15): 부모만 체크하고 하위를 안 적었으면 그 종류는 **없는 것**이다.
+  const parentOnly = ['소화기구 및 자동소화장치']
+  check('부모만 체크 → 주거용 주방 false', subgroupInstalledInSheet('주거용 주방 자동소화장치', parentOnly) === false)
+  check('부모만 체크 → 캐비닛형 false', subgroupInstalledInSheet('캐비닛형 자동소화장치', parentOnly) === false)
+  const withCab = ['소화기구 및 자동소화장치', '캐비닛형자동소화장치']
+  check('캐비닛형 등록 → 캐비닛형 true', subgroupInstalledInSheet('캐비닛형 자동소화장치', withCab) === true)
+  check('캐비닛형 등록 → 주거용은 false', subgroupInstalledInSheet('주거용 주방 자동소화장치', withCab) === false)
+  // 어휘가 두 벌이라 정규화 매칭이 안 된다 — 원문 '가스·분말·고체에어로졸' vs 대장 '가스·분말·고체'
+  check('가스·분말·고체에어로졸(원문) → 대장 코드로 이어진다',
+    subgroupInstalledInSheet('가스·분말·고체에어로졸 자동소화장치', ['가스·분말·고체자동소화장치']) === true)
+  check('매핑 대상이 전부 대장 하위 코드에 실재한다',
+    Object.values(FIRE_SUB_BY_SUBGROUP).every(v => FIRE_SUB_ITEMS.includes(v)))
+  // 1-A 소화기구는 세부묶음이 없어 이 축에 안 걸린다 — 걸리면 「소화기 해당없음」이 인쇄된다
+  check('세부묶음 없는 칸은 판정하지 않는다(null)', subgroupInstalledInSheet(null, parentOnly) === null)
+  check('매핑에 없는 세부묶음도 null',
+    subgroupInstalledInSheet('소화기구(소화기, 자동확산소화기, 간이소화용구)', parentOnly) === null)
+}
+
+console.log('\n── 12) 배선 — 인쇄가 그 판정을 실제로 부르는가(이 축의 결함이 살던 자리)')
+{
+  // 판정식도 표도 처음부터 있었는데 **인쇄가 안 불렀다** — 화면은 ／인데 문서는 빈칸이었다.
+  // 규칙이 있는지가 아니라 **쓰이는지**를 묻는다.
+  const srcRoot = path.join(import.meta.dirname, '..', 'src')
+  const asm = readFileSync(path.join(srcRoot, 'lib', 'report9-assemble.ts'), 'utf8')
+  check('분모 확인: 조립 소스를 읽었다', asm.length > 1000)
+  check('인쇄가 중분류 판정을 부른다', /groupInstalledInSheet\(s\.sheet_name/.test(asm))
+  check('인쇄가 세부묶음 판정을 부른다', /subgroupInstalledInSheet\(it\.subgroup_name/.test(asm))
+  // 🚨 모양만 물으면 **빈 배열로 내보내도 초록**이다(변이 M3가 실증) — 값의 출처를 못 박는다
+  check('그 결과를 갑지 엑셀이 쓰도록 내보낸다', /groupNaCodes:\s*\[\.\.\.groupNaCodes\]/.test(asm))
+  const wb = readFileSync(path.join(srcRoot, 'app', '(dashboard)', 'inspections', '[id]', 'workbook', 'route.ts'), 'utf8')
+  check('분모 확인: 워크북 라우트를 읽었다', wb.length > 1000)
+  // 🚨 같은 이유 — 블록이 통째로 꺼져도 안쪽 문자열이 남아 매치된다(변이 M4). 조건문 자체를 본다
+  check('엑셀이 그 목록을 그대로 합성한다',
+    /if \(r9\.groupNaCodes\.length\)/.test(wb) && /result: 'N' as const/.test(wb))
+  check('(음성) 엑셀이 판정식을 직접 부르지 않는다(규칙 두 벌 금지)',
+    !/groupInstalledInSheet|subgroupInstalledInSheet/.test(wb))
 }
 
 console.log('\n── 10) 중분류 활성 축(2026-09-03, image-55) — 입력 화면 회색과 인쇄 ／가 같은 원천인가')
