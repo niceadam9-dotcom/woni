@@ -97,7 +97,7 @@ try {
   // 2026-09-07 — 10호 ③ 값이 두 차수로 갈렸다: 문서 축(제출일·총 이행기간·총 일수)은 ④ 소방서 제출,
   // 작업 축(요약·업체·예산)은 ⑤. 두 자리가 **같은 annex_inputs 행**을 나눠 쓰므로 아래 §2-b가
   // '뒤에 저장한 쪽이 앞의 칸을 지우지 않는가'를 직접 판정한다(upsert는 통째 교체다).
-  check('⑤에는 문서 축 칸이 없다(④로 이동)', (await panel.locator('input[aria-label="제출일"]').count()) === 0)
+  check('⑤에는 문서 축 칸이 없다(④로 이동)', (await panel.locator('input[aria-label="문서에 인쇄할 제출일"]').count()) === 0)
 
   // ── 2-a) ⑤ 작업 축 입력 → 칸을 벗어나면 저장 ──
   await panel.locator('textarea[aria-label="계획 내용 요약"]').fill(SUMMARY)
@@ -108,11 +108,11 @@ try {
   // ── 2-b) ④ 문서 축 입력 — 나중에 저장되는 쪽이 ⑤ 입력을 덮어쓰지 않아야 한다 ──
   await goStep('submit9')
   const panel10 = page.locator('[data-annex-fields="report10"]')
-  await panel10.locator('input[aria-label="제출일"]').waitFor({ timeout: 60000 })
+  await panel10.locator('input[aria-label="문서에 인쇄할 제출일"]').waitFor({ timeout: 60000 })
   check('④ 칸에 10호 문서 축 고유값', true)
   check('④에는 작업 축 칸이 없다(⑤에 남는다)',
     (await panel10.locator('textarea[aria-label="계획 내용 요약"]').count()) === 0)
-  await panel10.locator('input[aria-label="제출일"]').fill(SUBMIT_DATE)
+  await panel10.locator('input[aria-label="문서에 인쇄할 제출일"]').fill(SUBMIT_DATE)
 
   /* ── 총 이행기간 위젯 — 어느 쪽을 먼저 건드려도 종료일이 정해진다 (2026-09-09) ──
    * 종전에는 시작·종료·총일수가 따로 놓여 기간과 일수가 어긋난 채 저장될 수 있었다.
@@ -186,7 +186,7 @@ try {
     && (Math.abs(bSel.y - bStart.y) < 4 ? bSel.x < bStart.x : bSel.y < bStart.y)
   check('총일수 라디오가 날짜칸보다 앞(같은 줄이면 왼쪽, 아니면 윗줄)', selFirst,
     `select (${bSel?.x}, ${bSel?.y}) · 시작 (${bStart?.x}, ${bStart?.y})`)
-  await page.click('text=소방서 제출일')   // blur → 저장
+  await page.click('text=소방서 제출 기록')   // blur → 저장
   await panel10.locator('text=저장됨').waitFor({ timeout: 30000 })
   // 칸마다 저장이 따로 날아간다 — 마지막 칸의 왕복까지 기다린다
   let f: Record<string, string> = {}
@@ -211,8 +211,8 @@ try {
   await page.waitForSelector('[data-testid="workbench-stepbar"]')
   await goStep('submit9')
   const panel2 = page.locator('[data-annex-fields="report10"]')
-  await panel2.locator('input[aria-label="제출일"]').waitFor({ timeout: 60000 })
-  check('재진입 — 제출일 유지', (await panel2.locator('input[aria-label="제출일"]').inputValue()) === SUBMIT_DATE)
+  await panel2.locator('input[aria-label="문서에 인쇄할 제출일"]').waitFor({ timeout: 60000 })
+  check('재진입 — 제출일 유지', (await panel2.locator('input[aria-label="문서에 인쇄할 제출일"]').inputValue()) === SUBMIT_DATE)
   check('재진입 — 총 이행기간 유지',
     (await panel2.locator('input[aria-label="총 이행기간 (수동 보정) 시작일"]').inputValue()) === PERIOD_START
     && (await panel2.locator('input[aria-label="총 이행기간 (수동 보정) 종료일"]').inputValue()) === PERIOD_END)
@@ -293,7 +293,7 @@ try {
   await goStep('submit11')
   const p11 = page.locator('[data-annex-fields="report11"]')
   await p11.locator('textarea[aria-label="완료 보고 문구"]').waitFor({ timeout: 60000 })
-  await p11.locator('input[aria-label="제출일"]').fill(SUBMIT_DATE)
+  await p11.locator('input[aria-label="문서에 인쇄할 제출일"]').fill(SUBMIT_DATE)
   await p11.locator('textarea[aria-label="완료 보고 문구"]').fill('E2E완료문구-전항목 이행 완료함')
   await page.click('text=전·후 사진 쌍')   // blur → 저장
   await p11.locator('text=저장됨').waitFor({ timeout: 30000 })

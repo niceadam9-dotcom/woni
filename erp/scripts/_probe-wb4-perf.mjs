@@ -107,7 +107,7 @@ try {
   // 부모를 여러 번 다시 그리게 한다 — 소방서 제출일 타이핑(setSubDate9)이 가장 잦은 경로다.
   // ⚠ DateInput의 보이는 칸은 `type=text`다(type=date는 달력 팝업 전용 히든 입력) — 첫 시도에서
   //   히든 쪽을 잡아 20초를 헛돌았다. 라벨 줄을 기준으로 잡는다.
-  const subRow = page.locator('div:has(> span:text-is("소방서 제출일"))').first()
+  const subRow = page.locator('div:has(> span:text-is("소방서 제출 기록"))').first()
   const subDate = subRow.locator('input[placeholder="YYYY-MM-DD"]').first()
   await subDate.click()
   await subDate.press('Control+a')

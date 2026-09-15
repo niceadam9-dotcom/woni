@@ -54,7 +54,8 @@ export const FIELD_DEFS: Record<ComposeAnnexNo, FieldDef[]> = {
   ],
   report10: [
     // 이 칸은 아래 총 이행기간의 **기산점**이다 — 비어 있으면 위젯이 오늘을 기산점으로 잡는다
-    { key: 'reportDate', label: '제출일', type: 'date', hint: '미입력 시 생성일(오늘)로 출력 — 이 날짜가 총 이행기간의 기산점입니다' },
+    { key: 'reportDate', label: '문서에 인쇄할 제출일', type: 'date',
+      hint: '미입력 시 생성일(오늘)로 출력 — 이 날짜가 총 이행기간의 기산점입니다. ⚠ 이 칸은 ④를 닫지 않습니다 — 소방서에 낸 사실은 아래 [소방서 제출 기록]에 남깁니다' },
     // 총일수·시작·종료가 한 위젯이다 — 셋은 따로 뜻이 없다(기간과 일수가 어긋난 채 저장되던 자리).
     // 총일수를 **맨 앞에** 두는 것은 실제 업무 순서다: 수리·정비냐 철거·교체냐를 먼저 정하면 기간이 정해진다.
     { key: 'totalPeriod', label: '총 이행기간 (수동 보정)', type: 'actionperiod', fullRow: true,
@@ -66,7 +67,12 @@ export const FIELD_DEFS: Record<ComposeAnnexNo, FieldDef[]> = {
     { key: 'budget', label: '예산 메모', type: 'text', hint: '내부 메모 — 문서에는 출력되지 않습니다' },
   ],
   report11: [
-    { key: 'reportDate', label: '제출일', type: 'date', hint: '미입력 시 생성일(오늘)로 출력' },
+    /* 🚨 2026-09-15 라벨 정정 — 종전엔 그냥 「제출일」이라, 바로 아래 **단계를 닫는** 기록 칸
+       (「소방서 제출 기록」)과 이름이 사실상 같았다. 사용자가 이 칸에 날짜를 넣고 「이행완료를
+       했는데 ⑥이 미완료」라고 물어 온 자리다(운영 실측: report11 문서값은 저장됐고
+       `report11_submitted_at`은 null). 라벨이 **역할을 먼저 말하게** 한다. */
+    { key: 'reportDate', label: '문서에 인쇄할 제출일', type: 'date',
+      hint: '미입력 시 생성일(오늘)로 출력 — ⚠ 이 칸은 ⑥를 닫지 않습니다. 소방서에 낸 사실은 아래 [소방서 제출 기록]에 남깁니다' },
     { key: 'note', label: '완료 보고 문구', type: 'textarea', hint: '서명 블록 위에 1줄 출력 — 없으면 미출력' },
     { key: 'evidence', label: '증빙 목록 메모', type: 'textarea', hint: '내부 메모 — 전/후 사진·계약서 첨부는 제출 패키지에 자동 포함' },
   ],

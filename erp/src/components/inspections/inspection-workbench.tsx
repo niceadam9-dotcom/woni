@@ -989,7 +989,10 @@ export function InspectionWorkbench({
                   화면 양끝에 흩어져 있었다. 의미가 같은 값은 같은 자리에 둔다. */}
               <div className="space-y-1 border-t border-brand-line-soft pt-2">
                 <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className="text-form-xs text-ink-sub">소방서 제출일</span>
+                  {/* 라벨은 **기록**이라 말한다(2026-09-15) — 바로 위 문서 칸(「문서에 인쇄할
+                      제출일」)과 이름이 겹치면 사용자가 문서 칸을 채우고 단계가 닫히길 기다린다.
+                      ⑥에서 실제로 그 일이 났다([[feedback_fix_the_sibling_too]] — 형제도 함께). */}
+                  <span className="text-form-xs text-ink-sub">소방서 제출 기록</span>
                   <DateInput value={subDate9} onChange={e => setSubDate9(e.target.value)}
                     className="h-7 rounded-lg border border-brand-line px-2 text-form-xs" />
                   {/* 라벨은 **고른 날짜를 따라간다** — 기본값이 오늘이라 평시엔 「오늘 제출로 기록」이지만,
@@ -1205,7 +1208,9 @@ export function InspectionWorkbench({
                 </>)}
               </div>
               <div className="flex items-center gap-1.5 flex-wrap border-t border-brand-line-soft pt-2">
-                <span className="text-form-xs text-ink-sub">이행완료 제출일</span>
+                {/* 🚨 2026-09-15 — 종전 「이행완료 제출일」은 위 문서 칸 「제출일」과 구분이 안 됐다.
+                    사용자가 문서 칸에만 날짜를 넣고 ⑥이 안 닫힌다고 물어 온 자리다. **기록**이라 말한다. */}
+                <span className="text-form-xs text-ink-sub">소방서 제출 기록</span>
                 <DateInput value={subDate11} onChange={e => setSubDate11(e.target.value)}
                   className="h-7 rounded-lg border border-brand-line px-2 text-form-xs" />
                 {/* ④와 **같은 규약**([[feedback_fix_the_sibling_too]]) — 한쪽만 고치면 ⑥에서만 2단계로 남는다 */}

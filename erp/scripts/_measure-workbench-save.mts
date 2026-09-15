@@ -122,7 +122,7 @@ try {
   await page.goto(`${BASE}/inspections/${insp}?step=6`)
   await page.waitForLoadState('networkidle').catch(() => {})
   // 그 칸의 직계 span이 라벨인 div만 고른다 — 화면에 YYYY-MM-DD 입력이 여럿이라 전역 선택은 못 쓴다
-  const recRow = page.locator('div:has(> span:text-is("이행완료 제출일"))').last()
+  const recRow = page.locator('div:has(> span:text-is("소방서 제출 기록"))').last()
   const recBtn = recRow.getByRole('button', { name: '기록', exact: true })
   await recBtn.waitFor({ state: 'visible', timeout: 30000 })
   await recRow.getByPlaceholder('YYYY-MM-DD').first().fill('2026-07-20')
