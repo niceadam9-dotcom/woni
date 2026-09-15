@@ -4,6 +4,7 @@ import { useState, useTransition, useMemo } from 'react'
 import { Loader2, UserCheck, MapPin, CheckSquare, Square, Users } from 'lucide-react'
 import { bulkAssignEmployeeAction } from '@/app/(dashboard)/customers/actions'
 import { TableScroll } from '@/components/ui/table-scroll'
+import { assigneeLabel } from '@/lib/default-assignee'
 
 type Customer = {
   id: string
@@ -14,6 +15,8 @@ type Customer = {
   region_myeon: string | null
   region_ri: string | null
   assigned_employee_id: string | null
+  /** 배정 출처 — 'default'면 「(기본)」이 붙는다(2026-09-15, 164). 정식 배정으로 바꿀 대상을 여기서 고른다 */
+  assigned_source?: string | null
 }
 
 type Employee = { id: string; name: string; position: string | null; is_active?: boolean }
@@ -289,7 +292,11 @@ export function RegionalAssignClient({ customers, employees }: Props) {
                     <div className="flex items-center gap-3 mt-0.5">
                       {c.address && <span className="text-xs text-ink-meta truncate max-w-[200px]">{c.address}</span>}
                       <span className="text-xs">
-                        {currentEmp ? <span className="text-ink-sub">현 담당: <strong>{currentEmp}</strong></span> : <span className="text-red-500 font-medium">미배정</span>}
+                        {/* 🎯 이 화면이 「(기본)」을 보여야 하는 이유: **정식 배정으로 바꾸는 자리**가 여기다.
+                            표식이 없으면 무엇이 임시로 채워진 것인지 알 수 없어 고를 대상을 못 찾는다. */}
+                        {currentEmp
+                          ? <span className="text-ink-sub">현 담당: <strong>{assigneeLabel(currentEmp, c.assigned_source)}</strong></span>
+                          : <span className="text-red-500 font-medium">미배정</span>}
                       </span>
                     </div>
                   </div>

@@ -1,16 +1,19 @@
 import { MapPin, Phone, UserCheck, Calendar, ClipboardList } from 'lucide-react'
 import { AddressMapButton } from '@/components/ui/address-map-button'
 import { formatTel } from '@/lib/format-contact'
+import { assigneeLabel } from '@/lib/default-assignee'
 
 /** 우측 고정 요약 패널 (설계 §6-C-2) — 탭을 옮겨도 핵심 정보 상시 표시.
  *  서버 컴포넌트: 페이지가 이미 조회한 데이터만 받는다 (추가 쿼리 없음). 좁은 화면(<xl)은 숨김.
  *  지도 버튼은 클라이언트 컴포넌트지만 문자열만 넘기므로 서버 컴포넌트 안에서 그대로 쓴다. */
-export function CustomerSummaryPanel({ customerName, address, repName, repPhone, employeeName, planDate, lastInspectionDate }: {
+export function CustomerSummaryPanel({ customerName, address, repName, repPhone, employeeName, assignedSource, planDate, lastInspectionDate }: {
   customerName: string
   address: string | null
   repName: string | null
   repPhone: string | null
   employeeName: string | null
+  /** 배정 출처 — 'default'면 이름 뒤에 「(기본)」이 붙는다(2026-09-15). 문구 규칙은 lib 한 곳이다 */
+  assignedSource?: string | null
   planDate: string | null
   lastInspectionDate: string | null
 }) {
@@ -24,7 +27,10 @@ export function CustomerSummaryPanel({ customerName, address, repName, repPhone,
     },
     {
       icon: <UserCheck className="size-3.5" />, label: '담당',
-      value: employeeName ?? <span className="text-red-500">미배정</span>,
+      // 「(기본)」은 **정식 배정이 아니라는 신호**다 — 미배정을 채우면서 그 사실을 잃지 않으려는 축.
+      value: employeeName
+        ? <span className={assignedSource === 'default' ? 'text-ink-sub' : undefined}>{assigneeLabel(employeeName, assignedSource)}</span>
+        : <span className="text-red-500">미배정</span>,
     },
     {
       icon: <Calendar className="size-3.5" />, label: '점검일자',

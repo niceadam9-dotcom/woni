@@ -23,6 +23,7 @@ export default async function RegionalAssignPage() {
     region_myeon: string | null
     region_ri: string | null
     assigned_employee_id: string | null
+    assigned_source?: string | null
   }
 
   type EmployeeRow = { id: string; name: string; position: string | null; is_active: boolean }
@@ -35,7 +36,7 @@ export default async function RegionalAssignPage() {
     hasRegionCols
       ? admin
           .from('customers')
-          .select('id, customer_code, customer_name, address, region_si, region_myeon, region_ri, assigned_employee_id')
+          .select('id, customer_code, customer_name, address, region_si, region_myeon, region_ri, assigned_employee_id, assigned_source')
           .eq('is_active', true)
           .not('region_si', 'is', null)
           .order('region_si')

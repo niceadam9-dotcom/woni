@@ -319,6 +319,8 @@ export default async function CustomerDetailPage({
     evacElevatorCount: s(firstBld?.evac_elevator_count),
     managerSelectedAt: s(cRec.manager_selected_at),
     grade: s(cRec.building_grade),
+    // 163 업무대행 — `?? null`이 **미입력**이다(`false` 해당없음과 다른 상태). `s()`로 접으면
+    // boolean이 문자열이 되어 세 상태가 둘로 뭉개진다.
     repRole: s(cRec.rep_role),
     managerLicenseGrade: s(cRec.manager_license_grade),
     managerEduDate: s(cRec.manager_edu_date),
@@ -504,6 +506,7 @@ export default async function CustomerDetailPage({
           <AssignEmployeeInline
             customerId={customer.id}
             currentEmployeeId={customer.assigned_employee_id}
+            assignedSource={(customer as { assigned_source?: string | null }).assigned_source ?? null}
             employees={employees}
             canAssign={canAssign}
           />
@@ -761,6 +764,7 @@ export default async function CustomerDetailPage({
         } : null,
         contractDate: s(cRec.contract_date) || null,
         grade: s(cRec.building_grade) || null,
+        // 163 — 서식 1.8의 대행여부·등급은 이 축이다(대상물 급수 `grade`와 다른 목록)
         inspectionType: customer.inspection_type,
         managerName: repContact?.name ?? null,
         managerSelectedAt: planInfoInitial.managerSelectedAt || null,
@@ -1033,6 +1037,7 @@ export default async function CustomerDetailPage({
             repName={repContact?.name ?? null}
             repPhone={repContact?.phone ?? null}
             employeeName={assignedEmployee?.name ?? null}
+            assignedSource={(customer as { assigned_source?: string | null }).assigned_source ?? null}
             planDate={customer.plan_anchor_date}
             lastInspectionDate={lastInspectionDate}
           />

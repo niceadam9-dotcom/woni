@@ -10,6 +10,7 @@ import { InlineCustomerFieldClient } from '@/components/customers/inline-custome
 import { ClickableRow } from '@/components/customers/clickable-row'
 import { CustomerViewTabs } from '@/components/customers/customer-view-tabs'
 import { RecentCustomersStrip } from '@/components/customers/recent-customers-strip'
+import { assigneeLabel } from '@/lib/default-assignee'
 import { TableScroll, STICKY_THEAD } from '@/components/ui/table-scroll'
 import { AddressMapButton } from '@/components/ui/address-map-button'
 import { fetchCustomerList, parseListFilter } from '@/lib/customer-list'
@@ -257,10 +258,12 @@ export default async function CustomersPage({
                             value={c.assigned_employee_id}
                             employees={employees}
                             displayVariant="employee"
-                            displayValue={c.assigned_employee_id ? (empMap.get(c.assigned_employee_id) ?? '-') : undefined}
+                            displayValue={c.assigned_employee_id
+                              ? assigneeLabel(empMap.get(c.assigned_employee_id) ?? '-', c.assigned_source)
+                              : undefined}
                           />
                         ) : c.assigned_employee_id ? (
-                          <span className="text-xs font-medium text-ink">{empMap.get(c.assigned_employee_id) ?? '-'}</span>
+                          <span className="text-xs font-medium text-ink">{assigneeLabel(empMap.get(c.assigned_employee_id) ?? '-', c.assigned_source)}</span>
                         ) : (
                           <span className="text-xs text-red-500 font-medium">미배정</span>
                         )}

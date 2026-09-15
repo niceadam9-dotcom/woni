@@ -3,6 +3,9 @@ import { Users } from 'lucide-react'
 import { getProfile } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { UserManageClient } from '@/components/admin/user-manage-client'
+import { DefaultAssigneeCard } from '@/components/admin/default-assignee-card'
+import { defaultAssigneeTargets } from '@/lib/default-assignee'
+import { COMPANY_PROFILE_ORDER } from '@/lib/company-profile'
 
 export default async function AdminUsersPage({
   searchParams,
@@ -22,10 +25,15 @@ export default async function AdminUsersPage({
   const admin = createAdminClient()
   const year = new Date().getFullYear()
 
-  const [profilesRes, deptsRes, balancesRes] = await Promise.all([
+  const [profilesRes, deptsRes, balancesRes, companyRes, custRes] = await Promise.all([
     admin.from('profiles').select('*').order('name'),
     admin.from('departments').select('id, name').order('name'),
     admin.from('leave_balances').select('employee_id, total_days, used_days').eq('year', year),
+    // 기본 담당자(2026-09-15) — 설정값과 **일괄 적용 대상 수**를 함께 읽는다.
+    // 대상 수는 서버가 `defaultAssigneeTargets`로 센다: 화면이 제 나름대로 세면
+    // "2명"이라 말하고 3명을 바꾸는 일이 생긴다(세는 쪽과 쓰는 쪽은 같은 함수라야 한다).
+    admin.from('company_profile').select('default_assignee_id').order(COMPANY_PROFILE_ORDER, { ascending: true }).limit(1).maybeSingle(),
+    admin.from('customers').select('id, inspection_type, assigned_employee_id, is_active'),
   ])
 
   type ProfileRow = {
@@ -58,6 +66,19 @@ export default async function AdminUsersPage({
     used_days: balMap.get(u.id)?.used_days ?? 0,
   }))
 
+  const defaultAssigneeId =
+    (companyRes.data as { default_assignee_id: string | null } | null)?.default_assignee_id ?? null
+  const activeCustomers =
+    ((custRes.data ?? []) as Array<{ id: string; inspection_type: string | null; assigned_employee_id: string | null; is_active: boolean | null }>)
+      .filter(c => c.is_active !== false)
+  const defaultTargetCount = defaultAssigneeTargets(activeCustomers, defaultAssigneeId).length
+  // 드롭다운 후보는 **활성 직원만** — 비활성 직원을 기본 담당자로 두면 아무도 안 보는 배정이 된다
+  const assignable = ((profilesRes.data ?? []) as ProfileRow[])
+    // 고객 상세 담당 드롭다운과 **같은 기준**이어야 한다(is_active + !is_system) — 기준이 갈리면
+    // 한 화면에서만 고를 수 있는 사람이 생긴다
+    .filter(u => u.is_active && !(u as { is_system?: boolean }).is_system)
+    .map(u => ({ id: u.id, name: u.name, position: u.position }))
+
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3">
@@ -67,6 +88,8 @@ export default async function AdminUsersPage({
           <p className="text-sm text-ink-sub mt-0.5">직원 계정을 생성하고 관리합니다</p>
         </div>
       </div>
+
+      <DefaultAssigneeCard current={defaultAssigneeId} employees={assignable} targetCount={defaultTargetCount} />
 
       {/* 검색/필터 */}
       <form method="GET" action="/admin/users" className="flex flex-wrap items-center gap-2">

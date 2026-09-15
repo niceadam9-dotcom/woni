@@ -34,6 +34,8 @@ export type CustomerListItem = {
   inspection_sub_type: '종합' | '작동' | null
   address: string | null
   is_active: boolean; assigned_employee_id: string | null; created_at: string
+  /** 배정 출처 — 'default'면 목록에 「(기본)」이 붙는다(2026-09-15, 164) */
+  assigned_source?: string | null
   buildings: CustomerListBuilding[]
   planDone: number; planTotal: number
   /** 미완료 영역 (탭 뱃지 §4 기준): 기본정보·건물·관계인·계획서·청구 */
@@ -110,7 +112,7 @@ export async function fetchCustomerList(
   let query = admin
     .from('customers')
     .select(`id, customer_code, customer_name, contract_date, use_approval_date, plan_anchor_date,
-      inspection_type, inspection_sub_type, address, is_active, assigned_employee_id, created_at,
+      inspection_type, inspection_sub_type, address, is_active, assigned_employee_id, assigned_source, created_at,
       region_si, region_myeon, region_ri,
       manager_selected_at, building_grade, insurance_joined, op_hours_weekday,
       headcount_worker, headcount_resident, headcount_max, manager_appointment_type,

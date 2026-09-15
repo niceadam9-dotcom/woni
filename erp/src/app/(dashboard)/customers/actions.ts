@@ -17,6 +17,8 @@ import { anchorSourceLabel, resolveAnchor, plannedDateFor, desiredSlotsFor, desi
 import { rowInspectionType, rowSubType, INITIAL_INSPECTION_DAYS } from '@/lib/inspection-round'
 import { notifyIfEnabled, allowsNotification } from '@/lib/notify'
 import { formatTel } from '@/lib/format-contact'
+import { shouldFillDefaultAssignee, defaultAssigneeTargets, type AssignSource } from '@/lib/default-assignee'
+import { COMPANY_PROFILE_ORDER } from '@/lib/company-profile'
 import type { ContactRole, InspectionType } from '@/types'
 
 const CUSTOMER_FIELD_LABELS: Record<string, string> = {
@@ -178,6 +180,23 @@ export async function createCustomerAction(
     }
   }
 
+  /* 🎯 기본 담당자 — 「일반관리」 고객이 담당 미선택으로 저장되면 설정된 직원으로 채운다
+   *   (2026-09-15 사용자 확정). 규칙은 `lib/default-assignee` 한 곳이고 일괄 적용도 같은 함수를 쓴다.
+   * ⚠ 설정이 비어 있으면 **아무 일도 하지 않는다** — 종전대로 미배정으로 저장된다.
+   * ⚠ 자동으로 채운 건 `assigned_source: 'default'`로 남긴다. 그 표식이 없으면 미배정을
+   *   고치는 게 아니라 **숨기는 것**이 된다(빨간 「미배정」이 지금 유일한 신호다). */
+  /* 🚨 정렬을 고정한다 — 이 테이블은 '단일 행' 전제지만 **실제로 2행**이다(스테이징 실측).
+   *   정렬이 없으면 읽는 쪽과 쓰는 쪽이 다른 행을 잡아, 저장은 성공했는데 화면엔 옛 값이
+   *   남는 조용한 실패가 된다. `company/actions.ts`가 같은 이유로 이미 그렇게 해 두었다. */
+  const { data: cpRow } = await admin.from('company_profile').select('default_assignee_id').order(COMPANY_PROFILE_ORDER, { ascending: true }).limit(1).maybeSingle()
+  const defaultAssigneeId = (cpRow as { default_assignee_id: string | null } | null)?.default_assignee_id ?? null
+  const fillDefault = shouldFillDefaultAssignee(
+    { inspection_type: input.inspection_type, assigned_employee_id: input.assigned_employee_id || null },
+    defaultAssigneeId,
+  )
+  const effectiveAssignee = input.assigned_employee_id || (fillDefault ? defaultAssigneeId : null)
+  const assignSource: AssignSource | null = effectiveAssignee ? (fillDefault ? 'default' : 'manual') : null
+
   const baseFields = {
     customer_code: input.customer_code,
     customer_name: input.customer_name,
@@ -197,7 +216,8 @@ export async function createCustomerAction(
       : input.inspection_sub_type!,
     address: input.address || null,
     notes: input.notes || null,
-    assigned_employee_id: input.assigned_employee_id || null,
+    assigned_employee_id: effectiveAssignee,
+    assigned_source: assignSource,
     // 소방안전관리등급(별표4 대상물 급수) — 선택 입력이라 미선택은 null (등록을 막지 않는다)
     building_grade: input.building_grade || null,
     created_by: profile.id,
@@ -362,7 +382,9 @@ export async function createCustomerAction(
         : input.inspection_type === '작동' ? '작동'
         : input.inspection_sub_type ?? '작동',
       plan_anchor_date: input.plan_anchor_date,
-      assigned_employee_id: input.assigned_employee_id || null,
+      // ⚠ 고객과 **같은 값**이라야 한다 — 여기만 입력값을 쓰면 고객은 기본 담당자로 채워졌는데
+      //   계획 항목은 미배정이 되어 담당 전파 불변식(INV-D14)이 깨진다.
+      assigned_employee_id: effectiveAssignee,
     },
     profile.id,
   )
@@ -452,9 +474,16 @@ export async function assignEmployeeAction(
   const customer = customerRaw as { customer_name: string; assigned_employee_id: string | null } | null
   if (!customer) return { error: '고객을 찾을 수 없습니다.' }
 
+  /* ⚠ 출처를 **함께** 쓴다 — 사람이 고른 순간 `manual`로 승격된다(2026-09-15).
+   *   이걸 빠뜨리면 기본 배정된 고객을 손으로 다시 골라도 화면에 「(기본)」이 남아,
+   *   "아직 아무도 안 정했다"는 거짓 표식이 굳는다. 해제(null)면 출처도 함께 지운다 —
+   *   없는 배정에 출처를 남기지 않는다. */
   const { error } = await admin
     .from('customers')
-    .update({ assigned_employee_id: employeeId } as Record<string, unknown>)
+    .update({
+      assigned_employee_id: employeeId,
+      assigned_source: employeeId ? 'manual' : null,
+    } as Record<string, unknown>)
     .eq('id', customerId)
   if (error) return { error: '담당자 변경에 실패했습니다.' }
 
@@ -1186,7 +1215,13 @@ export async function bulkAssignEmployeeAction(
 
   const { error, count } = await admin
     .from('customers')
-    .update({ assigned_employee_id: employeeId } as Record<string, unknown>)
+    /* ⚠ 출처도 함께 — 지역별 일괄 배정은 **사람이 고른 것**이라 `manual`이다(2026-09-15).
+     *   빠뜨리면 출처가 null로 남아 「사람이 고름」과 「출처 미상」을 나중에 가를 수 없다.
+     *   표시는 둘 다 이름만이라 화면으로는 안 드러난다 — 그래서 더 조용히 어긋난다. */
+    .update({
+      assigned_employee_id: employeeId,
+      assigned_source: employeeId ? 'manual' : null,
+    } as Record<string, unknown>)
     .in('id', customerIds)
 
   if (error) return { error: '일괄 배정에 실패했습니다.' }
@@ -2297,4 +2332,71 @@ export async function quickAddressApplyAction(
   revalidatePath(`/customers/${customerId}`)
   revalidatePath('/customers')
   return { applied: { fireStation, buildings: filled } }
+}
+
+/* ── 기본 담당자 (2026-09-15 사용자 확정) ─────────────────────────────────────────
+ *
+ * 「일반관리」 고객이 담당 미선택으로 저장될 때 채울 직원. 설정은 회사 단위라
+ * `company_profile`에 둔다(같은 테이블의 `default_region_si`가 선례다).
+ *
+ * ⚠ `company_profile.representative`를 쓰지 않는다 — 그건 **이름 문자열**이라 profiles와
+ *   이어져 있지 않고, 「대표자」와 「기본 담당자」는 원래 다른 개념이다(사용자가 직접 고른다).
+ * ⚠ **설정 저장과 일괄 적용을 가른다.** 드롭다운 한 번에 수십 명의 데이터가 바뀌면
+ *   잘못 고른 순간 되돌릴 방법이 마땅찮다. 적용은 버튼을 눌러야 하고, 그 전에 대상 수를 보여준다.
+ */
+
+/** 기본 담당자 설정 — **저장만** 한다(고객 데이터는 건드리지 않는다). */
+export async function setDefaultAssigneeAction(
+  profileId: string | null,
+): Promise<{ error?: string }> {
+  await requirePermission('customer_assign')
+  const admin = createAdminClient()
+  const { data: row } = await admin.from('company_profile').select('id').order(COMPANY_PROFILE_ORDER, { ascending: true }).limit(1).maybeSingle()
+  const id = (row as { id: string } | null)?.id
+  if (!id) return { error: '회사 정보가 없습니다 — 회사 정보를 먼저 저장해주세요.' }
+  const { error } = await admin.from('company_profile')
+    .update({ default_assignee_id: profileId || null } as Record<string, unknown>)
+    .eq('id', id)
+  if (error) return { error: `설정 저장에 실패했습니다: ${error.message}` }
+  revalidatePath('/admin/users')
+  return {}
+}
+
+/** 일괄 적용 — 「일반관리」 미배정 고객을 기본 담당자로 채운다.
+ *
+ *  ⚠ 대상 판정은 `lib/default-assignee`의 `defaultAssigneeTargets` 하나다 — 화면이 보여준
+ *    미리보기 수와 실제로 바뀌는 집합이 **같은 함수**에서 나와야 "2명"이라 말하고 3명을
+ *    바꾸는 일이 없다.
+ *  ⚠ **알림을 보내지 않는다.** 기본 배정은 사람이 정한 일이 아니라 빈칸을 메운 것이다 —
+ *    36명을 채우며 알림 36개를 보내면 그게 더 나쁘다(정식 배정만 알린다).
+ */
+export async function applyDefaultAssigneeAction(): Promise<{ applied?: number; error?: string }> {
+  await requirePermission('customer_assign')
+  const admin = createAdminClient()
+  const { data: cp } = await admin.from('company_profile').select('default_assignee_id').order(COMPANY_PROFILE_ORDER, { ascending: true }).limit(1).maybeSingle()
+  const defaultId = (cp as { default_assignee_id: string | null } | null)?.default_assignee_id ?? null
+  if (!defaultId) return { error: '기본 담당자를 먼저 선택해주세요.' }
+
+  const { data: rows, error: readErr } = await admin.from('customers')
+    .select('id, inspection_type, assigned_employee_id, is_active')
+  if (readErr) return { error: `고객 조회에 실패했습니다: ${readErr.message}` }
+  const targets = defaultAssigneeTargets(
+    ((rows ?? []) as Array<{ id: string; inspection_type: string | null; assigned_employee_id: string | null; is_active: boolean | null }>)
+      .filter(c => c.is_active !== false),
+    defaultId,
+  )
+  if (targets.length === 0) return { applied: 0 }
+
+  const { error } = await admin.from('customers')
+    .update({ assigned_employee_id: defaultId, assigned_source: 'default' } as Record<string, unknown>)
+    .in('id', targets.map(t => t.id))
+  if (error) return { error: `일괄 적용에 실패했습니다: ${error.message}` }
+
+  // 담당 전파 — 미완료 계획·진행중 점검까지(지역별 일괄 배정과 같은 규약, INV-D14)
+  for (const t of targets) await _syncEmployeeToRelated(admin, t.id, defaultId)
+
+  revalidatePath('/admin/users')
+  revalidatePath('/customers')
+  revalidatePath('/customers/regional-assign')
+  return { applied: targets.length }
 }
