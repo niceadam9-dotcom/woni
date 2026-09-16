@@ -8,6 +8,7 @@ import { DeleteCustomerClient } from '@/components/customers/delete-customer-cli
 import { CustomerSearchBox } from '@/components/customers/customer-search-box'
 import { InlineCustomerFieldClient } from '@/components/customers/inline-customer-field-client'
 import { ClickableRow } from '@/components/customers/clickable-row'
+import { FirePlanXlsxButton } from '@/components/customers/fire-plan-xlsx-button'
 import { CustomerViewTabs } from '@/components/customers/customer-view-tabs'
 import { RecentCustomersStrip } from '@/components/customers/recent-customers-strip'
 import { assigneeLabel } from '@/lib/default-assignee'
@@ -296,7 +297,9 @@ export default async function CustomersPage({
                         </Link>
                       </td>
                       <td className="px-4 py-3">
-                        {/* §6-B-B3: 탭 딥링크 바로가기 — 🏢 건물·시설 / 📄 소방계획서(준비율) / › 상세 */}
+                        {/* §6-B-B3: 탭 딥링크 바로가기 — 🏢 건물·시설 / 📄 소방계획서(준비율) / › 상세
+                            + 2026-09-16: 소방계획서 문서 바로가기 2개(엑셀·PDF). 종전에는 계획서 탭으로
+                            들어가야만 받을 수 있었다. 탭 아이콘 바로 뒤에 두어 「계획서」 셋이 붙어 있게 한다. */}
                         <div className="flex items-center gap-1.5">
                           <Link href={detailHref(c.id, 'buildings')} title="건물·시설 탭"
                             className={`relative p-1 rounded hover:bg-brand-tint ${bldIncomplete ? 'text-amber-500' : 'text-ink-faint hover:text-brand'}`}>
@@ -308,6 +311,21 @@ export default async function CustomersPage({
                             <FileText className="size-3.5" />
                             {planIncomplete && <span className="absolute -top-0.5 -right-0.5 size-1.5 rounded-full bg-amber-500" />}
                           </Link>
+                          {/* 문서 바로가기 — 라우트가 customer_manage를 요구하므로(xlsx·pdf 양쪽 403)
+                              권한 없는 사람에게 누르면 실패할 버튼을 보여 주지 않는다 */}
+                          {canCreate && (
+                            <>
+                              <FirePlanXlsxButton customerId={c.id} variant="compact" />
+                              {/* PDF는 고지 헤더가 없어 새 탭 조회가 규약(fire-plan-view의 openPdf와 같은 축).
+                                  브라우저 뷰어에서 바로 인쇄·저장할 수 있어 download=1을 붙이지 않는다 */}
+                              <a href={`/customers/${c.id}/fire-plan/pdf`} target="_blank" rel="noopener noreferrer"
+                                title="소방계획서 PDF 열기 — 새 탭에서 조회하고 그대로 인쇄·저장할 수 있습니다"
+                                data-testid="fire-plan-pdf-link"
+                                className="inline-flex h-6 w-[2.6rem] items-center justify-center rounded border border-red-200 text-form-2xs font-medium text-red-600 transition-colors hover:bg-red-50">
+                                PDF
+                              </a>
+                            </>
+                          )}
                           <Link href={detailHref(c.id)} title="상세보기"
                             className="p-1 rounded text-brand hover:bg-brand-tint">
                             <ChevronRight className="size-4" />

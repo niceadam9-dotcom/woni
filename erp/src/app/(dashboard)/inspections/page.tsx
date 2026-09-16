@@ -13,6 +13,7 @@ import { fetchAllRows, fetchAllRowsByIds } from '@/lib/supabase/paginate'
 import { todayKst, daysBetween } from '@/lib/kst-date'
 import { can } from '@/lib/permissions'
 import { PendingPlanStartList, type PendingPlanRow } from '@/components/inspections/pending-plan-start-list'
+import { WorkbookXlsxButton } from '@/components/inspections/workbook-xlsx-button'
 
 /** 「시작 대기」 칸에 세우는 임박 기준 — 예정일 N일 전부터.
  *  ⚠ 이 숫자는 화면에도 그대로 적는다(PendingPlanStartList) — 규칙이 안 보이면 사용자는
@@ -213,6 +214,8 @@ export default async function InspectionsPage({
     }
   })
   const canStartPending = can(profile.role as UserRole, 'inspection_plan_manage')
+  // 결과보고서 엑셀 바로가기 — workbook 라우트와 **같은 권한**을 묻는다(갈라지면 403 아이콘이 생긴다)
+  const canWorkbook = can(profile.role as UserRole, 'inspection_register')
 
   // 단계 진행률 및 마감임박 정보 로드
   //
@@ -405,8 +408,9 @@ export default async function InspectionsPage({
             <table className="w-full text-sm">
               <thead className={STICKY_THEAD}>
                 <tr className="border-b border-line bg-paper">
-                  {['고객명', '유형/차수', '시작일', '담당자', '진행 단계', '상태'].map(h => (
-                    <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-ink-sub whitespace-nowrap">
+                  {/* 마지막 빈 머리글 = 문서 바로가기 열 (고객 목록의 액션 열과 같은 규약) */}
+                  {['고객명', '유형/차수', '시작일', '담당자', '진행 단계', '상태', ''].map((h, i) => (
+                    <th key={h || `act-${i}`} className="text-left px-4 py-3 text-xs font-semibold text-ink-sub whitespace-nowrap">
                       {h}
                     </th>
                   ))}
@@ -478,6 +482,16 @@ export default async function InspectionsPage({
                         <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${STATUS_COLORS[insp.status]}`}>
                           {STATUS_LABELS[insp.status]}
                         </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        {/* 문서 바로가기 — 결과보고서 엑셀(갑지 통합 워크북). 종전에는 점검 상세
+                            작업대까지 들어가야 받을 수 있었다(2026-09-16 사용자 요청).
+                            라우트가 inspection_register를 요구하므로 권한 없는 사람에겐 안 그린다 */}
+                        {canWorkbook && (
+                          <div className="flex items-center gap-1.5">
+                            <WorkbookXlsxButton inspectionId={insp.id} variant="compact" />
+                          </div>
+                        )}
                       </td>
                     </tr>
                   )

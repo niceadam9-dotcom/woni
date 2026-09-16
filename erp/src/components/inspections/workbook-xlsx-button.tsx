@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { FileSpreadsheet, Loader2 } from 'lucide-react'
+import { DocNoticeToast } from '@/components/ui/doc-notice-toast'
 
 /** 갑지 통합 워크북(엑셀) 받기 — 생성물 목록의 **머리 자리** 창구.
  *
@@ -16,10 +17,17 @@ import { FileSpreadsheet, Loader2 } from 'lucide-react'
  *    (`customers/fire-plan-xlsx-button`)이 같은 이유로 먼저 밟은 길이고, 규약을 맞춘다.
  *
  *  ⚠ 저장하지 않는다(D-5) — 받아서 고치는 순간 서버 사본이 낡는다. 그래서 이 산출물은
- *    생성물 목록에 **행으로 쌓이지 않는다**. 목록 안이 아니라 목록 **머리**에 있는 이유다. */
-export function WorkbookXlsxButton({ inspectionId, disabled }: {
+ *    생성물 목록에 **행으로 쌓이지 않는다**. 목록 안이 아니라 목록 **머리**에 있는 이유다.
+ *
+ *  `variant='compact'`은 **점검 업무 목록 행**의 바로가기용이다(2026-09-16 사용자 요청). 종전에는
+ *  점검 상세 작업대까지 들어가야 이 문서를 받을 수 있었다. 아이콘만 그렸다가 구분이 안 된다는
+ *  지시로 **글씨 「엑셀」**로 바꿨다(고객 목록 쪽과 같은 축). 고지를 버튼 아래에 그리면 행 높이가
+ *  튀므로 고지는 body 포털 토스트로 뺀다.
+ *  **받는 방식(fetch+Blob)은 갈라지지 않는다** — 표면만 다르고 로직은 이 한 벌뿐이다. */
+export function WorkbookXlsxButton({ inspectionId, disabled, variant = 'default' }: {
   inspectionId: string
   disabled?: boolean
+  variant?: 'default' | 'compact'
 }) {
   const [busy, setBusy] = useState(false)
   const [notice, setNotice] = useState('')
@@ -54,6 +62,20 @@ export function WorkbookXlsxButton({ inspectionId, disabled }: {
     } finally {
       setBusy(false)
     }
+  }
+
+  if (variant === 'compact') {
+    return (
+      <>
+        <button onClick={download} disabled={busy || disabled} data-testid="workbook-xlsx"
+          title="결과보고서 엑셀 받기 — 갑지 서식 통합 워크북. 받은 뒤 고쳐 쓰실 수 있습니다 (저장되지 않습니다)"
+          className="inline-flex h-6 w-[2.6rem] items-center justify-center rounded border border-emerald-200 text-form-2xs font-medium text-emerald-700 transition-colors hover:bg-emerald-50 disabled:opacity-50">
+          {busy ? <Loader2 className="size-3 animate-spin" /> : '엑셀'}
+        </button>
+        <DocNoticeToast notice={notice} error={error}
+          onClose={() => { setNotice(''); setError('') }} />
+      </>
+    )
   }
 
   return (

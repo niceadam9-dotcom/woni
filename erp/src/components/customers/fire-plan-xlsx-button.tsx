@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { FileSpreadsheet, Loader2 } from 'lucide-react'
+import { DocNoticeToast } from '@/components/ui/doc-notice-toast'
 
 /** 소방계획서 엑셀 받기 — **단일 원천** (소방계획서_47).
  *
@@ -14,13 +15,19 @@ import { FileSpreadsheet, Loader2 } from 'lucide-react'
  *
  *  고지·오류를 바깥에서 그리고 싶으면 `onNotice`/`onError`를 넘긴다(계획서 탭이 그렇게 쓴다).
  *  안 넘기면 버튼 아래에 스스로 그린다(별지서식 탭).
+ *
+ *  `variant='compact'`은 **고객 목록 행**의 바로가기용이다(2026-09-16 사용자 요청). 처음엔
+ *  아이콘만 그렸는데, 같은 행에 파일 모양 아이콘이 셋(계획서 탭·엑셀·PDF)이라 작은 크기에서
+ *  구분이 안 됐다 — 사용자 지시로 **글씨 「엑셀」**로 바꿨다. 고지를 버튼 아래에 그리면 행 높이가
+ *  튀므로 고지는 body 포털 토스트로 뺀다. **받는 방식(fetch+Blob)은 갈라지지 않는다** —
+ *  표면만 다르고 로직은 이 한 벌뿐이다.
  */
 export function FirePlanXlsxButton({
   customerId, label = '엑셀 받기', variant = 'primary', title, onNotice, onError,
 }: {
   customerId: string
   label?: string
-  variant?: 'primary' | 'outline'
+  variant?: 'primary' | 'outline' | 'compact'
   title?: string
   /** 넘기면 고지를 바깥이 그린다 — 넘기지 않으면 이 컴포넌트가 아래에 그린다 */
   onNotice?: (msg: string) => void
@@ -64,6 +71,23 @@ export function FirePlanXlsxButton({
     }
   }
 
+  const defaultTitle = '현재 입력값으로 즉석 생성한 엑셀을 내려받습니다 — 받은 뒤 직접 고쳐 쓰실 수 있습니다'
+
+  // 목록 행 바로가기 — 글씨 칩. 받는 중에만 스피너가 글씨를 대신한다(폭이 흔들리지 않게 고정 폭)
+  if (variant === 'compact') {
+    return (
+      <>
+        <button onClick={download} disabled={busy} data-testid="fire-plan-xlsx"
+          title={title ?? `소방계획서 엑셀 받기 — ${defaultTitle}`}
+          className="inline-flex h-6 w-[2.6rem] items-center justify-center rounded border border-emerald-200 text-form-2xs font-medium text-emerald-700 transition-colors hover:bg-emerald-50 disabled:opacity-50">
+          {busy ? <Loader2 className="size-3 animate-spin" /> : '엑셀'}
+        </button>
+        <DocNoticeToast notice={selfNotice} error={selfError}
+          onClose={() => { setSelfNotice(''); setSelfError('') }} />
+      </>
+    )
+  }
+
   const cls = variant === 'primary'
     ? 'bg-brand hover:bg-brand-strong text-white'
     : 'border border-brand-line text-ink-sub hover:bg-brand-tint hover:text-brand'
@@ -71,7 +95,7 @@ export function FirePlanXlsxButton({
   return (
     <>
       <button onClick={download} disabled={busy} data-testid="fire-plan-xlsx"
-        title={title ?? '현재 입력값으로 즉석 생성한 엑셀을 내려받습니다 — 받은 뒤 직접 고쳐 쓰실 수 있습니다'}
+        title={title ?? defaultTitle}
         className={`inline-flex items-center gap-1 h-form-8 px-3 rounded-lg text-form-sm font-medium transition-colors disabled:opacity-50 ${cls}`}>
         {busy ? <Loader2 className="size-3.5 animate-spin" /> : <FileSpreadsheet className="size-3.5" />} {label}
       </button>
