@@ -145,5 +145,102 @@ if (mixed) {
   check('섞인 시트 표본이 있다(없으면 이 단언이 공허)', false, '표본 없음')
 }
 
+/* ══════════════════════ [7] 적색 시트 목록 래칫 ══════════════════════
+ *  🚨 **수(37)만 박으면 한 장을 배선하고 다른 한 장이 퇴행해도 초록이다.** 이름 집합으로 박는다.
+ *    줄면 「기대 목록을 갱신하라」로 붉어지고, **늘면 그 장의 이름이 나온다.**
+ *  왜 「== 0」으로 안 하나: 첫날부터 37건 빨강이면 아무도 안 읽는다. 래칫은 **지금을 못 박고
+ *  한 칸씩 내리는** 장치다. (소방계획서_50 §5-2) */
+console.log('\n[7] 한 칸도 안 채우는 시트 — 이름으로 못 박기')
+/** ERP가 이 시트에 **한 칸도** 안 넣는다 — 값 슬롯도 상자도.
+ *  ⚠ 판정은 **한 벌**이다. 프로브에서 이 술어가 두 벌로 갈려 1.10.1(상자 9칸 배선)이
+ *    「미배선」으로 찍힌 적이 있다 — 같은 파일 안 드리프트. */
+const untouched = (r: (typeof all)[number]) =>
+  (r.slots > 0 || r.boxes > 0) && r.wired === 0 && r.wiredBoxes === 0
+const red = all.filter(untouched).map(r => r.sheet).sort()
+const RED_EXPECTED = [
+  '1.10.3 다중이용업소 관리현황', '1.10.4 화재·비화재보 이력', '1.11.1 소방훈련·교육 연간계획',
+  '1.11.2 소방훈련·교육 세부계획', '1.11.3 소방훈련 시나리오', '1.11.4 결과기록부 뒷쪽',
+  '1.12.1 화기취급작업 현황', '1.13 소방시설 공사·정비 기록', '1.14.1 화재예방 및 홍보 계획',
+  '1.14.2 화재예방 및 홍보 결과', '1.15 피해 복구', '1.2.2 화재취약장소 현황',
+  '1.3 건축물 위치·운영현황', '1.5.2 방화·제연구획 현황도', '1.6.1 기타시설 일반현황',
+  '1.9 자위소방대 현황', '1.9.3 입주사 현황', '2.1 자위소방대 일반현황', '2.10 피난유도팀',
+  '2.11 응급구조팀', '2.12 방호안전팀', '2.13 초기대응체계', '2.14 결과기록부 뒷쪽',
+  '2.3 임무', '2.3 조직도', '2.4 개별임무카드', '2.5 지휘통제팀', '2.6 비상연락팀(지휘반)',
+  '2.8 비상상황별 연락방법', '2.9 초기소화팀(진압반)', '3.2 피난시설 세부현황',
+  '3.3 피난인원현황', '3.4 피난유도 절차·경로', '3.5 피난약자 현황·계획',
+  '3.6 피난약자 유형별 방법', '3.7 피난기구·유도장비 현황', '개정이력',
+].sort()
+const gone = RED_EXPECTED.filter(s => !red.includes(s))
+const grew = red.filter(s => !RED_EXPECTED.includes(s))
+check(`적색 시트 ${RED_EXPECTED.length}장 — 늘지 않았다`, grew.length === 0,
+  grew.length ? `🚨 새로 생긴 장: ${grew.join(' · ')}` : '')
+check('적색 시트가 줄면 기대 목록을 갱신하라', gone.length === 0,
+  gone.length ? `🎉 배선된 장: ${gone.join(' · ')} — RED_EXPECTED에서 빼라` : '')
+// 🚨 양성 — 목록이 비면 위 둘은 공허하게 초록이다
+check('적색 목록이 실제로 비어 있지 않다(공허 방지)', red.length > 0, `${red.length}장`)
+
+/* ══════════════════════ [8] PDF 대조 — 「데이터는 있는데 엑셀만 공란」 ══════════════════════
+ *  🚨 **판정 방법이 핵심이다.** 「HTML에 '1.10.3'이 들어 있는가」로 재면 **제목만 있어도 초록**이
+ *    된다(모양만 보는 단언 — 이 저장소가 반복해 데인 함정). 대신 **그 고객에게만 있는 마커 값**을
+ *    픽스처에 심고 HTML에 나타나는지로 판정한다.
+ *
+ *  이 목록이 곧 **6단계 우선순위 ①**이다 — 조회 변경 0, 앵커와 값만 더하면 된다.
+ *  (소방계획서_50 §5-3) */
+console.log('\n[8] PDF는 인쇄하는데 엑셀만 공란인 시트')
+const { buildFirePlanHtml } = await import('../src/lib/fire-plan-template.ts')
+const MARK = (s: string) => `__${s}__`
+const fixture = {
+  year: 2026, buildingName: '가상건물', address: '어딘가', purpose: '공동주택',
+  // ⚠ 조립기가 `.length`를 무조건 부르는 배열은 **전부** 채운다(`d.brigade`·`d.zones`·`d.evacRoutes`).
+  //   비우면 픽스처가 아니라 TypeError로 죽어 이 블록이 통째로 안 돈다.
+  // ⚠ 조립기가 `.length`를 무조건 부르는 배열은 **전부** 채운다(`d.brigade`·`d.zones`·`d.evacRoutes`).
+  //   비우면 픽스처가 아니라 TypeError로 죽어 이 블록이 통째로 안 돈다.
+  facilities: [], brigade: [], zones: [], trainingMonth: null,
+  hazards: [{ place: MARK('HAZ'), location: '지하1층', factors: ['유류'] }],
+  // 🚨 피난 경로는 `forms.evacPlan`이 **아니라** 최상위 `d.evacRoutes`다(템플릿 57줄 주석).
+  //   처음엔 `forms.evacPlan`에 심어 마커가 안 나왔는데, 그게 「템플릿이 안 찍는다」인지
+  //   「내 픽스처가 틀렸다」인지 갈라야 했다 — 답은 후자였다.
+  evacRoutes: [{ floor: '2층', route: MARK('EVAC'), guide: '', equip: '' }],
+  forms: {
+    // 🚨 `multiUse`는 **행 배열이 아니라 단일 객체**다(`users`·`capacity`·`categories`).
+    multiUse: { applicable: true, users: MARK('MU'), capacity: '50' },
+    // ⚠ 화재이력의 날짜 칸은 `at`이지 `date`가 아니다
+    fireHistory: [{ kind: '화재', at: '2025-03-01', place: MARK('FIRE'), cause: '', action: '' }],
+    training: { scenario: MARK('TRAIN'), eduMonths: [3], drillMonths: [9] },
+  },
+} as unknown as Parameters<typeof buildFirePlanHtml>[0]
+const html = buildFirePlanHtml(fixture)
+/** 마커 → 그 데이터가 인쇄되는 워크북 시트 */
+const MARKERS: Array<[string, string]> = [
+  ['HAZ', '1.2.2 화재취약장소 현황'],
+  ['MU', '1.10.3 다중이용업소 관리현황'],
+  ['FIRE', '1.10.4 화재·비화재보 이력'],
+  ['TRAIN', '1.11.3 소방훈련 시나리오'],
+  ['EVAC', '3.4 피난유도 절차·경로'],
+]
+const printed = MARKERS.filter(([m]) => html.includes(MARK(m)))
+// 🚨 **전건**을 요구한다. `> 0`으로 두었더니 5개 중 2개가 조용히 안 나왔고, 그게
+//   「템플릿이 안 찍는다」인지 「내 픽스처 모양이 틀렸다」인지 알 수 없는 채로 초록이었다
+//   (답은 후자였다 — multiUse는 단일 객체, 경로는 최상위 `evacRoutes`).
+//   전건을 요구하면 픽스처가 양식과 어긋나는 순간 **여기서** 드러난다.
+const unprinted = MARKERS.filter(([m]) => !html.includes(MARK(m)))
+check('심은 마커가 **전부** 인쇄됐다', unprinted.length === 0,
+  `${printed.length}/${MARKERS.length}${unprinted.length ? ' — 안 나온 것: ' + unprinted.map(([m]) => m).join(',') : ''}`)
+// 음성 — 심지 않은 마커는 나타나면 안 된다(HTML이 아무 글자나 담고 있지 않다는 대조)
+check('음성 — 심지 않은 마커는 HTML에 없다', !html.includes(MARK('NOPE')))
+
+const gap = printed.filter(([, sheet]) => untouched(all.find(r => r.sheet === sheet)!))
+console.log('   ⬇ 6단계 우선순위 ① — 데이터는 있는데 엑셀만 공란')
+for (const [m, sheet] of gap) console.log(`      ${sheet}  (마커 ${m})`)
+// 래칫 — 배선하면 이 수가 줄고, 줄면 여기가 붉어져 목록을 갱신하게 된다
+check(`「PDF는 인쇄·엑셀은 공란」 ${gap.length}장`, gap.length === printed.length,
+  `${gap.length}/${printed.length} — 줄었으면 그 장이 배선된 것이다`)
+
+/* ══════════════════════ [9] 작업 대기열 — 콘솔 산출물도 계약이다 ══════════════════════ */
+console.log('\n[9] 6단계 대기열 (슬롯+상자 많은 순, 상위 10장)')
+for (const r of all.filter(untouched).sort((a, b) => (b.slots + b.boxes) - (a.slots + a.boxes)).slice(0, 10)) {
+  console.log(`   슬롯 ${String(r.slots).padStart(4)} · 상자 ${String(r.boxes).padStart(4)}   ${r.sheet}`)
+}
+
 console.log(`\n=== pass ${pass} / fail ${fail} ===`)
 process.exit(fail ? 1 : 0)

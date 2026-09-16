@@ -36,6 +36,12 @@ const MUTANTS = [
     `    if (l.col !== target.row || l.row >= target.col) continue`, 1],
   ['M8 상자 수를 안 센다 → [1] 회계가 빨강이어야',
     LIB, `    wiredBoxes: boxRefs.filter(r => anchored.has(r)).length,`, `    wiredBoxes: 0,`, 1],
+  // ── 5단계 단언(적색 목록 래칫 · PDF 대조)이 실제로 무는가 ──
+  ['M10 전 칸이 배선된 척한다 → [7] 적색 목록이 **줄고** [8] gap이 0이 되어야',
+    LIB, `    wired: slots.filter(r => anchored.has(r)).length,`, `    wired: slots.length,`, 1],
+  ['M11 아무것도 배선 안 된 척한다 → [7] 적색 목록이 **늘어야**',
+    LIB, `  const anchored = anchorCells.get(sheet) ?? new Map<string, string>()`,
+    `  const anchored = new Map<string, string>()`, 1],
 ]
 
 /** 🚨 파일의 줄끝에 맞춰 needle을 바꾼다.
