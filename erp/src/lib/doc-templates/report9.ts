@@ -628,6 +628,50 @@ export const PK_INDOOR_SUB_WORDS = ['지상', '기계식'] as const
 /** 옥내를 켜는 표지 낱말 — 「옥내」 칩을 끌 때 이만큼을 함께 빼야 실제로 꺼진다 */
 export const PK_INDOOR_WORDS = PK_INDOOR_MARKS
 
+/* ── 전기차충전소 (2026-09-16) ────────────────────────────────────────────────
+ *  서식 1.1 주차장 **13행의 셋째 칸**이다(`L13 ☐ 옥내` · `AB13 ☐ 옥외` · `AS13 ☐ 전기차충전소`).
+ *  법정 양식이 주차장 행 안에 두었으므로 원천도 `buildings.parking_summary` 한 문자열을 쓴다.
+ *
+ *  ⚠ **`parseParkingSummary`에 넣지 않는다.** 그 반환형은 `Report9Data`의 Pick인데
+ *    **별지 9호 2쪽 주차장 줄엔 전기차 칸이 없다**(`옥내(지하 지상 필로티 기계식), 옥상, 옥외`).
+ *    섞으면 별지 9호가 인쇄할 자리도 없는 축을 들고 있게 된다 — `parseParkingByType`(14행 네 칸)을
+ *    따로 둔 것과 같은 이유다.
+ *
+ *  🚨 이 낱말이 다른 주차 판정을 안 건드리는 것은 우연이 아니라 **검사가 지키는 계약**이다:
+ *    `옥내`·`지하`·`필로티`·`옥상`·`옥외`·`자주식`·`기계식` 중 어느 것도 이 낱말의 부분문자열이
+ *    아니고 `parkingSegments`의 표지도 아니라, 별지 9호 상자와 14행 네 칸은 영향을 받지 않는다
+ *    (`test-parking-surface.mts` §전기차 누출 금지가 음성으로 문다).
+ *
+ *  ⚠ 판정과 지우기가 **같은 패턴**을 써야 한다. 「전기차충전기」라 적힌 글을 판정만 넓게 잡고
+ *    끌 때는 `'전기차충전소'`만 지우면, 눌러도 안 꺼지는 칩이 된다(2026-09-11 「지하 10대」와 같은 부류).
+ *  ⚠ `RegExp`를 매번 새로 만든다 — `/g` 리터럴을 모듈에 두고 `.test()`를 부르면 `lastIndex`가
+ *    남아 같은 입력에 참·거짓이 번갈아 나온다. */
+const PK_EV_PATTERN = '전기차\\s*충전(?:소|기)?'
+/** 칩이 켤 때 넣는 정본 낱말 */
+export const PK_EV_WORD = '전기차충전소'
+export function parseParkingEv(pk: string): boolean {
+  return new RegExp(PK_EV_PATTERN).test(pk)
+}
+export function stripParkingEv(pk: string): string {
+  return pk.replace(new RegExp(PK_EV_PATTERN, 'g'), '')
+}
+
+/** 별지 9호 2쪽에 **반영되지 않는** 주차장 입력을 골라낸다(없으면 빈 문자열).
+ *
+ *  조립기의 경보 술어다 — 「비어 있다」가 아니라 **「채웠는데 체크가 하나도 안 켜졌다」**만 잡는다
+ *  (주차장 미입력이 97%라 부재까지 경고하면 진짜 한 건이 소음에 묻힌다 — `report9-assemble.ts` §B-6 후속).
+ *
+ *  🚨 전기차충전소는 별지 9호에 **칸이 없다**(서식 1.1 `AS13`이 받는다). 그 낱말을 걷어내지 않으면
+ *    전기차 칩 하나만 누른 문서마다 「반영되지 않음」 거짓 경보가 붙는다 — 없는 결함을 신고하는 셈이다.
+ *  ⚠ 규칙이 조립기 안에만 있으면 아무도 단언하지 못한다(이 경보는 검사가 0건이었다). 순수 함수로 둔다. */
+export function parkingUnmatchedForAnnex9(pk: string): string {
+  // 낱말을 빼면 구분자 잔해가 남는다(`, 주차 가능`) — 경보 문구에 그대로 인용되므로 정리해서 묻는다.
+  //   정리 규칙은 칩 토글과 **같은 함수**를 쓴다(여기서 새로 적으면 두 벌이 된다).
+  const rest = tidyParkingText(stripParkingEv(pk)).trim()
+  if (!rest) return ''
+  return Object.values(parseParkingSummary(rest)).some(Boolean) ? '' : rest
+}
+
 /** 구분자(`, ` · ` · `) 잔해 정리 — 칩 토글·대수칸이 공용 */
 export function tidyParkingText(s: string): string {
   return s
@@ -646,7 +690,7 @@ export function tidyParkingText(s: string): string {
  *    화면도 검사도 **이 함수 하나**를 부른다.
  *
  *  규칙 셋:
- *   · 켜짐 판정은 `parseParkingSummary`가 한다(텍스트를 `includes`로 되묻지 않는다 —
+ *   · 켜짐 판정은 `isParkingChipOn`이 한다(텍스트를 `includes`로 되묻지 않는다 —
  *     칩의 √와 어긋나 「지하 10대」의 옥내 칩이 눌러도 안 꺼지던 결함의 원인이었다).
  *   · 옥내를 끌 때는 하위 표지(지하·필로티)까지 함께 뺀다. 안 빼면 상위만 지워도 다시 켜진다.
  *   · 옥내 하위(지상·기계식)를 켤 때는 **언제나 '옥내'를 붙여** 넣는다. 안 붙이면 바로 앞
@@ -654,13 +698,24 @@ export function tidyParkingText(s: string): string {
  *     끌 때도 옥내 구간에서만 빼야 옥외 기계식(서식 1.1 `AJ14`)이 같이 죽지 않는다.
  *   ⚠ 반대로 **상위 옥내를 켜도 하위는 승계하지 않는다** — 「옥내 주차장이 있다」와
  *     「그게 지하다」는 다른 사실이고, 모르는 것을 인쇄하지 않는 것이 이 서식의 규약이다. */
-export function toggleParkingChip(cur: string, flag: keyof ReturnType<typeof parseParkingSummary>, word: string): string {
-  if (parseParkingSummary(cur)[flag]) {
+export type ParkingChipFlag = keyof ReturnType<typeof parseParkingSummary> | 'ev'
+
+/** 칩의 켜짐 — **화면의 √와 토글이 같은 술어를 봐야 한다**(어긋나면 눌러도 안 꺼진다).
+ *  `ev`는 별지 9호에 없는 축이라 `parseParkingSummary`가 아니라 `parseParkingEv`가 답한다. */
+export function isParkingChipOn(cur: string, flag: ParkingChipFlag): boolean {
+  // `=== true`로 받는다 — `Report9Data`의 주차 필드는 선택적이라 색인이 `boolean | undefined`다
+  return flag === 'ev' ? parseParkingEv(cur) : parseParkingSummary(cur)[flag] === true
+}
+
+export function toggleParkingChip(cur: string, flag: ParkingChipFlag, word: string): string {
+  if (isParkingChipOn(cur, flag)) {
     const next = flag === 'pkIn'
       ? PK_INDOOR_WORDS.reduce<string>((s, w) => s.split(w).join(''), cur)
       : flag === 'pkMech'
         ? stripParkingWordIndoor(cur, word)
-        : cur.split(word).join('')
+        : flag === 'ev'
+          ? stripParkingEv(cur)
+          : cur.split(word).join('')
     return tidyParkingText(next)
   }
   const add = (PK_INDOOR_SUB_WORDS as readonly string[]).includes(word) ? `옥내 ${word}` : word

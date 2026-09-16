@@ -27,7 +27,7 @@ import {
 import { boxGlyphAt, labelAt, tokenTemplateAt } from '@/lib/fire-plan-xlsx-manifest'
 import { purposeCover, purposeShort } from '@/lib/purpose-label'
 /* 주차장 체크 판정 — 별지 9호 2쪽이 쓰는 그 함수(사본 금지). 순수 함수라 클라이언트도 쓴다 */
-import { parseParkingSummary, parseParkingByType } from '@/lib/doc-templates/report9'
+import { parseParkingSummary, parseParkingByType, parseParkingEv } from '@/lib/doc-templates/report9'
 import { compartmentApplies, compartmentHasArea, compartmentHasFloor } from '@/lib/evac-compartment'
 import { isMultiUseApplicable, isMultiUseNone } from '@/lib/multi-use'
 /* 1.10.1 연간 점검 계획 — PDF와 **같은 해석기**(사본 금지) */
@@ -211,6 +211,9 @@ export function buildFirePlanValues(d: FirePlanGenData): Map<string, CellValue> 
   const pk = parseParkingSummary(d.parkingSummary ?? '')
   v.set('parking_indoor', boxLabelCell(FP_SHEET.F1_1, 'L13', pk.pkIn))
   v.set('parking_outdoor', boxLabelCell(FP_SHEET.F1_1, 'AB13', pk.pkOut))
+  /* 13행 셋째 칸 전기차충전소(2026-09-16 배선). 별지 9호엔 이 칸이 없어 판정 술어도 따로다
+   * (`parseParkingEv` — `parseParkingSummary`에 섞으면 별지 9호가 못 쓰는 축을 들게 된다). */
+  v.set('parking_ev', boxLabelCell(FP_SHEET.F1_1, 'AR13', parseParkingEv(d.parkingSummary ?? '')))
   // 14행 — 편(옥내/옥외)별 자주식·기계식. 구간 분절 판정이라 「옥내 기계식, 옥외 자주식」이 갈린다
   const pkt = parseParkingByType(d.parkingSummary ?? '')
   v.set('parking_in_self', boxLabelCell(FP_SHEET.F1_1, 'L14', pkt.inSelf))

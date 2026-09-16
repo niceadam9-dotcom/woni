@@ -11,6 +11,7 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import {
   DEFECT_GROUPS, DEFECT_FOLD_TEXT, FORM3_ITEMS, foldDefectGroups, form3Group, parseParkingSummary,
+  parkingUnmatchedForAnnex9,
   type Report9Data, type Report9DefectRow, type Report9Person, type Report9MultiBuilding,
   type AnnexDone,
 } from '@/lib/doc-templates/report9'
@@ -952,10 +953,14 @@ export async function assembleReport9(
   //  아무 데도 안 뜨고(소음 0), 사용자가 값을 넣었는데 서식이 조용히 공란으로 나가는
   //  바로 그 무증상 경우에만 뜬다. 층수로 법정 대상 여부를 판정하는 길도 있으나,
   //  근거 조문을 원문 대조하지 않고 코드에 박지 않는다(feedback_legal_form_source).
-  if (pk.trim() && !data.pkIn && !data.pkInUg && !data.pkInGround && !data.pkInPiloti
-    && !data.pkMech && !data.pkRoof && !data.pkOut) {
+  //  🚨 2026-09-16: 술어를 `parkingUnmatchedForAnnex9`로 옮겼다. 전기차충전소가 이 칸을 함께 쓰는데
+  //    **별지 9호엔 그 칸이 없어**(서식 1.1 AS13이 받는다) 전기차만 켠 값이 여기서 「미반영」으로
+  //    읽혔다 — 정상인 문서마다 거짓 경보가 붙는다. 그 낱말을 걷어낸 뒤 묻는다.
+  //    규칙이 이 안에만 있으면 아무도 단언하지 못해(이 경보는 검사가 0건이었다) 순수 함수로 뺐다.
+  const pkUnmatched = parkingUnmatchedForAnnex9(pk)
+  if (pkUnmatched) {
     missing.push(
-      `주차장 입력값("${pk.trim().slice(0, 24)}")이 서식 체크로 반영되지 않음 — 2쪽 주차장 줄 전체 공란`
+      `주차장 입력값("${pkUnmatched.slice(0, 24)}")이 서식 체크로 반영되지 않음 — 2쪽 주차장 줄 전체 공란`
       + ' (옥내·지하·지상·필로티·기계식·옥상·옥외 중 해당 낱말이 있어야 체크된다 — 건물 정보의 주차장 칩을 쓰면 확실하다)')
   }
   // 같은 규약: 전실 제원을 **입력하기 시작했는데** 개소만 비어 있는 경우만 알린다.

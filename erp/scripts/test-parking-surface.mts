@@ -17,6 +17,7 @@ import { buildFirePlanValues } from '../src/lib/fire-plan-xlsx-values.ts'
 import { buildFirePlanHtml, type FirePlanGenData } from '../src/lib/fire-plan-template.ts'
 import {
   parseParkingSummary, parseParkingByType, renderReport9, toggleParkingChip,
+  parseParkingEv, isParkingChipOn, PK_EV_WORD, parkingUnmatchedForAnnex9, type ParkingChipFlag,
 } from '../src/lib/doc-templates/report9.ts'
 import { base9 } from './_fixtures-doc-templates.mts'
 import { FIRE_PLAN_ANCHORS } from '../src/lib/fire-plan-anchors.ts'
@@ -92,8 +93,10 @@ console.log('\n[3] PDF — 같은 값이 HTML에 도달')
   //   빈손("주차장: ")을 보고도 초록이 될 뻔했다 — 셀이 닫힐 때까지 통째로 잡는다.
   const row = (html.match(/주차장:[\s\S]*?<\/td>/) ?? [''])[0]
   // 추출에 성공했다는 것부터 단언한다 — 빈손을 보고 초록이 되는 공허 통과를 막는다
-  check('주차장 줄을 실제로 뽑았다(상자 3개가 다 들어 있다)',
-    (row.match(/[■☐]/g) ?? []).length === 3, JSON.stringify(row.slice(0, 80)))
+  /* 상자 셋 → **넷**(2026-09-16 전기차충전소 신설). 개수를 지우지 않고 갈아끼운다 —
+   * 「3개」로 남겨 두면 다음 사람이 전기차 칸을 지우며 이 검사를 초록으로 되돌린다. */
+  check('주차장 줄을 실제로 뽑았다(상자 4개가 다 들어 있다)',
+    (row.match(/[■☐]/g) ?? []).length === 4, JSON.stringify(row.slice(0, 80)))
   check('옥외가 체크로 표시된다', /■\s*옥외/.test(row), JSON.stringify(row.slice(0, 60)))
   check('옥내는 빈 상자다(음성)', /[□☐]\s*옥내/.test(row))
   check('원문 대수가 보존된다', html.includes('옥외 자주식 8대'))
@@ -228,18 +231,32 @@ console.log('\n[7] 건물 폼 주차장 칩 토글 (2026-09-11)')
   /* ⚠ 재현본이 아니라 **화면이 부르는 그 함수**를 부른다. 종전엔 이 검사가 토글 로직을
    *   베껴 갖고 있었는데, 그러면 화면만 고쳐도 검사는 초록으로 남는다. */
   const toggle = toggleParkingChip
-  type Flag = keyof ReturnType<typeof parseParkingSummary>
+  // 별지 9호 축 일곱 + 서식 1.1 전용 `ev` — 화면 칩 목록과 같은 타입이어야 칩을 다 재생할 수 있다
+  type Flag = ParkingChipFlag
 
   /* 🎯 사용자 물음(2026-09-11): 「옥내를 안 누르고 옥내·지하만 누르면 옥내가 자동으로 켜지나」
    *   — 화면에 그려지는 칩 목록을 **소스에서 읽어** 그 클릭 경로를 그대로 재생한다.
    *   칩 정의를 여기 베껴 적으면 라벨이 바뀔 때 엉뚱한 칩을 누르고도 초록이 된다. */
   const panel = readFileSync(new URL('../src/components/customers/building-inline-panel.tsx', import.meta.url), 'utf8')
   const chipBlock = (panel.match(/const PARKING_CHIPS[\s\S]*?\n\]/) ?? [''])[0]
-  const CHIPS = [...chipBlock.matchAll(/\{ flag: '(\w+)', word: '([^']+)', label: '([^']+)' \}/g)]
-    .map(m => ({ flag: m[1] as Flag, word: m[2], label: m[3] }))
+  /* 낱말은 문자열 리터럴이거나 **상수 식별자**다(전기차 칩은 `PK_EV_WORD` — 파서가 지우는 낱말과
+   * 칩이 넣는 낱말이 갈라지지 않게 한 벌로 쓴다). 식별자면 여기서 실제 값으로 풀어 준다. */
+  const WORD_CONSTS: Record<string, string> = { PK_EV_WORD }
+  const CHIPS = [...chipBlock.matchAll(/\{ flag: '(\w+)', word: (?:'([^']+)'|(\w+)), label: '([^']+)' \}/g)]
+    .map(m => ({ flag: m[1] as Flag, word: m[2] ?? WORD_CONSTS[m[3]], label: m[4] }))
   // 추출 성공부터 단언한다 — 0개를 뽑고 `every`가 참이 되는 공허 통과를 막는다
-  check('화면 칩 7개를 실제로 뽑았다(공허 통과 방지)', CHIPS.length === 7, CHIPS.map(c => c.label).join('/'))
+  check('화면 칩 8개를 실제로 뽑았다(공허 통과 방지)', CHIPS.length === 8, CHIPS.map(c => c.label).join('/'))
+  // 식별자 낱말이 `undefined`로 풀리면 아래 토글이 전부 무의미해진다 — 먼저 막는다
+  check('칩 낱말이 하나도 빈 채로 남지 않았다', CHIPS.every(c => !!c.word), CHIPS.map(c => `${c.label}=${c.word}`).join(' · '))
   const chip = (label: string) => CHIPS.find(c => c.label === label)
+
+  /* 🚨 칩이 들고 있는 **낱말**이 그 칩의 플래그를 실제로 뒤집는가 — 라벨·플래그가 맞아도 낱말만
+   *   어긋나면 눌러도 아무 일이 없다. 종전엔 특정 라벨 몇 개만 골라 물어 이 구멍이 비어 있었다
+   *   (2026-09-16 전기차 칩처럼 낱말을 상수로 들고 오면 드리프트가 조용해진다). 전수로 건다. */
+  for (const c of CHIPS) {
+    const on = toggle('', c.flag, c.word)
+    check(`칩 「${c.label}」의 낱말이 그 칩을 켠다`, isParkingChipOn(on, c.flag), `"${c.word}" → "${on}"`)
+  }
 
   /* 🚨 **배선 축** — 규칙이 옳고 이 검사가 그 규칙을 불러도, 화면이 안 부르면 사용자에겐 없는 것이다.
    *   변이 실험에서 「화면이 toggleParkingChip을 안 부름」 하나만 초록으로 살아남아 신설했다.
@@ -263,7 +280,7 @@ console.log('\n[7] 건물 폼 주차장 칩 토글 (2026-09-11)')
     const froms = ['', '옥외 자주식 8대', '옥상 3대']
     const rows = froms.map(f => ({ f, to: toggle(f, c.flag, c.word) }))
     check(`「${label}」을 **한 번만** 눌러도 상위 옥내가 함께 켜진다`,
-      rows.every(r => { const q = parseParkingSummary(r.to); return q.pkIn === true && q[c.flag] === true }),
+      rows.every(r => parseParkingSummary(r.to).pkIn === true && isParkingChipOn(r.to, c.flag)),
       rows.map(r => `"${r.f || '(빈값)'}"→"${r.to}"`).join(' · '))
   }
   // 반대 방향 — 상위를 켜도 하위는 승계하지 않는다(모르는 것을 인쇄하지 않는다)
@@ -284,9 +301,9 @@ console.log('\n[7] 건물 폼 주차장 칩 토글 (2026-09-11)')
     ['옥상 3대', 'pkRoof', '옥상', '옥상을 끌 수 있다'],
   ]
   for (const [cur, flag, word, label] of CASES) {
-    const before = !!parseParkingSummary(cur)[flag]
+    const before = isParkingChipOn(cur, flag)
     const next = toggle(cur, flag, word)
-    const after = !!parseParkingSummary(next)[flag]
+    const after = isParkingChipOn(next, flag)
     check(label, before !== after, `"${cur || '(빈값)'}" → "${next}" (${before ? '√' : '☐'}→${after ? '√' : '☐'})`)
   }
   // 🚨 부수 피해 — 옥내·기계식을 끄면서 옥외 기계식(서식 1.1 AJ14)까지 죽이면 안 된다
@@ -294,6 +311,124 @@ console.log('\n[7] 건물 폼 주차장 칩 토글 (2026-09-11)')
   const offed = toggle(both, 'pkMech', '기계식')
   check('옥내·기계식을 꺼도 옥외 기계식은 살아 있다', parseParkingByType(offed).outMech === true, `"${offed}"`)
   check('그러면서 옥내 기계식은 실제로 꺼진다(양성 짝)', parseParkingByType(offed).inMech === false, `"${offed}"`)
+}
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * [8] 전기차충전소 — 서식 1.1 `AS13` (2026-09-16 신설)
+ *
+ * 법정 양식이 **주차장 13행 안**에 둔 셋째 칸이라(`L13 옥내`·`AB13 옥외`·`AS13 전기차충전소`)
+ * 원천도 `parking_summary` 한 문자열을 쓴다. 여태 「ERP에 축이 없다」며 비워 두던 칸이다.
+ *
+ * 🚨 **이 절의 핵심은 양성이 아니라 누출 음성이다.** 한 칸을 두 사실이 나눠 쓰므로,
+ *   새 낱말이 별지 9호 상자나 14행 네 칸을 건드리면 **다른 서식이 조용히 틀린다**.
+ *   「부분문자열이 안 겹치니 괜찮다」는 추론이지 증거가 아니다 — 여기서 값으로 못박는다.
+ * ──────────────────────────────────────────────────────────────────────────── */
+console.log('\n[8] 전기차충전소 — 1.1 AS13 (2026-09-16)')
+{
+  // ── 규칙 ──
+  check('「…, 전기차충전소」→ 켜짐', parseParkingEv('옥외 8대, 전기차충전소') === true)
+  check('「전기차 충전기 2기」도 켜진다(표기 흔들림 허용)', parseParkingEv('전기차 충전기 2기') === true)
+  check('주차장만 있으면 꺼짐(음성)', parseParkingEv('옥내 지하 10대, 옥외 자주식 8대') === false)
+  check('빈 값이면 꺼짐', parseParkingEv('') === false)
+  /* 🚨 `/g` 리터럴을 모듈에 두고 `.test()`를 부르면 `lastIndex`가 남아 같은 입력에 참·거짓이
+   *   번갈아 나온다. 두 번 물어 같은 답이 오는지 확인한다(이 부류는 한 번만 물으면 안 보인다). */
+  check('같은 입력을 두 번 물어도 답이 같다(lastIndex 오염 없음)',
+    parseParkingEv('전기차충전소') === true && parseParkingEv('전기차충전소') === true)
+
+  // ── 🚨 누출 금지 — 이 검사의 핵심 ──
+  const only = '전기차충전소'
+  const leak9 = parseParkingSummary(only)
+  check('별지 9호 일곱 상자가 하나도 안 켜진다', Object.values(leak9).every(v => v === false), JSON.stringify(leak9))
+  const leak14 = parseParkingByType(only)
+  check('서식 1.1 14행 네 칸도 안 켜진다', Object.values(leak14).every(v => v === false), JSON.stringify(leak14))
+  const vOnly = buildFirePlanValues(base(only))
+  check('엑셀: 13행 옥내·옥외도 안 켜진다',
+    !/■/.test(String(vOnly.get('parking_indoor') ?? '')) && !/■/.test(String(vOnly.get('parking_outdoor') ?? '')))
+  check('엑셀: 그러면서 전기차 칸은 켜진다(양성 짝 — 통째로 꺼진 게 아님)',
+    /■/.test(String(vOnly.get('parking_ev') ?? '')), JSON.stringify(String(vOnly.get('parking_ev') ?? '')))
+  /* 렌더까지 본다 — 플래그가 옳아도 표에 닿으면 사용자에겐 그게 진실이다.
+     별지 9호 2쪽 주차장 줄에 체크가 하나라도 생기면 없는 주차장을 인쇄하는 것이다. */
+  const r9 = (() => {
+    const html = renderReport9({ ...base9, ...parseParkingSummary(only) } as unknown as Parameters<typeof renderReport9>[0])
+    return (html.match(/<th>주차장<\/th>[\s\S]*?<\/td>/) ?? [''])[0]
+  })()
+  check('별지 9호 렌더: 상자 7개를 실제로 뽑았다(공허 통과 방지)',
+    (r9.match(/\[(?:√|&nbsp;&nbsp;)\]/g) ?? []).length === 7)
+  check('별지 9호 렌더: √가 한 개도 없다', !/\[√\]/.test(r9), JSON.stringify(r9.replace(/<[^>]*>/g, '').slice(0, 100)))
+
+  // ── 엑셀 앵커·값 ──
+  const a = FIRE_PLAN_ANCHORS.filter(x => x.field === 'parking_ev')
+  check('앵커가 한 칸이다', a.length === 1, a.map(x => `${x.sheet}!${x.cell}`).join(' · '))
+  check('좌표가 1.1의 AS13이다', a.length === 1 && a[0].cell === 'AS13' && a[0].sheet.startsWith('1.1'))
+
+  const vOn = buildFirePlanValues(base('옥외 자주식 8대, 전기차충전소'))
+  const evCell = String(vOn.get('parking_ev') ?? '')
+  check('값 맵에 필드가 있다', vOn.has('parking_ev'))
+  check('체크(■)된다', /■/.test(evCell), JSON.stringify(evCell))
+  check('라벨 자구가 살아 있다', /전기차충전소/.test(evCell))
+  /* 🚨 라벨 뒤에 법정 지시문(`[서식1.6.3] 작성`)이 붙어 있다 — `boxLabelCell`이 첫 상자만 갈고
+   *   뒤 자구를 보존한다는 실증이다. 지워지면 서식이 훼손된다. */
+  check('상자 뒤 법정 지시문이 지워지지 않는다', /\[서식1\.6\.3\]/.test(evCell), JSON.stringify(evCell))
+  check('같은 값에서 옥외도 켜진다(형제 축 무손상)', /■/.test(String(vOn.get('parking_outdoor') ?? '')))
+
+  const vOff = buildFirePlanValues(base('옥외 자주식 8대'))
+  check('전기차가 없으면 안 켜진다(음성 대조)', !/■/.test(String(vOff.get('parking_ev') ?? '')))
+  check('빈 값이면 안 켜진다', !/■/.test(String(buildFirePlanValues(base('')).get('parking_ev') ?? '')))
+
+  // ── PDF — 엑셀과 같은 줄에 같은 판정으로 찍히는가(D-7 항등) ──
+  const pdfRow = (pk: string) => (buildFirePlanHtml(base(pk), []).match(/주차장:[\s\S]*?<\/td>/) ?? [''])[0]
+  const rOn = pdfRow('옥외 자주식 8대, 전기차충전소')
+  check('PDF: 전기차충전소가 체크로 표시된다', /■\s*전기차충전소/.test(rOn),
+    JSON.stringify(rOn.replace(/<[^>]*>/g, '').slice(0, 100)))
+  check('PDF: 없으면 빈 상자다(음성 짝)', /[□☐]\s*전기차충전소/.test(pdfRow('옥외 자주식 8대')))
+  /* 🚨 엑셀만 켜지고 PDF는 안 켜지는 비대칭을 막는다 — 종전엔 원문 병기 괄호 안에만 낱말이 비쳐
+   *   「인쇄된 것처럼 보이지만 상자는 꺼진」 상태가 될 수 있었다. 두 표면을 **함께** 단언한다. */
+  check('D-7: 엑셀과 PDF가 같은 방향이다(켜짐)', /■/.test(String(vOn.get('parking_ev') ?? '')) && /■\s*전기차충전소/.test(rOn))
+  check('D-7: 엑셀과 PDF가 같은 방향이다(꺼짐)',
+    !/■/.test(String(vOff.get('parking_ev') ?? '')) && !/■\s*전기차충전소/.test(pdfRow('옥외 자주식 8대')))
+
+  // ── 칩 토글 ──
+  const on1 = toggleParkingChip('', 'ev', PK_EV_WORD)
+  check('빈 값에서 칩을 켜면 낱말이 들어간다', isParkingChipOn(on1, 'ev'), `"${on1}"`)
+  check('그때 별지 9호 상자는 하나도 안 켜진다(누출 음성)',
+    Object.values(parseParkingSummary(on1)).every(v => v === false), `"${on1}"`)
+  const off1 = toggleParkingChip(on1, 'ev', PK_EV_WORD)
+  check('다시 누르면 꺼진다', !isParkingChipOn(off1, 'ev'), `"${off1}"`)
+  /* 🚨 판정과 지우기가 **같은 패턴**을 봐야 한다 — 판정만 넓게(「충전기」) 잡고 지울 땐
+   *   `'전기차충전소'`만 지우면 눌러도 안 꺼지는 칩이 된다(2026-09-11 「지하 10대」와 같은 부류). */
+  const typed = '옥외 8대, 전기차 충전기 2기'
+  const offTyped = toggleParkingChip(typed, 'ev', PK_EV_WORD)
+  check('손으로 「전기차 충전기」라 적어도 칩으로 끌 수 있다', !isParkingChipOn(offTyped, 'ev'), `"${offTyped}"`)
+  check('끄면서 옥외는 살아 있다(부수 피해 없음)', parseParkingSummary(offTyped).pkOut === true, `"${offTyped}"`)
+
+  /* ── 🚨 거짓 경보 금지 — 조립기의 「채웠는데 반영이 안 됨」 경보 ──
+   * 별지 9호 조립기는 `parking_summary`가 채워졌는데 일곱 상자가 하나도 안 켜지면 경고를 단다.
+   * 전기차충전소는 **별지 9호에 칸이 없으므로** 그 낱말만 든 값은 「미반영」이 아니라 정상이다.
+   * 걷어내지 않으면 전기차 칩만 누른 문서마다 없는 결함을 신고하게 된다(경고가 소음이 되면
+   * 진짜 한 건이 그 속에 묻힌다 — 조립기 §B-6 후속의 판단). 이 경보는 검사가 0건이었다. */
+  check('전기차만 켠 값은 미반영 경고를 내지 않는다', parkingUnmatchedForAnnex9('전기차충전소') === '',
+    JSON.stringify(parkingUnmatchedForAnnex9('전기차충전소')))
+  check('주차장과 함께 켠 값도 경고하지 않는다', parkingUnmatchedForAnnex9('옥외 자주식 8대, 전기차충전소') === '')
+  check('미입력은 경고하지 않는다(부재는 결함이 아니다)', parkingUnmatchedForAnnex9('') === '')
+  check('알아듣는 주차장 값도 경고하지 않는다', parkingUnmatchedForAnnex9('옥내 지하 10대') === '')
+  // 양성 짝 — 경보 자체가 죽으면 원래 잡던 무증상 결함을 놓친다
+  check('정말 못 알아듣는 값은 여전히 경고한다', parkingUnmatchedForAnnex9('주차 가능') === '주차 가능')
+  check('전기차 낱말을 뺀 나머지가 못 알아들으면 그 나머지를 알린다',
+    parkingUnmatchedForAnnex9('전기차충전소, 주차 가능') === '주차 가능', `"${parkingUnmatchedForAnnex9('전기차충전소, 주차 가능')}"`)
+  /* 배선 축 — 술어가 옳아도 조립기가 안 부르면 경보는 옛 규칙 그대로다 */
+  const asm = readFileSync(new URL('../src/lib/report9-assemble.ts', import.meta.url), 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1')
+  check('배선: 조립기가 그 술어를 부른다', /parkingUnmatchedForAnnex9\(pk\)/.test(asm))
+  check('배선: 조립기가 옛 술어를 들고 있지 않다(두 벌 금지)', !/pk\.trim\(\)\s*&&\s*!data\.pkIn/.test(asm))
+  check('배선: 주석 제거 후에도 조립기 소스가 살아 있다(공허 통과 방지)', asm.includes('assembleReport9'))
+
+  /* ── 화면 — 안내 문구가 거짓이 되지 않았는가 ──
+   * 칩 무리 아래 안내는 「색칠된 칩 = 별지 9호 2쪽에 √로 인쇄」라고 적혀 있었다. 전기차 칩은
+   * 별지 9호에 칸이 **없으므로**, 문구를 안 고치면 화면이 거짓말을 한다(설명과 동작은 함께 움직인다). */
+  const panelSrc = readFileSync(new URL('../src/components/customers/building-inline-panel.tsx', import.meta.url), 'utf8')
+  check('화면 안내가 전기차 칩의 인쇄처를 따로 밝힌다',
+    /전기차충전소.{0,40}별지 9호.{0,20}없/.test(panelSrc.replace(/\s+/g, ' ')),
+    JSON.stringify((panelSrc.replace(/\s+/g, ' ').match(/색칠된 칩[^<]{0,160}/) ?? [''])[0]))
 }
 
 console.log(`\n=== pass ${pass} / fail ${fail} ===`)

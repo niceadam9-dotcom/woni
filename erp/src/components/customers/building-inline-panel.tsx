@@ -10,9 +10,9 @@ import { createBuildingAction, updateBuildingAction, deleteBuildingAction, setPr
 import { fetchBuildingLedgerAction, checkAddressAction, type AddressDuplicateCustomer, type AddressDuplicateBuilding } from '@/app/(dashboard)/customers/actions'
 import { AddressDuplicateDialog } from '@/components/customers/address-duplicate-dialog'
 import { autoApplyLedgerEmptyAction } from '@/app/(dashboard)/customers/fire-plan-info-actions'
-/* 주차장 축은 별지 9호 모듈이 단일 원천 — 판정(parseParkingSummary)도 칩 토글도 거기 것을 부른다.
+/* 주차장 축은 별지 9호 모듈이 단일 원천 — 판정(isParkingChipOn)도 칩 토글도 거기 것을 부른다.
  * ⚠ 여기에 규칙을 다시 적으면 검사가 무는 것과 화면이 하는 것이 갈라진다(2026-09-11 교훈). */
-import { parseParkingSummary, toggleParkingChip, tidyParkingText } from '@/lib/doc-templates/report9'
+import { isParkingChipOn, toggleParkingChip, tidyParkingText, PK_EV_WORD, type ParkingChipFlag } from '@/lib/doc-templates/report9'
 import { primaryBuilding, FORM9_MAX_BUILDINGS } from '@/lib/primary-building'
 import { findSameNameBuilding, normalizeBuildingName } from '@/lib/building-dup'
 import { initialBuildingPanelTarget, shouldHideBuildingTable } from '@/lib/building-panel-open'
@@ -96,8 +96,8 @@ const EMPTY: FormState = {
 const STRUCTURE_OPTIONS = ['철근콘크리트구조', '철골구조', '조적조', '목구조', '샌드위치판넬']
 const ROOF_OPTIONS = ['슬래브', '기와', '슬레이트', '판넬', '징크']
 
-/** 주차장 토글 칩 — 요약 텍스트의 단어 포함 여부가 곧 별지 9호 체크(parseParkingSummary 단일 원천, 사본 금지) */
-const PARKING_CHIPS: Array<{ flag: keyof ReturnType<typeof parseParkingSummary>; word: string; label: string }> = [
+/** 주차장 토글 칩 — 요약 텍스트의 단어 포함 여부가 곧 별지 9호 체크(isParkingChipOn 단일 원천, 사본 금지) */
+const PARKING_CHIPS: Array<{ flag: ParkingChipFlag; word: string; label: string }> = [
   { flag: 'pkIn', word: '옥내', label: '옥내' },
   { flag: 'pkInUg', word: '지하', label: '옥내·지하' },
   { flag: 'pkInGround', word: '지상', label: '옥내·지상' },
@@ -107,6 +107,9 @@ const PARKING_CHIPS: Array<{ flag: keyof ReturnType<typeof parseParkingSummary>;
   { flag: 'pkMech', word: '기계식', label: '옥내·기계식' },
   { flag: 'pkRoof', word: '옥상', label: '옥상' },
   { flag: 'pkOut', word: '옥외', label: '옥외' },
+  /* 전기차충전소 — 법정 양식이 **주차장 행 안**에 둔 칸이라(서식 1.1 `AS13`) 이 무리에 있다.
+   * ⚠ 별지 9호 2쪽엔 이 칸이 없다 — 켜도 그쪽 상자는 하나도 안 켜지는 것이 계약이다. */
+  { flag: 'ev', word: PK_EV_WORD, label: '전기차충전소' },
 ]
 
 /** 주차장 대수 4분류 — 건축물대장 조회(fetchBuildingLedgerAction)가 합성하는 어휘와 동일.
@@ -816,16 +819,17 @@ export function BuildingListPanel({ customerId, customerName, customerAddress, b
                 ))}
               </div>
               <div className="flex flex-wrap items-center gap-1 mt-1.5">
-                {(() => { const pk = parseParkingSummary(form.parking_summary); return PARKING_CHIPS.map(c => (
+                {PARKING_CHIPS.map(c => { const on = isParkingChipOn(form.parking_summary, c.flag); return (
                   <button key={c.word} type="button" disabled={!canManage} onClick={() => onParkingChip(c)}
-                    title={pk[c.flag] ? `'${c.label}' 체크 끄기` : `'${c.label}' 체크 켜기`}
-                    className={`h-6 px-2 rounded-full border text-form-xs transition-colors ${pk[c.flag]
+                    title={on ? `'${c.label}' 체크 끄기` : `'${c.label}' 체크 켜기`}
+                    className={`h-6 px-2 rounded-full border text-form-xs transition-colors ${on
                       ? 'bg-brand text-white border-brand'
                       : 'border-brand-line text-ink-sub hover:bg-brand-tint'}`}>
-                    {pk[c.flag] ? '✓ ' : ''}{c.label}
+                    {on ? '✓ ' : ''}{c.label}
                   </button>
-                )) })()}
-                <span className="text-form-xs text-ink-meta ml-1">색칠된 칩 = 별지 9호 2쪽 「옥내(지하 지상 필로티 기계식), 옥상, 옥외」에 √로 인쇄</span>
+                ) })}
+                {/* ⚠ 이 안내는 인쇄되는 자리를 말한다 — 칩을 늘릴 때 함께 고치지 않으면 화면이 거짓말을 한다 */}
+                <span className="text-form-xs text-ink-meta ml-1">색칠된 칩 = 별지 9호 2쪽 「옥내(지하 지상 필로티 기계식), 옥상, 옥외」에 √로 인쇄 · 「전기차충전소」는 별지 9호엔 칸이 없어 소방계획서 서식 1.1에만 인쇄</span>
               </div>
             </div>
           </div>
