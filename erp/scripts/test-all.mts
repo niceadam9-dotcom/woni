@@ -246,13 +246,18 @@ const steps: Step[] = [
   // 속하는가. 위 자산 검사가 「시트 안이 맞는가」라면 여기는 **「시트가 화면에 닿는가」**다.
   // ⚠ 목차가 종전엔 세 곳(plan-tab-view의 CH1_FORMS·VALID_SEL, [id]/page.tsx의 formStatus 키)에
   //   각자 있었다. 여기가 붉으면 그 셋 중 하나가 대장과 갈라진 것 — 딥링크가 조용히 깨진다.
-  { name: '소방계획서 절↔시트 대장',   cmd: 'npx tsx scripts/test-fire-plan-sections.mts' },
+  { name: '소방계획서 절↔시트 대장',   cmd: 'npx tsx --conditions=react-server scripts/test-fire-plan-sections.mts' },
   // xlsx **리더**(`lib/xlsx-read-sheet`) — 서식 미리보기의 바닥. 병합·열폭·행높이·테두리를
   // 자산에서 직접 읽는다(manifest엔 병합이 **개수만** 있어 못 쓴다). 여기가 틀리면 미리보기가
   // 실제 엑셀과 다른 그림을 그리는데, 그건 기능이 아니라 **거짓말**이다.
   // ⚠ 두 독립 축으로 증명한다 — SheetJS 교차검증(병합·치수·글자)과 라이터 왕복 항등(테두리·정렬).
   //   앞쪽만으론 **테두리를 전부 none으로 읽어도 초록**이다(SheetJS가 그 축을 모른다).
   { name: 'xlsx 리더·템플릿 캐시',     cmd: 'npx tsx scripts/test-fire-plan-preview.mts' },
+  // **빈칸 보고**(`lib/fire-plan-blanks`) — 「엑셀을 받으면 어디가 비나, 그게 누구 할 일인가」.
+  // 🚨 핵심은 `unwired`(ERP가 못 채움)와 `empty`(값이 없음)가 **안 섞이는가**다 — 섞이면
+  //   사용자가 채울 수 없는 칸을 채우려 든다. 분모(값 슬롯 1,812 · 상자 658)는 래칫이라
+  //   배선하면 「기대치를 올려라」로 붉어지고 **줄면 그 자리에서 잡힌다**.
+  { name: '소방계획서 빈칸 보고',      cmd: 'npx tsx --conditions=react-server scripts/test-fire-plan-blanks.mts' },
   // 소방계획서 엑셀 **사진·도면 상자**(2026-09-14 사용자 신고: 1.3이 늘 백지였다).
   // 위 자산 검사와 축이 다르다 — 저기는 글자·좌표·자구, 여기는 **그림이 그 상자에 들어갔는가**다.
   // ⚠ 판정은 경로가 아니라 **바이트·평균색**이다(엉뚱한 그림이 들어가도 경로는 맞는다).

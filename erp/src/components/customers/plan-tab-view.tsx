@@ -10,7 +10,9 @@ import { DateInput } from '@/components/ui/date-input'
 import { TableWrap } from '@/components/ui/fields'
 import { collectPlanSaveHandlers, useUnsavedNavGuard } from '@/components/ui/unsaved-nav'
 import { useCustomerTabs } from '@/components/customers/customer-tabs'
-import { FIRE_PLAN_FORMS, FIRE_PLAN_FORM_KEYS, formOfCard } from '@/lib/fire-plan-sections'
+import { FIRE_PLAN_FORMS, FIRE_PLAN_FORM_KEYS, formOfCard, sectionsOfForm, type FirePlanFormKey } from '@/lib/fire-plan-sections'
+import { PlanBlankReport } from '@/components/customers/plan-blank-report'
+import type { FormBlankSummary } from '@/lib/fire-plan-blanks'
 import { RevisionHistory } from '@/components/customers/revision-history'
 import { FontScaleSettingsClient } from '@/components/settings/font-scale-settings-client'
 import type { RevisionYearGroup } from '@/app/(dashboard)/customers/fire-plan-revision-actions'
@@ -68,7 +70,8 @@ const CH1_FORMS = FIRE_PLAN_FORMS.filter(f => f.group === '본문 1장')
 export type FormStatusMap = Record<string, boolean | { done: number; total: number }>
 
 export function PlanTabView({
-  customerId, canManage, readiness, revisionYears, importCandidate, initialSection, initialForm, formStatus, archive,
+  customerId, canManage, readiness, revisionYears, importCandidate, initialSection, initialForm, formStatus,
+  blankSummary, archive,
   form11, form12, form13, form14, form15, form16, form17, form18, form110, form111, form1215, ch2, ch3, formCover,
   ledgerAutoNeeded, textDefaultsNeeded,
 }: {
@@ -83,6 +86,8 @@ export function PlanTabView({
   initialSection?: string
   initialForm?: string          // §1-3 딥링크 ?tab=plan&form=1.1 (sub=보다 우선)
   formStatus?: FormStatusMap    // §1-1·1-4 목차 완성도
+  /** 노드별 엑셀 빈칸 정적 요약 — 고객 축이 없어 서버가 미리 센다(lib/fire-plan-blanks) */
+  blankSummary?: Record<string, FormBlankSummary>
   archive: ReactNode
   form11: ReactNode
   form12: ReactNode
@@ -477,6 +482,19 @@ export function PlanTabView({
       {sel === 'cover' && formCover}
 
       {/* 별지 서식 렌더는 최상위 [별지서식] 탭으로 이관 (소방계획서_34 S3-5) */}
+
+      {/* ── 엑셀 빈칸 보고 ──
+          지금 보는 절이 담당하는 워크북 시트에서 **무엇이 빌지**를 받기 전에 알린다.
+          ⭐ 여기 **한 곳**에만 단다 — 서식 컴포넌트 14개에 각각 붙이면 같은 것을 열네 번
+            배선하는 셈이고, 한 곳이 빠지면 그 절만 조용히 보고가 없다. 담당 시트는 대장이 답한다. */}
+      {blankSummary?.[sel] && (
+        <PlanBlankReport
+          customerId={customerId}
+          sheetNames={sectionsOfForm(sel as FirePlanFormKey).map(d => d.sheet)}
+          summary={blankSummary[sel]}
+          canManage={canManage}
+        />
+      )}
           </div>
         </div>
         )

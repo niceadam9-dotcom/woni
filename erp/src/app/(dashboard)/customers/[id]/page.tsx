@@ -17,6 +17,7 @@ import { FirePlanXlsxButton } from '@/components/customers/fire-plan-xlsx-button
 import { FirePlanInfoPanel } from '@/components/customers/fire-plan-info-panel'
 import { PlanTabView, type FormStatusMap } from '@/components/customers/plan-tab-view'
 import type { FirePlanStatusKey } from '@/lib/fire-plan-sections'
+import { formBlankSummaries } from '@/lib/fire-plan-blanks'
 import type { RevisionYearGroup } from '@/app/(dashboard)/customers/fire-plan-revision-actions'
 import { CustomerAssetsClient } from '@/components/customers/customer-assets-client'
 import { PlanForm12, type ZoneRow, type HazardRow } from '@/components/customers/plan-form12'
@@ -409,6 +410,9 @@ export default async function CustomerDetailPage({
   //    여기 키를 손으로 더하거나 빼지 않는다 — 목차·딥링크와 갈라지면 배지가 붙지 않는 노드가
   //    조용히 생긴다. 아래 `satisfies`가 그 어긋남을 **tsc 단계에서** 잡는다.
   //    값(판정식)은 이 화면의 몫이고, 키(분모)는 대장의 몫이다.
+  // 엑셀 빈칸 **정적** 요약 — 고객 축이 없어 DB 왕복이 0이고, 격자·슬롯이 전부 캐시라
+  // 2회차부터 9ms다(실측). 상세 목록은 사용자가 펼칠 때만 서버 액션이 조립을 돈다.
+  const blankSummary = await formBlankSummaries()
   const formStatus: Record<FirePlanStatusKey, FormStatusMap[string]> = {
     '1.1': { done: readiness.done, total: readiness.total },
     '1.2': !!((fpSections.zones?.length ?? 0) || (fpSections.hazards?.length ?? 0)),
@@ -749,6 +753,7 @@ export default async function CustomerDetailPage({
       initialSection={sub}
       initialForm={planInitialForm}
       formStatus={formStatus}
+      blankSummary={blankSummary}
       archive={<FirePlanViewClient customerId={customer.id} />}
       form11={<FirePlanInfoPanel customerId={customer.id} initial={planInfoInitial} people={planPeople} />}
       form12={<PlanForm12 customerId={customer.id} canManage={canManage}

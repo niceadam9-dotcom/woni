@@ -16,7 +16,6 @@
  *    앱이 500으로 알려 준다. 「새 시트만 조용히 빠지고 아무도 모른다」가 구조적으로 불가능해야
  *    한다 — 이 저장소는 「앵커 0칸」을 **네 번**(1.4·1.8·1.5.2·1.10.1) 뒤늦게 발견했다.
  */
-import { FIRE_PLAN_MANIFEST, sheetManifest } from '@/lib/fire-plan-xlsx-manifest'
 
 /** 모바일 드롭다운의 그룹 접두 — 목차 그룹과 같은 갈래 */
 type FirePlanFormGroup = '본문 1장' | '본문' | '조회'
@@ -155,65 +154,6 @@ export const FIRE_PLAN_SECTIONS: readonly FirePlanSectionDef[] = [
   { sheet: '3.6 피난약자 유형별 방법', form: 'ch3', card: 'c-3.6' },
   { sheet: '3.7 피난기구·유도장비 현황', form: 'ch3', card: 'c-3.7' },
 ] as const
-
-/* ══════════════ 적재 시점 검증 — 틀리면 **여기서** 터진다 ══════════════
- *
- * `labelAt`이 좌표가 밀리면 적재 중 throw 하는 것과 같은 규약이다. 대장이 조용히 어긋난 채
- * 화면만 멀쩡해 보이는 상태를 만들지 않는다. */
-;(() => {
-  const n = FIRE_PLAN_SECTIONS.length
-  const total = FIRE_PLAN_MANIFEST.sheets.length
-
-  // ① 개수 — 대장과 manifest가 같은 워크북을 보고 있는가
-  if (n !== total) {
-    throw new Error(`fire-plan 대장: 항목 ${n}개인데 manifest 시트는 ${total}장이다`)
-  }
-
-  // ② 실재 — 오타 난 시트명은 sheetManifest가 「있는 것」 목록과 함께 터뜨린다
-  for (const d of FIRE_PLAN_SECTIONS) sheetManifest(d.sheet)
-
-  // ③ 중복
-  const seen = new Set<string>()
-  for (const d of FIRE_PLAN_SECTIONS) {
-    if (seen.has(d.sheet)) throw new Error(`fire-plan 대장: 시트 '${d.sheet}'가 두 번 실렸다`)
-    seen.add(d.sheet)
-  }
-
-  // ④ 노드 키가 목차에 있는가
-  const keys = new Set<string>(FIRE_PLAN_FORM_KEYS)
-  for (const d of FIRE_PLAN_SECTIONS) {
-    if (!keys.has(d.form)) throw new Error(`fire-plan 대장: '${d.sheet}'의 노드 '${d.form}'가 목차에 없다`)
-  }
-
-  // ⑤ **역방향** — 대장에 없는 manifest 시트.
-  //   🚨 ①+③이면 수학적으로 자동이지만 **메시지가 다르다**. ①만 두면 「50이 아니라 49」라는
-  //     숫자만 나오고 *어느 장이 빠졌는지* 아무도 모른다. 사람이 읽을 수 있어야 가드가 일한다.
-  const missing = FIRE_PLAN_MANIFEST.sheets.filter(s => !seen.has(s.name)).map(s => s.name)
-  if (missing.length > 0) {
-    throw new Error(`fire-plan 대장: manifest에 있는데 대장에 없는 시트 — ${missing.join(' · ')}`)
-  }
-
-  // ⑥ 면제에 이름을 강제한다 — 사유 없는 봐주기는 다음 사람이 이유를 못 묻는다
-  for (const d of FIRE_PLAN_SECTIONS) {
-    if (d.exempt !== undefined && d.exempt.trim() === '') {
-      throw new Error(`fire-plan 대장: '${d.sheet}'의 exempt에 사유가 없다`)
-    }
-  }
-
-  // ⑦ 한 카드가 **두 노드**에 매달리면 안 된다.
-  //   🚨 `formOfCard`는 Map이라 조용히 **마지막 것만** 답한다 — 딥링크가 뜻대로 안 가는데
-  //     아무 데서도 안 터진다. 같은 카드를 여러 시트가 공유하는 것은 정상이지만(1.14.1·1.14.2가
-  //     `c-1.14` 한 장을 쓴다) **노드가 갈리는 것**은 결함이다.
-  const cardForm = new Map<string, FirePlanFormKey>()
-  for (const d of FIRE_PLAN_SECTIONS) {
-    if (!d.card) continue
-    const prev = cardForm.get(d.card)
-    if (prev !== undefined && prev !== d.form) {
-      throw new Error(`fire-plan 대장: 카드 '${d.card}'가 두 노드에 걸려 있다 — ${prev} vs ${d.form}`)
-    }
-    cardForm.set(d.card, d.form)
-  }
-})()
 
 const BY_SHEET = new Map(FIRE_PLAN_SECTIONS.map(d => [d.sheet, d]))
 

@@ -16,6 +16,10 @@ import {
   type FirePlanFormKey,
 } from '../src/lib/fire-plan-sections.ts'
 import { FIRE_PLAN_MANIFEST } from '../src/lib/fire-plan-xlsx-manifest.ts'
+// 🚨 적재 시점 검증은 **서버 전용 모듈**로 떼어 냈다(manifest 146KB가 클라이언트 번들로 새던
+//   것을 막으려고). 검사는 여기를 import해 「그 관문이 실제로 선다」를 밖에서 다시 묻는다 —
+//   이 import가 throw 하면 아래 단언에 도달조차 못 한다.
+import { verifyFirePlanSections } from '../src/lib/fire-plan-sections-verify.ts'
 
 let pass = 0, fail = 0
 const check = (label: string, ok: boolean, detail = '') => {
@@ -34,6 +38,10 @@ check('목차 노드가 있다', FIRE_PLAN_FORMS.length > 0, `${FIRE_PLAN_FORMS.
  *  대장 모듈이 적재 시점에 이미 throw 하지만, 검사는 **그 사실을 밖에서 다시 묻는다**.
  *  모듈이 터지면 여기 도달조차 못 하므로 이 블록이 초록이라는 것 자체가 적재 검증의 통과 증명이다. */
 console.log('\n[1] 대장 ↔ manifest 1:1')
+// 적재 시점 관문이 실제로 도는가 — 명시적으로 한 번 더 부른다(throw 하면 검사가 죽는다)
+let verified = false
+try { verifyFirePlanSections(); verified = true } catch { verified = false }
+check('적재 시점 검증이 통과한다', verified)
 const sheetNames = FIRE_PLAN_MANIFEST.sheets.map(s => s.name)
 const mapped = FIRE_PLAN_SECTIONS.map(d => d.sheet)
 check('항목 수 == 시트 수', FIRE_PLAN_SECTIONS.length === sheetNames.length,

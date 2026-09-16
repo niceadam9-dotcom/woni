@@ -38,6 +38,16 @@ const MUTANTS = [
     `    const align = 'center' as HAlign`, 1],
 ]
 
+/** 🚨 파일의 줄끝에 맞춰 needle을 바꾼다.
+ *
+ *  리베이스·stash 복원이 git autocrlf로 파일을 **CRLF**로 되돌려 놓으면 개행이 든 패턴이
+ *  **0건 치환**된다. 가드가 「변이가 안 돌았다」로 잡아 주긴 했지만, 매번 손으로 고칠 일이
+ *  아니라 프로브가 알아서 맞춰야 한다 — 이 저장소가 CRLF 함정에 **네 번째** 빠진 자리다.
+ */
+const NL = String.fromCharCode(10)
+const CRNL = String.fromCharCode(13, 10)
+const eolFit = (src, s) => (src.includes(CRNL) ? s.split(NL).join(CRNL) : s)
+
 const runTest = () => {
   try { execFileSync('npx', ['tsx', TEST], { cwd: resolve(HERE, '..'), stdio: 'pipe', shell: true }); return 0 }
   catch (e) { return e.status ?? 1 }
@@ -50,12 +60,13 @@ if (base !== 0) process.exit(1)
 let caught = 0
 for (const [label, file, find, repl, expectHits] of MUTANTS) {
   const orig = readFileSync(file, 'utf8')
-  const hits = orig.split(find).length - 1
+  const needle = eolFit(orig, find)
+  const hits = orig.split(needle).length - 1
   if (hits !== expectHits) {
     console.log(`  ✘ ${label}\n      🚨 치환 대상 ${hits}건(기대 ${expectHits}) — 변이가 안 돌았다. 실패로 친다`)
     continue
   }
-  writeFileSync(file, orig.split(find).join(repl), 'utf8')
+  writeFileSync(file, orig.split(needle).join(eolFit(orig, repl)), 'utf8')
   const code = runTest()
   writeFileSync(file, orig, 'utf8')
   if (code !== 0) caught++
