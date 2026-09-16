@@ -58,7 +58,7 @@ const parkingCountRe = (label: string) => new RegExp(label.replace(' ', '\\s*') 
 export const PARKING_CHIPS: Array<{ flag: ParkingChipFlag; word: string; label: string; group: 'form11' | 'annex9' }> = [
   { flag: 'pkIn', word: '옥내', label: '옥내', group: 'form11' },
   { flag: 'pkOut', word: '옥외', label: '옥외', group: 'form11' },
-  /* 전기차충전소 — 법정 양식이 **주차장 행 안**에 둔 칸이다(서식 1.1 `AS13`).
+  /* 전기차충전소 — 법정 양식이 **주차장 행 안**에 둔 칸이다(서식 1.1 `AR13`).
    * ⚠ 별지 9호 2쪽엔 이 칸이 없다 — 켜도 그쪽 상자는 하나도 안 켜지는 것이 계약이다. */
   { flag: 'ev', word: PK_EV_WORD, label: '전기차충전소', group: 'form11' },
   { flag: 'pkInUg', word: '지하', label: '옥내·지하', group: 'annex9' },

@@ -339,7 +339,7 @@ export function buildFirePlanHtml(
   /* 아래 요약 줄의 「기계식」은 `옥내(…)` **괄호 밖**이라 편 무관 '기계식 있음'이 뜻이다.
    * `pk.pkMech`는 2026-09-11부터 **옥내 기계식**만 뜻하므로 여기 쓰면 옥외 기계식이 사라진다. */
   const pkt = parseParkingByType(d.parkingSummary ?? '')
-  /* 전기차충전소 — 엑셀 `1.1!AS13`과 **같은 술어**로 같은 줄에 찍는다. 종전엔 이 축이 없어
+  /* 전기차충전소 — 엑셀 `1.1!AR13`과 **같은 술어**로 같은 줄에 찍는다. 종전엔 이 축이 없어
    * 원문 병기 괄호 안에만 낱말이 비쳤고, 엑셀만 상자가 켜지는 비대칭이 날 뻔했다(D-7). */
   const pkEv = parseParkingEv(d.parkingSummary ?? '')
   const etcEvacKinds = ['대피공간', '경량칸막이', '피난안전구역', '옥상광장']

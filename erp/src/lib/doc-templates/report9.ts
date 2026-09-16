@@ -629,7 +629,7 @@ export const PK_INDOOR_SUB_WORDS = ['지상', '기계식'] as const
 export const PK_INDOOR_WORDS = PK_INDOOR_MARKS
 
 /* ── 전기차충전소 (2026-09-16) ────────────────────────────────────────────────
- *  서식 1.1 주차장 **13행의 셋째 칸**이다(`L13 ☐ 옥내` · `AB13 ☐ 옥외` · `AS13 ☐ 전기차충전소`).
+ *  서식 1.1 주차장 **13행의 셋째 칸**이다(`L13 ☐ 옥내` · `AB13 ☐ 옥외` · `AR13 ☐ 전기차충전소`).
  *  법정 양식이 주차장 행 안에 두었으므로 원천도 `buildings.parking_summary` 한 문자열을 쓴다.
  *
  *  ⚠ **`parseParkingSummary`에 넣지 않는다.** 그 반환형은 `Report9Data`의 Pick인데
@@ -661,7 +661,7 @@ export function stripParkingEv(pk: string): string {
  *  조립기의 경보 술어다 — 「비어 있다」가 아니라 **「채웠는데 체크가 하나도 안 켜졌다」**만 잡는다
  *  (주차장 미입력이 97%라 부재까지 경고하면 진짜 한 건이 소음에 묻힌다 — `report9-assemble.ts` §B-6 후속).
  *
- *  🚨 전기차충전소는 별지 9호에 **칸이 없다**(서식 1.1 `AS13`이 받는다). 그 낱말을 걷어내지 않으면
+ *  🚨 전기차충전소는 별지 9호에 **칸이 없다**(서식 1.1 `AR13`이 받는다). 그 낱말을 걷어내지 않으면
  *    전기차 칩 하나만 누른 문서마다 「반영되지 않음」 거짓 경보가 붙는다 — 없는 결함을 신고하는 셈이다.
  *  ⚠ 규칙이 조립기 안에만 있으면 아무도 단언하지 못한다(이 경보는 검사가 0건이었다). 순수 함수로 둔다. */
 export function parkingUnmatchedForAnnex9(pk: string): string {
