@@ -308,6 +308,11 @@ const steps: Step[] = [
    *   서식 1.1과 별지 9호가 같은 건물을 두고 다른 말을 했다(송학떡집·별그리다 특별피난계단).
    * 무게 중심은 **음성**이다 — 「켜지면 안 될 때 안 켜지는가」와 「배선이 옛 원천으로 안 돌아갔는가」. */
   { name: '시설현황 상자 규칙·배선',    cmd: 'npx tsx scripts/test-facility-status.mts' },
+  /* 실화면 왕복 — 위 순수 검사는 규칙과 배선을 묻고, 여기는 **사람이 적은 값이 DB를 거쳐 상자로
+   * 돌아오는가**를 본다. 이 저장소는 「구조 검사 50/50 초록인데 저장이 전멸」을 겪었고
+   * (`'use server'` 타입 재수출 → tsc 0인데 런타임 500) 그건 격리 E2E만이 잡았다.
+   * 🚨 마이그 165 미적용 DB에서는 저장이 PGRST204로 실패한다 — 그게 정답이다(조용히 넘기지 않는다). */
+  { name: '시설현황 격자 왕복(E2E)',    cmd: 'npx tsx scripts/test-facility-grid-live.mts', needServer: true },
   // 서버 불필요 — 순수 렌더 함수 대조. 중복 입력 제거(대장 파생·미러)가 문서에 반영되는지 고정
   { name: '세부제원 파생·미러 렌더',    cmd: 'npx tsx scripts/test-spec-derive.mts' },
   // 인쇄 번들 셀 오버라이드(lib/doc-overrides) — 파서 없이 문자열을 훑어 법정 서식의 특정 칸을
