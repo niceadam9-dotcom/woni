@@ -45,8 +45,12 @@ const parkingCountRe = (label: string) => new RegExp(label.replace(' ', '\\s*') 
  *  (쪼개면 「화면에 있는 칩 전부」를 아무도 셀 수 없고, 축 하나가 조용히 사라져도 모른다).
  *
  *  `form11` = 서식 1.1 13행에 칸이 있는 축 · `annex9` = 별지 9호 2쪽에만 있는 하위 구분.
- *  2026-09-16 실측(값 있는 5동): 지하·지상·옥상은 **한 번도 안 쓰였고** 필로티만 1동이라
- *  `annex9` 무리는 접어 둔다 — 서식 1.1 칸과 같은 줄에 섞이면 어디 인쇄되는지 읽을 수 없다.
+ *
+ *  ⚠ 한때 `annex9` 무리를 **접어** 뒀다. 근거는 실측(값 있는 5동에서 지하·지상·옥상 0건,
+ *    필로티 1건)이었는데 **그 판단을 물렸다**(2026-09-16 사용자 요청). 「안 쓰인다」는 관찰은
+ *    「넣기 어려웠다」의 결과일 수도 있고, 이 작업의 목적이 바로 **입력을 쉽게 하는 것**이다 —
+ *    접어 두면 필로티를 넣으려는 사람이 한 번 더 눌러야 한다. 그래서 **기본 펼침**이다.
+ *    대신 줄을 나누고 인쇄처를 적어, 서식 1.1 칸과 섞여 읽히지는 않게 둔다(접는 길도 남긴다).
  *
  *  ⚠ `pkMech`(옥내 기계식)는 **여기 없다.** 그 축은 14행 「옥내 기계식」 **대수칸**이 받는다
  *    (`PARKING_COUNTS`). 종전엔 칩과 대수칸이 같은 뜻을 두 벌로 받아 어긋날 수 있었다 —
@@ -120,7 +124,9 @@ function BoxCount({ label, unit, value, onChange, disabled, id, on }: {
 }
 
 export function FacilityStatusGrid({ value, onElevator, onStair, onParking, disabled = false, idPrefix }: Props) {
-  const [showAnnex9, setShowAnnex9] = useState(false)
+  /* 별지 9호 전용 구분은 **기본 펼침**이다(2026-09-16 사용자 요청) — 필로티처럼 실제로 쓰는
+   * 칸이 한 번 더 눌러야 나오면 안 넣게 된다. 접는 길은 남겨 둔다. */
+  const [showAnnex9, setShowAnnex9] = useState(true)
   const [showRaw, setShowRaw] = useState(false)
   const pkText = value.parkingSummary
   const rawId = `${idPrefix}-parking`
