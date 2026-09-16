@@ -99,17 +99,17 @@ const FIXED_SEEDS: Seed[] = [
   { field: 'manager_phone', sheet: FP_SHEET.F1_1, cell: 'AW7', labelCell: 'AJ7' },
   { field: 'receiver_location', sheet: FP_SHEET.F1_1, cell: 'L8', labelCell: 'D8' },
   { field: 'purpose', sheet: FP_SHEET.F1_1, cell: 'AJ9', labelCell: 'AB9' },
-  { field: 'use_approval_date', sheet: FP_SHEET.F1_1, cell: 'BA9', labelCell: 'AS9' },
+  { field: 'use_approval_date', sheet: FP_SHEET.F1_1, cell: 'BA9', labelCell: 'AR9' },
   { field: 'total_area', sheet: FP_SHEET.F1_1, cell: 'T10', labelCell: 'L10' },
-  { field: 'floors', sheet: FP_SHEET.F1_1, cell: 'BA10', labelCell: 'AS10' },
+  { field: 'floors', sheet: FP_SHEET.F1_1, cell: 'BA10', labelCell: 'AR10' },
   { field: 'height', sheet: FP_SHEET.F1_1, cell: 'T11', labelCell: 'L11' },
   { field: 'main_structure', sheet: FP_SHEET.F1_1, cell: 'AJ11', labelCell: 'AB11' },
-  { field: 'roof_structure', sheet: FP_SHEET.F1_1, cell: 'BA11', labelCell: 'AS11' },
+  { field: 'roof_structure', sheet: FP_SHEET.F1_1, cell: 'BA11', labelCell: 'AR11' },
   // 보험 4칸은 왼쪽이 병합이라 라벨이 **위**에 있다
   { field: 'insurance_company', sheet: FP_SHEET.F1_1, cell: 'L26', labelCell: 'L25' },
   { field: 'insurance_period', sheet: FP_SHEET.F1_1, cell: 'AB26', labelCell: 'AB25' },
-  { field: 'insurance_amount_person', sheet: FP_SHEET.F1_1, cell: 'AW26', labelCell: 'AS26' },
-  { field: 'insurance_amount_property', sheet: FP_SHEET.F1_1, cell: 'AW27', labelCell: 'AS27' },
+  { field: 'insurance_amount_person', sheet: FP_SHEET.F1_1, cell: 'AW26', labelCell: 'AR26' },
+  { field: 'insurance_amount_property', sheet: FP_SHEET.F1_1, cell: 'AW27', labelCell: 'AR27' },
 
   /* ── 서식 1.1 §시설현황·운영현황 (2026-09-08, S4-2 §구멍 메우기) ──────────────────
    *
@@ -129,12 +129,12 @@ const FIXED_SEEDS: Seed[] = [
   // 승강기 3종 · 계단 4종 — 상자칸
   { field: 'elevator_passenger', sheet: FP_SHEET.F1_1, cell: 'L12', labelCell: 'D12' },
   { field: 'elevator_emergency', sheet: FP_SHEET.F1_1, cell: 'AB12', labelCell: 'D12' },
-  { field: 'elevator_evac', sheet: FP_SHEET.F1_1, cell: 'AS12', labelCell: 'D12' },
+  { field: 'elevator_evac', sheet: FP_SHEET.F1_1, cell: 'AR12', labelCell: 'D12' },
   /* 주차장 13행 — 승강기 12행과 **같은 모양**의 체크 행인데 종전엔 미배선이었다. 사유 주석이
    * 「ERP에 주차장 입력 축이 없다」였는데 그 뒤 건물 폼에 주차장 칩이 생겨 **근거가 낡았다**
    * (2026-09-09 사용자 지적: 저장했는데 엑셀이 공란). 원천 `buildings.parking_summary`,
    * 체크 판정은 `parseParkingSummary`(별지 9호 2쪽과 같은 규칙 — 사본 금지).
-   * ⚠ `AS13 전기차충전소`는 **여전히 안 세운다** — 그 축이 ERP에 없어 지어내는 셈이 된다. */
+   * ⚠ `AR13 전기차충전소`는 **여전히 안 세운다** — 그 축이 ERP에 없어 지어내는 셈이 된다. */
   { field: 'parking_indoor', sheet: FP_SHEET.F1_1, cell: 'L13', labelCell: 'D13' },
   { field: 'parking_outdoor', sheet: FP_SHEET.F1_1, cell: 'AB13', labelCell: 'D13' },
   /* 14행 자주식·기계식 4칸 — 13행 옥내·옥외의 **하위 상자**다(옥내: L14·T14 / 옥외: AB14·AJ14).
@@ -163,7 +163,7 @@ const FIXED_SEEDS: Seed[] = [
   { field: 'headcount_worker', sheet: FP_SHEET.F1_1, cell: 'T19', labelCell: 'D19' },
   { field: 'headcount_resident_on', sheet: FP_SHEET.F1_1, cell: 'AB19', labelCell: 'D19' },
   { field: 'headcount_resident', sheet: FP_SHEET.F1_1, cell: 'AJ19', labelCell: 'D19' },
-  { field: 'headcount_max_on', sheet: FP_SHEET.F1_1, cell: 'AS19', labelCell: 'D19' },
+  { field: 'headcount_max_on', sheet: FP_SHEET.F1_1, cell: 'AR19', labelCell: 'D19' },
   { field: 'headcount_max', sheet: FP_SHEET.F1_1, cell: 'BA19', labelCell: 'D19' },
   // 업무대행 · 다중이용업 · 화재보험 — 「해당 / 해당없음」이 **두 칸**이라 각각 앵커를 문다
   { field: 'agency_yes', sheet: FP_SHEET.F1_1, cell: 'L21', labelCell: 'D21' },

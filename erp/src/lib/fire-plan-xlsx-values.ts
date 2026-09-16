@@ -202,7 +202,7 @@ export function buildFirePlanValues(d: FirePlanGenData): Map<string, CellValue> 
   const el = d.elevators
   v.set('elevator_passenger', boxLabelCell(FP_SHEET.F1_1, 'L12', !!txt(el?.passenger)))
   v.set('elevator_emergency', boxLabelCell(FP_SHEET.F1_1, 'AB12', !!txt(el?.emergency)))
-  v.set('elevator_evac', boxLabelCell(FP_SHEET.F1_1, 'AS12', !!txt(el?.evac)))
+  v.set('elevator_evac', boxLabelCell(FP_SHEET.F1_1, 'AR12', !!txt(el?.evac)))
 
   /* 주차장 — 승강기 바로 아래 같은 모양의 체크 행(2026-09-09 배선). 판정은 별지 9호 2쪽과
    * **한 함수**를 쓴다(사본을 만들면 두 서식이 같은 값을 다르게 읽는 날이 온다).
@@ -241,7 +241,7 @@ export function buildFirePlanValues(d: FirePlanGenData): Map<string, CellValue> 
   v.set('headcount_worker', unitCell(FP_SHEET.F1_1, 'T19', hcWorker))
   v.set('headcount_resident_on', boxLabelCell(FP_SHEET.F1_1, 'AB19', !!hcResident))
   v.set('headcount_resident', unitCell(FP_SHEET.F1_1, 'AJ19', hcResident))
-  v.set('headcount_max_on', boxLabelCell(FP_SHEET.F1_1, 'AS19', !!hcMax))
+  v.set('headcount_max_on', boxLabelCell(FP_SHEET.F1_1, 'AR19', !!hcMax))
   v.set('headcount_max', unitCell(FP_SHEET.F1_1, 'BA19', hcMax))
 
   // 업무대행 — 대행업체가 배선돼 있으면 '해당'이다(서식 1.8이 그 업체로 채워진다).

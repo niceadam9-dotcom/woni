@@ -49,7 +49,11 @@ const sheets = FIRE_PLAN_MANIFEST.sheets.map((s, i) => ({
     //   자[尺]는 여전히 Excel이 보고하는 `Range.Left`이고, 우리는 거기에 오프셋만 더한다.
     // 15px = 칸 들여쓰기 보정(제품의 `TEXT_INSET_PX`). 여기 **같은 수를 손으로 적는다** —
     // 제품 상수를 그대로 가져다 쓰면 보정이 통째로 빠져도 양쪽이 함께 틀려 초록이 된다.
-    offsetPt: Math.round((c.offsetPx + 15) * 0.75 * 100) / 100,
+    offsetPt: Math.round((c.offsetPx + 16) * 0.75 * 100) / 100,
+    // 세로 축(2026-09-16) — 「몇째 줄 / 몇 줄」만 보낸다. 자리를 계산해 보내면 PS가 내 식을
+    // 되풀이할 뿐이라 대조가 성립하지 않는다. 자[尺]는 Excel의 `Range.Top`·`Range.Height`다.
+    line: c.lineIndex,
+    lines: c.lineCount,
     checked: s.name === S14
       && ((c.boxIndex === 0 && onSet.has(c.cell)) || ON_MULTI[c.cell] === c.boxIndex),
     // 🚨 기대 글자 = **주입이 써 넣은 그대로**. 이제 상자를 다른 글자로 갈지 않고 **색만** 칠하므로

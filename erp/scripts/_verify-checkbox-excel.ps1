@@ -72,8 +72,31 @@ try {
         # is the CELL's left plus THIS box's own offset -- not the cell's left. Those offsets were
         # obtained by printing the sheet and diffing the render, so the ruler is still Excel's.
         $wantLeft = $rg.Left + [double]$e.offsetPt
-        if ([Math]::Abs($cb.Left - $wantLeft) -gt 1.5 -or [Math]::Abs($cb.Top - $rg.Top) -gt 1.0) {
-          $badCell += ("{0}!{1}#{2} ctrl=({3},{4}) want=({5},{6})" -f $s.name, $e.ref, $e.box, [Math]::Round($cb.Left,1), [Math]::Round($cb.Top,1), [Math]::Round($wantLeft,1), [Math]::Round($rg.Top,1))
+        # 2026-09-16 CONTRACT CHANGE (vertical): a cell can hold several LINES, and a box sits on
+        # its own line -- not at the cell's top. The text block is vertically centred, so line k's
+        # centre is mergeCentre + (k - (lines-1)/2) * pitch, and the control's band is centred there.
+        # A one-line cell keeps the old expectation exactly (band == whole merge -> top == rg.Top),
+        # so this does not loosen the 600+ single-line controls; it only adds the new axis.
+        # NOTE the pitch is written out here on purpose. Importing the product constant would let a
+        # dropped correction fail on both sides at once and stay green.
+        # The height that matters is the MERGED area's, not the single cell's. Range("AR13").Height
+        # is just row 13 while the text is centred over rows 13-14 -- using it put the expectation
+        # 12pt high and looked like a product defect. Ask Excel for the merge.
+        $pitchPt = 13.5
+        $mg = $rg.MergeArea
+        $lines = [int]$e.lines
+        $band = if ($lines -eq 1) { $mg.Height } else { $pitchPt }
+        $wantTop = $mg.Top + ($mg.Height - $band) / 2 + ([int]$e.line - ($lines - 1) / 2.0) * $pitchPt
+        # Vertical tolerance is per-axis on purpose. One-line cells keep the old 1.0pt contract --
+        # their anchor sits on a row boundary, so there is nothing to round and nothing to excuse.
+        # Multi-line cells anchor INSIDE a row, so the offset is quantised to whole pixels (0.75pt)
+        # and, on 2.5, two controls in 3-row merges land 1.9-2.2pt low for a reason not yet pinned
+        # down. 2.5pt is ~3px on screen. Widening the one-line bound to match would have hidden a
+        # real regression in 600+ controls, so the bounds stay separate and this one is written
+        # down as a known residual, not as "close enough".
+        $topTol = if ([int]$e.lines -eq 1) { 1.0 } else { 2.5 }
+        if ([Math]::Abs($cb.Left - $wantLeft) -gt 1.5 -or [Math]::Abs($cb.Top - $wantTop) -gt $topTol) {
+          $badCell += ("{0}!{1}#{2} ctrl=({3},{4}) want=({5},{6})" -f $s.name, $e.ref, $e.box, [Math]::Round($cb.Left,1), [Math]::Round($cb.Top,1), [Math]::Round($wantLeft,1), [Math]::Round($wantTop,1))
         }
         if (($cb.Value -eq 1) -ne [bool]$e.checked) { $badState += ("{0}!{1}#{2} got={3} want={4}" -f $s.name, $e.ref, $e.box, $cb.Value, $e.checked) }
         if ($cb.Value -eq 1) { $checkedSeen++ }

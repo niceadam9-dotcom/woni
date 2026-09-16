@@ -60,12 +60,19 @@ const EMPTY_BOX_RE = /[□☐]/
 /** 지금 칸에 있는 **상자 자리** 전부 — 꺼진 것(`□ ☐`)과 켜진 것을 함께 센다.
  *  ⚠ 켜짐 쪽 정본은 `FIRE_PLAN_MARK_CHECKED_RE`이고 여기 목록은 그 **한 글자 갈래**다. */
 const BOX_ANY_RE = /[□☐■☑▣]/g
-/** 칸 왼쪽 끝 → **글자가 시작하는 자리**(px). 적격 칸이 전부 `indent="1"`이라 상수다(실측).
+/** 칸 왼쪽 끝 → **상자 글리프가 시작하는 자리**(px). 적격 칸이 전부 `indent="1"`이라 상수다.
  *
- *  🚨 이만큼 안 밀면 컨트롤이 원래 상자보다 왼쪽에 선다 — 43·44회차로 나간 582개가 그 상태였고,
- *    「적용본 vs 원본」 렌더를 나란히 놓고 **첫 잉크 덩어리의 왼쪽 끝**을 비교해 처음 드러났다
- *    (`_probe-cb-xshift.mts`, 14렌더px ≒ 15시트px). 눈이 아니라 렌더가 정한 값이다. */
-const TEXT_INSET_PX = 15
+ *  🚨 이만큼 안 밀면 컨트롤이 원래 상자보다 왼쪽에 선다 — 43·44회차로 나간 582개가 그 상태였다.
+ *
+ *  ⚠ **이 값은 「선두가 상자인 라벨」의 기준선일 뿐이다.** 선두에 공백이 있는 라벨
+ *    (` ☐ 상근직`)은 상자가 그만큼 오른쪽에서 시작하므로 `CHECKBOX_BOX_OFFSETS`가 **0번 상자에도**
+ *    값을 준다. 종전엔 0번을 늘 0으로 두어 그 칸들이 5px쯤 왼쪽에 섰다(2026-09-16 실측).
+ *
+ *  🚨🚨 **15 → 16은 자[尺]를 바꾼 결과다.** 종전 15는 MS Excel 렌더에서 잰 값이고, 지금 16은
+ *    **LibreOffice** 렌더에서 잰 값이다(선두가 상자인 라벨 333개 중앙값 16.13px · 폭 1.52px).
+ *    사용자가 이 산출물을 LibreOffice로 열어 체크한다 — 자세한 경위는 `fire-plan-checkbox-offsets.ts`.
+ *    (이 한 칸 차이는 어느 쪽에서도 눈에 안 띈다. 갈리는 것은 다중상자 쪽이다.) */
+export const TEXT_INSET_PX = 16
 /* 🚨 **상자 글자를 다른 글자로 바꾸지 않는다. 색만 배경색으로 칠한다.**
  *
  *  종전엔 전각 공백(`　`)으로 갈아 끼웠는데, 칸 안에서 `□`는 **SegoeUISymbol**(윈도 글꼴 대체)이고
@@ -78,6 +85,16 @@ const HIDDEN_FILL_DEFAULT = 'FFFFFFFF'
 const CTRL_COLS = 2
 const PX_PER_COL = 13
 const EMU_PER_PX = 9525
+/** **한 줄의 세로 간격**(px) — 여러 줄 칸에서 「상자가 몇째 줄에 있는가」를 자리로 옮기는 값.
+ *
+ *  🚨 이것 하나만 알면 여러 줄 칸이 풀린다. 대상 36칸이 **전부** `vertical=center` ·
+ *    `horizontal=left` · `wrapText` · `indent=1` · 10pt로 균일하기 때문이다(실측) —
+ *    그래서 줄 k의 세로 중심은 `병합 중심 + (k − (줄수−1)/2) × 이 값`으로 딱 떨어진다.
+ *
+ *  ⚠ 값의 출처는 **렌더 차이 실측**이다(`_probe-cb-render3-fit`, 자[尺]는 LibreOffice).
+ *    Excel AutoFit이 내놓는 13.5pt(=18px)는 **사전값일 뿐** 과녁이 아니다 — 글자 폭에서
+ *    똑같은 함정을 이미 밟았다(모델이 제 자에는 완벽했고 그 자가 과녁이 아니었다). */
+const LINE_PITCH_PX = 18
 
 export type CheckboxCell = {
   cell: string
@@ -89,6 +106,10 @@ export type CheckboxCell = {
   boxIndex: number
   /** 칸의 첫 상자로부터 이 상자까지의 가로 거리(px). 첫 상자는 0 */
   offsetPx: number
+  /** 이 상자가 **몇째 줄**에 있는가(0부터). 한 줄 칸은 늘 0 */
+  lineIndex: number
+  /** 그 칸이 **몇 줄**인가. 한 줄 칸은 1 — 이때 세로 계산은 종전과 **완전히 같은 값**을 낸다 */
+  lineCount: number
 }
 
 const colNum = (s: string) => [...s].reduce((a, ch) => a * 26 + ch.charCodeAt(0) - 64, 0) - 1
@@ -127,14 +148,33 @@ export function firePlanCheckboxCells(sheet: string): CheckboxCell[] {
     const at = [...label.matchAll(/[□☐]/g)].map(m => m.index!)
     if (!at.length) continue
     if (!EMPTY_BOX_RE.test(label.trim()[0] ?? '')) continue
-    if (label.includes('\n')) continue
     const m = /^([A-Z]+)(\d+)$/.exec(cell)
     if (!m) continue
     const col = colNum(m[1]), row0 = Number(m[2]) - 1
-    if (at.length === 1) { out.push({ cell, col, row0, boxIndex: 0, offsetPx: 0 }); continue }
-    const offs = CHECKBOX_BOX_OFFSETS[label]
-    if (!offs || offs.length !== at.length) continue        // 표 없는 칸은 통째로 미적용
-    for (let i = 0; i < at.length; i++) out.push({ cell, col, row0, boxIndex: i, offsetPx: offs[i] })
+
+    /* 줄 나누기 — 「몇째 줄인가」는 **라벨이 이미 안다**(앞에 있는 `\n` 수). 재지 않아도 되는 값을
+     * 표에 싣지 않는다. 재야 하는 것은 **줄 간격 하나**(`LINE_PITCH_PX`)뿐이다. */
+    const lineOf = (i: number) => label.slice(0, i).split('\n').length - 1
+    const lineCount = label.split('\n').length
+    /** 그 줄 안에서 **몇 번째 상자**인가 — 가로 오프셋이 필요한지는 이것이 정한다 */
+    const perLine = new Map<number, number>()
+    for (const i of at) perLine.set(lineOf(i), (perLine.get(lineOf(i)) ?? 0) + 1)
+
+    // 라벨 길이가 표와 맞을 때만 쓴다 — 서식이 바뀌면 옛 값을 엉뚱한 상자에 먹이는 대신 물러난다
+    const offs = CHECKBOX_BOX_OFFSETS[label]?.length === at.length ? CHECKBOX_BOX_OFFSETS[label] : undefined
+    /* 🚨 **한 줄에 상자가 여럿이면 표가 있어야 한다.** 둘째 상자부터의 가로 자리는 앞 글자의 폭이
+     *   정하는데 그건 계산으로 못 맞춘다(9% 실패 기록). 표가 없으면 그 칸은 통째로 미적용이다 —
+     *   반만 달면 오늘보다 나쁘다.
+     * ⚠ 반대로 **줄마다 상자가 하나뿐이면 표가 없어도 된다.** 모든 줄이 같은 자리에서 시작하므로
+     *   (`horizontal=left` + `indent=1`) 가로 오프셋이 0이다. 여러 줄 칸 36개 중 35개가 이 부류다. */
+    if (!offs && [...perLine.values()].some(n => n > 1)) continue
+
+    /* 🚨 한 상자 칸도 가로 오프셋이 **0이 아닐 수 있다.** 선두에 공백이 있는 라벨(` ☐ 상근직`)은
+     *   상자가 그만큼 오른쪽에서 시작한다. 종전엔 `0`을 박아 그 칸들이 5px 왼쪽에 섰다.
+     *   ⚠ 표에 없으면 0이다 — 그게 「선두가 상자」인 다수 칸의 정답이다(미적용이 아니다). */
+    for (let i = 0; i < at.length; i++) {
+      out.push({ cell, col, row0, boxIndex: i, offsetPx: offs?.[i] ?? 0, lineIndex: lineOf(at[i]), lineCount })
+    }
   }
   // 좌표 순 — VML의 z-index와 컨트롤 이름이 매 생성마다 같은 순서로 나오게 한다(산출물 재현성)
   return out.sort((a, b) => a.row0 - b.row0 || a.col - b.col || a.boxIndex - b.boxIndex)
@@ -170,17 +210,29 @@ function mergeEndRows(xml: string): Map<string, number> {
   return out
 }
 
-/** 행 높이(pt) 표와 기본 행 높이 — VML `style`의 margin-top·height용.
- *  ⚠ 엑셀은 행 높이를 **정수 픽셀로 내림**한다(floor). 반올림으로 쓰면 누적 오차가 생긴다:
- *    1.4 시트 행1~20 누적이 floor로는 640px=480pt로 Excel 실측 `J21.Top`과 정확히 맞았다. */
-function rowPixels(xml: string): { px: Map<number, number>; defaultPx: number } {
+/** 행 높이 표 — **pt 원값과 px 내림값을 함께** 들고 다닌다. 둘 다 필요하다:
+ *
+ *  · `px`(내림) — 앵커 오프셋의 단위다. 엑셀은 행 높이를 정수 픽셀로 내림해 쓴다.
+ *  · `pt`(원값) — **세로 좌표를 계산하는 자[尺]**다.
+ *
+ *  🚨🚨 **px 격자로 세로 좌표를 누적하면 엑셀의 진짜 좌표에서 멀어진다.** `ht="18.9"`는
+ *    `floor(18.9×4/3)=25px=18.75pt`라 행마다 0.15pt씩 잃고, 2.5 시트에서는 14행째에
+ *    **2.35pt**까지 벌어졌다(Excel COM 실측이 잡았다). 종전엔 앵커를 **행 경계에만** 걸어
+ *    (오프셋 0) 이 드리프트가 식에서 사라졌기 때문에 드러나지 않았다 — 여러 줄 칸이
+ *    행 안쪽 오프셋을 쓰기 시작하면서 비로소 문제가 됐다.
+ *  → 그래서 세로는 **pt로 걷고**, 마지막에 「그 행 안에서 얼마나 내려왔나」만 px로 바꾼다.
+ *    누적분은 엑셀 자신의 행 좌표가 들고 있으므로 오차가 안 쌓인다. */
+function rowHeights(xml: string): {
+  pt: Map<number, number>; px: Map<number, number>; defaultPt: number; defaultPx: number
+} {
   const defHt = Number(/<sheetFormatPr[^>]*defaultRowHeight="([\d.]+)"/.exec(xml)?.[1] ?? 15)
+  const pt = new Map<number, number>()
   const px = new Map<number, number>()
   for (const m of xml.matchAll(/<row r="(\d+)"([^>]*)>/g)) {
     const ht = /ht="([\d.]+)"/.exec(m[2])?.[1]
-    if (ht) px.set(Number(m[1]), Math.floor(Number(ht) * 4 / 3))
+    if (ht) { pt.set(Number(m[1]), Number(ht)); px.set(Number(m[1]), Math.floor(Number(ht) * 4 / 3)) }
   }
-  return { px, defaultPx: Math.floor(defHt * 4 / 3) }
+  return { pt, px, defaultPt: defHt, defaultPx: Math.floor(defHt * 4 / 3) }
 }
 
 const VML_SHAPETYPE =
@@ -217,11 +269,32 @@ export async function applyFirePlanCheckboxes(
 
     const cells = firePlanCheckboxCells(sheet)
     const merges = mergeEndRows(xml)
-    const { px: rowPx, defaultPx } = rowPixels(xml)
-    const topPxOf = (row1: number) => {
+    const { pt: rowPt, px: rowPx, defaultPt, defaultPx } = rowHeights(xml)
+    const htPt = (r1: number) => rowPt.get(r1) ?? defaultPt
+    const topPtOf = (row1: number) => {
       let t = 0
-      for (let r = 1; r < row1; r++) t += rowPx.get(r) ?? defaultPx
+      for (let r = 1; r < row1; r++) t += htPt(r)
       return t
+    }
+    /** 시트 꼭대기부터의 **pt** → `(행, 그 행 안 오프셋 px)`. 가로 쪽 `splitPx`의 세로 짝이다.
+     *
+     *  ⚠ 행 높이는 균일하지 않아 나눗셈 한 번으로 안 된다 — 걸어서 찾는다.
+     *  ⚠ **걷는 것은 pt, 내놓는 오프셋은 px**다. 앵커 단위가 px이기 때문이고, 누적은 pt로 하므로
+     *    `floor` 드리프트(2.5 시트에서 14행째 2.35pt)가 안 쌓인다.
+     *  🚨 `isBottom`이면 **행 경계에 딱 맞았을 때 앞 행의 끝으로 적는다**. 「다음 행의 꼭대기」로
+     *    적으면 시트 마지막 행에서 dimension을 넘어 인쇄물에 빈 행 테두리가 띠로 찍힌다(실사고).
+     *    ⭐ 그때 내놓는 px는 **`rowPx`(내림)** 그대로다 — 한 줄 칸의 산출 바이트를 종전과 같게 둔다. */
+    const splitRowPt = (ptPos: number, isBottom: boolean) => {
+      let y = 0, r = 1
+      for (; r < 1_000_000; r++) {
+        const h = htPt(r)
+        if (h <= 0 || ptPos < y + h - 1e-9) break
+        y += h
+      }
+      let row0 = r - 1
+      let off = Math.round((ptPos - y) / 0.75)
+      if (isBottom && off === 0 && row0 > 0) { row0 -= 1; off = rowPx.get(row0 + 1) ?? defaultPx }
+      return { row0, off }
     }
 
     const shapes: string[] = []
@@ -281,11 +354,10 @@ export async function applyFirePlanCheckboxes(
       const isBody = runs.join('')
 
       const endRow1 = merges.get(cellRef) ?? c.row0 + 1     // 병합이 없으면 자기 행 하나
-      const topPt = (topPxOf(c.row0 + 1) * 0.75).toFixed(2)
+      const mergeTopPt = topPtOf(c.row0 + 1)
+      let mergeHPt = 0
+      for (let r = c.row0 + 1; r <= endRow1; r++) mergeHPt += htPt(r)
       const wPt = (CTRL_COLS * PX_PER_COL * 0.75).toFixed(2)
-      let hPx = 0
-      for (let r = c.row0 + 1; r <= endRow1; r++) hPx += rowPx.get(r) ?? defaultPx
-      const hPt = (hPx * 0.75).toFixed(2)
 
       for (let bi = 0; bi < boxes.length; bi++) {
       const b = boxes[bi]
@@ -304,16 +376,38 @@ export async function applyFirePlanCheckboxes(
       const to = splitPx(leftPx + CTRL_COLS * PX_PER_COL)
       const leftPt = (leftPx * 0.75).toFixed(2)
 
-      // 🚨 아래 모서리는 **「다음 행의 꼭대기」가 아니라 「마지막 덮는 행 + 그 행 높이」**로 적는다.
-      //   같은 자리를 가리키지만 **끝 행 번호가 한 칸 작아진다**. 앞의 표기는 시트의 마지막 행에
-      //   붙은 컨트롤에서 `to row`가 dimension을 **넘어서고**, 그러면 엑셀이 그 다음 빈 행까지
-      //   인쇄 범위에 넣어 **표 아래에 점선 테두리가 띠처럼 찍힌다**(28장 중 3장: 1.11.1·1.14.1·2.5).
-      //   ⚠ 수치 검사·변이·LibreOffice는 전부 통과했고, **인쇄 렌더를 대조군과 나란히 놓았을 때만**
-      //     드러났다. 1.4 한 장만 달던 시절엔 그 시트가 넘치지 않아 존재할 수 없던 결함이다.
-      //   ⚠ 오프셋이 0이 아닌 곳은 여기 하나뿐이고, 값은 글꼴이 아니라 **행 높이 실측**이다.
-      //     틀리면 Excel COM 위치 검사(칸 좌상단 ≤1pt)가 전 워크북에서 문다.
-      const toRow0 = endRow1 - 1
-      const toRowOffPx = rowPx.get(endRow1) ?? defaultPx
+      /* 세로 자리 = **이 상자가 있는 줄**의 띠.
+       *
+       * 칸이 한 줄이면 띠는 병합 전체다 — 그러면 아래 식이 종전과 **완전히 같은 값**을 낸다
+       * (`topPx=병합 위`, `bandPx=병합 높이`). 한 줄 칸 590여 개의 산출 바이트가 안 바뀐다는 뜻이고,
+       * 그게 이 모양으로 쓴 이유다: 여러 줄을 받으면서 기존 축을 건드리지 않는다.
+       *
+       * 여러 줄이면 글 덩어리가 병합 가운데에 서므로 줄 k의 중심은
+       *   `병합중심 + (k − (줄수−1)/2) × LINE_PITCH_PX`
+       * 이고, 띠는 그 중심에 높이 `LINE_PITCH_PX`로 세운다. 컨트롤이 `TextVAlign=Center`라
+       * 체크 글리프가 그 띠 가운데 = 그 줄 가운데에 선다. */
+      /* 🚨 **`c`가 아니라 `b`다.** `c`는 이 칸의 **첫** 상자이고 우리가 지금 놓는 것은 `b`다 —
+       *   `c.lineIndex`로 쓰면 한 칸의 상자가 전부 첫 줄에 겹쳐 쌓이고, 2·3번째 줄은
+       *   **상자 글자는 지워졌는데 컨트롤이 없는** 칸이 된다(오늘보다 나쁘다). 실제로 밟았고
+       *   3.2의 13칸이 「첫 줄만 상자」로 렌더된 것이 그 증상이었다. 가로 쪽이 이미 `b`를 쓴다. */
+      const bandPt = b.lineCount === 1 ? mergeHPt : LINE_PITCH_PX * 0.75
+      const topPtPos = mergeTopPt + (mergeHPt - bandPt) / 2
+        + (b.lineIndex - (b.lineCount - 1) / 2) * LINE_PITCH_PX * 0.75
+      const topPt = topPtPos.toFixed(2)
+      const hPt = bandPt.toFixed(2)
+
+      /* 🚨 아래 모서리는 **「다음 행의 꼭대기」가 아니라 「마지막 덮는 행 + 그 행 안 오프셋」**으로 적는다.
+       *   같은 자리를 가리키지만 **끝 행 번호가 한 칸 작아진다**. 앞의 표기는 시트의 마지막 행에
+       *   붙은 컨트롤에서 `to row`가 dimension을 **넘어서고**, 그러면 엑셀이 그 다음 빈 행까지
+       *   인쇄 범위에 넣어 **표 아래에 점선 테두리가 띠처럼 찍힌다**(28장 중 3장: 1.11.1·1.14.1·2.5).
+       *   ⚠ 수치 검사·변이·LibreOffice는 전부 통과했고, **인쇄 렌더를 대조군과 나란히 놓았을 때만**
+       *     드러났다. 1.4 한 장만 달던 시절엔 그 시트가 넘치지 않아 존재할 수 없던 결함이다.
+       *   `splitRowPx`가 그 규약을 **한 곳에서** 지킨다 — 위·아래 모서리가 같은 함수를 쓰므로
+       *   여러 줄 띠에서도 「행 경계에 딱 맞으면 앞 행의 끝으로 적는다」가 저절로 지켜진다. */
+      const fromRow = splitRowPt(topPtPos, false)
+      const toRowPos = splitRowPt(topPtPos + bandPt, true)
+      const toRow0 = toRowPos.row0
+      const toRowOffPx = toRowPos.off
 
       shapes.push(
         `<v:shape id="_x0000_s${shapeId}" type="#_x0000_t201" style='position:absolute;`
@@ -325,7 +419,7 @@ export async function applyFirePlanCheckboxes(
         + `<v:textbox style='mso-direction-alt:auto' o:singleclick="f"><div style='text-align:left'></div></v:textbox>`
         // ⚠ ClientData의 자식 **순서는 스키마 sequence다**. Excel이 저장한 순서를 그대로 따른다.
         + '<x:ClientData ObjectType="Checkbox"><x:SizeWithCells/>'
-        + `<x:Anchor>${from.col}, ${from.off}, ${c.row0}, 0, ${to.col}, ${to.off}, ${toRow0}, ${toRowOffPx}</x:Anchor>`
+        + `<x:Anchor>${from.col}, ${from.off}, ${fromRow.row0}, ${fromRow.off}, ${to.col}, ${to.off}, ${toRow0}, ${toRowOffPx}</x:Anchor>`
         + '<x:AutoFill>False</x:AutoFill><x:AutoLine>False</x:AutoLine><x:TextVAlign>Center</x:TextVAlign>'
         + (checked ? '<x:Checked>1</x:Checked>' : '')
         + '<x:NoThreeD/></x:ClientData></v:shape>')
@@ -336,7 +430,7 @@ export async function applyFirePlanCheckboxes(
         + '<controlPr defaultSize="0" autoFill="0" autoLine="0" autoPict="0">'
         + '<anchor moveWithCells="1">'
         + `<from><xdr:col>${from.col}</xdr:col><xdr:colOff>${from.off * EMU_PER_PX}</xdr:colOff>`
-        + `<xdr:row>${c.row0}</xdr:row><xdr:rowOff>0</xdr:rowOff></from>`
+        + `<xdr:row>${fromRow.row0}</xdr:row><xdr:rowOff>${fromRow.off * EMU_PER_PX}</xdr:rowOff></from>`
         + `<to><xdr:col>${to.col}</xdr:col><xdr:colOff>${to.off * EMU_PER_PX}</xdr:colOff>`
         + `<xdr:row>${toRow0}</xdr:row><xdr:rowOff>${toRowOffPx * EMU_PER_PX}</xdr:rowOff></to>`
         + '</anchor></controlPr></control></mc:Choice></mc:AlternateContent>')

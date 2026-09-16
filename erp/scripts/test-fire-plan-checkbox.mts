@@ -20,7 +20,11 @@ import { fileURLToPath } from 'node:url'
 import { dirname, resolve } from 'node:path'
 import JSZip from 'jszip'
 import { injectWorkbook } from '../src/lib/xlsx-inject.ts'
-import { applyFirePlanCheckboxes, firePlanCheckboxCells, CHECKBOX_SHEETS } from '../src/lib/fire-plan-checkbox-controls.ts'
+import {
+  applyFirePlanCheckboxes, firePlanCheckboxCells, CHECKBOX_SHEETS,
+  // 들여쓰기 상수는 **제품에서 가져온다**. 검사가 제 숫자를 들고 있으면 한쪽만 고쳐도 조용히 초록이 된다
+  TEXT_INSET_PX as FP_TEXT_INSET_PX,
+} from '../src/lib/fire-plan-checkbox-controls.ts'
 import { FIRE_PLAN_MANIFEST, labelAt, sheetManifest } from '../src/lib/fire-plan-xlsx-manifest.ts'
 import { classifyAlign } from '../src/lib/fire-plan-align.ts'
 import { CHECKBOX_BOX_OFFSETS } from '../src/lib/fire-plan-checkbox-offsets.ts'
@@ -29,13 +33,19 @@ const HERE = dirname(fileURLToPath(import.meta.url))
 const XLSX_PATH = resolve(HERE, '../templates/fire-plan-workbook.xlsx')
 const S14 = '1.4 소방시설 현황'
 /** 확대 기대치 — 실측으로 못 박는다(추정 금지). 규칙이 느슨해지면 이 수부터 움직인다.
- *  2026-09-14 다중상자 지원으로 582 → 626(칸 599 → 상자 626), 시트 28 → 29. */
-const TOTAL = 626
-const SHEETS_WITH = 29
-/** 전 워크북에서 **상자를 품은 칸** 수(실측). 그중 599칸이 적격이고 나머지 59칸은
- *  `□` 글자로 남는다 — **의도된 미적용**(산문 23 · 여러 줄 20 · 표 없는 다중상자 16). */
+ *  2026-09-14 다중상자 지원으로 582 → 626(칸 599 → 상자 626), 시트 28 → 29.
+ *  2026-09-16 **여러 줄 칸** 지원으로 626 → 691(칸 599 → 634, 상자 +65), 시트 29 → 30. */
+const TOTAL = 691
+const SHEETS_WITH = 30
+/** 전 워크북에서 **상자를 품은 칸** 수(실측). 그중 634칸이 적격이고 나머지 24칸은
+ *  `□` 글자로 남는다 — **의도된 미적용**(산문 23 · 한 줄에 상자 여럿인데 표 없는 칸 1 = 3.3!I3). */
 const ALL_BOX_CELLS = 658
-const ELIGIBLE_CELLS = 599
+const ELIGIBLE_CELLS = 634
+/** 여러 줄 칸(2026-09-16) — 36칸 중 35칸이 적격이고 상자 65개가 붙는다.
+ *  ⚠ 남는 1칸은 **3.3!I3**(한 줄에 상자 3개 × 2줄)이다. 그 줄 안 가로 오프셋 표가 없어 통째로 뺀다 —
+ *    반만 달면 오늘보다 나쁘다. 수를 못 박아 두어야 「표가 생겼는데 안 붙는」 퇴행이 드러난다. */
+const MULTILINE_CELLS = 35
+const MULTILINE_BOXES = 65
 
 let pass = 0, fail = 0
 const check = (label: string, ok: boolean, detail = '') => {
@@ -72,9 +82,13 @@ const boxesOf = (ref: string) => cells14.filter(c => c.cell === ref).map(c => c.
 check('R16(상자 5개)이 대상이고 상자 5개가 0..4로 다 나온다',
   boxesOf('R16').join(',') === '0,1,2,3,4', boxesOf('R16').join(','))
 check('R17(상자 3개)도 0..2', boxesOf('R17').join(',') === '0,1,2', boxesOf('R17').join(','))
-check('R16 오프셋이 **오름차순**이고 첫 상자는 0',
+/* 🔁 종전 계약 「첫 상자는 **정확히** 0」을 폐지하고 **기준선 계약**으로 갈아끼운다(2026-09-16).
+ *   오프셋은 이제 「칸 왼쪽 + TEXT_INSET_PX」에서 잰 실측값이라, 선두가 상자인 라벨에서도
+ *   측정 오차만큼(±1.5px) 0이 아닐 수 있다. 0을 못 박으면 **측정값을 반올림해 숨기게** 된다.
+ *   ⚠ 「0에 가깝다」만 물으면 느슨해지므로 **오름차순**을 함께 건다 — 순서가 뒤집히면 표가 깨진 것이다. */
+check('R16 오프셋이 **오름차순**이고 첫 상자는 기준선(±1.5px)',
   (() => { const o = cells14.filter(c => c.cell === 'R16').map(c => c.offsetPx)
-    return o[0] === 0 && o.every((v, i) => i === 0 || v > o[i - 1]) })(),
+    return Math.abs(o[0]) <= 1.5 && o.every((v, i) => i === 0 || v > o[i - 1]) })(),
   cells14.filter(c => c.cell === 'R16').map(c => c.offsetPx).join(' '))
 
 // 대상 칸은 전부 「상자가 맨 앞·한 줄」이어야 한다 — 규칙과 결과를 따로 물어 서로를 물게 한다
@@ -114,12 +128,58 @@ for (const s of FIRE_PLAN_MANIFEST.sheets) {
 }
 check('다중상자 대상 17칸 · 상자 44개', multiCells === 17 && multiBoxes === 44, `${multiCells}칸 ${multiBoxes}개`)
 check('그 17칸이 전부 오프셋 표에 있다 — 표 없는 칸은 통째로 빠진다', noTable === 0, `${noTable}칸 누락`)
-check('표의 첫 값은 늘 0(첫 상자는 기준점)',
-  Object.values(CHECKBOX_BOX_OFFSETS).every(o => o[0] === 0))
+/* 🔁 종전 계약 「표의 첫 값은 늘 0」을 폐지하고 **선두 글자가 정한다**로 갈아끼운다(2026-09-16).
+ *   그 「늘 0」이 바로 결함이었다 — ` ☐ 상근직`처럼 **선두에 공백이 있는 라벨**은 상자가
+ *   그만큼 오른쪽에서 시작하는데 0을 박아 컨트롤이 5px 왼쪽에 섰다(사용자 지적 image-7).
+ *   ⚠ 갈아끼우기만 하면 **공허하게 통과**한다(전부 0이어도 「선두가 상자」 쪽은 참이므로).
+ *     그래서 아래 **음성 짝**이 「공백 선두 라벨은 0이 아니다」를 직접 물어 되돌림을 막는다. */
+{
+  const startsBox = (l: string) => /^[□☐]/.test(l)
+  const bad = Object.entries(CHECKBOX_BOX_OFFSETS)
+    .filter(([l, o]) => (startsBox(l) ? Math.abs(o[0]) > 1.5 : o[0] <= 1.5))
+  check('표의 첫 값 = 선두 글자가 정한다(상자 선두면 ±1.5px · 공백 선두면 그만큼 오른쪽)',
+    bad.length === 0, bad.map(([l, o]) => `${JSON.stringify(l.slice(0, 16))}=${o[0]}`).join(' '))
+  const lead = Object.entries(CHECKBOX_BOX_OFFSETS).filter(([l]) => !startsBox(l))
+  check('음성 짝: 공백 선두 라벨이 실재하고 그 첫 값이 0이 아니다 — 「늘 0」으로 되돌리면 여기가 문다',
+    lead.length > 0 && lead.every(([, o]) => o[0] > 1.5), `${lead.length}종`)
+}
 // 음성 짝 — 표가 **아무 글자나 받아 주는 게 아님**을 보인다
 check('음성 짝: 없는 글자는 표에 없다', CHECKBOX_BOX_OFFSETS['□ 없는문구 □ 없음'] === undefined)
 // 전 워크북 적격 수를 못 박는다: 제외 규칙이 느슨해지면 이 수가 올라가며 먼저 붉어진다
 check(`전 워크북 적격 ${TOTAL}칸(규칙 드리프트 감시)`, totalEligible === TOTAL, `${totalEligible}칸`)
+
+/* ── 여러 줄 칸(2026-09-16 · 사용자 지적 image-1 「전기차충전소를 체크할 수 없다」) ──────────
+ * 🔁 종전 계약 「여러 줄 칸은 대상이 아니다」를 폐지하고 **반대 방향으로 갈아끼운다**.
+ *   지우기만 하면 「몇 칸을 다는가」를 아무도 안 물어 한 칸만 달아도 초록이 된다. */
+{
+  let mlCells = 0, mlBoxes = 0
+  const lineIdx: number[] = []
+  for (const s of FIRE_PLAN_MANIFEST.sheets) {
+    const seen = new Set<string>()
+    for (const c of firePlanCheckboxCells(s.name)) {
+      if (c.lineCount < 2) continue
+      mlBoxes++
+      if (!seen.has(c.cell)) { seen.add(c.cell); mlCells++ }
+    }
+  }
+  check(`여러 줄 칸 ${MULTILINE_CELLS}칸 · 상자 ${MULTILINE_BOXES}개가 적격`,
+    mlCells === MULTILINE_CELLS && mlBoxes === MULTILINE_BOXES, `${mlCells}칸 ${mlBoxes}개`)
+  // 음성 짝 — 한 줄에 상자가 여럿인데 표가 없는 칸은 **여전히** 빠진다(느슨해지면 여기가 문다)
+  const i3 = firePlanCheckboxCells('3.3 피난인원현황').filter(c => c.cell === 'I3')
+  check('음성 짝: 3.3!I3(한 줄에 상자 3개 × 2줄)은 표가 없어 통째로 미적용', i3.length === 0, `${i3.length}개`)
+
+  // 사용자가 든 그 칸 — 2줄이고 상자는 첫 줄에 있다
+  const ev = firePlanCheckboxCells('1.1 건축물 일반현황')
+    .filter(c => labelAt('1.1 건축물 일반현황', c.cell).includes('전기차충전소'))
+  check('1.1 「☐ 전기차충전소 / [서식1.6.3] 작성」이 적격 — 2줄 중 첫 줄',
+    ev.length === 1 && ev[0].lineCount === 2 && ev[0].lineIndex === 0,
+    ev.map(c => `${c.cell} 줄${c.lineIndex}/${c.lineCount}`).join(' '))
+
+  // 줄마다 상자 하나인 3줄 칸 — 줄 번호가 실제로 0·1·2로 갈리는가
+  const t3 = firePlanCheckboxCells('3.2 피난시설 세부현황').filter(c => c.cell === 'T3')
+  check('3.2!T3 상자 3개의 줄 번호가 0·1·2', t3.map(c => c.lineIndex).join(',') === '0,1,2',
+    t3.map(c => c.lineIndex).join(','))
+}
 
 console.log('\n[A-2] 확대 전제 — 「왼쪽 끝에 앉힌다」가 규칙으로 보장되는가')
 // 🚨 컨트롤은 칸의 **왼쪽 끝**에 선다. 그 가정은 우연이 아니라 생성기 규칙 ②(체크 글리프 선두 → 좌)의
@@ -279,14 +339,55 @@ check('② 상자 글자가 전부 배경색 런으로 감싸였다 — 안 보�
   check('음성 짝: 바탕 없는 칸(1.4!J3)은 흰색', /<color rgb="FFFFFFFF"\/>/.test(plain))
 }
 
-// 🚨 ④ **들여쓰기 보정**. 컨트롤은 칸 왼쪽 끝이 아니라 「글자가 시작하는 자리」에 서야 한다 —
-//   보정을 빼면 상자보다 15px 왼쪽에 선다(43·44회차 배포본이 그 상태였다). 변이가 이 구멍을 잡았다.
+/* 🚨🚨 **여러 줄 칸은 앵커가 줄마다 갈려야 한다.** 이게 이 축의 전부다.
+ *
+ *  위의 「줄 번호가 0·1·2」는 **판정**만 묻는다. 실제로 밟은 결함은 판정이 아니라 **배치**였다 —
+ *  앵커를 짤 때 그 칸의 **첫** 상자(`c`)를 보는 바람에 셋이 첫 줄에 겹쳐 쌓였고, 2·3번째 줄은
+ *  「상자 글자는 지워졌는데 컨트롤이 없는」 칸이 됐다(오늘보다 나쁘다). 줄 번호 단언은 전부
+ *  초록이었다. 그래서 **산출물의 세로 자리**를 직접 묻는다.
+ *  ⚠ 값이 아니라 **간격의 균일성**을 묻는다 — `LINE_PITCH_PX`를 다시 재면 값은 바뀌어도
+ *    「줄마다 같은 간격으로 갈린다」는 계약은 안 바뀐다. */
 {
-  const c = cells14.find(x => x.cell === 'J3')!          // col 9, 첫 상자(offsetPx 0)
-  const want = c.col * 13 + 15                            // 칸 왼쪽 + 들여쓰기
+  const partOfSheet = async (z: JSZip, name: string): Promise<string> => {
+    const wb = await z.file('xl/workbook.xml')!.async('string')
+    const rels = await z.file('xl/_rels/workbook.xml.rels')!.async('string')
+    const t = new Map<string, string>()
+    for (const m of rels.matchAll(/<Relationship Id="([^"]+)"[^>]*Target="([^"]+)"/g)) t.set(m[1], m[2])
+    const hit = [...wb.matchAll(/<sheet name="([^"]+)"[^>]*r:id="([^"]+)"/g)]
+      .find(m => m[1].replace(/&amp;/g, '&') === name)!
+    return 'xl/' + t.get(hit[2])!.replace(/^\/?xl\//, '')
+  }
+  const S32 = '3.2 피난시설 세부현황'
+  const cells32 = firePlanCheckboxCells(S32)
+  const at = cells32.findIndex(c => c.cell === 'T3')
+  check('3.2!T3이 산출물 상자 목록에 있다(전제)', at >= 0, `idx ${at}`)
+  const vml32 = await vmlOf(zOff, await partOfSheet(zOff, S32))
+  const tops = [...vml32.matchAll(/margin-top:([\d.]+)pt/g)].map(m => Number(m[1]))
+  const t3 = tops.slice(at, at + 3)
+  const d1 = t3[1] - t3[0], d2 = t3[2] - t3[1]
+  check('3.2!T3 세 컨트롤이 **세로로 갈린다** — 줄 간격만큼, 그리고 등간격',
+    d1 > 5 && Math.abs(d1 - d2) < 0.6, `top ${t3.join(' / ')}pt · 간격 ${d1.toFixed(2)} · ${d2.toFixed(2)}`)
+  // 음성 짝 — 한 줄 칸은 **안 갈린다**(같은 칸의 상자 둘이 같은 높이). 갈림이 번지면 여기가 문다
+  const cells14b = firePlanCheckboxCells(S14)
+  const r16 = cells14b.findIndex(c => c.cell === 'R16')
+  const t16 = [...vmlOff.matchAll(/margin-top:([\d.]+)pt/g)].map(m => Number(m[1])).slice(r16, r16 + 5)
+  check('음성 짝: 한 줄 칸(1.4!R16)의 상자 5개는 세로가 전부 같다',
+    new Set(t16).size === 1, `top ${[...new Set(t16)].join(' / ')}pt`)
+}
+
+// 🚨 ④ **들여쓰기 보정**. 컨트롤은 칸 왼쪽 끝이 아니라 「상자 글리프가 서는 자리」에 앉아야 한다 —
+//   보정을 빼면 상자보다 16px 왼쪽에 선다(43·44회차 배포본이 그 상태였다). 변이가 이 구멍을 잡았다.
+//   🔁 15 → 16: 자[尺]를 Excel 렌더에서 **LibreOffice 렌더**로 옮긴 결과다(2026-09-16).
+//     상수를 여기 다시 적지 않고 **제품에서 가져온다** — 두 벌이면 한쪽만 고쳐도 조용히 초록이 된다.
+{
+  const c = cells14.find(x => x.cell === 'J3')!          // col 9, 선두가 상자라 offsetPx ≈ 0
   const a = anchorOf(vmlOff, cells14.findIndex(x => x.cell === 'J3'))!
-  check('④ 첫 상자 앵커 = 칸 왼쪽 + 들여쓰기 15px(칸 왼쪽 끝이 아니다)',
-    a[0] * 13 + a[1] === want, `앵커 ${a[0]}열+${a[1]}px = ${a[0] * 13 + a[1]} · 기대 ${want}`)
+  const got = a[0] * 13 + a[1]
+  const want = c.col * 13 + FP_TEXT_INSET_PX + Math.round(c.offsetPx)
+  check(`④ 첫 상자 앵커 = 칸 왼쪽 + 들여쓰기 ${FP_TEXT_INSET_PX}px(칸 왼쪽 끝이 아니다)`,
+    got === want, `앵커 ${a[0]}열+${a[1]}px = ${got} · 기대 ${want}`)
+  // 음성 짝 — 「칸 왼쪽 끝」이면 틀린 것이다. 보정이 사라지면 위 단언과 함께 둘 다 문다
+  check('음성 짝: 칸 왼쪽 끝(보정 0)이 아니다', got !== c.col * 13, `${got} vs ${c.col * 13}`)
 }
 
 // 음성 축: 대상이 아닌 칸은 **런조차 안 생긴다**. 부적격 칸은 `□`가 그대로 보인다 —
