@@ -33,6 +33,8 @@ export const FP_SHEET = {
   F1_7_1: '1.7.1 소방안전관리자 선임현황',
   F1_8: '1.8 업무대행 현황',
   F1_10_1: '1.10.1 연간 점검 계획',
+  // 2026-09-16 — PDF는 이미 인쇄하는데 엑셀만 공란이던 시트(소방계획서_50 §5-3이 마커로 확정)
+  F1_10_4: '1.10.4 화재·비화재보 이력',
   // ⚠ manifest에 `1.11.4`로 시작하는 시트가 **둘**이다(앞쪽·뒷쪽) — 용도 칸은 앞쪽에만 있다
   F1_11_4: '1.11.4 훈련·교육 결과기록부',
   // 제2장(2026-09-08 2단계)
@@ -436,6 +438,43 @@ const FORM14_SEEDS: Seed[] = [
   { field: FORM14_NAME_FIELD, sheet: FORM14_SHEET, cell: FORM14_NAME_CELL, labelCell: FORM14_NAME_CELL },
 ]
 
+/* ══════════════════════ 서식 1.10.4 화재·비화재보 이력 (2026-09-16) ══════════════════════
+ *
+ *  🚨 이 시트는 **PDF가 이미 인쇄하는데 엑셀만 공란**이었다. 소방계획서_50 §5-3의 마커 대조가
+ *    확정했다 — `forms.fireHistory`에 심은 `__FIRE__`가 PDF HTML에는 나타나고 엑셀 앵커는 0이었다.
+ *    데이터도 입력 화면(`plan-form110`의 `c-1.10.4` 카드)도 이미 있고 **앵커만 없었다.**
+ *
+ *  머리글 5칸이 `FireHistoryRow`와 1:1이다 — 구분/발생일시/발생장소/발생원인/조치사항.
+ *  값 슬롯이 정확히 75칸(15행 × 5열)이고 이 씨앗도 75개다(빈칸 보고의 분모와 맞물린다).
+ */
+export const FIREHIST_SHEET = FP_SHEET.F1_10_4
+
+/** 데이터 행 수 — 좌표를 손으로 적지 않는다.
+ *  `labelBlockRows('A2')`는 **머리글 행까지 포함해** 센다(A열에 그 아래 라벨이 없으므로 시트 끝까지).
+ *  그래서 −1이 데이터 행 수다. 양식에 행이 끼거나 빠지면 이 수가 따라 움직인다. */
+export const FIREHIST_ROWS = labelBlockRows(FIREHIST_SHEET, 'A2') - 1
+
+/** 첫 데이터 행(1-based) — 머리글 바로 다음 */
+export const FIREHIST_FIRST_ROW = 3
+
+/** [엑셀 열, 필드 접미사, 열 머리 라벨 셀] — 라벨 셀이 좌표 검증의 닻이다 */
+const FIREHIST_COLS: ReadonlyArray<readonly [string, string, string]> = [
+  ['A', 'kind', 'A2'],      // 구분 (화재/비화재보)
+  ['I', 'at', 'I2'],        // 발생일시
+  ['Q', 'place', 'Q2'],     // 발생장소
+  ['Z', 'cause', 'Z2'],     // 발생원인
+  ['AM', 'action', 'AM2'],  // 조치사항
+]
+
+const FIREHIST_SEEDS: Seed[] = Array.from({ length: FIREHIST_ROWS }, (_, i) =>
+  FIREHIST_COLS.map(([col, key, labelCell]) => ({
+    field: `firehist_${i}_${key}`,
+    sheet: FIREHIST_SHEET,
+    cell: `${col}${FIREHIST_FIRST_ROW + i}`,
+    labelCell,
+  })),
+).flat()
+
 /* ══════════════════════ 조립 ══════════════════════ */
 
 /**
@@ -456,7 +495,7 @@ function assemble(seeds: Seed[]): Anchor[] {
   })
 }
 
-export const FIRE_PLAN_ANCHORS: Anchor[] = assemble([...FIXED_SEEDS, ...ZONE_SEEDS, ...BRIG_SEEDS, ...FORM14_SEEDS])
+export const FIRE_PLAN_ANCHORS: Anchor[] = assemble([...FIXED_SEEDS, ...ZONE_SEEDS, ...BRIG_SEEDS, ...FORM14_SEEDS, ...FIREHIST_SEEDS])
 
 /* ══════════════════════ §사진상자 (2026-09-14) ══════════════════════
  *

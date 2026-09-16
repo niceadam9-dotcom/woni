@@ -391,7 +391,12 @@ const steps: Step[] = [
   // (2026-09-08 발견). 이 값은 엑셀 폐지(R5-6) 뒤 **유일한 기록처**라 조용히 깨지면 대안이 없다.
   // 표가 붙는 설비 목록(고시 8개: 2·3·4·5·6·7·8·13)·자동 판정 대상과 비대상(②'규정치'는
   // 명판 값이라 시스템에 없다 — 없는 근거로 O를 찍지 않는다)·수동 보정 우선·별지 4호 도달까지 본다.
-  { name: '펌프성능시험 실측치',        cmd: 'npx tsx --conditions=react-server scripts/test-pump-test.mts' },
+  // 🚨 `needServer` 표시가 빠져 있었다(2026-09-16 발견). 이 검사는 `launch`·`login`·`BASE`를
+  //   쓰는 **E2E**인데 표시가 없어, 서버가 없으면 「건너뜀」이 아니라 **실패**로 찍혔다
+  //   (`ERR_CONNECTION_REFUSED`). 없는 서버를 못 찾은 것을 결함으로 세면 게이트 신호가 흐려진다.
+  //   ⚠ 「`_e2e-helpers`를 import하면 E2E」가 아니다 — 나머지 7개는 `check`·`summary`만 쓰고
+  //     서버를 안 탄다. 판정은 **`launch`/`login`/`BASE`를 실제로 부르는가**다.
+  { name: '펌프성능시험 실측치',        cmd: 'npx tsx --conditions=react-server scripts/test-pump-test.mts', needServer: true },
   // 설비 구분 fold를 읽는 표면이 셋인데(8쪽·10호 7행·현5) 원천은 `foldDefectGroups` 하나다.
   // 원천이 하나여도 **표면마다 부르는 조건이 다르면** 갈라진다 — 실제로 10호가 미공급을
   // '전 구분 미해당'으로 읽어 7행을 전부 「해당없음」으로 단정한 적이 있다(2026-09-08 정정).

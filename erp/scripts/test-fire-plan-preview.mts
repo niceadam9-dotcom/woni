@@ -173,5 +173,58 @@ check('1.1에 채움 있는 칸이 있다', filled.length > 0, `${filled.length}
 check('정렬이 한 값으로 뭉개지지 않았다', aligns.size > 1, [...aligns].join(','))
 check('1.1 격자가 60열이다', g11.cols === 60, `${g11.cols}열`)
 
+/* ══════════════════════ [6] 값 착지 — 리더로 **되읽어** 확인한다 ══════════════════════
+ *  앵커를 세우고 값을 채워도 「착지」는 별개 사실이다. 라우트와 같은 경로로 워크북을 만들고
+ *  이 리더로 되읽는다 — 리더를 만든 보람이 여기 있다(종전엔 엑셀을 내려받아 눈으로 봐야 했다).
+ *
+ *  표본은 **1.10.4 화재·비화재보 이력**이다(2026-09-16 배선, 소방계획서_50 §7 우선순위 ①).
+ *  🚨 빈 행이 **빈 채로 남는가**를 함께 묻는다 — PDF는 표 모양을 만들려고 빈 행을 `pad`하지만
+ *    엑셀은 그러면 안 된다(없는 사실을 지어내는 것이다). 양성만 보면 그 차이를 못 잡는다. */
+console.log('\n[6] 값 착지 — 되읽어 확인 (1.10.4 화재·비화재보 이력)')
+{
+  const { validateAnchors } = await import('../src/lib/xlsx-anchors.ts')
+  const { toInjectTargets } = await import('../src/lib/xlsx-workbook.ts')
+  const { FIRE_PLAN_ANCHORS, FIREHIST_SHEET, FIREHIST_ROWS } = await import('../src/lib/fire-plan-anchors.ts')
+  const { buildFirePlanValues } = await import('../src/lib/fire-plan-xlsx-values.ts')
+  type Gen = Parameters<typeof buildFirePlanValues>[0]
+
+  const fx = {
+    buildingName: '가상건물', facilities: [], brigade: [], zones: [],
+    forms: {
+      fireHistory: [
+        { kind: '화재', at: '2025-03-01', place: '지하1층 전기실', cause: '누전', action: '차단기 교체' },
+        { kind: '비화재보', at: '2025-07-14', place: '3층 복도', cause: '오동작', action: '감지기 교체' },
+      ],
+    },
+  } as unknown as Gen
+
+  const vc = validateAnchors(bytes, FIRE_PLAN_ANCHORS)
+  check('앵커 검증 통과', vc.ok, vc.ok ? `${vc.anchors.length}개` : vc.failures.slice(0, 3).join(' / '))
+  if (vc.ok) {
+    const { targets, unmapped } = toInjectTargets(buildFirePlanValues(fx), vc.anchors)
+    check('미매핑 0칸(값 맵이 앵커를 전부 덮는다)', unmapped.length === 0, `${unmapped.length}칸`)
+    const out = await injectWorkbook(bytes, targets)
+    check('미착지 0칸', out.missed.length === 0, `${out.missed.length}칸`)
+    const gg = await readSheetGrid(await JSZip.loadAsync(out.bytes), FIREHIST_SHEET)
+    const at = (ref: string) => gg.cells.find(c => c.ref === ref)?.text ?? '(없음)'
+    check('반복행 예산이 파생된다(손으로 적은 15가 아니다)', FIREHIST_ROWS === 15, `${FIREHIST_ROWS}행`)
+    // 양성 — 두 행이 다섯 칸 모두 제자리에
+    check('1행 착지', at('A3') === '화재' && at('I3') === '2025-03-01' && at('Q3') === '지하1층 전기실'
+      && at('Z3') === '누전' && at('AM3') === '차단기 교체',
+      `A3=${at('A3')} I3=${at('I3')} Q3=${at('Q3')}`)
+    check('2행 착지', at('A4') === '비화재보' && at('AM4') === '감지기 교체', `A4=${at('A4')}`)
+    // 🚨 음성 — 데이터가 없는 행은 **빈 채로** 남아야 한다
+    check('3행은 빈칸 유지(없는 사실을 지어내지 않는다)',
+      at('A5') === '' && at('I5') === '' && at('AM5') === '', `A5=${JSON.stringify(at('A5'))}`)
+    // 🚨 음성 — 머리글은 그대로여야 한다(값이 라벨을 덮으면 법정 자구가 사라진다).
+    //   ⚠ 기대 문구를 **여기 베껴 적지 않는다**. 처음엔 `'구분 (화재/비화재보)'`라 적었다가
+    //     빨개졌다 — 실제 원문은 `구분\n(화재/비화재보)`로 개행이 들어 있고, 내가 본 건
+    //     프로브가 `\s+`를 공백으로 **정규화한 출력**이었다. manifest에게 묻는다(사본 금지).
+    const { labelAt } = await import('../src/lib/fire-plan-xlsx-manifest.ts')
+    check('머리글이 살아 있다', at('A2') === labelAt(FIREHIST_SHEET, 'A2'),
+      JSON.stringify(at('A2')))
+  }
+}
+
 console.log(`\n=== pass ${pass} / fail ${fail} ===`)
 process.exit(fail ? 1 : 0)

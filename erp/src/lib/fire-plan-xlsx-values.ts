@@ -22,7 +22,7 @@ import type { BrigadeRow, FirePlanGenData } from '@/lib/fire-plan-template'
 import { formatTel } from '@/lib/format-contact'
 import {
   BRIG_ROWS, FIRE_PLAN_ANCHORS, FORM14_NAME_CELL, FORM14_NAME_FIELD, FORM14_ROWS, FORM14_SHEET,
-  FP_SHEET, ZONE_ROWS, ZONE_SHEET,
+  FP_SHEET, ZONE_ROWS, ZONE_SHEET, FIREHIST_ROWS,
 } from '@/lib/fire-plan-anchors'
 import { boxGlyphAt, labelAt, tokenTemplateAt } from '@/lib/fire-plan-xlsx-manifest'
 import { purposeCover, purposeShort } from '@/lib/purpose-label'
@@ -364,6 +364,28 @@ export function buildFirePlanValues(d: FirePlanGenData): Map<string, CellValue> 
     v.set(`zone_${i}_area`, txt(z?.area))
     v.set(`zone_${i}_company`, txt(z?.managerCo))
     v.set(`zone_${i}_contact`, txt(z?.contact))
+  }
+
+  /* ── 서식 1.10.4 화재·비화재보 이력 (2026-09-16) ──────────────────────────────
+   *
+   *  🚨 이 시트는 **PDF가 이미 인쇄하는데 엑셀만 공란**이었다(소방계획서_50 §5-3의 마커 대조가
+   *    확정했다). 데이터도 입력 화면(`plan-form110`의 `c-1.10.4` 카드)도 이미 있었고 **앵커만
+   *    없었다** — 「앵커 0칸」의 다섯 번째다.
+   *
+   *  ⚠ **PDF와 같은 원천·같은 필드명**을 읽는다 — `fire-plan-template.ts`의 `histRows`가 쓰는
+   *    `forms.fireHistory`의 `kind·at·place·cause·action` 그대로다. 여기서 이름을 바꿔 적으면
+   *    두 표면이 갈라진다(이 저장소가 반복해 데인 축).
+   *  ⚠ PDF는 빈 행을 3줄까지 `pad`로 채워 표 모양을 만들지만 **엑셀은 그러지 않는다** —
+   *    양식이 이미 15행을 그려 두었고, 빈 칸은 빈 칸으로 남는 것이 맞다(없는 사실을 지어내지 않는다).
+   */
+  const hist = d.forms?.fireHistory ?? []
+  for (let i = 0; i < FIREHIST_ROWS; i++) {
+    const h = hist[i]
+    v.set(`firehist_${i}_kind`, txt(h?.kind))
+    v.set(`firehist_${i}_at`, txt(h?.at))
+    v.set(`firehist_${i}_place`, txt(h?.place))
+    v.set(`firehist_${i}_cause`, txt(h?.cause))
+    v.set(`firehist_${i}_action`, txt(h?.action))
   }
 
   /* ── 서식 2.2 자위소방대 편성표 (2단계 · Q-1 자동 채움) ────────────────────────
