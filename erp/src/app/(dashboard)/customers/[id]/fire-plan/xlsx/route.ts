@@ -1,14 +1,11 @@
 import { NextResponse, type NextRequest } from 'next/server'
-import { readFile } from 'node:fs/promises'
-import path from 'node:path'
 import { getProfile, can } from '@/lib/auth'
 import type { UserRole } from '@/types'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { assembleFirePlan } from '@/lib/fire-plan-generate'
-import { validateAnchors } from '@/lib/xlsx-anchors'
+import { firePlanTemplate } from '@/lib/fire-plan-template-cache'
 import { toInjectTargets } from '@/lib/xlsx-workbook'
 import { injectWorkbook } from '@/lib/xlsx-inject'
-import { FIRE_PLAN_ANCHORS, FIRE_PLAN_IMAGE_ANCHORS } from '@/lib/fire-plan-anchors'
 import { brigadeRowOverflow, buildFirePlanValues, missingValueFields, zoneRowOverflow } from '@/lib/fire-plan-xlsx-values'
 import { FIRE_PLAN_MANIFEST } from '@/lib/fire-plan-xlsx-manifest'
 import { embedFirePlanImages, planFirePlanImages } from '@/lib/fire-plan-xlsx-images'
@@ -28,8 +25,6 @@ import { applyFirePlanCheckboxes } from '@/lib/fire-plan-checkbox-controls'
  */
 export const runtime = 'nodejs'
 
-const TEMPLATE = path.join(process.cwd(), 'templates', 'fire-plan-workbook.xlsx')
-
 export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const profile = await getProfile()
   if (!profile) return NextResponse.json({ error: '로그인이 필요합니다.' }, { status: 401 })
@@ -44,11 +39,14 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
 
   const admin = createAdminClient()
   try {
-    const templateBytes = new Uint8Array(await readFile(TEMPLATE))
+    // 템플릿·앵커 검증은 **정적 산출물의 함수**라 프로세스당 1회만 계산한다(fire-plan-template-cache).
+    // 종전엔 요청마다 1.7MB를 읽고 `validateAnchors`를 두 번 돌렸다 — 둘 다 워크북 전체 파싱이다.
+    // ⚠ `templateBytes`는 **공유본**이다. 여기서 변형하면 다음 요청이 오염된다
+    //   (`injectWorkbook`은 원본을 안 건드린다 — `xlsx-inject.ts:210`, 검사가 해시로 실증).
+    const { bytes: templateBytes, value: check, image: imgCheck } = await firePlanTemplate()
 
     // ① 앵커 검증 — 서식이 밀렸으면 **주입을 시작하지 않는다**.
     //    자가치유가 일어났다는 것은 좌표가 이미 밀렸다는 뜻이라 고지에 싣는다(S7-2와 같은 축).
-    const check = validateAnchors(templateBytes, FIRE_PLAN_ANCHORS)
     if (!check.ok) {
       return NextResponse.json(
         { error: `소방계획서 서식 좌표가 어긋났습니다(${check.failures.length}건). 관리자에게 알려 주세요.`, detail: check.failures.slice(0, 8) },
@@ -57,7 +55,6 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
 
     // ①-b 사진 상자 좌표 — **값 앵커와 따로** 검증한다(§사진상자). 저쪽 목록에 섞으면
     //     `missingValueFields`가 '값 없는 필드'라며 생성을 통째로 끊는다(그림엔 값이 없다).
-    const imgCheck = validateAnchors(templateBytes, FIRE_PLAN_IMAGE_ANCHORS)
     if (!imgCheck.ok) {
       return NextResponse.json(
         { error: `소방계획서 사진 상자 좌표가 어긋났습니다(${imgCheck.failures.length}건). 관리자에게 알려 주세요.`, detail: imgCheck.failures.slice(0, 8) },
