@@ -17,6 +17,8 @@ import { purposeCover } from '@/lib/purpose-label'
 import { LOCATION_BOX_KINDS, pickFirstKind } from '@/lib/fire-plan-image-kinds'
 /* 주차장 체크 판정 — 별지 9호 2쪽이 쓰는 그 함수를 그대로 쓴다(사본 금지, 순환 없음: report9는 이 파일을 안 문다) */
 import { parseParkingSummary, parseParkingByType, parseParkingEv } from '@/lib/doc-templates/report9'
+/* 상자 판정 — 승강기·계단이 **같은 술어**를 쓴다(의존 없는 순수 모듈, 사본 금지) */
+import { STAIR_KINDS, STAIR_LABEL, stairChecks, type StairKind } from '@/lib/facility-status'
 import type { EtcFacilitySection } from '@/components/customers/plan-form16'
 import type { ManagerRow } from '@/components/customers/plan-form17'
 import type { InspectionPlanSection, FireHistoryRow, DutyLogRow } from '@/components/customers/plan-form110'
@@ -129,7 +131,14 @@ export type FirePlanGenData = {
   /** M-4(소방계획서_15): 1.4 항목별 비고 — 설비 대장 detail.note */
   facilityNotes?: Array<{ name: string; note: string }>
   // ── M-2·M-3·M-10(소방계획서_15): 1.1 확장 — 없으면 종전 렌더(하위 호환) ──
-  stairsCount?: string          // 계단 개소 (0·미입력은 '')
+  stairsCount?: string          // 계단 개소 (0·미입력은 '') — 직통+피난 합계, 별지 9호 한 행용
+  /** 계단 4종 개소 — 서식 1.1 15~16행과 1.5.1이 **같이 쓰는** 해석 결과(2026-09-16 마이그 165).
+   *
+   *  🚨 종전 원천은 1.5 탭 JSON(`forms.evacFire.stairs`)이었다. 그런데 2026-09-16 실측에서
+   *    1.5 탭을 채운 고객이 **306명 중 4명**이라, 나머지 302명은 서식 1.1 계단 네 칸이
+   *    영영 공란이었다. 이제 건물이 원천이고, 조립기가 **한 번 해석해** 두 표면에 나눠 준다
+   *    (표면마다 해석하면 「서식 1.1은 ☑인데 별지 9호는 공란」 같은 갈라짐이 다시 생긴다). */
+  stairCounts?: Partial<Record<StairKind, string>>
   rampCount?: string            // 경사로 개소
   elevators?: { passenger: string; emergency: string; evac: string }  // 승용·비상용·피난용 대수
   /** 주차장 요약 텍스트(`buildings.parking_summary`) — 「옥외 자주식 8대」처럼 사람이 적은 한 줄.
@@ -315,7 +324,16 @@ export function buildFirePlanHtml(
 
   // ── 1.5 피난·방화시설 ──
   const ef = f.evacFire
-  const stairKinds = ['직통계단', '피난계단', '특별피난계단', '옥외계단']
+  /* 계단 4종 — 원천이 건물이다(마이그 165). 개소는 `d.stairCounts`, 상자는 `stairChecks`.
+   *
+   *  🚨 종전엔 `ef?.stairs?.['직통계단']`을 **세 자리에서 각자** 읽었고 판정도 `!!`였다.
+   *    `!!`는 문자열 `'0'`을 켜서 「0개소인데 ☑」를 인쇄했다(송학떡집 실측). 이제 개소도 상자도
+   *    한 벌이다 — 이 배열이 서식의 인쇄 순서(L15·AJ15·L16·AJ16)를 들고 있다. */
+  const stairOn = stairChecks(d.stairCounts ?? {})
+  const stairCell = (k: StairKind) => {
+    const n = (d.stairCounts?.[k] ?? '').trim()
+    return `${ck(stairOn[k], STAIR_LABEL[k])}${stairOn[k] && n ? ` <span class="small">(${esc(n)}개소)</span>` : ''}`
+  }
   // 주차장 체크 — 규칙 사본을 만들지 않는다(별지 9호 2쪽과 **같은 함수**). 값이 없으면 전부 false.
   const pk = parseParkingSummary(d.parkingSummary ?? '')
   /* 아래 요약 줄의 「기계식」은 `옥내(…)` **괄호 밖**이라 편 무관 '기계식 있음'이 뜻이다.
@@ -484,7 +502,7 @@ ${(d.autoFilled?.length ?? 0) > 0
     <tr><td class="l">건축면적: ${v(d.buildingArea, ' ㎡')}</td><td class="l">층수: ${v(d.floors)}</td><td class="l">높이: ${v(d.height, ' m')}</td></tr>
     <tr><td class="l">구조: ${v(d.structure)}</td><td colspan="2" class="l">지붕: ${v(d.roof)}</td></tr>
     ${/* M-2·M-10(소방계획서_15): 승강기 3종은 건물·고객 원천 연결(대수 병기), 계단·경사로 개소 병기 — 값 없으면 종전 ☐/미표기 */''}
-    <tr><td colspan="3" class="l">승강기: ${ck(!!d.elevators?.passenger, '승용')}${d.elevators?.passenger ? `(${esc(d.elevators.passenger)}대)` : ''} ${ck(!!d.elevators?.emergency, '비상용')}${d.elevators?.emergency ? `(${esc(d.elevators.emergency)}대)` : ''} ${ck(!!d.elevators?.evac, '피난용')}${d.elevators?.evac ? `(${esc(d.elevators.evac)}대)` : ''} &nbsp;/&nbsp; 계단: ${stairKinds.map(k => ck(!!ef?.stairs?.[k], k)).join(' ')}${d.stairsCount ? ` (${esc(d.stairsCount)}개소)` : ''}${d.rampCount ? ` / 경사로 ${esc(d.rampCount)}개소` : ''}</td></tr>
+    <tr><td colspan="3" class="l">승강기: ${ck(!!d.elevators?.passenger, '승용')}${d.elevators?.passenger ? `(${esc(d.elevators.passenger)}대)` : ''} ${ck(!!d.elevators?.emergency, '비상용')}${d.elevators?.emergency ? `(${esc(d.elevators.emergency)}대)` : ''} ${ck(!!d.elevators?.evac, '피난용')}${d.elevators?.evac ? `(${esc(d.elevators.evac)}대)` : ''} &nbsp;/&nbsp; 계단: ${STAIR_KINDS.map(k => ck(stairOn[k], STAIR_LABEL[k])).join(' ')}${d.stairsCount ? ` (${esc(d.stairsCount)}개소)` : ''}${d.rampCount ? ` / 경사로 ${esc(d.rampCount)}개소` : ''}</td></tr>
     ${/* 주차장 — 양식 1.1이 승강기 바로 아래 두는 체크 행. 판정은 낱말 포함(parseParkingSummary
          단일 원천, 별지 9호 2쪽과 같은 규칙)이고 원문을 함께 적어 「옥외 자주식 8대」의 대수를 잃지 않는다.
          값이 없으면 종전처럼 ☐만 나온다(2026-09-09 신설). */''}
@@ -580,7 +598,7 @@ ${(d.autoFilled?.length ?? 0) > 0
   <h3>1.5.1 일반현황</h3>
   <table>
     <tr><th style="width:90px">계단</th><td class="l" colspan="3"><div class="ckgrid">${
-      stairKinds.map(k => `${ck(!!ef?.stairs?.[k], k)}${ef?.stairs?.[k] ? ` <span class="small">(${esc(ef.stairs[k])}개소)</span>` : ''}`).join('')
+      STAIR_KINDS.map(stairCell).join('')
     }</div></td></tr>
     <tr><th>기타 피난시설</th><td class="l" colspan="3"><div class="ckgrid">${
       etcEvacKinds.map(k => ck(!!ef?.etc?.includes(k), k)).join('')
@@ -813,7 +831,7 @@ ${(d.autoFilled?.length ?? 0) > 0
     <tr><th>구조</th><td class="l">${v(d.structure)}</td><th>용도</th><td class="l">${/* 47 B-15: 1.1 주용도와 같은 표기 — 엑셀 3.1!AY4와 한 축이다 */
       v(purposeCover(d.purpose))}</td></tr>
     <tr><th>계단</th><td class="l" colspan="3"><div class="ckgrid">${
-      stairKinds.map(k => `${ck(!!ef?.stairs?.[k], k)}${ef?.stairs?.[k] ? ` <span class="small">(${esc(ef.stairs[k])}개소)</span>` : ''}`).join('')
+      STAIR_KINDS.map(stairCell).join('')
     }</div></td></tr>
     <tr><th>피난안내</th><td class="l" colspan="3">■ 연 2회 피난안내 교육을 실시</td></tr>
   </table>

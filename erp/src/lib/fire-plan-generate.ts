@@ -16,6 +16,8 @@ import {
 import { resolveFireSafetyManager, type ContactLite } from '@/lib/fire-safety-manager'
 /* 대표동 판정 단일 원천 — 화면·별지 9호·갑지가 쓰는 그 함수(사본 금지) */
 import { primaryBuilding } from '@/lib/primary-building'
+/* 계단 4종 — 건물 값을 정본으로 쓰되 이관 전 고객은 1.5 탭 옛 JSON으로 폴백한다(마이그 165) */
+import { STAIR_KINDS, stairCountsFromLegacyMap, type StairKind } from '@/lib/facility-status'
 import type { ManagerRow } from '@/components/customers/plan-form17'
 import { toStandardCodes } from '@/lib/facility-codes'
 import { formatBizNo, formatTel } from '@/lib/format-contact'
@@ -118,6 +120,11 @@ export async function assembleFirePlan(
     floors_above: number | null; floors_below: number | null
     height: number | string | null; receiver_location: string | null; main_structure: string | null; roof_structure: string | null
     stairs_count: number | null; ramp_count: number | null; evac_elevator_count: number | null
+    /* 계단 4종(마이그 165) — 서식 1.1 15~16행의 원천. 종전엔 1.5 탭 JSON이 들고 있어서
+     * **1.5를 안 쓴 302명은 계단칸이 영영 공란**이었다(2026-09-16 실측: 1.5 작성 4명).
+     * 조회는 위 `select('*')`가 이미 한다 — 2026-09-09 `parking_summary` 사고를 되풀이하지 않는다. */
+    stair_direct_count: number | null; stair_escape_count: number | null
+    stair_special_count: number | null; stair_outdoor_count: number | null
     elevator_count: number | null; emergency_elevator_count: number | null
     parking_summary: string | null
     created_at?: string | null; is_primary?: boolean | null
@@ -255,6 +262,22 @@ export async function assembleFirePlan(
     facilityNotes,                                    // M-4: 1.4 항목별 비고
     // M-2·M-10: 1.1 시설현황 확장 — 계단·경사로 개소, 승강기 3종 대수 (전부 buildings 원천)
     stairsCount: nz(b?.stairs_count),
+    /* 계단 4종 — **한 번 해석해** 서식 1.1 엑셀과 PDF 1.5.1이 나눠 쓴다(마이그 165).
+     *  표면마다 해석하면 「서식 1.1은 ☑인데 별지 9호는 공란」 같은 갈라짐이 다시 생긴다.
+     *
+     *  ⚠ 폴백이 있다: 건물 네 칸이 **모두 비었을 때만** 1.5 탭 옛 JSON을 읽는다. 마이그 165 백필은
+     *    「활성 건물이 정확히 1동인 고객」만 옮겼으므로(고객 단위 JSON이 어느 동인지 말하지 않는다)
+     *    다동 고객의 옛 입력이 이 폴백으로 계속 인쇄된다. 섞지 않고 **건물이 이기게** 둔 이유는,
+     *    한 칸이라도 건물에 적었으면 그게 사람이 방금 말한 최신 사실이기 때문이다. */
+    stairCounts: (() => {
+      const own = {
+        special: nz(b?.stair_special_count), direct: nz(b?.stair_direct_count),
+        escape: nz(b?.stair_escape_count), outdoor: nz(b?.stair_outdoor_count),
+      }
+      if (Object.values(own).some(s => s !== '')) return own
+      const legacy = stairCountsFromLegacyMap(sections.evacFire?.stairs)
+      return Object.fromEntries(STAIR_KINDS.map(k => [k, String(legacy[k] ?? '')])) as Record<StairKind, string>
+    })(),
     rampCount: nz(b?.ramp_count),
     elevators: {
       passenger: nz(b?.elevator_count),

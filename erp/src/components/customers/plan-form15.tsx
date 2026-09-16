@@ -7,11 +7,15 @@ import { saveFirePlanSectionsAction } from '@/app/(dashboard)/customers/fire-pla
 import { useUnsavedWarning, NumStepper } from '@/components/ui/fields'
 import { ImageSlot } from '@/components/customers/plan-form13'
 import { COMPARTMENT_KINDS, type CompartmentValue } from '@/lib/evac-compartment'
+import { useCustomerTabs } from '@/components/customers/customer-tabs'
+/* 계단 4종 — 판정·이름을 여기 다시 적지 않는다(건물 폼·엑셀·PDF와 **같은 모듈**) */
+import { STAIR_KINDS, STAIR_LABEL, checkFromCount, type StairKind } from '@/lib/facility-status'
 
 /** 서식 1.5 피난·방화시설 및 제연, 방염 관련 현황 — 섹션 카드 2개 (소방계획서_4.md §3)
  *  1.5.1 일반현황(sections.evacFire) + 1.5.2 방화·제연구획 현황도(sections.evacMaps + plan-assets) */
 
-const STAIRS = ['직통계단', '피난계단', '특별피난계단', '옥외계단'] as const
+/* 계단 종류 목록은 `lib/facility-status`의 `STAIR_KINDS`가 정본이다(2026-09-16).
+ * 여기 사본을 두면 서식 1.1 네 상자와 이 화면이 다른 순서·다른 이름을 들 수 있다. */
 const ETC_EVAC = ['대피공간', '경량칸막이', '피난안전구역', '옥상광장'] as const
 
 export type EvacFireSection = {
@@ -37,30 +41,38 @@ export const EMPTY_EVAC_FIRE: EvacFireSection = {
   smokeControl: { has: false, note: '' }, flameRetardant: { has: false, note: '' },
 }
 
-/** §11-3: 용도 기반 기본값 — 보수적 최소 구성(입력 후 현장 확인·수정 전제) */
+/** §11-3: 용도 기반 기본값 — 보수적 최소 구성(입력 후 현장 확인·수정 전제)
+ *
+ *  🚨 2026-09-16: `stairs` 프리셋을 뺐다. 용도만 보고 「주택형이니 직통계단 1개소」를 찍던 값인데,
+ *    계단 원천이 건물 컬럼으로 옮겨 간 뒤로는 그 추정이 **서식 1.1 네 상자와 별지 9호 합계까지**
+ *    끌고 간다. 「모르면 안 켠다」 — 계단은 사람이 건물·시설 탭에서 말한 것만 인쇄한다.
+ *    (여기 남겨 두면 이 JSON이 조립기 폴백이라 다동 고객에게 실제로 인쇄된다.) */
 const EVAC_PRESETS: Record<string, Partial<EvacFireSection>> = {
   '주택형': {
-    stairs: { '직통계단': '1' }, compartment: 'floor',
+    compartment: 'floor',
     evacFloor: { location: '1층', exits: '1', openMethod: '수동(자유 개방)' }, fireDoor: { has: true, note: '' },
   },
   '상가형': {
-    stairs: { '직통계단': '2' }, compartment: 'area',
+    compartment: 'area',
     evacFloor: { location: '1층', exits: '2', openMethod: '수동(자유 개방)' }, fireDoor: { has: true, note: '' },
   },
   '공장형': {
-    stairs: { '직통계단': '1', '옥외계단': '1' }, compartment: 'area',
+    compartment: 'area',
     evacFloor: { location: '1층', exits: '2', openMethod: '수동(자유 개방)' }, fireDoor: { has: true, note: '' },
   },
 }
 
-export function PlanForm15({ customerId, canManage, initialEvacFire, initialMaps, presetType = '' }: {
+export function PlanForm15({ customerId, canManage, initialEvacFire, initialMaps, presetType = '', stairCounts }: {
   customerId: string
   canManage: boolean
   initialEvacFire: EvacFireSection
   initialMaps: EvacMapRow[]
   presetType?: string // 용도 기반 추천 (주택형/상가형/공장형 — §11-3)
+  /** 계단 4종 개소(대표동) — **읽기 전용 표시**다. 입력구는 건물·시설 탭 하나뿐이다(마이그 165) */
+  stairCounts?: Partial<Record<StairKind, string>>
 }) {
   const router = useRouter()
+  const tabs = useCustomerTabs()   // 탭 셸 밖에서는 null — 옵셔널로 부른다
   const [ef, setEf] = useState<EvacFireSection>({ ...EMPTY_EVAC_FIRE, ...initialEvacFire })
   const [maps, setMaps] = useState<EvacMapRow[]>(initialMaps)
   const [dirty, setDirty] = useState(false)
@@ -116,33 +128,27 @@ export function PlanForm15({ customerId, canManage, initialEvacFire, initialMaps
             </button>
           )}
         </div>
-        {/* 계단 */}
+        {/* 계단 — **읽기 전용**. 원천은 건물·시설 탭이다(2026-09-16 마이그 165).
+            🚨 종전엔 같은 「계단」을 세 화면이 각자 받았다(건물 폼 합계칸 · 소방계획서 정보 패널 ·
+              여기 4종 칩). 그래서 송학떡집·별그리다는 **서식 1.1엔 ☑인데 별지 9호 2쪽은 공란**으로
+              인쇄되고 있었다. 입력구를 하나로 모으고 여기는 그 결과를 비춘다.
+            ⚠ 저장된 옛 JSON(`ef.stairs`)은 지우지 않는다 — 마이그 165 백필이 「활성 건물 1동」인
+              고객만 옮겼으므로, 다동 고객에겐 조립기가 이 값을 폴백으로 계속 쓴다. */}
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-form-xs font-medium text-ink-sub w-14">계단</span>
-          {STAIRS.map(s => {
-            const on = ef.stairs[s] !== undefined
+          {STAIR_KINDS.map(k => {
+            const n = (stairCounts?.[k] ?? '').trim()
+            const on = checkFromCount(n)
             return (
-              <span key={s} className="inline-flex items-center gap-1">
-                <button disabled={!canManage} className={chip(on)}
-                  onClick={() => {
-                    const next = { ...ef.stairs }
-                    if (on) delete next[s]
-                    else next[s] = ''
-                    patch({ stairs: next })
-                  }}>
-                  {s}
-                </button>
-                {on && (
-                  <NumStepper value={ef.stairs[s]} disabled={!canManage} label={`${s} 개소`}
-                    onChange={v => patch({ stairs: { ...ef.stairs, [s]: v } })}>
-                    <input value={ef.stairs[s]} disabled={!canManage} inputMode="numeric" placeholder="개소"
-                      onChange={e => patch({ stairs: { ...ef.stairs, [s]: e.target.value } })}
-                      className={`${inputCls} w-14`} />
-                  </NumStepper>
-                )}
+              <span key={k} className={`inline-flex items-center gap-1 text-form-xs ${on ? 'text-brand font-medium' : 'text-ink-meta'}`}>
+                <span aria-hidden>{on ? '☑' : '☐'}</span>{STAIR_LABEL[k]}{on && n ? ` ${n}개소` : ''}
               </span>
             )
           })}
+          <button type="button" onClick={() => tabs?.goTab('buildings')}
+            className="text-form-xs text-brand underline underline-offset-2 hover:text-brand-strong">
+            건물·시설 탭에서 수정
+          </button>
         </div>
         {/* 기타 피난시설 */}
         <div className="flex items-center gap-2 flex-wrap">

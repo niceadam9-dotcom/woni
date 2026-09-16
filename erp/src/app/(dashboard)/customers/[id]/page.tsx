@@ -22,6 +22,8 @@ import { PlanForm12, type ZoneRow, type HazardRow } from '@/components/customers
 import { PlanForm13, type LocationSection, type FireAccessSection } from '@/components/customers/plan-form13'
 import { PlanForm14 } from '@/components/customers/plan-form14'
 import { PlanForm15, EMPTY_EVAC_FIRE, type EvacFireSection, type EvacMapRow } from '@/components/customers/plan-form15'
+/* 대표동 판정 — 화면·별지 9호·갑지·소방계획서가 **같은 규칙**을 쓴다(사본 금지) */
+import { primaryBuilding } from '@/lib/primary-building'
 import { PlanForm16, EMPTY_ETC_FACILITY, type EtcFacilitySection } from '@/components/customers/plan-form16'
 import { PlanForm17, type ManagerRow } from '@/components/customers/plan-form17'
 import { PlanForm18 } from '@/components/customers/plan-form18'
@@ -640,6 +642,11 @@ export default async function CustomerDetailPage({
       main_structure: (r.main_structure as string | null) ?? null,
       roof_structure: (r.roof_structure as string | null) ?? null,
       stairs_count: (r.stairs_count as number | null) ?? null,
+      // 계단 4종(마이그 165) — 서식 1.1 15~16행의 원천. `stairs_count`는 이제 직통+피난 파생이다
+      stair_direct_count: (r.stair_direct_count as number | null) ?? null,
+      stair_escape_count: (r.stair_escape_count as number | null) ?? null,
+      stair_special_count: (r.stair_special_count as number | null) ?? null,
+      stair_outdoor_count: (r.stair_outdoor_count as number | null) ?? null,
       ramp_count: (r.ramp_count as number | null) ?? null,
       evac_elevator_count: (r.evac_elevator_count as number | null) ?? null,
     }
@@ -757,7 +764,17 @@ export default async function CustomerDetailPage({
         showMultiUse multiUse={fpSections.multiUse ?? null} />}
       form15={<PlanForm15 customerId={customer.id} canManage={canManage}
         initialEvacFire={fpSections.evacFire ?? EMPTY_EVAC_FIRE} initialMaps={fpSections.evacMaps ?? []}
-        presetType={recommendPresetType(planInfoInitial.purpose) ?? ''} />}
+        presetType={recommendPresetType(planInfoInitial.purpose) ?? ''}
+        /* 계단은 읽기 전용 표시다 — 입력구는 건물·시설 탭 하나(마이그 165). 대표동 기준으로 비춘다:
+           인쇄되는 동이 대표동이므로, 다른 동 값을 여기 띄우면 화면과 문서가 다른 말을 한다. */
+        stairCounts={(() => {
+          const pb = primaryBuilding(panelBuildings)
+          const s = (v: number | null | undefined) => (v != null ? String(v) : '')
+          return {
+            special: s(pb?.stair_special_count), direct: s(pb?.stair_direct_count),
+            escape: s(pb?.stair_escape_count), outdoor: s(pb?.stair_outdoor_count),
+          }
+        })()} />}
       form16={<PlanForm16 customerId={customer.id} canManage={canManage}
         initial={fpSections.etcFacility ?? EMPTY_ETC_FACILITY} />}
       form17={<PlanForm17 customerId={customer.id} canManage={canManage}

@@ -351,10 +351,18 @@ console.log('\n[7] 값 맵 완결성 · 표기 규약')
       opHoursWeekday: '09:00~18:00', opHoursHoliday: '',
       headcountWorker: '10', headcountResident: '', headcountMax: '150',
     },
+    /* 계단 4종 — 서식 1.1 15~16행의 **새 원천**(마이그 165, 건물 컬럼).
+     *  ⚠ `outdoor: '0'`을 일부러 둔다. 종전 판정 `!!txt(v)`는 문자열 `'0'`을 **켰고**,
+     *    그래서 스테이징의 송학떡집이 「0개소인데 ■」로 인쇄되고 있었다. 이 칸이 그 회귀를 문다. */
+    stairCounts: { direct: '2', special: '', escape: '', outdoor: '0' },
     // 방화구획은 **네 갈래 중 가장 어려운 것**을 픽스처로 잡는다 — '면적별·층별'은 상자 둘을
     // 함께 체크해야 하므로, 한 상자만 찍는 구현도 초록으로 통과하는 'area'로는 판별이 안 된다.
     forms: {
-      evacFire: { compartment: 'area_floor', stairs: { 직통계단: '2', 특별피난계단: '', 피난계단: '', 옥외계단: '' } },
+      /* 🚨 `stairs`를 **일부러 반대로** 채운다. 계단 원천은 2026-09-16(마이그 165)부터 건물
+       *   `stairCounts`이고 이 JSON은 조립기 폴백 전용이다. 여기에 「특별피난계단 9」를 심어 두면,
+       *   1.1 값 축이 옛 경로로 되돌아가는 순간 아래 음성 단언이 빨개진다 —
+       *   빈 값으로 두면 되돌아가도 조용히 초록이다(공허 통과). */
+      evacFire: { compartment: 'area_floor', stairs: { 직통계단: '', 특별피난계단: '9', 피난계단: '', 옥외계단: '' } },
       multiUse: { applicable: true },
       /* ⚠ 점검자를 **작동은 외주·종합은 자체**로 엇갈리게 둔다. 둘 다 같은 값이면
        *   '한쪽만 읽고 양쪽에 찍는' 구현이 초록으로 통과한다(네 상자가 한 번에 판별된다).
@@ -479,8 +487,15 @@ console.log('\n[7] 값 맵 완결성 · 표기 규약')
   check('1.1 승강기 법정 자구 보존',
     atF('elevator_passenger').replace('■', '☐') === labelF('elevator_passenger'), atF('elevator_passenger'))
   check('1.1 계단 직통만 체크',
-    atF('stair_direct').includes('■') && !atF('stair_special').includes('■'),
-    `직통='${atF('stair_direct')}' 특별피난='${atF('stair_special')}'`)
+    atF('stair_direct').includes('■') && !atF('stair_escape').includes('■'),
+    `직통='${atF('stair_direct')}' 피난='${atF('stair_escape')}'`)
+  /* 🚨 음성 둘 — 둘 다 「켜지면 안 되는데 켜지는」 실제 결함을 재현한다.
+   *   ① 특별피난: 옛 원천(1.5 탭 JSON)엔 `'9'`가 있다. 여기가 ■면 배선이 되돌아간 것이다.
+   *   ② 옥외: 값이 `'0'`이다. 여기가 ■면 판정이 `!!txt`로 되돌아간 것이다(송학떡집 결함). */
+  check('1.1 특별피난계단 미체크 — 1.5 탭 JSON으로 되돌아가지 않았다',
+    !atF('stair_special').includes('■'), atF('stair_special'))
+  check("1.1 옥외계단 미체크 — 개소 '0'은 설치가 아니다",
+    !atF('stair_outdoor').includes('■'), atF('stair_outdoor'))
   check('1.1 운영시간 평일 체크 + 시각 착지',
     atF('ophours_weekday').includes('■') && atF('ophours_weekday_time') === '09:00~18:00',
     `${atF('ophours_weekday')} / ${atF('ophours_weekday_time')}`)

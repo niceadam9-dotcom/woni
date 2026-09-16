@@ -10,9 +10,11 @@ import { createBuildingAction, updateBuildingAction, deleteBuildingAction, setPr
 import { fetchBuildingLedgerAction, checkAddressAction, type AddressDuplicateCustomer, type AddressDuplicateBuilding } from '@/app/(dashboard)/customers/actions'
 import { AddressDuplicateDialog } from '@/components/customers/address-duplicate-dialog'
 import { autoApplyLedgerEmptyAction } from '@/app/(dashboard)/customers/fire-plan-info-actions'
-/* 주차장 축은 별지 9호 모듈이 단일 원천 — 판정(isParkingChipOn)도 칩 토글도 거기 것을 부른다.
- * ⚠ 여기에 규칙을 다시 적으면 검사가 무는 것과 화면이 하는 것이 갈라진다(2026-09-11 교훈). */
-import { isParkingChipOn, toggleParkingChip, tidyParkingText, PK_EV_WORD, type ParkingChipFlag } from '@/lib/doc-templates/report9'
+/* 시설현황 3행(승강기·주차장·계단) — 서식 1.1 배치를 그대로 옮긴 격자가 입력을 받는다.
+ * ⚠ 판정 규칙은 여기에도 격자에도 없다. `lib/facility-status`(상자)와 `doc-templates/report9`
+ *   (주차장 텍스트 해석)가 유일 원천이다 — 화면에 규칙을 적으면 검사가 붙을 자리가 없어진다. */
+import { FacilityStatusGrid } from '@/components/customers/facility-status-grid'
+import { stairsSumForAnnex9, type StairKind, type ElevatorKind } from '@/lib/facility-status'
 import { primaryBuilding, FORM9_MAX_BUILDINGS } from '@/lib/primary-building'
 import { findSameNameBuilding, normalizeBuildingName } from '@/lib/building-dup'
 import { initialBuildingPanelTarget, shouldHideBuildingTable } from '@/lib/building-panel-open'
@@ -48,7 +50,14 @@ export type BuildingPanelRow = {
   /** 별지 9호 2쪽 잔여 항목(2026-09-05) — 소방계획서 1.1 일반현황 패널과 같은 컬럼을 이 폼에서도 입력 */
   main_structure: string | null
   roof_structure: string | null
+  /** 직통+피난 합계 — 이제 사람이 적는 칸이 아니라 **파생 저장**이다(마이그 165).
+   *  별지 9호 2쪽 「직통(또는 피난계단)」이 한 행이라 그 모양이 필요하다. 저장 때 함께 쓴다. */
   stairs_count: number | null
+  /** 계단 4종 개소 — 서식 1.1 15~16행의 원천(마이그 165). 종전엔 1.5 탭 JSON이 들고 있었다 */
+  stair_direct_count: number | null
+  stair_escape_count: number | null
+  stair_special_count: number | null
+  stair_outdoor_count: number | null
   ramp_count: number | null
   evac_elevator_count: number | null
 }
@@ -77,7 +86,10 @@ type FormState = {
   emergency_elevator_count: string
   main_structure: string
   roof_structure: string
-  stairs_count: string
+  stair_direct_count: string
+  stair_escape_count: string
+  stair_special_count: string
+  stair_outdoor_count: string
   ramp_count: string
   evac_elevator_count: string
 }
@@ -87,7 +99,8 @@ const EMPTY: FormState = {
   purpose: '', total_area: '', floors_above: '', floors_below: '', year_built: '', notes: '', is_active: true,
   permit_date: '', building_area: '', building_count: '', parking_summary: '',
   height: '', households: '', elevator_count: '', emergency_elevator_count: '',
-  main_structure: '', roof_structure: '', stairs_count: '', ramp_count: '', evac_elevator_count: '',
+  main_structure: '', roof_structure: '', ramp_count: '', evac_elevator_count: '',
+  stair_direct_count: '', stair_escape_count: '', stair_special_count: '', stair_outdoor_count: '',
 }
 
 /** 구조·지붕 제안 목록 — 소방계획서 1.1 패널(fire-plan-info-panel)과 같은 어휘. 서식 체크 판정은
@@ -96,26 +109,19 @@ const EMPTY: FormState = {
 const STRUCTURE_OPTIONS = ['철근콘크리트구조', '철골구조', '조적조', '목구조', '샌드위치판넬']
 const ROOF_OPTIONS = ['슬래브', '기와', '슬레이트', '판넬', '징크']
 
-/** 주차장 토글 칩 — 요약 텍스트의 단어 포함 여부가 곧 별지 9호 체크(isParkingChipOn 단일 원천, 사본 금지) */
-const PARKING_CHIPS: Array<{ flag: ParkingChipFlag; word: string; label: string }> = [
-  { flag: 'pkIn', word: '옥내', label: '옥내' },
-  { flag: 'pkInUg', word: '지하', label: '옥내·지하' },
-  { flag: 'pkInGround', word: '지상', label: '옥내·지상' },
-  { flag: 'pkInPiloti', word: '필로티', label: '옥내·필로티' },
-  /* 별지 9호 2쪽은 기계식을 `옥내(…)` **괄호 안**에 둔다 — 라벨도 그렇게 읽히게 적는다.
-   * 옥외 기계식은 이 칩이 아니라 아래 「옥외 기계식」 대수칸(서식 1.1 `AJ14`)이 받는다. */
-  { flag: 'pkMech', word: '기계식', label: '옥내·기계식' },
-  { flag: 'pkRoof', word: '옥상', label: '옥상' },
-  { flag: 'pkOut', word: '옥외', label: '옥외' },
-  /* 전기차충전소 — 법정 양식이 **주차장 행 안**에 둔 칸이라(서식 1.1 `AS13`) 이 무리에 있다.
-   * ⚠ 별지 9호 2쪽엔 이 칸이 없다 — 켜도 그쪽 상자는 하나도 안 켜지는 것이 계약이다. */
-  { flag: 'ev', word: PK_EV_WORD, label: '전기차충전소' },
-]
+/* 주차장 칩·대수칸은 2026-09-16에 `FacilityStatusGrid`로 옮겼다 — 서식 1.1 13·14행 배치를
+ * 그대로 쓰는 격자 안에 있다. 여기에 남겨 두면 같은 축을 두 화면이 각자 그리게 된다. */
 
-/** 주차장 대수 4분류 — 건축물대장 조회(fetchBuildingLedgerAction)가 합성하는 어휘와 동일.
- *  숫자칸은 요약 텍스트를 읽고 쓰는 지름길일 뿐(텍스트가 원천) — 별도 저장 컬럼 없음 */
-const PARKING_COUNT_FIELDS = ['옥내 자주식', '옥내 기계식', '옥외 자주식', '옥외 기계식'] as const
-const parkingCountRe = (label: string) => new RegExp(label.replace(' ', '\\s*') + '\\s*(\\d+)\\s*대')
+/** 서식 1.1 격자의 종류 열쇠 → 이 폼의 상태 이름.
+ *  ⚠ 격자는 서식의 말(`direct`·`passenger`)을 쓰고 폼은 컬럼의 말(`stair_direct_count`)을 쓴다.
+ *    둘을 잇는 표를 **한 곳**에 두어야 한쪽 이름만 바뀌었을 때 tsc가 잡는다. */
+const STAIR_FORM_FIELD: Record<StairKind, 'stair_special_count' | 'stair_direct_count' | 'stair_escape_count' | 'stair_outdoor_count'> = {
+  special: 'stair_special_count', direct: 'stair_direct_count',
+  escape: 'stair_escape_count', outdoor: 'stair_outdoor_count',
+}
+const ELEVATOR_FORM_FIELD: Record<ElevatorKind, 'elevator_count' | 'emergency_elevator_count' | 'evac_elevator_count'> = {
+  passenger: 'elevator_count', emergency: 'emergency_elevator_count', evac: 'evac_elevator_count',
+}
 
 /** 누락 칩(소방계획서 빠른 입력) → 이 폼 입력칸 id — erp:focus-missing 이벤트로 열고 포커스 */
 export const BUILDING_FIELD_IDS: Record<string, string> = {
@@ -218,7 +224,12 @@ export function BuildingListPanel({ customerId, customerName, customerAddress, b
       emergency_elevator_count: b.emergency_elevator_count != null ? String(b.emergency_elevator_count) : '',
       main_structure: b.main_structure ?? '',
       roof_structure: b.roof_structure ?? '',
-      stairs_count: b.stairs_count != null ? String(b.stairs_count) : '',
+      /* 계단은 종류별이 원천이다(마이그 165). 합계 `stairs_count`는 저장 때 파생으로 다시 쓰므로
+       * 폼 상태로 들고 오지 않는다 — 들고 오면 「합계도 고칠 수 있는 칸」처럼 보여 두 벌이 된다. */
+      stair_direct_count: b.stair_direct_count != null ? String(b.stair_direct_count) : '',
+      stair_escape_count: b.stair_escape_count != null ? String(b.stair_escape_count) : '',
+      stair_special_count: b.stair_special_count != null ? String(b.stair_special_count) : '',
+      stair_outdoor_count: b.stair_outdoor_count != null ? String(b.stair_outdoor_count) : '',
       ramp_count: b.ramp_count != null ? String(b.ramp_count) : '',
       evac_elevator_count: b.evac_elevator_count != null ? String(b.evac_elevator_count) : '',
     }
@@ -382,28 +393,8 @@ export function BuildingListPanel({ customerId, customerName, customerAddress, b
   const num = (s: string) => { const n = parseFloat(s); return isNaN(n) ? undefined : n }
   const int = (s: string) => { const n = parseInt(s, 10); return isNaN(n) ? undefined : n }
 
-  // 주차장 칩 토글 — 규칙은 `toggleParkingChip`(report9) **한 곳**에 있다. 여기는 배선만 한다.
-  //   그래야 검사가 무는 함수와 화면이 부르는 함수가 같다(2026-09-11 드리프트 교훈).
-  function onParkingChip(chip: (typeof PARKING_CHIPS)[number]) {
-    setField('parking_summary', toggleParkingChip(form.parking_summary, chip.flag, chip.word))
-  }
-
-  // 주차장 대수칸 — 텍스트에서 「옥내 자주식 12대」 세그먼트를 읽고(표시) 고쳐 쓴다(입력).
-  // 숫자를 지우면 세그먼트째 제거. 분류가 텍스트에 없으면 뒤에 덧붙인다(대장 합성과 같은 형식).
-  function parkingCountOf(label: string): string {
-    const m = form.parking_summary.match(parkingCountRe(label))
-    return m ? m[1] : ''
-  }
-  function setParkingCount(label: string, raw: string) {
-    const cur = form.parking_summary
-    const re = parkingCountRe(label)
-    const n = raw.replace(/\D/g, '')
-    if (re.test(cur)) {
-      setField('parking_summary', n ? cur.replace(re, `${label} ${n}대`) : tidyParkingText(cur.replace(re, '')))
-    } else if (n) {
-      setField('parking_summary', cur ? `${cur}, ${label} ${n}대` : `${label} ${n}대`)
-    }
-  }
+  /* 주차장 칩 토글·대수칸 읽고쓰기는 `FacilityStatusGrid`로 옮겼다(2026-09-16).
+   * 격자가 `parking_summary` 문자열 하나만 주고받는다 — 이 폼은 그 문자열의 보관자일 뿐이다. */
 
   function save() {
     if (!form.building_name.trim()) { setError('건물명을 입력해주세요.'); return }
@@ -476,7 +467,20 @@ export function BuildingListPanel({ customerId, customerName, customerAddress, b
         // 별지 9호 2쪽 잔여 항목(2026-09-05) — 구조·지붕·계단·경사로·피난용승강기
         main_structure: form.main_structure || null,
         roof_structure: form.roof_structure || null,
-        stairs_count: int(form.stairs_count),
+        /* 계단 4종이 원천이고 `stairs_count`는 **파생 저장**이다(마이그 165).
+         * 합계를 여기서 함께 쓰는 덕분에 이 값을 읽는 네 곳(별지 9호 HTML·갑지 엑셀 2곳·소방계획서
+         * PDF)은 한 줄도 안 고쳐도 된다 — 규칙은 `stairsSumForAnnex9` 한 곳에만 있다. */
+        // `int()`는 빈 칸에서 `undefined`(=안 건드림)를 준다 — 비우기가 되려면 `null`이어야 한다
+        stair_direct_count: int(form.stair_direct_count) ?? null,
+        stair_escape_count: int(form.stair_escape_count) ?? null,
+        stair_special_count: int(form.stair_special_count) ?? null,
+        stair_outdoor_count: int(form.stair_outdoor_count) ?? null,
+        /* ⚠ `null`을 그대로 보낸다. `?? undefined`로 접으면 액션이 「안 건드림」으로 읽어
+         *   **계단을 다 지워도 옛 합계가 그대로 남는다**(별지 9호가 유령 개소를 계속 인쇄한다).
+         *   위 형제 칸들이 「빈 문자열은 null로 지워지도록 항상 전송」인 것과 같은 이유다. */
+        stairs_count: stairsSumForAnnex9({
+          direct: form.stair_direct_count, escape: form.stair_escape_count,
+        }),
         ramp_count: int(form.ramp_count),
         evac_elevator_count: int(form.evac_elevator_count),
       }
@@ -789,49 +793,28 @@ export function BuildingListPanel({ customerId, customerName, customerAddress, b
               <div className="w-24"><label className={labelCls}>경사로(개소)</label>
                 <input id="bf-ramp" type="number" value={form.ramp_count} onChange={e => setField('ramp_count', e.target.value)} disabled={!canManage} className={inputCls} /></div>
             </div>
-            {/* ③ 계단·승강기 — 특별피난계단 개소는 세부제원 3-8(전실 제연)이 유일 원천(A9-3)이라 여기 없음 */}
-            <div className="flex flex-wrap gap-2 items-end">
-              <div className="w-32"><label className={labelCls}>직통·피난계단(개소)</label>
-                <input id="bf-stairs" type="number" value={form.stairs_count} onChange={e => setField('stairs_count', e.target.value)} disabled={!canManage} className={inputCls} /></div>
-              <div className="w-28"><label className={labelCls}>승용승강기(대)</label>
-                <input id="bf-elevator" type="number" value={form.elevator_count} onChange={e => setField('elevator_count', e.target.value)} disabled={!canManage} className={inputCls} /></div>
-              <div className="w-28"><label className={labelCls}>비상용승강기(대)</label>
-                <input type="number" value={form.emergency_elevator_count} onChange={e => setField('emergency_elevator_count', e.target.value)} disabled={!canManage} className={inputCls} /></div>
-              <div className="w-28"><label className={labelCls}>피난용승강기(대)</label>
-                <input type="number" value={form.evac_elevator_count} onChange={e => setField('evac_elevator_count', e.target.value)} disabled={!canManage} className={inputCls} /></div>
-              <p className="text-form-xs text-ink-meta pb-1.5">특별피난계단 개소는 세부제원 3-8(전실 제연)에서 자동 반영</p>
-            </div>
-            {/* ④ 주차장 — 텍스트가 원천, 칩은 단어를 넣고 빼는 지름길 + 서식 체크 미리보기 */}
-            <div>
-              <label className={labelCls}>주차장</label>
-              <input id="bf-parking" value={form.parking_summary} onChange={e => setField('parking_summary', e.target.value)} disabled={!canManage}
-                placeholder="예: 옥내 자주식 12대, 옥외 자주식 6대" className={inputCls} />
-              {/* 대수 숫자칸 — 한글 타이핑 없이 숫자만 치면 위 텍스트가 자동 합성된다 */}
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1.5">
-                {PARKING_COUNT_FIELDS.map(label => (
-                  <span key={label} className="inline-flex items-center gap-1 text-form-xs text-ink-sub">
-                    {label}
-                    <input type="number" min={0} inputMode="numeric" disabled={!canManage} aria-label={`${label} 대수`}
-                      value={parkingCountOf(label)} onChange={e => setParkingCount(label, e.target.value)}
-                      className="h-6 w-14 rounded border border-brand-line bg-surface px-1.5 text-form-xs text-right outline-none focus:border-brand" />
-                    대
-                  </span>
-                ))}
-              </div>
-              <div className="flex flex-wrap items-center gap-1 mt-1.5">
-                {PARKING_CHIPS.map(c => { const on = isParkingChipOn(form.parking_summary, c.flag); return (
-                  <button key={c.word} type="button" disabled={!canManage} onClick={() => onParkingChip(c)}
-                    title={on ? `'${c.label}' 체크 끄기` : `'${c.label}' 체크 켜기`}
-                    className={`h-6 px-2 rounded-full border text-form-xs transition-colors ${on
-                      ? 'bg-brand text-white border-brand'
-                      : 'border-brand-line text-ink-sub hover:bg-brand-tint'}`}>
-                    {on ? '✓ ' : ''}{c.label}
-                  </button>
-                ) })}
-                {/* ⚠ 이 안내는 인쇄되는 자리를 말한다 — 칩을 늘릴 때 함께 고치지 않으면 화면이 거짓말을 한다 */}
-                <span className="text-form-xs text-ink-meta ml-1">색칠된 칩 = 별지 9호 2쪽 「옥내(지하 지상 필로티 기계식), 옥상, 옥외」에 √로 인쇄 · 「전기차충전소」는 별지 9호엔 칸이 없어 소방계획서 서식 1.1에만 인쇄</span>
-              </div>
-            </div>
+            {/* ③ 시설현황 — 서식 1.1 12~16행(승강기·주차장·계단)을 **그 배치 그대로** 한 덩어리로.
+                종전엔 계단·승강기가 숫자칸 넷, 주차장이 텍스트+숫자4+칩8로 흩어져 있었다.
+                규칙은 여기 없다 — 판정은 `lib/facility-status`, 주차장 해석은 `doc-templates/report9`. */}
+            <FacilityStatusGrid
+              idPrefix="bf"
+              disabled={!canManage}
+              value={{
+                elevators: {
+                  passenger: form.elevator_count,
+                  emergency: form.emergency_elevator_count,
+                  evac: form.evac_elevator_count,
+                },
+                stairs: {
+                  special: form.stair_special_count, direct: form.stair_direct_count,
+                  escape: form.stair_escape_count, outdoor: form.stair_outdoor_count,
+                },
+                parkingSummary: form.parking_summary,
+              }}
+              onElevator={(k, v) => setField(ELEVATOR_FORM_FIELD[k], v)}
+              onStair={(k, v) => setField(STAIR_FORM_FIELD[k], v)}
+              onParking={v => setField('parking_summary', v)}
+            />
           </div>
 
           {ledgerNote && <p className="text-form-xs text-brand">{ledgerNote}</p>}

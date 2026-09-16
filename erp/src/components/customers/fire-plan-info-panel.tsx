@@ -316,7 +316,16 @@ export function FirePlanInfoPanel({ customerId, initial, people }: {
             </div>
             {initial.height && <div><label className={labelCls}>높이(대장)</label><br /><span className="text-form-sm text-ink-sub">{initial.height} m</span></div>}
             {/* 신규 (104 — 별지 9호 연계): 계단·경사로·피난용승강기 (§11-4 NumField) */}
-            <div><label className={labelCls}>계단</label><br /><NumField value={d.stairsCount} onChange={v => set('stairsCount', v)} unit="개소" disabled={!initial.hasBuilding} className={`${inputCls} w-16`} /></div>
+            {/* 계단 — **읽기 전용**(2026-09-16 마이그 165). 이 칸은 종전에 `stairs_count`를 손으로 썼는데
+                그 컬럼은 이제 **직통+피난 파생**이다. 손입력을 남기면 「합계는 3인데 서식 1.1 상자는
+                둘만 켜짐」이 생긴다 — 같은 사실을 두 문서가 다르게 말하던 그 결함의 재발이다.
+                🚨 이 패널과 건물 폼은 **같은 컬럼을 덮는 두 화면**이다(test-building-surface-parity가
+                  그래서 존재한다). 한쪽만 파생으로 바꾸면 다른 쪽이 되돌린다. */}
+            <div><label className={labelCls}>계단(직통+피난)</label><br />
+              <span className="text-form-sm text-ink-sub" data-testid="fp-stairs-readonly">{d.stairsCount ? `${d.stairsCount} 개소` : '—'}</span>
+              <button type="button" onClick={() => tabs?.goTab('buildings')}
+                className="ml-1 text-form-2xs text-brand underline underline-offset-2 hover:text-brand-strong">종류별 입력</button>
+            </div>
             <div><label className={labelCls}>경사로</label><br /><NumField value={d.rampCount} onChange={v => set('rampCount', v)} unit="개소" disabled={!initial.hasBuilding} className={`${inputCls} w-16`} /></div>
             <div><label className={labelCls}>피난용승강기</label><br /><NumField value={d.evacElevatorCount} onChange={v => set('evacElevatorCount', v)} unit="대" disabled={!initial.hasBuilding} className={`${inputCls} w-16`} /></div>
           </div>

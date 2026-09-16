@@ -28,6 +28,8 @@ import { boxGlyphAt, labelAt, tokenTemplateAt } from '@/lib/fire-plan-xlsx-manif
 import { purposeCover, purposeShort } from '@/lib/purpose-label'
 /* 주차장 체크 판정 — 별지 9호 2쪽이 쓰는 그 함수(사본 금지). 순수 함수라 클라이언트도 쓴다 */
 import { parseParkingSummary, parseParkingByType, parseParkingEv } from '@/lib/doc-templates/report9'
+/* 계단·승강기 상자 판정 — PDF와 **같은 술어**(의존 없는 순수 모듈, 사본 금지) */
+import { stairChecks } from '@/lib/facility-status'
 import { compartmentApplies, compartmentHasArea, compartmentHasFloor } from '@/lib/evac-compartment'
 import { isMultiUseApplicable, isMultiUseNone } from '@/lib/multi-use'
 /* 1.10.1 연간 점검 계획 — PDF와 **같은 해석기**(사본 금지) */
@@ -221,14 +223,18 @@ export function buildFirePlanValues(d: FirePlanGenData): Map<string, CellValue> 
   v.set('parking_out_self', boxLabelCell(FP_SHEET.F1_1, 'AB14', pkt.outSelf))
   v.set('parking_out_mech', boxLabelCell(FP_SHEET.F1_1, 'AJ14', pkt.outMech))
 
-  // 계단 — `stairs`는 '종류 → 개소' 지도이고 `''`가 미설치다(plan-form15.tsx). 양식 1.1에는
-  //   개소를 적을 자리가 없어 **상자만** 켠다(개소는 서식 1.5.1이 받는다).
-  const stairs = d.forms?.evacFire?.stairs
-  const hasStair = (kind: string) => !!txt(stairs?.[kind])
-  v.set('stair_special', boxLabelCell(FP_SHEET.F1_1, 'L15', hasStair('특별피난계단')))
-  v.set('stair_direct', boxLabelCell(FP_SHEET.F1_1, 'AJ15', hasStair('직통계단')))
-  v.set('stair_escape', boxLabelCell(FP_SHEET.F1_1, 'L16', hasStair('피난계단')))
-  v.set('stair_outdoor', boxLabelCell(FP_SHEET.F1_1, 'AJ16', hasStair('옥외계단')))
+  /* 계단 — 양식 1.1에는 개소를 적을 자리가 없어 **상자만** 켠다(개소는 서식 1.5.1이 받는다).
+   *
+   *  🚨 원천이 바뀌었다(2026-09-16 마이그 165): 종전엔 1.5 탭 JSON(`forms.evacFire.stairs`)을
+   *    봤는데, 그 탭을 채운 고객이 **306명 중 4명**이라 나머지 302명은 네 칸이 영영 공란이었다.
+   *    이제 건물이 원천이고 조립기가 한 번 해석해 준다(`d.stairCounts` — PDF도 같은 값을 쓴다).
+   *  🚨 판정도 `!!txt(...)`에서 `stairChecks`로 바뀌었다. `!!`는 문자열 `'0'`을 켜서
+   *    「0개소인데 ■」를 인쇄했다(송학떡집 `옥외계단:'0'` 실측). `checkFromCount`는 1 이상만 켠다. */
+  const stairOn = stairChecks(d.stairCounts ?? {})
+  v.set('stair_special', boxLabelCell(FP_SHEET.F1_1, 'L15', stairOn.special))
+  v.set('stair_direct', boxLabelCell(FP_SHEET.F1_1, 'AJ15', stairOn.direct))
+  v.set('stair_escape', boxLabelCell(FP_SHEET.F1_1, 'L16', stairOn.escape))
+  v.set('stair_outdoor', boxLabelCell(FP_SHEET.F1_1, 'AJ16', stairOn.outdoor))
 
   const opw = txt(d.ops?.opHoursWeekday)
   const oph = txt(d.ops?.opHoursHoliday)

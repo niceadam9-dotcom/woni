@@ -287,6 +287,10 @@ const BUILDING_DERIVED_FIELDS = [
   'main_structure', 'roof_structure', 'households', 'building_count', 'permit_date',
   'parking_summary', 'elevator_count', 'emergency_elevator_count', 'evac_elevator_count',
   'stairs_count', 'ramp_count',
+  /* 계단 4종(마이그 165) — `stairs_count`는 이제 직통+피난 **파생**이고, 특별피난계단 개소는
+   * 여기서 온다. 종전 원천(세부제원 3-8 전실)은 2026-09-16 실측에서 **306명 중 0명**이라
+   * 구조적으로 빈 축이었다 — 폐지하지 않고 폴백으로 격하했다(아래 specialStairCount). */
+  'stair_direct_count', 'stair_escape_count', 'stair_special_count', 'stair_outdoor_count',
 ] as const
 
 function pickBuildingFields(b: Record<string, unknown>): Record<string, number | string | null | undefined> {
@@ -413,6 +417,9 @@ export async function assembleReport9(
     building_count: number | null; permit_date: string | null; parking_summary: string | null
     elevator_count: number | null; emergency_elevator_count: number | null; evac_elevator_count: number | null
     stairs_count: number | null; ramp_count: number | null
+    // 계단 4종(마이그 165) — 별지 9호가 쓰는 건 특별피난계단뿐이지만, 합계 축의 근거라 함께 읽는다
+    stair_direct_count: number | null; stair_escape_count: number | null
+    stair_special_count: number | null; stair_outdoor_count: number | null
   }
   // 인쇄 순서 정렬 — [0]이 대표동. 종전 `bldRes.data?.[0]`(=created_at 최고참)과 **같은 답**을
   // 내되(is_primary 미지정 시 폴백), 이제 규칙에 이름이 있고 사용자가 대표를 바꿀 수 있다.
@@ -853,8 +860,19 @@ export async function assembleReport9(
     // 계단·경사로 — 1.1 일반현황 입력분(그동안 템플릿에 빈칸 하드코딩되어 미반영, 2026-08-06 연결)
     rampCount: b?.ramp_count ? String(b.ramp_count) : '',
     stairsCount: b?.stairs_count ? String(b.stairs_count) : '',
-    // A9-3(소방계획서_15): 특별피난계단 — 세부제원 3-8 전실(smoke_lobby.stair_count)이 유일 원천
+    /* 특별피난계단 — **건물 값이 정본, 세부제원 3-8 전실은 폴백**(2026-09-16 마이그 165).
+     *
+     *  🚨 종전엔 3-8(`smoke_lobby.stair_count`)이 「유일 원천」이었는데, 그 축이 실제로는
+     *    **306명 중 0명**이었다(`customer_facility_specs` 전체 22행 · `s38_activity` 2행 모두
+     *    `smoke_lobby` 자체가 없다). 한편 서식 1.1은 1.5 탭 JSON을 보고 있어서, 송학떡집·별그리다는
+     *    **서식 1.1엔 ☑인데 별지 9호 2쪽은 공란**으로 인쇄되고 있었다 — 두 문서가 같은 사실을
+     *    다르게 말한 것이다. 이제 두 서식이 같은 컬럼을 본다.
+     *
+     *  ⚠ 3-8을 지우지 않는다. 쓰는 사람이 없을 뿐 규칙이 틀린 것은 아니고, 건물 칸이 비었는데
+     *    전실 제원을 적어 둔 고객이 나중에 생기면 그 값이 정답이기 때문이다. */
     specialStairCount: (() => {
+      const own = Number(b?.stair_special_count)
+      if (Number.isFinite(own) && own > 0) return String(b!.stair_special_count)
       const lobby = (specs['s38_activity']?.['smoke_lobby'] ?? null) as Record<string, unknown> | null
       const n = Number(lobby?.['stair_count'])
       return Number.isFinite(n) && n > 0 ? String(lobby!['stair_count']) : ''

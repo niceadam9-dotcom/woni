@@ -135,7 +135,11 @@ export async function saveFirePlanInfoAction(
       receiver_location: input.receiverLocation.trim() || null,
       main_structure: input.structure.trim() || null,
       roof_structure: input.roof.trim() || null,
-      stairs_count: toInt(input.stairsCount),
+      /* 🚨 `stairs_count`는 **여기서 안 쓴다**(2026-09-16 마이그 165). 그 컬럼은 이제 직통+피난
+       *   **파생 저장**이고, 원천은 건물·시설 탭의 계단 4종이다. 이 패널이 계속 손값을 쓰면
+       *   합계와 서식 1.1 네 상자가 어긋난다 — 두 화면이 같은 컬럼을 덮고 있어서 생기는 부류의
+       *   결함이고, `test-building-surface-parity`가 그래서 존재한다.
+       *   화면도 같은 날 읽기 전용으로 바꿨다(동작과 그 동작을 설명하는 것은 함께 움직인다). */
       ramp_count: toInt(input.rampCount),
       evac_elevator_count: toInt(input.evacElevatorCount),
     } as Record<string, unknown>).eq('id', (bld as { id: string }).id)

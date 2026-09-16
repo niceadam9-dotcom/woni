@@ -237,15 +237,34 @@ console.log('\n[7] 건물 폼 주차장 칩 토글 (2026-09-11)')
   /* 🎯 사용자 물음(2026-09-11): 「옥내를 안 누르고 옥내·지하만 누르면 옥내가 자동으로 켜지나」
    *   — 화면에 그려지는 칩 목록을 **소스에서 읽어** 그 클릭 경로를 그대로 재생한다.
    *   칩 정의를 여기 베껴 적으면 라벨이 바뀔 때 엉뚱한 칩을 누르고도 초록이 된다. */
-  const panel = readFileSync(new URL('../src/components/customers/building-inline-panel.tsx', import.meta.url), 'utf8')
-  const chipBlock = (panel.match(/const PARKING_CHIPS[\s\S]*?\n\]/) ?? [''])[0]
+  /* 🚨 2026-09-16: 칩·대수칸이 `building-inline-panel`에서 **`facility-status-grid`로 옮겨 갔다**
+   *   (서식 1.1 12~16행 배치를 그대로 쓰는 격자). 과녁만 옮기고 묻는 것은 그대로 둔다 —
+   *   낡은 계약을 지우는 게 아니라 **갈아끼운다**. */
+  const panel = readFileSync(new URL('../src/components/customers/facility-status-grid.tsx', import.meta.url), 'utf8')
+  const chipBlock = (panel.match(/export const PARKING_CHIPS[\s\S]*?\n\]/) ?? [''])[0]
   /* 낱말은 문자열 리터럴이거나 **상수 식별자**다(전기차 칩은 `PK_EV_WORD` — 파서가 지우는 낱말과
    * 칩이 넣는 낱말이 갈라지지 않게 한 벌로 쓴다). 식별자면 여기서 실제 값으로 풀어 준다. */
   const WORD_CONSTS: Record<string, string> = { PK_EV_WORD }
-  const CHIPS = [...chipBlock.matchAll(/\{ flag: '(\w+)', word: (?:'([^']+)'|(\w+)), label: '([^']+)' \}/g)]
-    .map(m => ({ flag: m[1] as Flag, word: m[2] ?? WORD_CONSTS[m[3]], label: m[4] }))
+  const CHIPS = [...chipBlock.matchAll(/\{ flag: '(\w+)', word: (?:'([^']+)'|(\w+)), label: '([^']+)', group: '(\w+)' \}/g)]
+    .map(m => ({ flag: m[1] as Flag, word: m[2] ?? WORD_CONSTS[m[3]], label: m[4], group: m[5] }))
   // 추출 성공부터 단언한다 — 0개를 뽑고 `every`가 참이 되는 공허 통과를 막는다
-  check('화면 칩 8개를 실제로 뽑았다(공허 통과 방지)', CHIPS.length === 8, CHIPS.map(c => c.label).join('/'))
+  check('화면 칩 7개를 실제로 뽑았다(공허 통과 방지)', CHIPS.length === 7, CHIPS.map(c => c.label).join('/'))
+
+  /* 🎯 **칩 수보다 강한 물음**: 별지 9호가 아는 주차 축이 화면에서 **하나도 빠지지 않았는가**.
+   *   개수만 세면 칩 하나를 지우고 다른 걸 더해도 초록이다. 2026-09-16에 `옥내·기계식` 칩을
+   *   없앴는데(대수칸과 같은 뜻을 두 벌로 받고 있었다) 그 축이 진짜로 사라지지 않았음을 여기서 문다 —
+   *   대수칸도 화면의 입력구다(「옥내 기계식 3대」를 적으면 `pkMech`가 켜진다). */
+  const countBlock = (panel.match(/export const PARKING_COUNTS[\s\S]*?\n\]/) ?? [''])[0]
+  const COUNT_LABELS = [...countBlock.matchAll(/label: '([^']+)'/g)].map(m => m[1])
+  check('대수칸 4개를 실제로 뽑았다(공허 통과 방지)', COUNT_LABELS.length === 4, COUNT_LABELS.join('/'))
+  const ALL_FLAGS: Flag[] = ['pkIn', 'pkOut', 'pkInUg', 'pkInGround', 'pkInPiloti', 'pkMech', 'pkRoof', 'ev']
+  for (const f of ALL_FLAGS) {
+    const viaChip = CHIPS.find(c => c.flag === f)
+    // 대수칸 경로 — 그 라벨로 「N대」를 적었을 때 이 축이 켜지는가(원문 합성은 격자가 하는 그 형식)
+    const viaCount = COUNT_LABELS.some(l => isParkingChipOn(`${l} 3대`, f))
+    check(`축 「${f}」을 화면에서 켤 수 있다`, !!viaChip || viaCount,
+      viaChip ? `칩 「${viaChip.label}」` : viaCount ? '대수칸' : '경로 없음')
+  }
   // 식별자 낱말이 `undefined`로 풀리면 아래 토글이 전부 무의미해진다 — 먼저 막는다
   check('칩 낱말이 하나도 빈 채로 남지 않았다', CHIPS.every(c => !!c.word), CHIPS.map(c => `${c.label}=${c.word}`).join(' · '))
   const chip = (label: string) => CHIPS.find(c => c.label === label)
@@ -262,18 +281,29 @@ console.log('\n[7] 건물 폼 주차장 칩 토글 (2026-09-11)')
    *   변이 실험에서 「화면이 toggleParkingChip을 안 부름」 하나만 초록으로 살아남아 신설했다.
    *   ⚠ 주석을 걷어내고 잰다 — 설명 문구가 패턴에 걸려 거짓 초록/빨강이 되지 않게. */
   const ui = panel.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1')
-  check('배선: 화면이 주차장 규칙 모듈을 import한다', /import \{[^}]*toggleParkingChip[^}]*\} from '@\/lib\/doc-templates\/report9'/.test(ui))
+  check('배선: 화면이 주차장 규칙 모듈을 import한다',
+    /import \{[\s\S]*?toggleParkingChip[\s\S]*?\} from '@\/lib\/doc-templates\/report9'/.test(ui))
   check('배선: 칩 onClick이 그 함수까지 이어진다',
-    /onClick=\{\(\) => onParkingChip\(c\)\}/.test(ui)
-    && /function onParkingChip[\s\S]{0,240}?toggleParkingChip\(form\.parking_summary, chip\.flag, chip\.word\)/.test(ui))
+    /onClick=\{\(\) => onParking\(toggleParkingChip\(pkText, c\.flag, c\.word\)\)\}/.test(ui))
+  /* 14행 네 칸의 켜짐이 **대수가 아니라 원문 낱말**에서 오는가 — 엑셀·PDF와 같은 함수여야 한다.
+   * 대수로 켜면 「옥내 기계식」이라고만 적힌 값에서 화면만 꺼져 세 표면이 갈라진다. */
+  check('배선: 14행 상자가 parseParkingByType을 본다',
+    /const pkt = parseParkingByType\(pkText\)/.test(ui) && /on=\{pkt\[c\.type\]\}/.test(ui))
   // 규칙을 화면이 **다시 적지 않았는가** — 사본이 생기면 이 검사가 무는 것과 화면이 하는 것이 갈라진다
   check('화면이 토글 규칙을 재구현하지 않는다',
     !/PK_INDOOR_WORDS|stripParkingWordIndoor|PK_INDOOR_SUB_WORDS/.test(ui))
   // 주석 제거가 통째로 지워 위 단언들이 공허 통과하는 것을 막는다
   check('주석 제거 후에도 화면 소스가 살아 있다(공허 통과 방지)',
-    ui.length > panel.length * 0.5 && ui.includes('PARKING_CHIPS'), `${ui.length}/${panel.length}`)
+    ui.length > panel.length * 0.4 && ui.includes('PARKING_CHIPS'), `${ui.length}/${panel.length}`)
 
-  for (const label of ['옥내·지하', '옥내·지상', '옥내·필로티', '옥내·기계식']) {
+  /* 🚨 `옥내·기계식`은 이제 칩이 아니라 대수칸이다 — 그래도 **상위 옥내가 함께 켜지는가**는
+   *   그대로 물어야 한다(대수칸이 합성하는 원문 형식으로 건다). 칩 셋은 아래 루프가 이어 문다. */
+  {
+    const to = '옥내 기계식 3대'
+    check('「옥내 기계식」 대수칸이 상위 옥내를 함께 켠다',
+      parseParkingSummary(to).pkIn === true && isParkingChipOn(to, 'pkMech'), `"${to}"`)
+  }
+  for (const label of ['옥내·지하', '옥내·지상', '옥내·필로티']) {
     const c = chip(label)
     if (!c) { check(`칩 「${label}」이 화면에 있다`, false); continue }
     // 시작 상태 셋 — 빈 값 / 옥외 문맥 / 옥내와 무관한 문맥. 어디서 눌러도 옥내가 따라와야 한다.
@@ -425,10 +455,13 @@ console.log('\n[8] 전기차충전소 — 1.1 AS13 (2026-09-16)')
   /* ── 화면 — 안내 문구가 거짓이 되지 않았는가 ──
    * 칩 무리 아래 안내는 「색칠된 칩 = 별지 9호 2쪽에 √로 인쇄」라고 적혀 있었다. 전기차 칩은
    * 별지 9호에 칸이 **없으므로**, 문구를 안 고치면 화면이 거짓말을 한다(설명과 동작은 함께 움직인다). */
-  const panelSrc = readFileSync(new URL('../src/components/customers/building-inline-panel.tsx', import.meta.url), 'utf8')
+  const panelSrc = readFileSync(new URL('../src/components/customers/facility-status-grid.tsx', import.meta.url), 'utf8')
+  const flat = panelSrc.replace(/\s+/g, ' ')
   check('화면 안내가 전기차 칩의 인쇄처를 따로 밝힌다',
-    /전기차충전소.{0,40}별지 9호.{0,20}없/.test(panelSrc.replace(/\s+/g, ' ')),
-    JSON.stringify((panelSrc.replace(/\s+/g, ' ').match(/색칠된 칩[^<]{0,160}/) ?? [''])[0]))
+    /전기차충전소.{0,80}별지 9호.{0,20}없/.test(flat),
+    JSON.stringify((flat.match(/전기차충전소[^<]{0,120}/) ?? [''])[0]))
+  /* 접이 안으로 들어간 무리도 인쇄처를 말해야 한다 — 「서식 1.1에 칸이 없다」가 접는 이유였다 */
+  check('별지 9호 전용 무리가 자기 인쇄처를 밝힌다', /별지 9호 2쪽[^<]{0,60}에만/.test(flat))
 }
 
 console.log(`\n=== pass ${pass} / fail ${fail} ===`)

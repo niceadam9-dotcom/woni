@@ -20,7 +20,15 @@ export type LedgerEditableInput = {
   // 별지 9호 2쪽 잔여 항목(2026-09-05) — 소방계획서 1.1 일반현황 패널과 같은 컬럼(fire-plan-info-actions)
   main_structure?: string | null       // 건축물구조 — 체크 판정은 report9-assemble 키워드(콘크리트/철골/조적/목)
   roof_structure?: string | null       // 지붕구조 — 슬래브(슬라브)/기와/슬레이트/기타
-  stairs_count?: number                // 직통(또는 피난)계단 개소
+  /** 직통+피난 합계 — 이제 **파생 저장**이다(마이그 165). 화면이 `stairsSumForAnnex9`로 계산해 보낸다.
+   *  별지 9호 2쪽은 「직통(또는 피난계단)」이 한 행이라 이 모양이 필요해서 지우지 않았다.
+   *  ⚠ `null`을 받아야 **비울 수 있다** — `number`만 받으면 계단을 다 지워도 옛 합계가 남는다. */
+  stairs_count?: number | null
+  /** 계단 4종 개소 — 서식 1.1 15~16행의 원천(마이그 165). 이름은 `lib/facility-status`의 `STAIR_COLUMN`과 같다 */
+  stair_direct_count?: number | null
+  stair_escape_count?: number | null
+  stair_special_count?: number | null
+  stair_outdoor_count?: number | null
   ramp_count?: number                  // 경사로 개소
   evac_elevator_count?: number         // 피난용 승강기(대)
 }
@@ -80,6 +88,10 @@ function ledgerFields(b: LedgerEditableInput): Record<string, unknown> {
   if (b.main_structure !== undefined) out.main_structure = b.main_structure || null
   if (b.roof_structure !== undefined) out.roof_structure = b.roof_structure || null
   if (b.stairs_count !== undefined) out.stairs_count = b.stairs_count ?? null
+  if (b.stair_direct_count !== undefined) out.stair_direct_count = b.stair_direct_count ?? null
+  if (b.stair_escape_count !== undefined) out.stair_escape_count = b.stair_escape_count ?? null
+  if (b.stair_special_count !== undefined) out.stair_special_count = b.stair_special_count ?? null
+  if (b.stair_outdoor_count !== undefined) out.stair_outdoor_count = b.stair_outdoor_count ?? null
   if (b.ramp_count !== undefined) out.ramp_count = b.ramp_count ?? null
   if (b.evac_elevator_count !== undefined) out.evac_elevator_count = b.evac_elevator_count ?? null
   return out
@@ -101,10 +113,13 @@ function validateBuildingNumbers(
   if (b.year_built != null && (isNaN(b.year_built) || b.year_built < 1900 || b.year_built > y))
     return `준공연도는 1900~${y} 사이여야 합니다.`
   // 별지 9호 항목 (소방계획서_9 B안) — 0 이상만, 상한은 대장 값 그대로 받도록 두지 않음
-  const nonNeg: Array<[number | undefined, string]> = [
+  const nonNeg: Array<[number | null | undefined, string]> = [
     [b.building_area, '건축면적'], [b.building_count, '건물 동수'], [b.height, '높이'],
     [b.households, '세대수'], [b.elevator_count, '승용 승강기'], [b.emergency_elevator_count, '비상용 승강기'],
     [b.stairs_count, '계단'], [b.ramp_count, '경사로'], [b.evac_elevator_count, '피난용 승강기'],
+    // 계단 4종도 같은 가드를 받는다 — 음수 개소가 서식에 인쇄되면 안 된다(상자 판정도 음수를 안 켠다)
+    [b.stair_direct_count, '직통계단'], [b.stair_escape_count, '피난계단'],
+    [b.stair_special_count, '특별피난계단'], [b.stair_outdoor_count, '옥외계단'],
   ]
   for (const [v, label] of nonNeg) {
     if (v != null && (isNaN(v) || v < 0)) return `${label}은(는) 0 이상의 숫자여야 합니다.`
