@@ -16,6 +16,7 @@ import { FirePlanViewClient } from '@/components/customers/fire-plan-view'
 import { FirePlanXlsxButton } from '@/components/customers/fire-plan-xlsx-button'
 import { FirePlanInfoPanel } from '@/components/customers/fire-plan-info-panel'
 import { PlanTabView, type FormStatusMap } from '@/components/customers/plan-tab-view'
+import type { FirePlanStatusKey } from '@/lib/fire-plan-sections'
 import type { RevisionYearGroup } from '@/app/(dashboard)/customers/fire-plan-revision-actions'
 import { CustomerAssetsClient } from '@/components/customers/customer-assets-client'
 import { PlanForm12, type ZoneRow, type HazardRow } from '@/components/customers/plan-form12'
@@ -403,8 +404,12 @@ export default async function CustomerDetailPage({
   const inspDates = inspections.map(i => i.inspection_start_date).filter(Boolean).sort()
   const lastInspectionDate = inspDates.length > 0 ? inspDates[inspDates.length - 1] : null
   const repContact = contacts.find(ct => ct.role === '대표') ?? null
-  // §1-1·1-4 목차 완성도 — 1.1은 필수 완성도 게이지, 나머지는 입력 존재 여부
-  const formStatus: FormStatusMap = {
+  // §1-1·1-4 목차 완성도 — 1.1은 필수 완성도 게이지, 나머지는 입력 존재 여부.
+  // 🚨 **키 집합은 `lib/fire-plan-sections`가 정본**이다(FIRE_PLAN_STATUS_KEYS, archive 제외).
+  //    여기 키를 손으로 더하거나 빼지 않는다 — 목차·딥링크와 갈라지면 배지가 붙지 않는 노드가
+  //    조용히 생긴다. 아래 `satisfies`가 그 어긋남을 **tsc 단계에서** 잡는다.
+  //    값(판정식)은 이 화면의 몫이고, 키(분모)는 대장의 몫이다.
+  const formStatus: Record<FirePlanStatusKey, FormStatusMap[string]> = {
     '1.1': { done: readiness.done, total: readiness.total },
     '1.2': !!((fpSections.zones?.length ?? 0) || (fpSections.hazards?.length ?? 0)),
     '1.3': !!(fpSections.location || fpSections.fireAccess),

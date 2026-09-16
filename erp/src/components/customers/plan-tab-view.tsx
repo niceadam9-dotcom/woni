@@ -10,6 +10,7 @@ import { DateInput } from '@/components/ui/date-input'
 import { TableWrap } from '@/components/ui/fields'
 import { collectPlanSaveHandlers, useUnsavedNavGuard } from '@/components/ui/unsaved-nav'
 import { useCustomerTabs } from '@/components/customers/customer-tabs'
+import { FIRE_PLAN_FORMS, FIRE_PLAN_FORM_KEYS, formOfCard } from '@/lib/fire-plan-sections'
 import { RevisionHistory } from '@/components/customers/revision-history'
 import { FontScaleSettingsClient } from '@/components/settings/font-scale-settings-client'
 import type { RevisionYearGroup } from '@/app/(dashboard)/customers/fire-plan-revision-actions'
@@ -56,25 +57,12 @@ const CHIP_FIELD_ID: Record<string, string> = {
   '주차장': 'bf-parking',
 }
 
-/** 1장 서식 목차 (소방계획서_4.md §3 순서) */
-const CH1_FORMS = [
-  { key: '1.1', label: '1.1 일반현황', active: true },
-  { key: '1.2', label: '1.2 세부현황', active: true },
-  { key: '1.3', label: '1.3 위치·소방차진입', active: true },
-  { key: '1.4', label: '1.4 소방시설', active: true },
-  { key: '1.5', label: '1.5 피난·방화', active: true },
-  { key: '1.6', label: '1.6 기타시설', active: true },
-  { key: '1.7', label: '1.7 선임현황', active: true },
-  { key: '1.8', label: '1.8 업무대행', active: true },
-  { key: '1.10', label: '1.10 자체점검', active: true },
-  { key: '1.11', label: '1.11 훈련·교육', active: true },
-  { key: '1.12', label: '1.12~1.15 기록부', active: true }, // §12-3 결정(2026-07-23): v1 포함
-]
-
-/** 다른 서식으로 이사한 카드의 앵커 → 지금 그 카드가 있는 서식 키.
- *  소방계획서_43 S7(2026-09-09): 1.10.3 다중이용업소가 1.10 → 1.4 「기타」 아래로 옮겨졌다.
- *  절 번호는 그대로라 앵커 id도 그대로다 — 바뀐 것은 '어느 서식에 있는가'뿐이다. */
-const MOVED_ANCHOR_FORM: Record<string, string> = { 'c-1.10.3': '1.4' }
+/** 1장 서식 목차 (소방계획서_4.md §3 순서) — **`lib/fire-plan-sections`가 정본**이다.
+ *
+ *  목차가 종전엔 여기(`CH1_FORMS`)·바로 아래(`VALID_SEL`)·`[id]/page.tsx`(`formStatus` 키)
+ *  **세 곳**에 각자 있었다. 셋이 갈라지면 딥링크가 조용히 엉뚱한 화면을 연다.
+ *  ⚠ 여기 손목록을 되살리지 않는다 — 이제 50시트 대장과 1:1이 적재 시점에 검증된다. */
+const CH1_FORMS = FIRE_PLAN_FORMS.filter(f => f.group === '본문 1장')
 
 /** 목차 완성도 — true=입력 있음(✓), false=비어 있음(○), {done,total}=게이지형(1.1) */
 export type FormStatusMap = Record<string, boolean | { done: number; total: number }>
@@ -118,7 +106,7 @@ export function PlanTabView({
   // 기본 진입 = ⚡ 빠른 입력 노드(트리 최상단 랜딩). 토글 제거 — 서식 전체 트리로 통합 (2026-08-05).
   // 딥링크: form=(§1-3, 우선) 또는 sub=(구 형식 호환)
   // 2026-08-06 사용자 확정: ⚡ 빠른 입력 페이지 폐기 — 탭 진입 = 1.1 일반현황 입력폼(첫 화면)
-  const VALID_SEL = new Set(['archive', ...CH1_FORMS.map(f => f.key), 'ch2', 'ch3', 'cover'])
+  const VALID_SEL = new Set<string>(FIRE_PLAN_FORM_KEYS)
   // 2026-08-08: 지도·사진 노드를 폐지하고 슬롯 UI를 1.3 안으로 옮겼다 — 옛 딥링크(?form=assets)는 1.3으로 보낸다
   const norm = (key: string | undefined) => (key === 'assets' ? '1.3' : key)
   const initialSel = norm(initialForm) && VALID_SEL.has(norm(initialForm)!) ? norm(initialForm)!
@@ -184,7 +172,7 @@ export function PlanTabView({
     if (movedAnchorRan.current) return
     movedAnchorRan.current = true
     const id = decodeURIComponent(window.location.hash.slice(1))
-    const to = MOVED_ANCHOR_FORM[id]
+    const to = formOfCard(id)
     if (to && VALID_SEL.has(to) && to !== sel) applySelect(to)
   }, [])
   // §1-2·1-3 카드 앵커 딥링크 — ?form=…#c-카드 진입/서식 전환 시 해당 카드로 스크롤
@@ -400,13 +388,16 @@ export function PlanTabView({
         }).length
         {/* 소방계획서_8 D-12 3그룹 재편 → 14.md #16(2026-08-11) → **소방계획서_34(2026-08-29)로 2그룹**:
             📘 본문(1~3장) / 🗂 조회·개정이력(구 보관함 — 2026-09-02 파일 저장 폐지). 📑 별지 서식은 최상위 탭으로 나갔다. */}
-        const NAV_ALL = [
-          ...CH1_FORMS.map(f => ({ key: f.key, label: `본문 1장 > ${f.label}` })),
-          { key: 'ch2', label: '본문 2장 자위소방대' },
-          { key: 'ch3', label: '본문 3장 피난계획' },
-          { key: 'cover', label: '본문 보고서 커버' },
-          { key: 'archive', label: '조회·개정이력' },
-        ]
+        // 모바일 드롭다운 — 대장의 그룹으로 접두를 만든다(라벨을 두 번 적지 않는다)
+        // ⚠ 접두 모양은 종전 그대로 둔다(1장만 ' > ', 나머지는 붙여쓰기) — 이 단계는 목차의
+        //   **원천**을 옮기는 것이지 보이는 글자를 바꾸는 것이 아니다. 둘을 한 커밋에 섞으면
+        //   화면이 달라진 이유를 나중에 못 가린다.
+        const NAV_ALL = FIRE_PLAN_FORMS.map(f => ({
+          key: f.key,
+          label: f.group === '조회' ? f.label
+            : f.group === '본문 1장' ? `본문 1장 > ${f.label}`
+            : `본문 ${f.label}`,
+        }))
         return (
         <div className="flex gap-4 items-start">
           {nav.dialog}

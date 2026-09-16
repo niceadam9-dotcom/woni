@@ -242,6 +242,11 @@ const steps: Step[] = [
   //   데려간 채 HEAD에 실렸어도(42 R-7 실사고) 회귀 그물이 조용했다. 여기가 붉으면 자산·앵커·
   //   manifest 셋 중 하나가 갈라진 것 — build-fire-plan-template 재실행부터 볼 것.
   { name: '소방계획서 워크북 자산',    cmd: 'npx tsx scripts/test-fire-plan-xlsx.mts' },
+  // 소방계획서 **절↔시트 대장**(`lib/fire-plan-sections`) — 워크북 50시트가 모두 어느 화면엔가
+  // 속하는가. 위 자산 검사가 「시트 안이 맞는가」라면 여기는 **「시트가 화면에 닿는가」**다.
+  // ⚠ 목차가 종전엔 세 곳(plan-tab-view의 CH1_FORMS·VALID_SEL, [id]/page.tsx의 formStatus 키)에
+  //   각자 있었다. 여기가 붉으면 그 셋 중 하나가 대장과 갈라진 것 — 딥링크가 조용히 깨진다.
+  { name: '소방계획서 절↔시트 대장',   cmd: 'npx tsx scripts/test-fire-plan-sections.mts' },
   // 소방계획서 엑셀 **사진·도면 상자**(2026-09-14 사용자 신고: 1.3이 늘 백지였다).
   // 위 자산 검사와 축이 다르다 — 저기는 글자·좌표·자구, 여기는 **그림이 그 상자에 들어갔는가**다.
   // ⚠ 판정은 경로가 아니라 **바이트·평균색**이다(엉뚱한 그림이 들어가도 경로는 맞는다).
