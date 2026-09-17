@@ -180,6 +180,14 @@ const MUTANTS = [
   ['M44 2.10 화재 시 절차의 원천을 간다 → [33] 2.13 항등이 빨강이어야',
     VALUES, "  v.set('evac210_procedure', txt(d.evacNote))",
     "  v.set('evac210_procedure', txt(d.evacMethod))", 1],
+  /* 🚨 M45 — 2.9 취약장소 행을 밀면 표가 한 줄씩 어긋난다. */
+  ['M45 2.9 취약장소 행을 하나 민다 → [34] 착지 단언이 빨강이어야',
+    VALUES, "    v.set(`haz29_${i}_place`, txt(hz[i]?.place))",
+    "    v.set(`haz29_${i}_place`, txt(hz[i + 1]?.place))", 1],
+  /* 🎯 M46 — 2.9 가스 조치가 protect가 아니라 extinguish를 물면 다른 팀 문구가 실린다. */
+  ['M46 2.9 가스 조치 원천을 간다 → [34] 덮기 단언이 빨강이어야',
+    VALUES, "  v.set('ext29_gas', placeholderCell(EXT29_SHEET, 'AC9', teams29.protect))",
+    "  v.set('ext29_gas', placeholderCell(EXT29_SHEET, 'AC9', teams29.extinguish))", 1],
 ]
 
 /** 🚨 파일의 줄끝에 맞춰 needle을 바꾼다.

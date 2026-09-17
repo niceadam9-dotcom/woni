@@ -1719,5 +1719,58 @@ console.log('\n[33] 2.10 피난유도팀 — 7슬롯 + 4상자')
   }
 }
 
+/* ══════════════════════ [34] 2.9 초기소화팀 — 예시문칸 3 + 취약장소 3행 ══════════════════════
+ *  AC6·AC7(초기소화방법)·AC9(가스 조치)는 PDF 「초기대응 개요」의 teamTextOr 폴백 문구와
+ *  같은 자구가 인쇄돼 있다 — 값(brigadeTeams)이 있으면 덮고, 없으면 예시가 남는데 그게 곧
+ *  PDF의 폴백이라 두 산출물이 같은 것을 인쇄한다. 취약장소는 1.2.2와 같은 축(hazards). */
+console.log('\n[34] 2.9 초기소화팀 — 예시문칸 3 + 취약장소 6칸')
+{
+  const { validateAnchors } = await import('../src/lib/xlsx-anchors.ts')
+  const { toInjectTargets } = await import('../src/lib/xlsx-workbook.ts')
+  const { FIRE_PLAN_ANCHORS, EXT29_SHEET, HAZ29_ROWS } = await import('../src/lib/fire-plan-anchors.ts')
+  const { buildFirePlanValues, haz29Overflow } = await import('../src/lib/fire-plan-xlsx-values.ts')
+  const { labelAt } = await import('../src/lib/fire-plan-xlsx-manifest.ts')
+
+  const hazards = [
+    { place: '보일러실', location: '지하 1층', factors: [] },
+    { place: '옥상 창고', location: '옥탑', factors: [] }, // 1.2.2 고정 3개소 밖 — 여긴 실린다
+  ]
+  const base = { buildingName: 'X', facilities: [], brigade: [], zones: [], hazards, forms: {} }
+
+  const vc = validateAnchors(bytes, FIRE_PLAN_ANCHORS)
+  if (vc.ok) {
+    /* ① 값이 있으면 덮는다 */
+    const withTeams = { ...base, forms: { brigadeTeams: { extinguish: '옥내소화전 우선 사용', protect: '중간밸브 잠금 후 환기' } } } as never
+    const out1 = await injectWorkbook(bytes, toInjectTargets(buildFirePlanValues(withTeams), vc.anchors).targets)
+    const g1 = await readSheetGrid(await JSZip.loadAsync(out1.bytes), EXT29_SHEET)
+    const at1 = (r: string) => g1.cells.find(x => x.ref === r)?.text ?? ''
+    check('입력이 있으면 예시를 덮는다(지상·지하·가스)',
+      at1('AC6') === '옥내소화전 우선 사용' && at1('AC7') === '옥내소화전 우선 사용'
+      && at1('AC9') === '중간밸브 잠금 후 환기', `${at1('AC6')}/${at1('AC9')}`)
+    check('취약장소가 목록 순서대로 실린다(고정 3개소 밖 장소 포함)',
+      at1('O13') === '보일러실' && at1('V13') === '지하 1층'
+      && at1('O14') === '옥상 창고' && at1('V14') === '옥탑', `${at1('O14')}/${at1('V14')}`)
+    check('셋째 행은 빈 채로', at1('O15').trim() === '' && at1('V15').trim() === '')
+
+    /* ② 값이 없으면 예시가 남고, 그 예시가 곧 PDF 폴백 문구다(BRIGADE_TEAMS.preset) */
+    const out2 = await injectWorkbook(bytes, toInjectTargets(buildFirePlanValues(base as never), vc.anchors).targets)
+    const g2 = await readSheetGrid(await JSZip.loadAsync(out2.bytes), EXT29_SHEET)
+    const at2 = (r: string) => g2.cells.find(x => x.ref === r)?.text ?? ''
+    check('입력이 없으면 예시가 남는다', at2('AC6') === labelAt(EXT29_SHEET, 'AC6')
+      && at2('AC9') === labelAt(EXT29_SHEET, 'AC9'))
+    /* ⭐ 「남은 예시 = PDF 초기대응 개요 폴백」 항등은 blanks [8]에 있다 — 템플릿이
+     *   server-only라 이 검사(비 react-server)에선 렌더할 수 없다. */
+
+    /* 🚨 음성 — 축 없는 칸·검증 전 파생은 앵커를 두지 않는다 */
+    const noAnchor = (cell: string) => !FIRE_PLAN_ANCHORS.some(a => a.sheet === EXT29_SHEET && a.cell === cell)
+    check('고층·전기·기타 방법과 위험물 조치는 앵커가 없다', ['AC5', 'AC8', 'AC10', 'AC11'].every(noAnchor))
+    check('층별·시설별 상자와 절차·장비 표는 앵커가 없다',
+      ['O5', 'O6', 'O7', 'O8', 'O9', 'O10', 'O11', 'L23', 'L24', 'O18', 'AC13'].every(noAnchor))
+    check('넘친 취약장소를 센다(3행 예산)', haz29Overflow({ hazards: [1, 2, 3, 4] } as never) === 1
+      && haz29Overflow(base as never) === 0)
+    check('취약장소 표 행이 파생 상수와 같다(13~15행)', HAZ29_ROWS.length === 3 && HAZ29_ROWS[0] === 13)
+  }
+}
+
 console.log(`\n=== pass ${pass} / fail ${fail} ===`)
 process.exit(fail ? 1 : 0)

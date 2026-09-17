@@ -48,6 +48,7 @@ import {
   REV_ROWS, REV_COLS,
   CARD24_SHEET, CARD24_CELLS,
   EVAC210_SHEET, EVAC210_ROUTE_CELLS,
+  EXT29_SHEET, HAZ29_ROWS,
 } from '@/lib/fire-plan-anchors'
 import { boxGlyphAt, labelAt, tokenTemplateAt } from '@/lib/fire-plan-xlsx-manifest'
 import { purposeCover, purposeShort } from '@/lib/purpose-label'
@@ -813,6 +814,20 @@ export function buildFirePlanValues(d: FirePlanGenData): Map<string, CellValue> 
     v.set(`evac210_route${i + 1}_text`, txt(evRoutes[i]?.route))
   })
 
+  /* ── 서식 2.9 초기소화팀 (2026-09-18) ────────────────────────────────────
+   *  예시문칸 셋은 PDF 「초기대응 개요」의 `teamTextOr(brigadeTeams, …)`와 같은 원천 —
+   *  값이 없으면 예시가 남고 그 예시가 곧 PDF의 폴백 문구다(두 산출물이 같은 것을 인쇄).
+   *  취약장소 3행은 1.2.2와 같은 축(hz) — 여긴 자유 기입 표라 목록 순서대로 싣는다.
+   */
+  const teams29 = (d.forms?.brigadeTeams ?? {}) as Record<string, string>
+  v.set('ext29_method_ground', placeholderCell(EXT29_SHEET, 'AC6', teams29.extinguish))
+  v.set('ext29_method_under', placeholderCell(EXT29_SHEET, 'AC7', teams29.extinguish))
+  v.set('ext29_gas', placeholderCell(EXT29_SHEET, 'AC9', teams29.protect))
+  HAZ29_ROWS.forEach((_, i) => {
+    v.set(`haz29_${i}_place`, txt(hz[i]?.place))
+    v.set(`haz29_${i}_location`, txt(hz[i]?.location))
+  })
+
   /* ── 서식 1.9.3 입주사 현황 (2026-09-17) ──────────────────────────────────
    *  🚨 ④ 첫 사례 — `forms.tenants` 축을 이 커밋에서 신설했다(화면·PDF·엑셀 동시).
    *  ⚠ `관리구역`은 값이 없으면 양식의 `-`를 남긴다(placeholderCell — 17행만 라벨이 없어
@@ -1079,6 +1094,11 @@ export function evac3RowOverflow(d: FirePlanGenData): number {
 /** 2.10 피난유도팀이 못 담은 피난경로 수 — 3.4(한 줄)와 **예산이 달라** 따로 센다(세 줄) */
 export function evac210RouteOverflow(d: FirePlanGenData): number {
   return Math.max(0, (d.evacRoutes ?? []).length - EVAC210_ROUTE_CELLS.length)
+}
+
+/** 2.9 취약장소 표(3행)가 못 담은 장소 수 — 1.2.2(고정 3개소 매칭)와 축이 같고 그릇이 다르다 */
+export function haz29Overflow(d: FirePlanGenData): number {
+  return Math.max(0, (d.hazards ?? []).length - HAZ29_ROWS.length)
 }
 
 /** 공사·정비 기록(1.13)이 못 담은 행 수 — 화기취급과 같은 축 */

@@ -56,6 +56,7 @@ export const FP_SHEET = {
   F3_2: '3.2 피난시설 세부현황',
   REV: '개정이력',
   F2_4: '2.4 개별임무카드',
+  F2_9: '2.9 초기소화팀(진압반)',
   F2_10: '2.10 피난유도팀',
   F2_14: '2.14 교육·훈련 결과기록부',
   F2_14_BACK: '2.14 결과기록부 뒷쪽',
@@ -1413,6 +1414,33 @@ const EVAC210_SEEDS: Seed[] = [
   ]),
 ]
 
+/* ─────────── 서식 2.9 초기소화팀(진압반) (2026-09-18) ───────────
+ *  예시문칸 3 + 취약장소 명칭·위치 3행 — 역시 기존 축 재사용이다.
+ *  ⭐ AC6·AC7(초기소화방법)·AC9(가스 조치)는 PDF 「초기대응 개요」의
+ *    `teamTextOr(brigadeTeams, extinguish/protect)`와 **같은 문구 쌍**이 이미 인쇄돼 있다 —
+ *    값이 있으면 덮고 없으면 예시가 남는데, 그 예시가 곧 PDF의 폴백 문구라 두 산출물이
+ *    같은 것을 인쇄한다(FIRE_PLAN_SAMPLE_CELLS 핀).
+ *  ⭐ 취약장소 3행은 1.2.2와 같은 축(d.hazards) — 저긴 고정 3개소에 매칭이지만 여긴 자유
+ *    기입 표라 목록 순서대로 싣는다(1.2.2가 버리는 고정 밖 장소도 여긴 실린다).
+ *  ⚠ 비우는 것: AC5(고층)·AC8(전기)·AC11(기타) — 대응 문구 축 없음 · AC10(위험물 조치) —
+ *    PDF에 대응 행이 없어 덮을 축 없음(예시 그대로) · 방법 열(AC13~15) — hazards에 방법
+ *    서술 축 없음 · 층별·시설별 상자 7 — 층수 파싱·시설 유무 파생은 검증 전(모르면 안 켠다) ·
+ *    절차 2칸(L23·L24) — 팀이 달라 evacFalseAlarm을 넣으면 오배선 · 장비 표 — 축 없음.
+ */
+export const EXT29_SHEET = FP_SHEET.F2_9
+export const HAZ29_ROWS = [13, 14, 15] as const
+
+const EXT29_SEEDS: Seed[] = [
+  // 법정 예시문칸 — 값이 있으면 덮고, 없으면 예시가 남는다(= PDF 폴백과 같은 인쇄)
+  { field: 'ext29_method_ground', sheet: EXT29_SHEET, cell: 'AC6', labelCell: 'AC6' },
+  { field: 'ext29_method_under', sheet: EXT29_SHEET, cell: 'AC7', labelCell: 'AC7' },
+  { field: 'ext29_gas', sheet: EXT29_SHEET, cell: 'AC9', labelCell: 'AC9' },
+  ...HAZ29_ROWS.flatMap((row, i) => [
+    { field: `haz29_${i}_place`, sheet: EXT29_SHEET, cell: `O${row}`, labelCell: 'O12' },
+    { field: `haz29_${i}_location`, sheet: EXT29_SHEET, cell: `V${row}`, labelCell: 'V12' },
+  ]),
+]
+
 const BRIG1_SEEDS: Seed[] = [
   { field: 'brig1_name', sheet: BRIG1_SHEET, cell: 'M5', labelCell: 'A5' },
   { field: 'brig1_address', sheet: BRIG1_SHEET, cell: 'M6', labelCell: 'A6' },
@@ -1496,7 +1524,7 @@ function assemble(seeds: Seed[]): Anchor[] {
   })
 }
 
-export const FIRE_PLAN_ANCHORS: Anchor[] = assemble([...FIXED_SEEDS, ...ZONE_SEEDS, ...BRIG_SEEDS, ...FORM14_SEEDS, ...FIREHIST_SEEDS, ...HAZARD_SEEDS, ...MU_SEEDS, ...TRAIN_SEEDS, ...EVAC1_SEEDS, ...BRIG1_SEEDS, ...FIREWORK_SEEDS, ...CONSTRUCTION_SEEDS, ...EVAC3_SEEDS, ...BRIG9_SEEDS, ...REC14_SEEDS, ...ATT14_SEEDS, ...VUL_SEEDS, ...VUL9_SEEDS, ...EVAC34_SEEDS, ...VUL36_SEEDS, ...ORG23_SEEDS, ...TENANT_SEEDS, ...RESP13_SEEDS, ...EQUIP37_SEEDS, ...ETC61_SEEDS, ...HAZ_SEEDS, ...VAL12_SEEDS, ...EVDET32_SEEDS, ...REV_SEEDS, ...CARD24_SEEDS, ...EVAC210_SEEDS])
+export const FIRE_PLAN_ANCHORS: Anchor[] = assemble([...FIXED_SEEDS, ...ZONE_SEEDS, ...BRIG_SEEDS, ...FORM14_SEEDS, ...FIREHIST_SEEDS, ...HAZARD_SEEDS, ...MU_SEEDS, ...TRAIN_SEEDS, ...EVAC1_SEEDS, ...BRIG1_SEEDS, ...FIREWORK_SEEDS, ...CONSTRUCTION_SEEDS, ...EVAC3_SEEDS, ...BRIG9_SEEDS, ...REC14_SEEDS, ...ATT14_SEEDS, ...VUL_SEEDS, ...VUL9_SEEDS, ...EVAC34_SEEDS, ...VUL36_SEEDS, ...ORG23_SEEDS, ...TENANT_SEEDS, ...RESP13_SEEDS, ...EQUIP37_SEEDS, ...ETC61_SEEDS, ...HAZ_SEEDS, ...VAL12_SEEDS, ...EVDET32_SEEDS, ...REV_SEEDS, ...CARD24_SEEDS, ...EVAC210_SEEDS, ...EXT29_SEEDS])
 
 /* ══════════════════════ §사진상자 (2026-09-14) ══════════════════════
  *
@@ -1622,6 +1650,12 @@ export const FIRE_PLAN_SAMPLE_CELLS: ReadonlyArray<readonly [string, string, str
   [FP_SHEET.F3_2, 'AF3', '완강기'],
   [FP_SHEET.F3_2, 'AQ3', '각 세대 베란다'],
   [FP_SHEET.F3_2, 'BA3', '각 1개'],
+  /* 2.9 초기소화·가스 조치 — PDF 「초기대응 개요」의 폴백 문구와 **같은 자구**가 인쇄돼 있다.
+   * 값(brigadeTeams.extinguish/protect)이 있으면 덮고, 없으면 예시가 남는데 그게 곧 PDF의
+   * 폴백이라 두 산출물이 같은 것을 인쇄한다. */
+  [FP_SHEET.F2_9, 'AC6', '소화기를 이용하여 초기 진압 실시'],
+  [FP_SHEET.F2_9, 'AC7', '소화기를 이용하여 초기 진압 실시'],
+  [FP_SHEET.F2_9, 'AC9', '가스공급 밸브 차단'],
 ]
 
 const SAMPLE_KEYS = new Set(FIRE_PLAN_SAMPLE_CELLS.map(([s, c]) => `${s}!${c}`))

@@ -41,7 +41,7 @@ const wiredBoxes = all.reduce((n, r) => n + r.wiredBoxes, 0)
 //   옳다는 방증이다 — 손으로 맞춘 게 아니라 분류가 제자리를 찾았다.
 check('값 슬롯 1,812칸', slots === 1812, `${slots}칸`)
 check('상자 658칸', boxes === 658, `${boxes}칸`)
-check('배선된 값 슬롯 ≥ 856', wired >= 856, `${wired}칸 (${(wired / slots * 100).toFixed(1)}%)`)
+check('배선된 값 슬롯 ≥ 862', wired >= 862, `${wired}칸 (${(wired / slots * 100).toFixed(1)}%)`)
 check('배선된 상자 ≥ 239', wiredBoxes >= 239, `${wiredBoxes}칸 (${(wiredBoxes / boxes * 100).toFixed(1)}%)`)
 // 🚨 **회계가 딱 맞아야 한다.** 앵커는 셋 중 하나에 앉는다 — 상자칸 · 라벨칸(단위·접두라벨 갈래) ·
 //   순수 빈칸. 합이 안 맞으면 분류 규칙 어딘가가 틀린 것이다(1칸이라도 반올림으로 넘기지 않는다).
@@ -163,7 +163,7 @@ const RED_EXPECTED = [
   '1.3 건축물 위치·운영현황', '1.5.2 방화·제연구획 현황도',
   '2.11 응급구조팀',
   '2.3 임무', '2.5 지휘통제팀', '2.6 비상연락팀(지휘반)',
-  '2.8 비상상황별 연락방법', '2.9 초기소화팀(진압반)', 
+  '2.8 비상상황별 연락방법',
   '3.6 피난약자 유형별 방법', 
 ].sort()
 const gone = RED_EXPECTED.filter(s => !red.includes(s))
@@ -234,6 +234,18 @@ check('심은 마커가 **전부** 인쇄됐다', unprinted.length === 0,
   `${printed.length}/${MARKERS.length}${unprinted.length ? ' — 안 나온 것: ' + unprinted.map(([m]) => m).join(',') : ''}`)
 // 음성 — 심지 않은 마커는 나타나면 안 된다(HTML이 아무 글자나 담고 있지 않다는 대조)
 check('음성 — 심지 않은 마커는 HTML에 없다', !html.includes(MARK('NOPE')))
+
+/* ⭐ 2.9 예시문칸 자구 = PDF 「초기대응 개요」 폴백 (2026-09-18)
+ *  이 fixture는 brigadeTeams가 비어 있어 PDF가 폴백 문구를 인쇄한다 — 엑셀 2.9의 예시
+ *  자구(AC6·AC9)와 **글자까지 같아야** 두 산출물이 같은 것을 인쇄한다. 어느 쪽이 바뀌어도
+ *  여기서 빨강이 된다(핀 FIRE_PLAN_SAMPLE_CELLS와 짝). */
+{
+  const { labelAt } = await import('../src/lib/fire-plan-xlsx-manifest.ts')
+  const S29 = '2.9 초기소화팀(진압반)'
+  check('2.9 예시문 = PDF 초기대응 폴백(초기소화·가스 조치)',
+    html.includes(labelAt(S29, 'AC6')) && html.includes(labelAt(S29, 'AC9')),
+    `${labelAt(S29, 'AC6')} / ${labelAt(S29, 'AC9')}`)
+}
 
 const gap = printed.filter(([, sheet]) => untouched(all.find(r => r.sheet === sheet)!))
 console.log('   ⬇ 6단계 우선순위 ① — 데이터는 있는데 엑셀만 공란')
