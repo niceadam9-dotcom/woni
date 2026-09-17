@@ -1272,5 +1272,45 @@ console.log('\n[24] 1.9.3 입주사 — 5열 착지·대시 자리표시')
   }
 }
 
+/* ══════════════════════ [25] 2.13 초기대응절차 — 3.4와 같은 원천 ══════════════════════
+ *  ⭐ 비화재보는 3.4 G4와, 화재 시는 `evacNote`와 **같은 값**이어야 한다. 3.4의 「화재 시」는
+ *    네 칸 표라 비웠지만 여긴 한 칸이라 채운다 — 같은 값, 다른 그릇임을 되읽어 확인한다. */
+console.log('\n[25] 2.13 초기대응절차 — 3.4와 같은 원천')
+{
+  const { validateAnchors } = await import('../src/lib/xlsx-anchors.ts')
+  const { toInjectTargets } = await import('../src/lib/xlsx-workbook.ts')
+  const { FIRE_PLAN_ANCHORS, RESP13_SHEET, EVAC34_SHEET } = await import('../src/lib/fire-plan-anchors.ts')
+  const { buildFirePlanValues } = await import('../src/lib/fire-plan-xlsx-values.ts')
+  const { labelAt } = await import('../src/lib/fire-plan-xlsx-manifest.ts')
+
+  const fx = { buildingName: '가온빌딩', facilities: [], brigade: [], zones: [], hazards: [], forms: {},
+    evacFalseAlarm: '오동작 시 방송 후 대기', evacNote: '유도자 지시로 최단 경로 피난' } as never
+
+  const vc = validateAnchors(bytes, FIRE_PLAN_ANCHORS)
+  if (vc.ok) {
+    const { targets } = toInjectTargets(buildFirePlanValues(fx), vc.anchors)
+    const out = await injectWorkbook(bytes, targets)
+    const z2 = await JSZip.loadAsync(out.bytes)
+    const g13 = await readSheetGrid(z2, RESP13_SHEET)
+    const g34 = await readSheetGrid(z2, EVAC34_SHEET)
+    const at = (g: typeof g13, r: string) => g.cells.find(x => x.ref === r)?.text ?? ''
+
+    check('대상명이 접두라벨로 붙는다', at(g13, 'A2') === '■ 대상명 : 가온빌딩', at(g13, 'A2'))
+    /* 🎯 비화재보 — 3.4 G4와 같은 값 */
+    check('비화재보가 3.4와 같다(D-7 항등)', at(g13, 'I24') === at(g34, 'G4')
+      && at(g13, 'I24') === '오동작 시 방송 후 대기', `2.13=${at(g13, 'I24')} 3.4=${at(g34, 'G4')}`)
+    /* ⭐ 화재 시 — 3.4에선 못 실은 evacNote가 여기선 실린다 */
+    check('화재 시에 evacNote가 실린다(3.4은 그릇이 없어 못 실었다)',
+      at(g13, 'I25') === '유도자 지시로 최단 경로 피난', at(g13, 'I25'))
+    /* 🚨 음성 — 편성·장비 표는 안 건드렸다 */
+    check('편성 표(5~16행)는 비어 있다', ['Q5', 'AB5', 'Q15', 'AB15'].every(c => at(g13, c).trim() === ''))
+    check('장비 표(19~21행)는 비어 있다', ['A19', 'L19', 'W21'].every(c => at(g13, c).trim() === ''))
+    check('근무형태 상자는 꺼져 있다', !at(g13, 'F5').includes('■') && !at(g13, 'F16').includes('■'),
+      `${at(g13, 'F5')}·${at(g13, 'F16')}`)
+    check('머리글이 온전하다', at(g13, 'A24') === labelAt(RESP13_SHEET, 'A24')
+      && at(g13, 'A18') === labelAt(RESP13_SHEET, 'A18'), `${at(g13, 'A24')}·${at(g13, 'A18')}`)
+  }
+}
+
 console.log(`\n=== pass ${pass} / fail ${fail} ===`)
 process.exit(fail ? 1 : 0)

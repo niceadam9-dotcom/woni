@@ -49,6 +49,7 @@ export const FP_SHEET = {
   F2_2: '2.2 자위소방대 편성표',
   F2_3: '2.3 조직도',
   F1_9_3: '1.9.3 입주사 현황',
+  F2_13: '2.13 초기대응체계',
   F2_14: '2.14 교육·훈련 결과기록부',
   F2_14_BACK: '2.14 결과기록부 뒷쪽',
   // 제3장(2026-09-09 B-15) — 3.1은 용도 칸만 배선한다(나머지는 별건)
@@ -1178,6 +1179,24 @@ const TENANT_SEEDS: Seed[] = Array.from({ length: TENANT_ROWS }, (_, i) =>
   })),
 ).flat()
 
+/* ─────────── 서식 2.13 초기대응체계 — 3절만 (2026-09-17) ───────────
+ *  ⭐ 「3. 초기대응절차」 두 칸은 **3.4가 쓰는 그 원천**이다 — 비화재보는 `evacFalseAlarm`
+ *    (3.4 G4와 같은 값), 화재 시는 `evacNote`. 같은 사실이 두 시트에 다르게 인쇄되면
+ *    D-7 갈라짐이므로 값을 새로 만들지 않는다.
+ *  ⭐ 3.4의 「화재 시」는 **비웠는데** 여기는 채운다 — 저긴 동/층/유도자/방법 네 칸 표라
+ *    자유 문장을 못 쪼갰고, 여긴 **한 칸**이라 그대로 들어간다. 같은 값, 다른 그릇.
+ *  ⚠ 「1. 편성」(근무형태별 근무자)·「2. 초기대응장비」는 보류 — ERP에 근무조 축이 없고
+ *    (2.1·2.3과 같은 결정), `evacEquip`은 3.7 「피난용 기구·장비」 축이라 초기대응장비
+ *    (소화기 등)에 넣으면 **머리글이 거짓**이 된다(1.13 연락처와 같은 규약).
+ */
+export const RESP13_SHEET = FP_SHEET.F2_13
+
+const RESP13_SEEDS: Seed[] = [
+  { field: 'resp13_name', sheet: RESP13_SHEET, cell: 'A2', labelCell: 'A2' },      // ■ 대상명 :
+  { field: 'resp13_false_alarm', sheet: RESP13_SHEET, cell: 'I24', labelCell: 'A24' },
+  { field: 'resp13_fire', sheet: RESP13_SHEET, cell: 'I25', labelCell: 'A25' },
+]
+
 const BRIG1_SEEDS: Seed[] = [
   { field: 'brig1_name', sheet: BRIG1_SHEET, cell: 'M5', labelCell: 'A5' },
   { field: 'brig1_address', sheet: BRIG1_SHEET, cell: 'M6', labelCell: 'A6' },
@@ -1261,7 +1280,7 @@ function assemble(seeds: Seed[]): Anchor[] {
   })
 }
 
-export const FIRE_PLAN_ANCHORS: Anchor[] = assemble([...FIXED_SEEDS, ...ZONE_SEEDS, ...BRIG_SEEDS, ...FORM14_SEEDS, ...FIREHIST_SEEDS, ...HAZARD_SEEDS, ...MU_SEEDS, ...TRAIN_SEEDS, ...EVAC1_SEEDS, ...BRIG1_SEEDS, ...FIREWORK_SEEDS, ...CONSTRUCTION_SEEDS, ...EVAC3_SEEDS, ...BRIG9_SEEDS, ...REC14_SEEDS, ...ATT14_SEEDS, ...VUL_SEEDS, ...VUL9_SEEDS, ...EVAC34_SEEDS, ...VUL36_SEEDS, ...ORG23_SEEDS, ...TENANT_SEEDS])
+export const FIRE_PLAN_ANCHORS: Anchor[] = assemble([...FIXED_SEEDS, ...ZONE_SEEDS, ...BRIG_SEEDS, ...FORM14_SEEDS, ...FIREHIST_SEEDS, ...HAZARD_SEEDS, ...MU_SEEDS, ...TRAIN_SEEDS, ...EVAC1_SEEDS, ...BRIG1_SEEDS, ...FIREWORK_SEEDS, ...CONSTRUCTION_SEEDS, ...EVAC3_SEEDS, ...BRIG9_SEEDS, ...REC14_SEEDS, ...ATT14_SEEDS, ...VUL_SEEDS, ...VUL9_SEEDS, ...EVAC34_SEEDS, ...VUL36_SEEDS, ...ORG23_SEEDS, ...TENANT_SEEDS, ...RESP13_SEEDS])
 
 /* ══════════════════════ §사진상자 (2026-09-14) ══════════════════════
  *

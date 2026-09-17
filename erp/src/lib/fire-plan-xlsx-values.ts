@@ -39,6 +39,7 @@ import {
   VUL36_SHEET, VUL36_ROWS, VUL36_TYPES,
   ORG23_SHEET,
   TENANT_SHEET, TENANT_ROWS, TENANT_COLS, TENANT_FIRST_ROW, isDashPlaceholderAnchor,
+  RESP13_SHEET,
 } from '@/lib/fire-plan-anchors'
 import { boxGlyphAt, labelAt, tokenTemplateAt } from '@/lib/fire-plan-xlsx-manifest'
 import { purposeCover, purposeShort } from '@/lib/purpose-label'
@@ -817,6 +818,15 @@ export function buildFirePlanValues(d: FirePlanGenData): Map<string, CellValue> 
     const t = labelAt(VUL36_SHEET, a).trim()
     v.set(`vul36_${t}`, placeholderCell(VUL36_SHEET, k, vmethods[t]))
   })
+
+  /* ── 서식 2.13 초기대응체계 — 3절만 (2026-09-17) ──────────────────────────
+   *  ⭐ 3.4와 **같은 원천**(`evacFalseAlarm`·`evacNote`) — 값을 새로 만들지 않는다.
+   *  ⭐ 3.4의 「화재 시」는 네 칸 표라 비웠지만 여긴 **한 칸**이라 그대로 들어간다.
+   *  ⚠ 편성·장비는 보류(앵커 §2.13) — 근무조 축이 없고 evacEquip은 3.7 축이다.
+   */
+  v.set('resp13_name', prefixCell(RESP13_SHEET, 'A2', d.buildingName))
+  v.set('resp13_false_alarm', txt(d.evacFalseAlarm))
+  v.set('resp13_fire', txt(d.evacNote))
 
   /* ── 1.9 피난약자 블록 — **3.5의 축약본** ──
    *  같은 워크북 안에서 3.5는 인쇄하는데 1.9만 비면 그게 D-7 갈라짐이다. 상자 판정도 표 값도

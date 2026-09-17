@@ -137,6 +137,10 @@ const MUTANTS = [
   ['M33 관리구역 -를 지운다 → [24] 「-가 남는다」가 빨강이어야',
     VALUES, `        key === 'zone' && isDashPlaceholderAnchor({ sheet: TENANT_SHEET, cell })`,
     `        false`, 1],
+  /* 🎯 M34 — 2.13이 원천 공유를 깨면(비화재보를 제 값으로) 3.4와 갈라진다. */
+  ['M34 2.13만 비화재보를 달리 적는다 → [25] D-7 항등이 빨강이어야',
+    VALUES, `  v.set('resp13_false_alarm', txt(d.evacFalseAlarm))`,
+    `  v.set('resp13_false_alarm', txt(d.evacNote))`, 1],
 ]
 
 /** 🚨 파일의 줄끝에 맞춰 needle을 바꾼다.
