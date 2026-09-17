@@ -14,7 +14,7 @@ import * as XLSX from 'xlsx'
 import { validateAnchors } from '../src/lib/xlsx-anchors.ts'
 import { toInjectTargets } from '../src/lib/xlsx-workbook.ts'
 import { injectWorkbook } from '../src/lib/xlsx-inject.ts'
-import { FIRE_PLAN_ANCHORS, FIRE_PLAN_FIELDS, FP_SHEET, ZONE_ROWS, ZONE_SHEET, ZONE_FIRST_ROW, BRIG_ROWS, BRIG_FIRST_ROW, isBoxLabelAnchor, isUnitLabelAnchor, isPrefixLabelAnchor, isYearMonthLabelAnchor, FORM14_ROWS, FORM14_SHEET, FORM14_NAME_CELL, FORM14_NAME_FIELD } from '../src/lib/fire-plan-anchors.ts'
+import { FIRE_PLAN_ANCHORS, FIRE_PLAN_FIELDS, isPlaceholderLabelAnchor, FP_SHEET, ZONE_ROWS, ZONE_SHEET, ZONE_FIRST_ROW, BRIG_ROWS, BRIG_FIRST_ROW, isBoxLabelAnchor, isUnitLabelAnchor, isPrefixLabelAnchor, isYearMonthLabelAnchor, FORM14_ROWS, FORM14_SHEET, FORM14_NAME_CELL, FORM14_NAME_FIELD } from '../src/lib/fire-plan-anchors.ts'
 import { ALL_STANDARD_CODES } from '../src/lib/facility-codes.ts'
 import { brigadeRowOverflow, buildFirePlanValues, missingValueFields, planDate, zoneRowOverflow } from '../src/lib/fire-plan-xlsx-values.ts'
 import { FIRE_PLAN_MANIFEST, labelAt, boxGlyphAt, sheetManifest } from '../src/lib/fire-plan-xlsx-manifest.ts'
@@ -116,13 +116,22 @@ console.log('\n[3] 백지 불변식 — 템플릿에 표본의 답이 남아 있
   // 다섯째 갈래는 **연월칸**(2026-09-14, 1.10.1 점검시기): `'          년        월'` 처럼 자구가
   // 값 **사이사이에** 끼어 있다. 단위칸과 같은 이유로 등식이 아니라 '남은 글자가 자구뿐인가'를
   // 묻는다 — 숫자가 한 자라도 있으면 그건 표본의 답이라 예외를 통과하지 못한다(아래 단언).
+  // 여섯째 갈래는 **자리표시칸**(2026-09-17, 1.10.3 영업시간): `00시~00시`처럼 템플릿이
+  // **보기 값**을 이고 있다. 앞의 것들과 달리 자구가 값과 함께 남는 게 아니라 값에 **통째로
+  // 갈린다** — 그래도 값이 없을 땐 남아야 그 칸이 무엇을 적는 자리인지 알 수 있다.
+  // 판별은 여기서도 등식이 아니라 **'0으로만 이뤄진 시각 꼴인가'**다: `09:00~18:00` 같은
+  // 실제 답은 통과하지 못하므로 표본 시간이 이 예외 뒤에 숨지 못한다.
   const dirty = FIRE_PLAN_ANCHORS.filter(a => {
     const t = cellText(a)
     return t && !/^[□☐]$/.test(t) && !boxLabelOk(a) && !isUnitLabelAnchor(a) && !isPrefixLabelAnchor(a)
-      && !isYearMonthLabelAnchor(a)
+      && !isYearMonthLabelAnchor(a) && !isPlaceholderLabelAnchor(a)
   })
-  check('앵커 셀 공란(빈 상자·상자칸·단위칸·접두라벨칸·연월칸만 예외)', dirty.length === 0,
+  check('앵커 셀 공란(빈 상자·상자칸·단위칸·접두라벨칸·연월칸·자리표시칸만 예외)', dirty.length === 0,
     dirty.slice(0, 5).map(a => `${a.sheet}!${a.cell}='${cellText(a)}'`).join(' · '))
+  // 🚨 예외가 늘면 **그 수를 못 박는다** — 봐주기가 조용히 번지지 않게.
+  const placeholderCells = FIRE_PLAN_ANCHORS.filter(isPlaceholderLabelAnchor)
+  check('자리표시칸 예외 수가 그대로(1.10.3 영업시간 4칸)', placeholderCells.length === 4,
+    placeholderCells.map(a => `${a.cell}`).join(','))
   // 2026-09-14: 1.10.1 「건축물 사용승인일 :」 배선으로 1 → 2. 이 시트는 종전 앵커 0이라
   //   사용승인일이 통째로 공란이었다(PDF는 같은 값을 인쇄 중이었다 — D-7 갈라짐).
   const prefixCells = FIRE_PLAN_ANCHORS.filter(isPrefixLabelAnchor)
@@ -155,12 +164,16 @@ console.log('\n[3] 백지 불변식 — 템플릿에 표본의 답이 남아 있
   //   고정 3개소(보일러실·주방·전기실) × 6요소(전기/기계/화학/가스누출/자연재해/부주의).
   //   ⚠ `☐ 기타( )` 3칸은 **일부러 안 세웠다** — ERP에 축이 없다(없는 근거로 체크하지 않는다).
   //   이 시트도 종전 앵커 0이었고 PDF는 같은 값을 이미 인쇄 중이었다(D-7 갈라짐).
-  check('상자칸 예외 수가 그대로(1.5.1 3 + 1.1 26 + 1.4 40 + 1.10.1 9 + 1.2.2 18)',
-    boxLabel.length === 96, `${boxLabel.length}칸`)
+  // 2026-09-17(2): 1.10.3 다중이용업소 상자 10을 배선해 96→106 — 영업시간 6(평일/휴일 ×
+//   주간/야간 + 평일·휴일 머리) + 이용자 4(노유자·주취자·청소년·신체부자유자).
+//   ⚠ 안전점검 분기 4 · 안전시설 17은 **일부러 안 세웠다**(ERP에 축이 없다).
+  check('상자칸 예외 수가 그대로(1.5.1 3 + 1.1 26 + 1.4 40 + 1.10.1 9 + 1.2.2 18 + 1.10.3 10)',
+    boxLabel.length === 106, `${boxLabel.length}칸`)
   check('상자칸은 템플릿에서 전부 미체크', boxLabel.every(a => !/■/.test(cellText(a))),
     boxLabel.filter(a => /■/.test(cellText(a))).map(a => a.cell).join(','))
   const unitCells = FIRE_PLAN_ANCHORS.filter(isUnitLabelAnchor)
-  check('단위칸 예외 수가 그대로(급·㎡·명 5칸)', unitCells.length === 5,
+  // 2026-09-17: 1.10.3 수용인원(AS8 '명')을 배선해 5→6
+  check('단위칸 예외 수가 그대로(급·㎡·명 6칸)', unitCells.length === 6,
     unitCells.map(a => `${a.cell}='${cellText(a)}'`).join(' · '))
   // 🎯 표본 답이 단위칸 예외 **뒤에 숨지 못한다** — 숫자가 남았으면 그건 단위가 아니라 답이다
   //   (이 칸들에 실제로 `100명`·`1 개소`가 있었다)

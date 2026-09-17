@@ -274,5 +274,68 @@ console.log('\n[7] 1.2.2 화재취약장소 — 고정 3개소 매칭')
   }
 }
 
+/* ══════════════════════ [8] 1.10.3 다중이용업소 — 해당/해당없음 두 갈래 ══════════════════════
+ *  🚨 **음성이 핵심이다.** 다중이용업소가 아닌 대상물에 사업장명·영업시간이 인쇄되면 없는 사실을
+ *    지어내는 것이다. 그리고 시간 자리표시(`00시~00시`)는 값이 없을 때 **남아야** 한다 —
+ *    지우면 그 칸이 무엇을 적는 자리인지 알 수 없게 된다. */
+console.log('\n[8] 1.10.3 다중이용업소 — 해당 / 해당없음')
+{
+  const { validateAnchors } = await import('../src/lib/xlsx-anchors.ts')
+  const { toInjectTargets } = await import('../src/lib/xlsx-workbook.ts')
+  const { FIRE_PLAN_ANCHORS, MU_SHEET } = await import('../src/lib/fire-plan-anchors.ts')
+  const { buildFirePlanValues } = await import('../src/lib/fire-plan-xlsx-values.ts')
+  const { labelAt } = await import('../src/lib/fire-plan-xlsx-manifest.ts')
+
+  const base = { buildingName: 'X', facilities: [], brigade: [], zones: [], hazards: [] }
+  const vc = validateAnchors(bytes, FIRE_PLAN_ANCHORS)
+  const render = async (mu: unknown) => {
+    const { targets } = toInjectTargets(
+      buildFirePlanValues({ ...base, forms: { multiUse: mu } } as never),
+      (vc as { anchors: Parameters<typeof toInjectTargets>[1] }).anchors)
+    const out = await injectWorkbook(bytes, targets)
+    const gg = await readSheetGrid(await JSZip.loadAsync(out.bytes), MU_SHEET)
+    return (r: string) => gg.cells.find(x => x.ref === r)?.text ?? ''
+  }
+  if (vc.ok) {
+    // ── 해당 O ──
+    const on = await render({
+      applicable: true, bizName: '행복노래연습장', categories: { 노래연습장: '2' },
+      location: '지하1층', owner: '홍길동', phone: '031-000-0000', capacity: '50',
+      hoursDetail: { wkDay: '09:00~18:00', wkNight: '', holDay: '', holNight: '22:00~02:00' },
+      userTypes: ['청소년'],
+    })
+    check('사업장명 착지', on('N3') === '행복노래연습장', on('N3'))
+    // 업종은 `업종(개소)` — PDF `muCats`와 **같은 조립**이다
+    check('업종이 개소와 함께 조립된다', on('AS3') === '노래연습장(2)', on('AS3'))
+    check('수용인원은 단위칸(명)', on('AS8') === `50${labelAt(MU_SHEET, 'AS8')}`, on('AS8'))
+    check('평일·평일주간 상자가 켜지고 시간이 들어간다',
+      on('N6').startsWith('■') && on('V6').startsWith('■') && on('AD6') === '09:00~18:00',
+      `N6=${on('N6')} AD6=${on('AD6')}`)
+    // 🚨 자리표시 — 값이 없는 야간은 상자가 꺼지고 **`00시~00시`가 남아야** 한다
+    check('값 없는 시간칸은 자리표시를 남긴다',
+      !on('V7').startsWith('■') && on('AD7') === labelAt(MU_SHEET, 'AD7'),
+      `V7=${on('V7')} AD7=${JSON.stringify(on('AD7'))}`)
+    check('휴일 야간만 켜진다(주간은 꺼짐)',
+      on('AS7').startsWith('■') && on('BA7') === '22:00~02:00' && !on('AS6').startsWith('■'),
+      `AS7=${on('AS7')} AS6=${on('AS6')}`)
+    check('이용자 — 고른 것만 체크(양성·음성)',
+      on('N9').startsWith('■') && !on('N8').startsWith('■'), `N9=${on('N9')} N8=${on('N8')}`)
+
+    // ── 해당 X — 🚨 없는 사실을 지어내지 않는다 ──
+    const off = await render({
+      applicable: false, categories: {}, bizName: '', location: '', owner: '', phone: '',
+      hours: '', users: '', capacity: '',
+    })
+    check('해당없음이면 값칸이 전부 빈다',
+      off('N3') === '' && off('N4') === '' && off('N5') === '' && off('AS3') === '',
+      `N3=${JSON.stringify(off('N3'))}`)
+    check('해당없음이면 상자가 전부 꺼진다',
+      !off('N6').startsWith('■') && !off('AK6').startsWith('■') && !off('N9').startsWith('■'))
+    check('해당없음이어도 자리표시·단위는 남는다',
+      off('AD6') === labelAt(MU_SHEET, 'AD6') && off('AS8') === labelAt(MU_SHEET, 'AS8'),
+      `AD6=${JSON.stringify(off('AD6'))} AS8=${JSON.stringify(off('AS8'))}`)
+  }
+}
+
 console.log(`\n=== pass ${pass} / fail ${fail} ===`)
 process.exit(fail ? 1 : 0)

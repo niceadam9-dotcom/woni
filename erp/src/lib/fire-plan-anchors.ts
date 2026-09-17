@@ -35,6 +35,7 @@ export const FP_SHEET = {
   F1_10_1: '1.10.1 연간 점검 계획',
   // 2026-09-16~17 — PDF는 이미 인쇄하는데 엑셀만 공란이던 시트들(소방계획서_50 §5-3이 마커로 확정)
   F1_2_2: '1.2.2 화재취약장소 현황',
+  F1_10_3: '1.10.3 다중이용업소 관리현황',
   F1_10_4: '1.10.4 화재·비화재보 이력',
   // ⚠ manifest에 `1.11.4`로 시작하는 시트가 **둘**이다(앞쪽·뒷쪽) — 용도 칸은 앞쪽에만 있다
   F1_11_4: '1.11.4 훈련·교육 결과기록부',
@@ -502,6 +503,62 @@ export const HAZARD_BOXES: ReadonlyArray<readonly [string, number, string]> = [
   // ['AO', 2, '기타( )'] — ERP에 축이 없다. 없는 근거로 체크하지 않는다.
 ]
 
+/* ══════════════════════ 서식 1.10.3 다중이용업소 관리현황 (2026-09-17) ══════════════════════
+ *
+ *  🚨 PDF는 이미 인쇄하는데 엑셀만 공란이던 시트(소방계획서_50 §5-3 마커 `__MU__`로 확정).
+ *    입력 화면은 `plan-multi-use-card.tsx`이고 2026-09-09에 1.10 → **1.4 「기타」 아래**로 이사했다.
+ *
+ *  **일반현황 블록만** 배선한다. 아래 축은 ERP에 데이터가 없어 **일부러 안 세운다**
+ *  (없어서가 아니라 채울 근거가 없어서다 — 없는 근거로 체크하면 거짓을 인쇄하는 것이다):
+ *   · 안전점검 분기 4상자(10행) — 분기별 점검 이력 축이 없다.
+ *   · 안전시설 17상자(11~17행) — 다중이용업소 **전용** 설비 목록이라 1.4(대상물 전체)와 축이 다르다.
+ *   · 확인사항 결과칸(19행~) — 점검 결과 축이 없다.
+ *
+ *  ⚠ 영업시간 시간칸 4개는 **자리표시칸**이다(`00시~00시`). 값이 없으면 그 자리표시를 남긴다 —
+ *    지우면 무엇을 적는 칸인지 알 수 없게 된다(`placeholderCell`).
+ */
+export const MU_SHEET = FP_SHEET.F1_10_3
+
+/** 값칸 — [필드 접미사, 셀, 라벨 셀] */
+export const MU_VALUE_CELLS: ReadonlyArray<readonly [string, string, string]> = [
+  ['bizname', 'N3', 'A3'],     // 사업장명
+  ['category', 'AS3', 'AK3'],  // 업 종
+  ['location', 'N4', 'F4'],    // 위 치
+  ['owner', 'N5', 'F5'],       // 영 업 주
+  ['phone', 'AS5', 'AK5'],     // 연 락 처
+]
+
+/** 영업시간 — 상자 6 + 자리표시 4. [필드 접미사, 셀, 갈래] */
+export const MU_HOURS_CELLS: ReadonlyArray<readonly [string, string, 'box' | 'time']> = [
+  ['wk', 'N6', 'box'],          // □ 평일
+  ['wkday_box', 'V6', 'box'],   // □ 주간
+  ['wkday_at', 'AD6', 'time'],
+  ['wknight_box', 'V7', 'box'], // □ 야간
+  ['wknight_at', 'AD7', 'time'],
+  ['hol', 'AK6', 'box'],        // □ 휴일
+  ['holday_box', 'AS6', 'box'], // □ 주간
+  ['holday_at', 'BA6', 'time'],
+  ['holnight_box', 'AS7', 'box'],
+  ['holnight_at', 'BA7', 'time'],
+]
+
+/** 이용자 4상자 — [필드 접미사, 셀, `userTypes`의 자구] */
+export const MU_USER_BOXES: ReadonlyArray<readonly [string, string, string]> = [
+  ['u_old', 'N8', '노유자'],
+  ['u_drunk', 'Z8', '주취자'],
+  ['u_youth', 'N9', '청소년'],
+  ['u_disabled', 'Z9', '신체부자유자'],
+]
+
+const MU_SEEDS: Seed[] = [
+  ...MU_VALUE_CELLS.map(([k, cell, labelCell]) => ({ field: `mu_${k}`, sheet: MU_SHEET, cell, labelCell })),
+  // 상자·자리표시는 **자기 칸이 라벨**이다(그 칸의 자구를 우리가 읽어 조립한다)
+  ...MU_HOURS_CELLS.map(([k, cell]) => ({ field: `mu_${k}`, sheet: MU_SHEET, cell, labelCell: cell })),
+  ...MU_USER_BOXES.map(([k, cell]) => ({ field: `mu_${k}`, sheet: MU_SHEET, cell, labelCell: cell })),
+  // 수용인원 — 단위칸(`명`이 값 뒤에 붙는다)
+  { field: 'mu_capacity', sheet: MU_SHEET, cell: 'AS8', labelCell: 'AS8' },
+]
+
 const HAZARD_SEEDS: Seed[] = HAZARD_PLACE_ROWS.flatMap((row, p) => [
   // 위치 — 값칸. 라벨은 그 행의 장소 이름(A열)이 닻이다.
   { field: `hazard_${p}_location`, sheet: HAZARD_SHEET, cell: `N${row}`, labelCell: `A${row}` },
@@ -543,7 +600,7 @@ function assemble(seeds: Seed[]): Anchor[] {
   })
 }
 
-export const FIRE_PLAN_ANCHORS: Anchor[] = assemble([...FIXED_SEEDS, ...ZONE_SEEDS, ...BRIG_SEEDS, ...FORM14_SEEDS, ...FIREHIST_SEEDS, ...HAZARD_SEEDS])
+export const FIRE_PLAN_ANCHORS: Anchor[] = assemble([...FIXED_SEEDS, ...ZONE_SEEDS, ...BRIG_SEEDS, ...FORM14_SEEDS, ...FIREHIST_SEEDS, ...HAZARD_SEEDS, ...MU_SEEDS])
 
 /* ══════════════════════ §사진상자 (2026-09-14) ══════════════════════
  *
@@ -649,6 +706,22 @@ export function isPrefixLabelAnchor(a: { sheet: string; cell: string }): boolean
 export function isYearMonthLabelAnchor(a: { sheet: string; cell: string }): boolean {
   const lbl = sheetManifest(a.sheet).labels[a.cell]
   return !!lbl && /^\s*년\s*월\s*$/.test(lbl)
+}
+
+/**
+ * **자리표시칸인가**(2026-09-17, 1.10.3 영업시간) — 템플릿이 **보기 값**을 이고 있는 칸.
+ *
+ * 백지 불변식의 다섯째 예외다. 앞의 넷과 성격이 다르다: 저쪽 자구는 값과 **함께** 인쇄되지만
+ * 여기 자리표시는 값에 **통째로 갈린다**. 그래도 값이 없을 땐 남아야 한다 — 지우면 그 칸이
+ * 무엇을 적는 자리인지 알 수 없게 된다.
+ *
+ * 🚨 손목록을 두지 않는다(상자칸과 같은 규약) — 목록으로 봐주기 시작하면 진짜 오염이 그
+ *   목록에 숨는다. 대신 **'0으로만 이뤄진 시각 꼴인가'**를 묻는다: `00시~00시`는 통과하고
+ *   `09:00~18:00` 같은 **실제 답은 통과하지 못한다**. 표본 시간이 이 예외 뒤에 숨을 수 없다.
+ */
+export function isPlaceholderLabelAnchor(a: { sheet: string; cell: string }): boolean {
+  const lbl = sheetManifest(a.sheet).labels[a.cell]
+  return !!lbl && /^\s*0+시\s*~\s*0+시\s*$/.test(lbl)
 }
 
 /** 값 맵이 반드시 채워야 하는 필드 전수(중복 제거) — S7-2 완결성 검사와 S5가 같은 목록을 본다 */

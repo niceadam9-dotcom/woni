@@ -23,6 +23,7 @@ import { formatTel } from '@/lib/format-contact'
 import {
   BRIG_ROWS, FIRE_PLAN_ANCHORS, FORM14_NAME_CELL, FORM14_NAME_FIELD, FORM14_ROWS, FORM14_SHEET,
   FP_SHEET, ZONE_ROWS, ZONE_SHEET, FIREHIST_ROWS, HAZARD_SHEET, HAZARD_PLACE_ROWS, HAZARD_BOXES,
+  MU_SHEET, MU_VALUE_CELLS, MU_HOURS_CELLS, MU_USER_BOXES,
 } from '@/lib/fire-plan-anchors'
 import { boxGlyphAt, labelAt, tokenTemplateAt } from '@/lib/fire-plan-xlsx-manifest'
 import { purposeCover, purposeShort } from '@/lib/purpose-label'
@@ -131,6 +132,19 @@ export function prefixCell(sheet: string, cell: string, value: string | null | u
   const label = labelAt(sheet, cell)
   const v = txt(value)
   return v ? `${label}${label.endsWith(' ') ? '' : ' '}${v}` : label
+}
+
+/**
+ * **자리표시칸** — 템플릿이 **보기(예시) 값**을 이고 있는 칸(`00시~00시`, 1.10.3 영업시간).
+ *
+ * 단위칸·접두라벨칸의 넷째 형제인데 성격이 반대다: 저쪽은 자구가 값과 **함께** 인쇄되지만,
+ * 여기는 자리표시가 값에 **통째로 갈린다**. 값이 있으면 덮고, 없으면 자리표시를 그대로 둔다 —
+ * 지우면 그 칸이 무엇을 적는 자리인지 알 수 없게 된다(빈 서식이 뜻을 잃는다).
+ *
+ * ⚠ `unitCell`로 대신할 수 없다. 저건 `'09:00~18:00' + '00시~00시'`를 만든다.
+ */
+export function placeholderCell(sheet: string, cell: string, value: string | null | undefined): string {
+  return txt(value) || labelAt(sheet, cell)
 }
 
 /**
@@ -378,6 +392,49 @@ export function buildFirePlanValues(d: FirePlanGenData): Map<string, CellValue> 
    *  ⚠ PDF는 빈 행을 3줄까지 `pad`로 채워 표 모양을 만들지만 **엑셀은 그러지 않는다** —
    *    양식이 이미 15행을 그려 두었고, 빈 칸은 빈 칸으로 남는 것이 맞다(없는 사실을 지어내지 않는다).
    */
+  /* ── 서식 1.10.3 다중이용업소 관리현황 (2026-09-17) ──────────────────────────
+   *
+   *  🚨 **해당 없으면 전부 비운다.** 다중이용업소가 아닌 대상물에 사업장명·영업시간을 인쇄하면
+   *    없는 사실을 지어내는 것이다. 판정은 **PDF와 같은 술어**(`isMultiUseApplicable` — 사본 금지).
+   *  ⚠ 업종은 `categories`(업종→개소 맵)라 여러 개일 수 있다. 양식 칸은 하나뿐이므로
+   *    `업종(개소)` 꼴로 이어 붙인다 — PDF의 `muCats`와 **같은 조립**이다.
+   *  ⚠ 영업시간은 `hoursDetail`(평일/휴일 × 주간/야간)이 정본이고 `hours`는 레거시 자유 텍스트다.
+   *    상자는 **시간이 실제로 있을 때만** 켠다(빈 상자 옆 빈 시간이 정답이다).
+   */
+  const mu3 = d.forms?.multiUse
+  const muOn = isMultiUseApplicable(mu3)
+  const hd = mu3?.hoursDetail
+  for (const [k, cell] of MU_VALUE_CELLS) {
+    const src: Record<string, string | undefined> = {
+      bizname: mu3?.bizName,
+      // PDF `muCats`와 같은 조립 — 개소가 있으면 `업종(개소)`
+      category: Object.entries(mu3?.categories ?? {}).map(([n, c]) => (c ? `${n}(${c})` : n)).join(', '),
+      location: mu3?.location,
+      owner: mu3?.owner,
+      phone: mu3?.phone,
+    }
+    v.set(`mu_${k}`, muOn ? txt(src[k]) : '')
+    void cell
+  }
+  const muTime: Record<string, string | undefined> = {
+    wkday_at: hd?.wkDay, wknight_at: hd?.wkNight, holday_at: hd?.holDay, holnight_at: hd?.holNight,
+  }
+  const muBoxOn: Record<string, boolean> = {
+    wk: !!(txt(hd?.wkDay) || txt(hd?.wkNight)),
+    hol: !!(txt(hd?.holDay) || txt(hd?.holNight)),
+    wkday_box: !!txt(hd?.wkDay), wknight_box: !!txt(hd?.wkNight),
+    holday_box: !!txt(hd?.holDay), holnight_box: !!txt(hd?.holNight),
+  }
+  for (const [k, cell, kind] of MU_HOURS_CELLS) {
+    v.set(`mu_${k}`, kind === 'box'
+      ? boxLabelCell(MU_SHEET, cell, muOn && !!muBoxOn[k])
+      : placeholderCell(MU_SHEET, cell, muOn ? muTime[k] : ''))
+  }
+  for (const [k, cell, label] of MU_USER_BOXES) {
+    v.set(`mu_${k}`, boxLabelCell(MU_SHEET, cell, muOn && !!mu3?.userTypes?.includes(label)))
+  }
+  v.set('mu_capacity', unitCell(MU_SHEET, 'AS8', muOn ? mu3?.capacity : ''))
+
   /* ── 서식 1.2.2 화재취약장소 현황 (2026-09-17) ──────────────────────────────
    *
    *  🚨 **장소 이름은 쓰지 않는다.** 양식이 보일러실·주방·전기실을 **인쇄해 두었고**(법정 자구),
