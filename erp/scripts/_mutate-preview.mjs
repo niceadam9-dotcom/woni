@@ -164,6 +164,10 @@ const MUTANTS = [
   /* 🚨 M40 — 3.2 예시 행을 첫 데이터 행으로 쓰면 층별·개수 예시가 남아 거짓 쌍이 된다. */
   ['M40 3.2 예시 행부터 채운다 → [30] 「예시 행이 온전하다」가 빨강이어야',
     ANCHORS, `export const EVDET32_FIRST_ROW = 4`, `export const EVDET32_FIRST_ROW = 3`, 1],
+  /* 🎯 M41 — 개정이력이 PDF와 다른 원천을 쓰면 두 산출물이 갈라진다. */
+  ['M41 개정이력 행을 하나 민다 → [31] 착지 단언이 빨강이어야',
+    VALUES, "    for (const [, key] of REV_COLS) v.set(`rev_${i}_${key}`, txt(revs[i]?.[key]))",
+    "    for (const [, key] of REV_COLS) v.set(`rev_${i}_${key}`, txt(revs[i + 1]?.[key]))", 1],
 ]
 
 /** 🚨 파일의 줄끝에 맞춰 needle을 바꾼다.

@@ -41,7 +41,7 @@ const wiredBoxes = all.reduce((n, r) => n + r.wiredBoxes, 0)
 //   옳다는 방증이다 — 손으로 맞춘 게 아니라 분류가 제자리를 찾았다.
 check('값 슬롯 1,812칸', slots === 1812, `${slots}칸`)
 check('상자 658칸', boxes === 658, `${boxes}칸`)
-check('배선된 값 슬롯 ≥ 789', wired >= 789, `${wired}칸 (${(wired / slots * 100).toFixed(1)}%)`)
+check('배선된 값 슬롯 ≥ 844', wired >= 844, `${wired}칸 (${(wired / slots * 100).toFixed(1)}%)`)
 check('배선된 상자 ≥ 235', wiredBoxes >= 235, `${wiredBoxes}칸 (${(wiredBoxes / boxes * 100).toFixed(1)}%)`)
 // 🚨 **회계가 딱 맞아야 한다.** 앵커는 셋 중 하나에 앉는다 — 상자칸 · 라벨칸(단위·접두라벨 갈래) ·
 //   순수 빈칸. 합이 안 맞으면 분류 규칙 어딘가가 틀린 것이다(1칸이라도 반올림으로 넘기지 않는다).
@@ -165,7 +165,7 @@ const RED_EXPECTED = [
   '2.11 응급구조팀', 
   '2.3 임무', '2.4 개별임무카드', '2.5 지휘통제팀', '2.6 비상연락팀(지휘반)',
   '2.8 비상상황별 연락방법', '2.9 초기소화팀(진압반)', 
-  '3.6 피난약자 유형별 방법', '개정이력',
+  '3.6 피난약자 유형별 방법', 
 ].sort()
 const gone = RED_EXPECTED.filter(s => !red.includes(s))
 const grew = red.filter(s => !RED_EXPECTED.includes(s))
@@ -198,6 +198,8 @@ const fixture = {
   //   처음엔 `forms.evacPlan`에 심어 마커가 안 나왔는데, 그게 「템플릿이 안 찍는다」인지
   //   「내 픽스처가 틀렸다」인지 갈라야 했다 — 답은 후자였다.
   evacRoutes: [{ floor: '2층', route: MARK('EVAC'), guide: '', equip: '' }],
+  // 개정이력은 forms가 아니라 **최상위** d.revisions다(조립기가 fire_plan_revisions에서 직접)
+  revisions: [{ date: '2026-01-05', note: MARK('REV'), author: '홍작성', reviewer: '김검토', approver: '이승인' }],
   forms: {
     // 🚨 `multiUse`는 **행 배열이 아니라 단일 객체**다(`users`·`capacity`·`categories`).
     multiUse: { applicable: true, users: MARK('MU'), capacity: '50' },
@@ -221,6 +223,7 @@ const MARKERS: Array<[string, string]> = [
   ['EQUIP', '3.7 피난기구·유도장비 현황'],
   ['ETC', '1.6.1 기타시설 일반현황'],
   ['EVDET', '3.2 피난시설 세부현황'],
+  ['REV', '개정이력'],
 ]
 const printed = MARKERS.filter(([m]) => html.includes(MARK(m)))
 // 🚨 **전건**을 요구한다. `> 0`으로 두었더니 5개 중 2개가 조용히 안 나왔고, 그게

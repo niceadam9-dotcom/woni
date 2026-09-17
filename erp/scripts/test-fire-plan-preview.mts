@@ -1571,5 +1571,43 @@ console.log('\n[30] 3.2 피난시설 세부 — 예시 행은 행째, 상자는 
   }
 }
 
+/* ══════════════════════ [31] 개정이력 — 사각 ①류 넷째 · D-1의 답은 실측이었다 ══════════════════════
+ *  ⭐ 검토·승인 칸도 배선한다 — 2.14 확인 칸(서명 자리·데이터 없음)과 달리 DB에 값이 있고
+ *    PDF도 인쇄한다. 표기는 PDF와 **같은 값**(d.revisions — 조립기가 한 번 만든다). */
+console.log('\n[31] 개정이력 — 11행 5열')
+{
+  const { validateAnchors } = await import('../src/lib/xlsx-anchors.ts')
+  const { toInjectTargets } = await import('../src/lib/xlsx-workbook.ts')
+  const { FIRE_PLAN_ANCHORS, REV_SHEET, REV_ROWS, REV_FIRST_ROW } =
+    await import('../src/lib/fire-plan-anchors.ts')
+  const { buildFirePlanValues, revisionRowOverflow } = await import('../src/lib/fire-plan-xlsx-values.ts')
+  const { labelAt } = await import('../src/lib/fire-plan-xlsx-manifest.ts')
+
+  const revisions = Array.from({ length: REV_ROWS + 1 }, (_, i) => ({
+    date: `2026-0${(i % 9) + 1}-10`, note: `개정 ${i}`, author: `작성${i}`,
+    reviewer: i === 0 ? '김검토' : '', approver: i === 0 ? '이승인' : '',
+  }))
+  const fx = { buildingName: 'X', facilities: [], brigade: [], zones: [], hazards: [],
+    forms: {}, revisions } as never
+
+  const vc = validateAnchors(bytes, FIRE_PLAN_ANCHORS)
+  if (vc.ok) {
+    const { targets } = toInjectTargets(buildFirePlanValues(fx), vc.anchors)
+    const out = await injectWorkbook(bytes, targets)
+    const gr = await readSheetGrid(await JSZip.loadAsync(out.bytes), REV_SHEET)
+    const at = (r: string) => gr.cells.find(x => x.ref === r)?.text ?? ''
+    const R0 = REV_FIRST_ROW
+
+    check('행 수가 연번에서 파생된다(11행)', REV_ROWS === 11, `${REV_ROWS}행`)
+    check('1행 5열 착지(검토·승인 포함)', at(`F${R0}`) === '2026-01-10' && at(`N${R0}`) === '개정 0'
+      && at(`AL${R0}`) === '작성0' && at(`AT${R0}`) === '김검토' && at(`BA${R0}`) === '이승인',
+      `${at(`F${R0}`)}/${at(`AT${R0}`)}/${at(`BA${R0}`)}`)
+    check('검토·승인 미입력이면 빈 칸', at(`AT${R0 + 1}`).trim() === '' && at(`BA${R0 + 1}`).trim() === '')
+    check('마지막 행(12)도 착지', at(`N${R0 + 10}`) === '개정 10', at(`N${R0 + 10}`))
+    check('순번은 양식 그대로', at(`A${R0}`) === labelAt(REV_SHEET, `A${R0}`) && at(`A${R0 + 10}`) === '11')
+    check('넘친 이력을 센다', revisionRowOverflow(fx) === 1, `${revisionRowOverflow(fx)}건`)
+  }
+}
+
 console.log(`\n=== pass ${pass} / fail ${fail} ===`)
 process.exit(fail ? 1 : 0)
