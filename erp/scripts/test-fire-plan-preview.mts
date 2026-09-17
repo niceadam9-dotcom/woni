@@ -1031,5 +1031,77 @@ console.log('\n[18] 3.5 피난약자 — 구역 쪼개기는 전부 아니면 �
   }
 }
 
+/* ══════════════════════ [20] 3.4 피난유도 — 법정 예시문칸이 실제로 덮이는가 ══════════════════════
+ *  🎯 아홉째 갈래(`isSampleTextAnchor`)는 **내용 고정**으로 백지 불변식을 면제받는다.
+ *    그 면제가 정당하려면 **값이 있을 때 실제로 덮여야** 한다 — 안 그러면 「선언만 해 두고
+ *    영영 공란」이 조용히 통과한다. 그 짝을 여기서 묻는다(값 있음 → 덮임 / 값 없음 → 예시 유지).
+ *  ⭐ 집결지는 **한 장 안에서 두 칸**이다(AT10·T13) — 둘을 맞댄다. */
+console.log('\n[20] 3.4 피난유도 — 예시문은 덮이고, 비면 남는가')
+{
+  const { validateAnchors } = await import('../src/lib/xlsx-anchors.ts')
+  const { toInjectTargets } = await import('../src/lib/xlsx-workbook.ts')
+  const { FIRE_PLAN_ANCHORS, EVAC34_SHEET, EVAC34_ROUTE_ROW, FIRE_PLAN_SAMPLE_CELLS } =
+    await import('../src/lib/fire-plan-anchors.ts')
+  const { buildFirePlanValues, evacRouteOverflow } = await import('../src/lib/fire-plan-xlsx-values.ts')
+  const { labelAt } = await import('../src/lib/fire-plan-xlsx-manifest.ts')
+
+  const base = { buildingName: 'X', facilities: [], brigade: [], zones: [], hazards: [], forms: {} }
+  const filled = {
+    ...base,
+    evacFalseAlarm: '오동작 시 방송으로 알리고 대기',
+    assembly: '후문 공터',
+    evacRoutes: [
+      { floor: '2층', route: '계단 A를 통해 지상으로', guide: '박유도', equip: '완강기' },
+      { floor: '3층', route: '계단 B', guide: '최유도', equip: '' },
+    ],
+  } as never
+  const R = EVAC34_ROUTE_ROW
+
+  const vc = validateAnchors(bytes, FIRE_PLAN_ANCHORS)
+  if (vc.ok) {
+    const run = async (fx: never) => {
+      const { targets } = toInjectTargets(buildFirePlanValues(fx), vc.anchors)
+      const out = await injectWorkbook(bytes, targets)
+      const g = await readSheetGrid(await JSZip.loadAsync(out.bytes), EVAC34_SHEET)
+      return (r: string) => g.cells.find(x => x.ref === r)?.text ?? ''
+    }
+    const at = await run(filled)
+    const atEmpty = await run(base as never)
+
+    check('예시문칸 4개를 선언했다', FIRE_PLAN_SAMPLE_CELLS.length === 4, `${FIRE_PLAN_SAMPLE_CELLS.length}칸`)
+
+    /* 🎯 ① 값이 있으면 **덮인다** — 면제가 「영영 공란」의 은신처가 아님을 증명 */
+    check('비화재보가 덮인다', at('G4') === '오동작 시 방송으로 알리고 대기', at('G4'))
+    check('피난경로 문장이 덮인다', at('A11') === '계단 A를 통해 지상으로', at('A11'))
+    check('집결지 두 칸이 덮인다', at('AT10') === '후문 공터' && at('T13') === '후문 공터',
+      `AT10=${at('AT10')} T13=${at('T13')}`)
+    /* ⭐ 한 장 안에서 두 칸이 같은 값 */
+    check('집결지 두 칸이 서로 같다(한 장 안 갈라짐 방지)', at('AT10') === at('T13'))
+
+    /* 🎯 ② 값이 없으면 **예시가 남는다** — 빈 서식이 뜻을 잃지 않는다 */
+    /* ⚠ `want.trim()`이 아니라 `want` 그대로 비교한다 — `placeholderCell`은 값이 없으면
+     *   manifest 원문을 **꼬리 공백까지** 되쓴다(T13이 `'1층 주차장 '`). 깎아서 비교하면
+     *   원문이 바뀌어도 초록이 되므로 핀이 구실을 잃는다. */
+    check('값이 없으면 예시가 그대로 남는다(꼬리 공백까지)',
+      FIRE_PLAN_SAMPLE_CELLS.every(([, c, want]) => atEmpty(c) === want),
+      FIRE_PLAN_SAMPLE_CELLS.map(([, c]) => `${c}=${JSON.stringify(atEmpty(c))}`).join(' '))
+
+    /* 경로 3열 */
+    check('경로 3열이 착지', at(`E${R}`) === '2층' && at(`W${R}`) === '박유도' && at(`AI${R}`) === '완강기',
+      `${at(`E${R}`)}/${at(`W${R}`)}/${at(`AI${R}`)}`)
+    check('둘째 경로는 넘쳐서 세어진다(양식이 한 줄만 그렸다)', evacRouteOverflow(filled) === 1,
+      `${evacRouteOverflow(filled)}건`)
+
+    /* 🚨 음성 — 축이 없는 칸은 비어 있다 */
+    check('「화재 시」 네 칸은 비어 있다(evacNote는 자유 문장 한 칸이다)',
+      ['G7', 'L7', 'Q7', 'AC7'].every(c => at(c).trim() === ''),
+      ['G7', 'L7', 'Q7', 'AC7'].map(c => `${c}=${JSON.stringify(at(c))}`).join(' '))
+    check('동별·확인사항은 비어 있다', at(`A${R}`).trim() === '' && at('T14').trim() === '',
+      `A${R}=${JSON.stringify(at(`A${R}`))} T14=${JSON.stringify(at('T14'))}`)
+    check('「피난경로 개수」는 양식 그대로(route는 문장이지 개수가 아니다)',
+      at(`J${R}`) === labelAt(EVAC34_SHEET, `J${R}`).trim(), at(`J${R}`))
+  }
+}
+
 console.log(`\n=== pass ${pass} / fail ${fail} ===`)
 process.exit(fail ? 1 : 0)

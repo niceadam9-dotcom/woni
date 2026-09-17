@@ -105,6 +105,19 @@ const MUTANTS = [
   ['M25 1.9 성명 칸을 배선한다 → [19] 음성 단언이 빨강이어야',
     ANCHORS, `  ['N', 'type', 'N21'],    // 피난약자 유형`,
     `  ['A', 'type2', 'A21'],\n  ['N', 'type', 'N21'],    // 피난약자 유형`, 1],
+  /* 🎯 M26 — **아홉째 갈래가 은신처가 되지 않는가.** 선언만 해 두고 값을 안 넣으면
+   *   백지 불변식은 초록인데 칸은 영영 예시문이다. [20] ①이 물어야 한다. */
+  ['M26 예시문칸을 선언만 하고 값을 안 넣는다 → [20] 「덮인다」가 빨강이어야',
+    VALUES, `  v.set('evac34_false_alarm', placeholderCell(EVAC34_SHEET, 'G4', d.evacFalseAlarm))`,
+    `  v.set('evac34_false_alarm', placeholderCell(EVAC34_SHEET, 'G4', ''))`, 1],
+  /* 🚨 M27 — 반대 방향. 값이 없을 때 예시를 지워 버리면 빈 서식이 뜻을 잃는다. */
+  ['M27 값이 없을 때 예시를 지운다 → [20] 「예시가 남는다」가 빨강이어야',
+    VALUES, `  v.set('evac34_assembly', placeholderCell(EVAC34_SHEET, 'T13', assembly34))`,
+    `  v.set('evac34_assembly', assembly34)`, 1],
+  /* 🚨 M28 — 집결지를 한 칸만 고친다(한 장 안에서 갈라진다). */
+  ['M28 집결지를 경로표에만 넣는다 → [20] 「두 칸이 서로 같다」가 빨강이어야',
+    VALUES, `  v.set('evac34_assembly_row', placeholderCell(EVAC34_SHEET, 'AT10', assembly34))`,
+    `  v.set('evac34_assembly_row', placeholderCell(EVAC34_SHEET, 'AT10', ''))`, 1],
 ]
 
 /** 🚨 파일의 줄끝에 맞춰 needle을 바꾼다.

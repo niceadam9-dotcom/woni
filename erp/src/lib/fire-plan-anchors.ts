@@ -51,6 +51,7 @@ export const FP_SHEET = {
   F2_14_BACK: '2.14 결과기록부 뒷쪽',
   // 제3장(2026-09-09 B-15) — 3.1은 용도 칸만 배선한다(나머지는 별건)
   F3_1: '3.1 피난시설 일반현황',
+  F3_4: '3.4 피난유도 절차·경로',
   F3_5: '3.5 피난약자 현황·계획',
 } as const
 
@@ -1058,6 +1059,42 @@ const VUL9_SEEDS: Seed[] = [
     }))).flat(),
 ]
 
+/* ─────────── 서식 3.4 피난유도 절차·경로 (2026-09-17) ───────────
+ *  🚨 **①류다** — PDF는 비화재보·피난경로·집결지를 이미 인쇄하는데 엑셀만 공란이었다.
+ *    막고 있던 건 좌표가 아니라 **법정 예시문**이다(`isSampleTextAnchor` 참조).
+ *
+ *  ⭐ 집결지는 **두 칸에 같은 값**이 들어간다(경로표 `AT10`·집결지 블록 `T13`). 한 곳에서만
+ *    고치면 한 장 안에서 갈라지므로 검사가 둘을 맞댄다.
+ *
+ *  ⚠ 안 채우는 칸과 이유:
+ *   · `화재 시` 아래 표(G7 동·L7 층·Q7 피난유도자·AC7 피난방법) — ERP의 `evacNote`는
+ *     **자유 문장 한 칸**이라 네 칸으로 쪼갤 수 없다. 3.5 구역과 달리 `동`/`층` 표식도 없다.
+ *   · `동별`(A10) — ERP 피난경로에 동 축이 없다(1.2.1·3.3과 같은 사유).
+ *   · `피난경로 개수`(J10) — ERP `route`는 **경로 설명 문장**이지 개수가 아니다.
+ *   · `확인사항`(T14) — ERP에 축이 없다.
+ *  ⚠ 경로 행은 양식이 **한 줄**만 그려 두었다 — 넘치는 경로는 세어서 고지한다.
+ */
+export const EVAC34_SHEET = FP_SHEET.F3_4
+
+/** 경로 한 줄 — [엑셀 열, 필드 접미사, 머리글 셀] */
+export const EVAC34_ROUTE_COLS: ReadonlyArray<readonly [string, string, string]> = [
+  ['E', 'floor', 'E9'],   // 층별
+  ['W', 'guide', 'W9'],   // 피난유도자
+  ['AI', 'equip', 'AI9'], // 피난구조설비
+]
+export const EVAC34_ROUTE_ROW = 10
+
+const EVAC34_SEEDS: Seed[] = [
+  // 법정 예시문칸 — 값이 있으면 덮고, 없으면 예시가 남는다(빈 서식이 뜻을 잃지 않게)
+  { field: 'evac34_false_alarm', sheet: EVAC34_SHEET, cell: 'G4', labelCell: 'A4' },
+  { field: 'evac34_route_text', sheet: EVAC34_SHEET, cell: 'A11', labelCell: 'A11' },
+  { field: 'evac34_assembly_row', sheet: EVAC34_SHEET, cell: 'AT10', labelCell: 'AT9' },
+  { field: 'evac34_assembly', sheet: EVAC34_SHEET, cell: 'T13', labelCell: 'J13' },
+  ...EVAC34_ROUTE_COLS.map(([col, key, labelCell]) => ({
+    field: `evac34_${key}`, sheet: EVAC34_SHEET, cell: `${col}${EVAC34_ROUTE_ROW}`, labelCell,
+  })),
+]
+
 const BRIG1_SEEDS: Seed[] = [
   { field: 'brig1_name', sheet: BRIG1_SHEET, cell: 'M5', labelCell: 'A5' },
   { field: 'brig1_address', sheet: BRIG1_SHEET, cell: 'M6', labelCell: 'A6' },
@@ -1141,7 +1178,7 @@ function assemble(seeds: Seed[]): Anchor[] {
   })
 }
 
-export const FIRE_PLAN_ANCHORS: Anchor[] = assemble([...FIXED_SEEDS, ...ZONE_SEEDS, ...BRIG_SEEDS, ...FORM14_SEEDS, ...FIREHIST_SEEDS, ...HAZARD_SEEDS, ...MU_SEEDS, ...TRAIN_SEEDS, ...EVAC1_SEEDS, ...BRIG1_SEEDS, ...FIREWORK_SEEDS, ...CONSTRUCTION_SEEDS, ...EVAC3_SEEDS, ...BRIG9_SEEDS, ...REC14_SEEDS, ...ATT14_SEEDS, ...VUL_SEEDS, ...VUL9_SEEDS])
+export const FIRE_PLAN_ANCHORS: Anchor[] = assemble([...FIXED_SEEDS, ...ZONE_SEEDS, ...BRIG_SEEDS, ...FORM14_SEEDS, ...FIREHIST_SEEDS, ...HAZARD_SEEDS, ...MU_SEEDS, ...TRAIN_SEEDS, ...EVAC1_SEEDS, ...BRIG1_SEEDS, ...FIREWORK_SEEDS, ...CONSTRUCTION_SEEDS, ...EVAC3_SEEDS, ...BRIG9_SEEDS, ...REC14_SEEDS, ...ATT14_SEEDS, ...VUL_SEEDS, ...VUL9_SEEDS, ...EVAC34_SEEDS])
 
 /* ══════════════════════ §사진상자 (2026-09-14) ══════════════════════
  *
@@ -1218,6 +1255,31 @@ export function isBoxLabelAnchor(a: { sheet: string; cell: string }): boolean {
 export function isBracketBoxAnchor(a: { sheet: string; cell: string }): boolean {
   const lbl = sheetManifest(a.sheet).labels[a.cell]
   return !!lbl && /\[\s+\]/.test(lbl) && !/\[[^\]\s]/.test(lbl)
+}
+
+/**
+ * **법정 예시문칸인가**(2026-09-17, 3.4) — 템플릿이 **자유 문장인 보기 값**을 이고 있는 칸.
+ *
+ * 자리표시칸(`00시~00시`)의 형제인데 자구가 시각 꼴이 아니라 문장이라 **모양으로 가를 수 없다**.
+ * 이 벽 때문에 ①류(PDF는 인쇄하는데 엑셀만 공란)가 세 시트에서 닫히지 않고 있었다.
+ *
+ * 🚨 **좌표만 적으면 봐주기 목록이지만, 자구까지 적으면 봐주기가 아니다.**
+ *   아래 표는 [시트, 셀, 템플릿이 이고 있는 **정확한 자구**]를 들고, 검사가
+ *   ①자구가 글자까지 맞는지 ②값이 있을 때 **실제로 덮이는지**를 함께 묻는다.
+ *   지워졌어야 할 표본의 답이 이 뒤에 숨으려면 그 답을 여기 **또박또박 적어야** 하고,
+ *   그건 검토에서 눈에 띄는 행위다 — 모양 술어가 못 하는 일을 **내용 고정**이 한다.
+ */
+export const FIRE_PLAN_SAMPLE_CELLS: ReadonlyArray<readonly [string, string, string]> = [
+  [FP_SHEET.F3_4, 'G4', '피난 실시 및 1층 주차장 대기 후 오동작 각 세대 전파'],
+  [FP_SHEET.F3_4, 'A11', '각 세대 출입구 앞 직통계단 이용'],
+  [FP_SHEET.F3_4, 'AT10', '1층 주차장'],
+  [FP_SHEET.F3_4, 'T13', '1층 주차장 '],
+]
+
+const SAMPLE_KEYS = new Set(FIRE_PLAN_SAMPLE_CELLS.map(([s, c]) => `${s}!${c}`))
+
+export function isSampleTextAnchor(a: { sheet: string; cell: string }): boolean {
+  return SAMPLE_KEYS.has(`${a.sheet}!${a.cell}`)
 }
 
 /**

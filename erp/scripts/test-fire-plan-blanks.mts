@@ -41,7 +41,7 @@ const wiredBoxes = all.reduce((n, r) => n + r.wiredBoxes, 0)
 //   옳다는 방증이다 — 손으로 맞춘 게 아니라 분류가 제자리를 찾았다.
 check('값 슬롯 1,812칸', slots === 1812, `${slots}칸`)
 check('상자 658칸', boxes === 658, `${boxes}칸`)
-check('배선된 값 슬롯 ≥ 631', wired >= 631, `${wired}칸 (${(wired / slots * 100).toFixed(1)}%)`)
+check('배선된 값 슬롯 ≥ 634', wired >= 634, `${wired}칸 (${(wired / slots * 100).toFixed(1)}%)`)
 check('배선된 상자 ≥ 233', wiredBoxes >= 233, `${wiredBoxes}칸 (${(wiredBoxes / boxes * 100).toFixed(1)}%)`)
 // 🚨 **회계가 딱 맞아야 한다.** 앵커는 셋 중 하나에 앉는다 — 상자칸 · 라벨칸(단위·접두라벨 갈래) ·
 //   순수 빈칸. 합이 안 맞으면 분류 규칙 어딘가가 틀린 것이다(1칸이라도 반올림으로 넘기지 않는다).
@@ -165,7 +165,6 @@ const RED_EXPECTED = [
   '2.11 응급구조팀', '2.12 방호안전팀', '2.13 초기대응체계',
   '2.3 임무', '2.3 조직도', '2.4 개별임무카드', '2.5 지휘통제팀', '2.6 비상연락팀(지휘반)',
   '2.8 비상상황별 연락방법', '2.9 초기소화팀(진압반)', '3.2 피난시설 세부현황',
-  '3.4 피난유도 절차·경로',
   '3.6 피난약자 유형별 방법', '3.7 피난기구·유도장비 현황', '개정이력',
 ].sort()
 const gone = RED_EXPECTED.filter(s => !red.includes(s))
@@ -233,7 +232,7 @@ for (const [m, sheet] of gap) console.log(`      ${sheet}  (마커 ${m})`)
 // 래칫 — 배선하면 이 수가 줄고, 줄면 여기가 붉어져 목록을 갱신하게 된다.
 // ⭐ 실제로 한 번 내렸다: 2026-09-16 **1.10.4 화재이력을 배선**하자 5 → 4가 됐다.
 //   이 단언이 그 순간을 잡아 「기준선을 내려라」로 알려 준 것이 래칫이 일한 모습이다.
-const GAP_EXPECTED = 2
+const GAP_EXPECTED = 1
 check(`「PDF는 인쇄·엑셀은 공란」 ${GAP_EXPECTED}장`, gap.length === GAP_EXPECTED,
   `${gap.length}/${printed.length} — 줄었으면 그 장이 배선된 것이다(이 수를 내려라)`)
 

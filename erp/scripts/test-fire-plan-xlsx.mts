@@ -14,7 +14,7 @@ import * as XLSX from 'xlsx'
 import { validateAnchors } from '../src/lib/xlsx-anchors.ts'
 import { toInjectTargets } from '../src/lib/xlsx-workbook.ts'
 import { injectWorkbook } from '../src/lib/xlsx-inject.ts'
-import { FIRE_PLAN_ANCHORS, FIRE_PLAN_FIELDS, isPlaceholderLabelAnchor, isWrappedUnitAnchor, isBracketBoxAnchor, FP_SHEET, ZONE_ROWS, ZONE_SHEET, ZONE_FIRST_ROW, BRIG_ROWS, BRIG_FIRST_ROW, isBoxLabelAnchor, isUnitLabelAnchor, isPrefixLabelAnchor, isYearMonthLabelAnchor, FORM14_ROWS, FORM14_SHEET, FORM14_NAME_CELL, FORM14_NAME_FIELD } from '../src/lib/fire-plan-anchors.ts'
+import { FIRE_PLAN_ANCHORS, FIRE_PLAN_FIELDS, isPlaceholderLabelAnchor, isWrappedUnitAnchor, isBracketBoxAnchor, isSampleTextAnchor, FIRE_PLAN_SAMPLE_CELLS, FP_SHEET, ZONE_ROWS, ZONE_SHEET, ZONE_FIRST_ROW, BRIG_ROWS, BRIG_FIRST_ROW, isBoxLabelAnchor, isUnitLabelAnchor, isPrefixLabelAnchor, isYearMonthLabelAnchor, FORM14_ROWS, FORM14_SHEET, FORM14_NAME_CELL, FORM14_NAME_FIELD } from '../src/lib/fire-plan-anchors.ts'
 import { ALL_STANDARD_CODES } from '../src/lib/facility-codes.ts'
 import { brigadeRowOverflow, buildFirePlanValues, missingValueFields, planDate, zoneRowOverflow } from '../src/lib/fire-plan-xlsx-values.ts'
 import { FIRE_PLAN_MANIFEST, labelAt, boxGlyphAt, sheetManifest } from '../src/lib/fire-plan-xlsx-manifest.ts'
@@ -126,17 +126,34 @@ console.log('\n[3] 백지 불변식 — 템플릿에 표본의 답이 남아 있
     return t && !/^[□☐]$/.test(t) && !boxLabelOk(a) && !isUnitLabelAnchor(a) && !isPrefixLabelAnchor(a)
       && !isYearMonthLabelAnchor(a) && !isPlaceholderLabelAnchor(a) && !isWrappedUnitAnchor(a)
       && !isBracketBoxAnchor(a)
+      && !isSampleTextAnchor(a)
   })
   // 여덟째 갈래는 **각괄호 상자칸**(2026-09-17, 2.14 결과기록부): 별지 제13호 계열은 상자를
   // `□`가 아니라 `[  ]`로 그리고 표시도 `√`다. `isBoxLabelAnchor`가 `□`만 보므로 이 시트는
   // manifest 집계에서 **상자 0**으로 잡혔다. 판별은 **각괄호 안이 공백뿐인가** — `[√]`·`[1]`은
   // 통과하지 못하므로 표본의 답이 이 예외 뒤에 숨지 못한다.
-  check('앵커 셀 공란(빈 상자·상자칸·단위칸·접두라벨칸·연월칸·자리표시칸·감싼단위칸·각괄호상자만 예외)', dirty.length === 0,
+  // 아홉째 갈래는 **법정 예시문칸**(2026-09-17, 3.4): 템플릿이 자유 문장인 보기 값을 이고 있다.
+  // 자리표시칸의 형제인데 자구가 시각 꼴이 아니라 문장이라 **모양으로 가를 수 없다** — 이 벽 때문에
+  // ①류(PDF는 인쇄, 엑셀만 공란)가 세 시트에서 닫히지 않고 있었다.
+  // 🚨 좌표만 적으면 봐주기지만 **자구까지 적으면 봐주기가 아니다**. 아래 두 단언이 짝이다:
+  //    ①선언한 자구가 템플릿과 글자까지 같은가  ②값이 있을 때 **실제로 덮이는가**.
+  //    ②가 없으면 「선언만 해 두고 영영 공란」이 조용히 통과한다.
+  check('앵커 셀 공란(… 자리표시칸·감싼단위칸·각괄호상자·법정예시문만 예외)', dirty.length === 0,
     dirty.slice(0, 5).map(a => `${a.sheet}!${a.cell}='${cellText(a)}'`).join(' · '))
   // 🚨 예외가 늘면 **그 수를 못 박는다** — 봐주기가 조용히 번지지 않게.
   const wrappedCells = FIRE_PLAN_ANCHORS.filter(isWrappedUnitAnchor)
   check('감싼단위칸 예외 수가 그대로(1.11.1 거주자 1칸)', wrappedCells.length === 1,
     wrappedCells.map(a => `${a.sheet}!${a.cell}='${cellText(a)}'`).join(' · '))
+  const sampleCells = FIRE_PLAN_ANCHORS.filter(isSampleTextAnchor)
+  check('법정예시문칸 예외 수가 그대로(3.4 4칸)', sampleCells.length === 4,
+    sampleCells.map(a => `${a.sheet}!${a.cell}`).join(' · '))
+  // ① 선언한 자구가 템플릿과 **글자까지** 같은가 — 다르면 표본의 답이 바뀐 것이다.
+  //   ⚠ `cellText`가 아니라 `labelAt`으로 묻는다 — 저쪽은 공백을 깎아 `'1층 주차장 '`의
+  //     꼬리 공백을 못 본다. 핀은 **바이트 그대로**여야 제 구실을 한다.
+  const sampleBad = FIRE_PLAN_SAMPLE_CELLS.filter(([sh, ce, want]) => labelAt(sh, ce) !== want)
+  check('선언한 예시 자구가 템플릿과 글자까지 같다(꼬리 공백까지)', sampleBad.length === 0,
+    sampleBad.map(([sh, ce, want]) => `${sh}!${ce}: ${JSON.stringify(labelAt(sh, ce))} ≠ ${JSON.stringify(want)}`).join(' / '))
+
   const bracketCells = FIRE_PLAN_ANCHORS.filter(isBracketBoxAnchor)
   check('각괄호상자칸 예외 수가 그대로(2.14 등급 4 + 자격구분 2)', bracketCells.length === 6,
     bracketCells.map(a => `${a.cell}='${cellText(a)}'`).join(' · '))

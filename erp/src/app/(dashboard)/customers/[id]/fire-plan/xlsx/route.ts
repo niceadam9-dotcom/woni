@@ -6,7 +6,7 @@ import { assembleFirePlan } from '@/lib/fire-plan-generate'
 import { firePlanTemplate } from '@/lib/fire-plan-template-cache'
 import { toInjectTargets } from '@/lib/xlsx-workbook'
 import { injectWorkbook } from '@/lib/xlsx-inject'
-import { brigadeRowOverflow, buildFirePlanValues, attendanceOverflow, constructionRowOverflow, constructionUnmapped, evac3RowOverflow, fireworkRowOverflow, hazardUnmatched, missingValueFields, vulnerableAreaUnsplit, vulnerablePlanOverflow, zoneRowOverflow } from '@/lib/fire-plan-xlsx-values'
+import { brigadeRowOverflow, buildFirePlanValues, attendanceOverflow, constructionRowOverflow, constructionUnmapped, evac3RowOverflow, evacRouteOverflow, fireworkRowOverflow, hazardUnmatched, missingValueFields, vulnerableAreaUnsplit, vulnerablePlanOverflow, zoneRowOverflow } from '@/lib/fire-plan-xlsx-values'
 import { FIRE_PLAN_MANIFEST } from '@/lib/fire-plan-xlsx-manifest'
 import { embedFirePlanImages, planFirePlanImages } from '@/lib/fire-plan-xlsx-images'
 import { applyFirePlanCheckboxes } from '@/lib/fire-plan-checkbox-controls'
@@ -136,6 +136,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
           ...(constructionUnmapped(data).facility ? [`공사·정비 「대상 설비」 ${constructionUnmapped(data).facility}건 미표기(양식에 해당 열 없음)`] : []),
           ...(constructionUnmapped(data).company ? [`공사·정비 「시공업체」 ${constructionUnmapped(data).company}건 미표기(양식 「작업책임자」는 사람 칸이다)`] : []),
           ...(attendanceOverflow(data) ? [`교육·훈련 참석확인 명단 ${attendanceOverflow(data)}명 미표기(양식 정원 50명)`] : []),
+          ...(evacRouteOverflow(data) ? [`피난경로 ${evacRouteOverflow(data)}건 미표기(양식이 한 줄만 그려 두었다)`] : []),
           ...(vulnerablePlanOverflow(data) ? [`피난약자 피난계획 ${vulnerablePlanOverflow(data)}건 미표기(양식 고정 행 상한)`] : []),
           // 🚨 넘침과 다른 축 — 양식은 「구역」을 **동·층 두 칸**으로 나눠 그리는데 ERP는 한 칸이다.
           //    조각만 넣으면 `3동 4층 로비`의 `로비`가 조용히 사라지므로 통째로 물러나고 **센다**.

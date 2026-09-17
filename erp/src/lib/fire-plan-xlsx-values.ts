@@ -35,6 +35,7 @@ import {
   ATT14_SHEET, ATT14_CAPACITY,
   VUL_SHEET, VUL_WORK_CELLS, VUL_USE_CELLS, VUL_PLAN_ROWS, VUL_PLAN_COLS,
   VUL9_SHEET, VUL9_BOX_CELLS, VUL9_ROWS, VUL9_FIRST_ROW,
+  EVAC34_SHEET, EVAC34_ROUTE_COLS,
 } from '@/lib/fire-plan-anchors'
 import { boxGlyphAt, labelAt, tokenTemplateAt } from '@/lib/fire-plan-xlsx-manifest'
 import { purposeCover, purposeShort } from '@/lib/purpose-label'
@@ -757,6 +758,22 @@ export function buildFirePlanValues(d: FirePlanGenData): Map<string, CellValue> 
     v.set(`vul_plan${i}_floor`, split?.floor ?? '')
   }
 
+  /* ── 서식 3.4 피난유도 절차·경로 (2026-09-17) ────────────────────────────────
+   *
+   *  🚨 ①류다 — PDF가 비화재보·피난경로·집결지를 이미 인쇄하는데 엑셀만 공란이었다.
+   *    막고 있던 건 좌표가 아니라 **법정 예시문**이다(`isSampleTextAnchor` — 아홉째 갈래).
+   *  ⭐ 집결지는 **두 칸에 같은 값**(경로표 AT10 · 집결지 블록 T13) — 한 곳만 고치면 한 장
+   *    안에서 갈라진다. 그래서 값을 한 번 만들어 나눠 넣는다.
+   *  ⚠ `화재 시` 네 칸·`동별`·`피난경로 개수`·`확인사항`은 비운다(앵커 §3.4 참조).
+   */
+  const route0 = (d.evacRoutes ?? [])[0] as Record<string, string> | undefined
+  const assembly34 = txt(d.assembly)
+  v.set('evac34_false_alarm', placeholderCell(EVAC34_SHEET, 'G4', d.evacFalseAlarm))
+  v.set('evac34_route_text', placeholderCell(EVAC34_SHEET, 'A11', route0?.route))
+  v.set('evac34_assembly_row', placeholderCell(EVAC34_SHEET, 'AT10', assembly34))
+  v.set('evac34_assembly', placeholderCell(EVAC34_SHEET, 'T13', assembly34))
+  for (const [, key] of EVAC34_ROUTE_COLS) v.set(`evac34_${key}`, txt(route0?.[key]))
+
   /* ── 1.9 피난약자 블록 — **3.5의 축약본** ──
    *  같은 워크북 안에서 3.5는 인쇄하는데 1.9만 비면 그게 D-7 갈라짐이다. 상자 판정도 표 값도
    *  위와 **같은 것을 나눠 쓴다**(`vulCount` · `vulPlans` · `splitAreaDongFloor`). */
@@ -842,6 +859,11 @@ export function vulnerableAreaUnsplit(d: FirePlanGenData): number {
   return (d.forms?.vulnerable?.plans ?? [])
     .slice(0, VUL_PLAN_ROWS)
     .filter((p: { area?: string }) => splitAreaDongFloor(p?.area) === null).length
+}
+
+/** 3.4가 못 담은 피난경로 수 — 양식이 **한 줄**만 그려 두었다 */
+export function evacRouteOverflow(d: FirePlanGenData): number {
+  return Math.max(0, (d.evacRoutes ?? []).length - 1)
 }
 
 /** 3.5 피난계획 표가 못 담은 행 수 */
