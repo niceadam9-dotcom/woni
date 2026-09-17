@@ -80,6 +80,16 @@ const MUTANTS = [
   ['M18 2.14만 선임일자 표기를 달리한다 → [16] 항등이 빨강이어야',
     VALUES, `  v.set('rec14_mgr_date', planDate(d.managerSelectedAt))`,
     `  v.set('rec14_mgr_date', txt(d.managerSelectedAt))`, 1],
+  /* 🎯 M19 — 이 시트의 **핵심 계약**. 확인 칸을 배선하면 참석을 단언하게 된다. */
+  ['M19 참석확인 칸을 배선한다 → [17] 핵심 음성이 빨강이어야',
+    ANCHORS, `      { field: \`att14_\${n}_name\`, sheet: ATT14_SHEET, cell: \`\${colName}\${row}\`, labelCell },`,
+    `      { field: \`att14_\${n}_name\`, sheet: ATT14_SHEET, cell: \`\${colName}\${row}\`, labelCell },\n      { field: \`att14_\${n}_role2\`, sheet: ATT14_SHEET, cell: \`\${c ? 'BA' : 'W'}\${row}\`, labelCell },`, 1],
+  /* 🚨 M20 — 두 단이 안 이어지면 명단이 25명에서 조용히 끊긴다. */
+  ['M20 오른쪽 단도 0번부터 센다 → [17] 「단이 이어진다」가 빨강이어야',
+    ANCHORS, `    const n = c * ATT14_ROWS + i`, `    const n = i`, 1],
+  /* 🚨 M21 — 직책에 개별임무를 넣는다(1.13 「남는 열」과 같은 유혹). */
+  ['M21 직책 칸에 개별임무를 넣는다 → [17] 음성 단언이 빨강이어야',
+    VALUES, "    v.set(`att14_${i}_role`, txt(m?.team))", "    v.set(`att14_${i}_role`, txt(m?.duty))", 1],
 ]
 
 /** 🚨 파일의 줄끝에 맞춰 needle을 바꾼다.

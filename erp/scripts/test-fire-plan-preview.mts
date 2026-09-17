@@ -821,5 +821,69 @@ console.log('\n[16] 2.14 앞쪽 — 각괄호 상자 √ · 1.1·1.7.1·2.2와 �
   }
 }
 
+/* ══════════════════════ [17] 2.14 뒷쪽 — 참석확인 명단 50명 ══════════════════════
+ *  🎯 이 시트의 **핵심 단언은 음성**이다: `확인` 칸이 **전건 비어 있는가**. 명단을 미리 찍는 것은
+ *    받아쓰기 대행이지만, 확인 칸에 무엇이든 찍으면 그 순간 **참석을 단언하게 된다.**
+ *    ERP는 누가 참석했는지 모른다 — 앞쪽 참석/미참석 인원을 비운 것과 같은 축이다.
+ *  ⭐ 두 단(1~25 / 26~50)의 **이어짐**도 묻는다. 26번째가 오른쪽 단 첫 줄에 안 가면
+ *    명단이 조용히 25명에서 끊긴다(가장 눈에 안 띄는 부류의 결함). */
+console.log('\n[17] 2.14 뒷쪽 — 참석확인 명단 · 확인 칸은 비어야')
+{
+  const { validateAnchors } = await import('../src/lib/xlsx-anchors.ts')
+  const { toInjectTargets } = await import('../src/lib/xlsx-workbook.ts')
+  const { FIRE_PLAN_ANCHORS, ATT14_SHEET, ATT14_ROWS, ATT14_CAPACITY, ATT14_FIRST_ROW } =
+    await import('../src/lib/fire-plan-anchors.ts')
+  const { buildFirePlanValues, attendanceOverflow } = await import('../src/lib/fire-plan-xlsx-values.ts')
+  const { labelAt } = await import('../src/lib/fire-plan-xlsx-manifest.ts')
+
+  const brigade = Array.from({ length: ATT14_CAPACITY + 2 }, (_, i) => ({
+    team: i === 0 ? '자위소방대장' : `팀${i}`, name: `대원${i}`,
+    duty: `임무${i}`, phone: `0101111${String(i).padStart(4, '0')}`,
+  }))
+  const fx = { buildingName: 'X', facilities: [], brigade, zones: [], hazards: [], forms: {} } as never
+
+  const vc = validateAnchors(bytes, FIRE_PLAN_ANCHORS)
+  if (vc.ok) {
+    const { targets } = toInjectTargets(buildFirePlanValues(fx), vc.anchors)
+    const out = await injectWorkbook(bytes, targets)
+    const ga = await readSheetGrid(await JSZip.loadAsync(out.bytes), ATT14_SHEET)
+    const at = (r: string) => ga.cells.find(x => x.ref === r)?.text ?? ''
+
+    check('한 단 행 수가 연번 구간에서 파생된다(25행)', ATT14_ROWS === 25, `${ATT14_ROWS}행`)
+    check('정원이 50명', ATT14_CAPACITY === 50, `${ATT14_CAPACITY}명`)
+
+    /* 왼쪽 단 — 1번과 25번 */
+    check('1번이 왼쪽 단 첫 줄', at(`F${ATT14_FIRST_ROW}`) === '자위소방대장'
+      && at(`O${ATT14_FIRST_ROW}`) === '대원0', `${at(`F${ATT14_FIRST_ROW}`)}/${at(`O${ATT14_FIRST_ROW}`)}`)
+    check('25번이 왼쪽 단 마지막', at(`O${ATT14_FIRST_ROW + 24}`) === '대원24', at(`O${ATT14_FIRST_ROW + 24}`))
+    /* ⭐ 두 단이 이어진다 — 26번이 오른쪽 단 첫 줄 */
+    check('26번이 오른쪽 단 첫 줄(단이 이어진다)', at(`AS${ATT14_FIRST_ROW}`) === '대원25',
+      at(`AS${ATT14_FIRST_ROW}`))
+    check('50번이 오른쪽 단 마지막', at(`AS${ATT14_FIRST_ROW + 24}`) === '대원49',
+      at(`AS${ATT14_FIRST_ROW + 24}`))
+
+    /* 🎯 핵심 음성 — 확인 칸 50개가 **전건** 비어 있다 */
+    const conf = Array.from({ length: ATT14_ROWS }, (_, i) =>
+      [`W${ATT14_FIRST_ROW + i}`, `BA${ATT14_FIRST_ROW + i}`]).flat()
+    check('확인 칸을 실제로 50개 훑었다(0건이면 공허)', conf.length === 50, `${conf.length}칸`)
+    check('확인 칸이 전건 비어 있다(참석을 단언하지 않는다)',
+      conf.every(c => at(c).trim() === ''),
+      conf.filter(c => at(c).trim() !== '').slice(0, 4).map(c => `${c}='${at(c)}'`).join(' '))
+
+    /* 🚨 음성 — 연번·머리글은 양식 그대로 */
+    check('연번은 양식이 인쇄한 그대로', at(`A${ATT14_FIRST_ROW}`) === labelAt(ATT14_SHEET, `A${ATT14_FIRST_ROW}`)
+      && at(`AE${ATT14_FIRST_ROW}`) === labelAt(ATT14_SHEET, `AE${ATT14_FIRST_ROW}`),
+      `${at(`A${ATT14_FIRST_ROW}`)}·${at(`AE${ATT14_FIRST_ROW}`)}`)
+    check('머리글 네 칸이 살아 있다',
+      ['F2', 'O2', 'W2', 'BA2'].every(c => at(c) === labelAt(ATT14_SHEET, c)),
+      ['F2', 'O2', 'W2', 'BA2'].map(c => at(c)).join('·'))
+    /* ⚠ 직책은 team이지 duty가 아니다 */
+    check('직책 칸에 개별임무를 넣지 않았다', !at(`F${ATT14_FIRST_ROW}`).startsWith('임무'),
+      at(`F${ATT14_FIRST_ROW}`))
+
+    check('넘친 대원을 센다', attendanceOverflow(fx) === 2, `${attendanceOverflow(fx)}명`)
+  }
+}
+
 console.log(`\n=== pass ${pass} / fail ${fail} ===`)
 process.exit(fail ? 1 : 0)

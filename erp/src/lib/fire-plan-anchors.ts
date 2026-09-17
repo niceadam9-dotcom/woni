@@ -14,7 +14,7 @@
  *  아래 §검토 기록대로 **사람이 라벨을 보며 재승인**했다(S4-2).
  */
 import type { Anchor } from '@/lib/xlsx-anchors'
-import { labelAt, labelBlockRows, sheetManifest, tokenRowBudget } from '@/lib/fire-plan-xlsx-manifest'
+import { labelAt, labelBlockRows, numberedRowBudget, sheetManifest, tokenRowBudget } from '@/lib/fire-plan-xlsx-manifest'
 import { ALL_STANDARD_CODES } from '@/lib/facility-codes'
 import { LOCATION_BOX_KINDS } from '@/lib/fire-plan-image-kinds'
 
@@ -48,6 +48,7 @@ export const FP_SHEET = {
   F2_1: '2.1 자위소방대 일반현황',
   F2_2: '2.2 자위소방대 편성표',
   F2_14: '2.14 교육·훈련 결과기록부',
+  F2_14_BACK: '2.14 결과기록부 뒷쪽',
   // 제3장(2026-09-09 B-15) — 3.1은 용도 칸만 배선한다(나머지는 별건)
   F3_1: '3.1 피난시설 일반현황',
 } as const
@@ -916,6 +917,42 @@ const REC14_SEEDS: Seed[] = [
   { field: 'rec14_brig_phone', sheet: REC14_SHEET, cell: 'R20', labelCell: 'R19' },
 ]
 
+/* ─────────── 서식 2.14 뒷쪽 — 교육·훈련 참석확인 (2026-09-17) ───────────
+ *  25행 × 2단 = **50명** 명단. 연번은 양식이 이미 인쇄해 두었다(1~25 / 26~50).
+ *
+ *  ⭐ 이 시트는 **서명받을 명단**이지 참석 기록이 아니다. `직책`·`성명`을 미리 찍는 것은
+ *    「이 사람들이 참석했다」는 주장이 아니라 **받아쓰기를 대신하는 것**이다.
+ *  🚨 그래서 **`확인` 칸은 비운다.** 거기에 무엇이든 찍으면 그 순간 **참석을 단언하게 된다** —
+ *    ERP는 누가 참석했는지 모른다(앞쪽 `참석/미참석` 인원 칸을 비워 둔 것과 같은 이유).
+ *  ⚠ 명단은 **자위소방대만** 채운다. 양식은 초기대응체계 대원까지 받는데 ERP에 그 축이 없다.
+ *  ⚠ 직책은 `team`이다 — `duty`는 개별임무(`119신고 및 상황전파`)라 직책이 아니다.
+ *    1.9·2.2가 구분 칸에 쓰는 그 축과 같다.
+ */
+export const ATT14_SHEET = FP_SHEET.F2_14_BACK
+
+/** 한 단의 행 수 — 양식이 매긴 **연번 구간에서 파생**한다(1~25) */
+export const ATT14_ROWS = numberedRowBudget(ATT14_SHEET)
+export const ATT14_FIRST_ROW = 3
+
+/** 두 단 — [직책 열, 성명 열, 머리글 셀]. `확인`(W·BA)은 **일부러 뺐다**(서명 자리) */
+export const ATT14_COLS: ReadonlyArray<readonly [string, string, string]> = [
+  ['F', 'O', 'F2'],    // 왼쪽 단  1~25
+  ['AJ', 'AS', 'AJ2'], // 오른쪽 단 26~50
+]
+
+/** 명단 정원 — 두 단 합(50) */
+export const ATT14_CAPACITY = ATT14_ROWS * ATT14_COLS.length
+
+const ATT14_SEEDS: Seed[] = ATT14_COLS.flatMap(([colRole, colName, labelCell], c) =>
+  Array.from({ length: ATT14_ROWS }, (_, i) => {
+    const n = c * ATT14_ROWS + i
+    const row = ATT14_FIRST_ROW + i
+    return [
+      { field: `att14_${n}_role`, sheet: ATT14_SHEET, cell: `${colRole}${row}`, labelCell },
+      { field: `att14_${n}_name`, sheet: ATT14_SHEET, cell: `${colName}${row}`, labelCell },
+    ]
+  }).flat())
+
 const BRIG1_SEEDS: Seed[] = [
   { field: 'brig1_name', sheet: BRIG1_SHEET, cell: 'M5', labelCell: 'A5' },
   { field: 'brig1_address', sheet: BRIG1_SHEET, cell: 'M6', labelCell: 'A6' },
@@ -999,7 +1036,7 @@ function assemble(seeds: Seed[]): Anchor[] {
   })
 }
 
-export const FIRE_PLAN_ANCHORS: Anchor[] = assemble([...FIXED_SEEDS, ...ZONE_SEEDS, ...BRIG_SEEDS, ...FORM14_SEEDS, ...FIREHIST_SEEDS, ...HAZARD_SEEDS, ...MU_SEEDS, ...TRAIN_SEEDS, ...EVAC1_SEEDS, ...BRIG1_SEEDS, ...FIREWORK_SEEDS, ...CONSTRUCTION_SEEDS, ...EVAC3_SEEDS, ...BRIG9_SEEDS, ...REC14_SEEDS])
+export const FIRE_PLAN_ANCHORS: Anchor[] = assemble([...FIXED_SEEDS, ...ZONE_SEEDS, ...BRIG_SEEDS, ...FORM14_SEEDS, ...FIREHIST_SEEDS, ...HAZARD_SEEDS, ...MU_SEEDS, ...TRAIN_SEEDS, ...EVAC1_SEEDS, ...BRIG1_SEEDS, ...FIREWORK_SEEDS, ...CONSTRUCTION_SEEDS, ...EVAC3_SEEDS, ...BRIG9_SEEDS, ...REC14_SEEDS, ...ATT14_SEEDS])
 
 /* ══════════════════════ §사진상자 (2026-09-14) ══════════════════════
  *

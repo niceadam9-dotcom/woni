@@ -32,6 +32,7 @@ import {
   EVAC3_ROWS,
   BRIG9_SHEET, BRIG9_RUNNING_CELL, BRIG9_TOTAL_CELL, BRIG9_TEAM_CELLS, BRIG9_EMER_ROWS, BRIG9_FIELD_ROWS,
   REC14_SHEET, REC14_GRADE_CELLS,
+  ATT14_SHEET, ATT14_CAPACITY,
 } from '@/lib/fire-plan-anchors'
 import { boxGlyphAt, labelAt, tokenTemplateAt } from '@/lib/fire-plan-xlsx-manifest'
 import { purposeCover, purposeShort } from '@/lib/purpose-label'
@@ -709,6 +710,15 @@ export function buildFirePlanValues(d: FirePlanGenData): Map<string, CellValue> 
   v.set('rec14_mgr_sub', bracketBoxCell(REC14_SHEET, 'AK13', false))
   v.set('rec14_brig_total', txt(String(brig.length || '')))
   v.set('rec14_brig_lead', txt(lead?.name))
+  /* ── 서식 2.14 뒷쪽 참석확인 명단 ──
+   *  🚨 `확인` 칸은 앵커가 **아예 없다** — 서명 자리다. 거기 무엇이든 찍으면 그 순간
+   *    **참석을 단언하게 된다**(앞쪽 참석/미참석 인원을 비운 것과 같은 이유).
+   *  ⚠ 직책은 `team`(1.9·2.2 구분 축)이다. `duty`는 개별임무라 직책이 아니다. */
+  for (let i = 0; i < ATT14_CAPACITY; i++) {
+    const m = brig[i]
+    v.set(`att14_${i}_role`, txt(m?.team))
+    v.set(`att14_${i}_name`, txt(m?.name))
+  }
   v.set('rec14_brig_phone', formatTel(txt(lead?.phone)))
 
   for (let i = 0; i < BRIG_ROWS; i++) {
@@ -761,6 +771,11 @@ function zoneRowValues(z: FirePlanGenData['zones'][number] | undefined) {
     company: txt(z?.managerCo),
     contact: txt(z?.contact),
   }
+}
+
+/** 참석확인 명단(2.14 뒷쪽)에 못 담은 대원 수 — 양식 정원은 50명이다 */
+export function attendanceOverflow(d: FirePlanGenData): number {
+  return Math.max(0, (d.brigade ?? []).length - ATT14_CAPACITY)
 }
 
 /** 3.3 피난인원현황이 못 담은 구역 수 — 1.2.1(8행)과 **예산이 달라** 따로 센다(19행) */
