@@ -14,7 +14,7 @@ import * as XLSX from 'xlsx'
 import { validateAnchors } from '../src/lib/xlsx-anchors.ts'
 import { toInjectTargets } from '../src/lib/xlsx-workbook.ts'
 import { injectWorkbook } from '../src/lib/xlsx-inject.ts'
-import { FIRE_PLAN_ANCHORS, FIRE_PLAN_FIELDS, isPlaceholderLabelAnchor, FP_SHEET, ZONE_ROWS, ZONE_SHEET, ZONE_FIRST_ROW, BRIG_ROWS, BRIG_FIRST_ROW, isBoxLabelAnchor, isUnitLabelAnchor, isPrefixLabelAnchor, isYearMonthLabelAnchor, FORM14_ROWS, FORM14_SHEET, FORM14_NAME_CELL, FORM14_NAME_FIELD } from '../src/lib/fire-plan-anchors.ts'
+import { FIRE_PLAN_ANCHORS, FIRE_PLAN_FIELDS, isPlaceholderLabelAnchor, isWrappedUnitAnchor, FP_SHEET, ZONE_ROWS, ZONE_SHEET, ZONE_FIRST_ROW, BRIG_ROWS, BRIG_FIRST_ROW, isBoxLabelAnchor, isUnitLabelAnchor, isPrefixLabelAnchor, isYearMonthLabelAnchor, FORM14_ROWS, FORM14_SHEET, FORM14_NAME_CELL, FORM14_NAME_FIELD } from '../src/lib/fire-plan-anchors.ts'
 import { ALL_STANDARD_CODES } from '../src/lib/facility-codes.ts'
 import { brigadeRowOverflow, buildFirePlanValues, missingValueFields, planDate, zoneRowOverflow } from '../src/lib/fire-plan-xlsx-values.ts'
 import { FIRE_PLAN_MANIFEST, labelAt, boxGlyphAt, sheetManifest } from '../src/lib/fire-plan-xlsx-manifest.ts'
@@ -124,11 +124,14 @@ console.log('\n[3] 백지 불변식 — 템플릿에 표본의 답이 남아 있
   const dirty = FIRE_PLAN_ANCHORS.filter(a => {
     const t = cellText(a)
     return t && !/^[□☐]$/.test(t) && !boxLabelOk(a) && !isUnitLabelAnchor(a) && !isPrefixLabelAnchor(a)
-      && !isYearMonthLabelAnchor(a) && !isPlaceholderLabelAnchor(a)
+      && !isYearMonthLabelAnchor(a) && !isPlaceholderLabelAnchor(a) && !isWrappedUnitAnchor(a)
   })
-  check('앵커 셀 공란(빈 상자·상자칸·단위칸·접두라벨칸·연월칸·자리표시칸만 예외)', dirty.length === 0,
+  check('앵커 셀 공란(빈 상자·상자칸·단위칸·접두라벨칸·연월칸·자리표시칸·감싼단위칸만 예외)', dirty.length === 0,
     dirty.slice(0, 5).map(a => `${a.sheet}!${a.cell}='${cellText(a)}'`).join(' · '))
   // 🚨 예외가 늘면 **그 수를 못 박는다** — 봐주기가 조용히 번지지 않게.
+  const wrappedCells = FIRE_PLAN_ANCHORS.filter(isWrappedUnitAnchor)
+  check('감싼단위칸 예외 수가 그대로(1.11.1 거주자 1칸)', wrappedCells.length === 1,
+    wrappedCells.map(a => `${a.sheet}!${a.cell}='${cellText(a)}'`).join(' · '))
   const placeholderCells = FIRE_PLAN_ANCHORS.filter(isPlaceholderLabelAnchor)
   check('자리표시칸 예외 수가 그대로(1.10.3 영업시간 4칸)', placeholderCells.length === 4,
     placeholderCells.map(a => `${a.cell}`).join(','))
@@ -147,7 +150,12 @@ console.log('\n[3] 백지 불변식 — 템플릿에 표본의 답이 남아 있
   check('접두라벨칸에 답이 없다', prefixCells.every(a => /[:：]$/.test(cellText(a))),
     prefixCells.filter(a => !/[:：]$/.test(cellText(a))).map(a => `${a.sheet}!${a.cell}`).join(','))
   const boxOnly = FIRE_PLAN_ANCHORS.filter(a => /^[□☐]$/.test(cellText(a)))
-  check('빈 상자만 남은 앵커는 소수', boxOnly.length <= 3, boxOnly.map(a => `${a.sheet}!${a.cell}`).join(','))
+  // 2026-09-17: 1.11.1 연간계획이 **12개월 격자**라 빈 상자가 구조적으로 생긴다(라벨은 행 머리와
+  //   월 머리에 있고 칸 자신은 `□`뿐). 종전 `<= 3`은 그 모양을 예상하지 않은 느슨한 상한이었다 —
+  //   **정확한 수**로 바꾼다(상한보다 강한 단언이다: 한 칸만 늘어도 붉어진다).
+  //   내역: 표지 용도 1 + 1.11.1 교육 36 + 훈련 36 = 73.
+  check('빈 상자만 남은 앵커 수가 그대로(표지 1 + 1.11.1 월격자 72)', boxOnly.length === 73,
+    `${boxOnly.length}칸`)
   const boxLabel = FIRE_PLAN_ANCHORS.filter(isBoxLabelAnchor)
   // 🚨 정체 판정 — 상한만 두면 예외가 **0개로 사라져도** 초록이다(1.5.1 3칸 + 1.1 21칸)
   // 2026-09-09: 주차장 2칸(L13 옥내·AB13 옥외) 배선으로 1.1이 19→21이 됐다. 이 숫자는
@@ -167,13 +175,16 @@ console.log('\n[3] 백지 불변식 — 템플릿에 표본의 답이 남아 있
   // 2026-09-17(2): 1.10.3 다중이용업소 상자 10을 배선해 96→106 — 영업시간 6(평일/휴일 ×
 //   주간/야간 + 평일·휴일 머리) + 이용자 4(노유자·주취자·청소년·신체부자유자).
 //   ⚠ 안전점검 분기 4 · 안전시설 17은 **일부러 안 세웠다**(ERP에 축이 없다).
-  check('상자칸 예외 수가 그대로(1.5.1 3 + 1.1 26 + 1.4 40 + 1.10.1 9 + 1.2.2 18 + 1.10.3 10)',
-    boxLabel.length === 106, `${boxLabel.length}칸`)
+  // 2026-09-17(2): 1.11.1 배선으로 106→181 — 월 격자 72(교육 36 + 훈련 36) + 대상자 3.
+  check('상자칸 예외 수가 그대로(… + 1.10.3 10 + 1.11.1 75)',
+    boxLabel.length === 181, `${boxLabel.length}칸`)
   check('상자칸은 템플릿에서 전부 미체크', boxLabel.every(a => !/■/.test(cellText(a))),
     boxLabel.filter(a => /■/.test(cellText(a))).map(a => a.cell).join(','))
   const unitCells = FIRE_PLAN_ANCHORS.filter(isUnitLabelAnchor)
   // 2026-09-17: 1.10.3 수용인원(AS8 '명')을 배선해 5→6
-  check('단위칸 예외 수가 그대로(급·㎡·명 6칸)', unitCells.length === 6,
+  // 2026-09-17(2): 1.11.1 근무자·자위소방대 인원(AA4·AA5)을 배선해 6→8.
+  //   ⚠ 거주자(BB4)는 `약     명`이라 **감싼단위칸**이다 — 아래에서 따로 센다.
+  check('단위칸 예외 수가 그대로(급·㎡·명 8칸)', unitCells.length === 8,
     unitCells.map(a => `${a.cell}='${cellText(a)}'`).join(' · '))
   // 🎯 표본 답이 단위칸 예외 **뒤에 숨지 못한다** — 숫자가 남았으면 그건 단위가 아니라 답이다
   //   (이 칸들에 실제로 `100명`·`1 개소`가 있었다)

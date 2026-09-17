@@ -337,5 +337,45 @@ console.log('\n[8] 1.10.3 다중이용업소 — 해당 / 해당없음')
   }
 }
 
+/* ══════════════════════ [9] 1.11.1 연간계획 — 교육/훈련 블록이 안 섞이는가 ══════════════════════
+ *  🚨 **교차 오염이 이 시트의 유일한 진짜 위험이다.** 교육 3행은 `eduMonths`, 훈련 3행은
+ *    `drillMonths`를 쓰는데, 한쪽 배열을 양쪽에 찍는 구현도 **월이 같으면 초록**이 된다.
+ *    그래서 픽스처가 두 배열을 **일부러 다르게** 준다(교육 3·9월 / 훈련 5월). */
+console.log('\n[9] 1.11.1 연간계획 — 교육 / 훈련')
+{
+  const { validateAnchors } = await import('../src/lib/xlsx-anchors.ts')
+  const { toInjectTargets } = await import('../src/lib/xlsx-workbook.ts')
+  const { FIRE_PLAN_ANCHORS, TRAIN_SHEET, TRAIN_MONTH_COLS } = await import('../src/lib/fire-plan-anchors.ts')
+  const { buildFirePlanValues } = await import('../src/lib/fire-plan-xlsx-values.ts')
+
+  const fx = {
+    buildingName: 'X', facilities: [], zones: [], hazards: [],
+    brigade: [{ team: '자위소방대장', name: 'A' }, { team: '부대장', name: 'B' }],
+    ops: { headcountWorker: '12', headcountResident: '40' },
+    forms: { training: { eduMonths: [3, 9], drillMonths: [5] } },
+  } as never
+
+  const vc = validateAnchors(bytes, FIRE_PLAN_ANCHORS)
+  if (vc.ok) {
+    const { targets } = toInjectTargets(buildFirePlanValues(fx), vc.anchors)
+    const out = await injectWorkbook(bytes, targets)
+    const gg = await readSheetGrid(await JSZip.loadAsync(out.bytes), TRAIN_SHEET)
+    const at = (r: string) => gg.cells.find(x => x.ref === r)?.text ?? ''
+    const onMonths = (row: number) =>
+      TRAIN_MONTH_COLS.map((c, i) => (at(`${c}${row}`).includes('■') ? i + 1 : 0)).filter(Boolean).join(',')
+
+    // 양성 — 교육 3행이 전부 교육 월
+    for (const r of [9, 10, 11]) check(`교육 r${r} = 3,9월`, onMonths(r) === '3,9', onMonths(r))
+    // 🚨 음성 — 훈련 3행에 교육 월이 섞이면 안 된다(한 배열을 양쪽에 찍는 구현을 잡는다)
+    for (const r of [15, 16, 17]) check(`훈련 r${r} = 5월만`, onMonths(r) === '5', onMonths(r))
+    // 대상자 — 상자와 인원이 짝지어 켜진다
+    check('근무자 상자+인원', at('I4').startsWith('■') && at('AA4') === '12명', `${at('I4')} / ${at('AA4')}`)
+    // 🚨 거주자 칸만 자구가 값을 **감싼다** — `unitCell`을 쓰면 `40약  명`이 된다
+    check('거주자는 감싼단위칸(약 N 명)', at('BB4') === '약 40 명', JSON.stringify(at('BB4')))
+    check('자위소방대 인원 = 편성표 행 수', at('I5').startsWith('■') && at('AA5').startsWith('2'),
+      `${at('I5')} / ${at('AA5')}`)
+  }
+}
+
 console.log(`\n=== pass ${pass} / fail ${fail} ===`)
 process.exit(fail ? 1 : 0)

@@ -37,6 +37,7 @@ export const FP_SHEET = {
   F1_2_2: '1.2.2 화재취약장소 현황',
   F1_10_3: '1.10.3 다중이용업소 관리현황',
   F1_10_4: '1.10.4 화재·비화재보 이력',
+  F1_11_1: '1.11.1 소방훈련·교육 연간계획',
   // ⚠ manifest에 `1.11.4`로 시작하는 시트가 **둘**이다(앞쪽·뒷쪽) — 용도 칸은 앞쪽에만 있다
   F1_11_4: '1.11.4 훈련·교육 결과기록부',
   // 제2장(2026-09-08 2단계)
@@ -550,6 +551,54 @@ export const MU_USER_BOXES: ReadonlyArray<readonly [string, string, string]> = [
   ['u_disabled', 'Z9', '신체부자유자'],
 ]
 
+/* ══════════════════════ 서식 1.11.1 소방훈련·교육 연간계획 (2026-09-17) ══════════════════════
+ *
+ *  🚨 PDF는 이미 인쇄하는데 엑셀만 공란이던 시트 — 이번엔 **상자 72칸**이 통째로 비어 있었다.
+ *    양식 행이 PDF 표와 **한 줄씩 그대로** 대응한다(`fire-plan-template.ts:723-729`):
+ *      교육 = 소방교육(9) · 피난교육(10) · 자위소방대 및 초기대응체계(11)  → `eduMonths`
+ *      훈련 = 소방훈련(15) · 피난훈련(16) · 자위소방대 및 초기대응체계(17) → `drillMonths`
+ *
+ *  ⚠ PDF의 **훈련** 블록엔 자위소방대 행이 없다(교육에만 있다). 양식에는 있으므로 그 행도
+ *    켠다 — 추측이 아니라 **그 행이 속한 블록**(훈련)의 월을 쓰는 것이다.
+ *  ⚠ 대상자 3칸은 1.1 인원현황과 **같은 원천**이다(`ops.headcount*`). 자위소방대 인원은
+ *    편성표 행 수(`d.brigade.length`)가 유일한 근거다.
+ */
+export const TRAIN_SHEET = FP_SHEET.F1_11_1
+
+/** 월 12칸의 열 — 교육·훈련 두 표가 **같은 열**을 쓴다 */
+export const TRAIN_MONTH_COLS = ['L', 'Q', 'U', 'Y', 'AC', 'AG', 'AK', 'AO', 'AS', 'AW', 'BA', 'BE'] as const
+
+/** [행, 필드 접두, 어느 월 배열인가] */
+export const TRAIN_ROWS: ReadonlyArray<readonly [number, string, 'edu' | 'drill']> = [
+  [9, 'edu_fire', 'edu'],      // 소방교육
+  [10, 'edu_evac', 'edu'],     // 피난교육
+  [11, 'edu_brig', 'edu'],     // 자위소방대 및 초기대응체계
+  [15, 'drill_fire', 'drill'], // 소방훈련
+  [16, 'drill_evac', 'drill'], // 피난훈련
+  [17, 'drill_brig', 'drill'], // 자위소방대 및 초기대응체계(훈련 블록)
+]
+
+/** 대상자 — 상자 3 + 인원 단위칸 3. [필드 접미사, 상자 셀, 인원 셀] */
+export const TRAIN_TARGETS: ReadonlyArray<readonly [string, string, string]> = [
+  ['worker', 'I4', 'AA4'],    // □ 근무자 … 명
+  ['resident', 'AH4', 'BB4'], // □ 거주자 … 약 명
+  ['brigade', 'I5', 'AA5'],   // □ 자위소방대 및 초기대응체계 … 명
+]
+
+const TRAIN_SEEDS: Seed[] = [
+  ...TRAIN_ROWS.flatMap(([row, key]) =>
+    TRAIN_MONTH_COLS.map((col, m) => ({
+      field: `train_${key}_m${m + 1}`,
+      sheet: TRAIN_SHEET,
+      cell: `${col}${row}`,
+      labelCell: `${col}${row}`,   // 상자칸 — 자기 칸이 라벨이다
+    }))),
+  ...TRAIN_TARGETS.flatMap(([key, boxCell, cntCell]) => [
+    { field: `train_t_${key}`, sheet: TRAIN_SHEET, cell: boxCell, labelCell: boxCell },
+    { field: `train_n_${key}`, sheet: TRAIN_SHEET, cell: cntCell, labelCell: cntCell },
+  ]),
+]
+
 const MU_SEEDS: Seed[] = [
   ...MU_VALUE_CELLS.map(([k, cell, labelCell]) => ({ field: `mu_${k}`, sheet: MU_SHEET, cell, labelCell })),
   // 상자·자리표시는 **자기 칸이 라벨**이다(그 칸의 자구를 우리가 읽어 조립한다)
@@ -600,7 +649,7 @@ function assemble(seeds: Seed[]): Anchor[] {
   })
 }
 
-export const FIRE_PLAN_ANCHORS: Anchor[] = assemble([...FIXED_SEEDS, ...ZONE_SEEDS, ...BRIG_SEEDS, ...FORM14_SEEDS, ...FIREHIST_SEEDS, ...HAZARD_SEEDS, ...MU_SEEDS])
+export const FIRE_PLAN_ANCHORS: Anchor[] = assemble([...FIXED_SEEDS, ...ZONE_SEEDS, ...BRIG_SEEDS, ...FORM14_SEEDS, ...FIREHIST_SEEDS, ...HAZARD_SEEDS, ...MU_SEEDS, ...TRAIN_SEEDS])
 
 /* ══════════════════════ §사진상자 (2026-09-14) ══════════════════════
  *
@@ -722,6 +771,22 @@ export function isYearMonthLabelAnchor(a: { sheet: string; cell: string }): bool
 export function isPlaceholderLabelAnchor(a: { sheet: string; cell: string }): boolean {
   const lbl = sheetManifest(a.sheet).labels[a.cell]
   return !!lbl && /^\s*0+시\s*~\s*0+시\s*$/.test(lbl)
+}
+
+/**
+ * **감싼단위칸인가**(2026-09-17, 1.11.1 거주자 인원) — 자구가 값을 **양쪽에서** 감싸는 칸.
+ *
+ * 단위칸의 변종이다(`약     명`). 판별은 여기서도 등식이 아니라 **'양끝이 한두 글자 자구이고
+ * 가운데가 공백뿐인가'**를 묻는다 — 가운데에 숫자가 한 자라도 있으면 그건 표본의 답이라
+ * 이 예외를 통과하지 못한다.
+ */
+export function isWrappedUnitAnchor(a: { sheet: string; cell: string }): boolean {
+  const lbl = sheetManifest(a.sheet).labels[a.cell]
+  if (!lbl || !/^[가-힣]{1,2}\s{2,}[가-힣㎡]{1,2}$/.test(lbl.trim())) return false
+  // 🚨 **연월칸과 모양이 겹친다.** `년        월`도 같은 꼴이라 처음엔 그쪽까지 물었고
+  //   검사가 즉시 잡았다(예외 1칸 기대에 5칸). 한 칸이 두 갈래에 속하면 예외 수 단언이
+  //   서로를 가린다 — **더 좁은 갈래(연월)를 먼저** 떼어 낸다.
+  return !isYearMonthLabelAnchor(a)
 }
 
 /** 값 맵이 반드시 채워야 하는 필드 전수(중복 제거) — S7-2 완결성 검사와 S5가 같은 목록을 본다 */

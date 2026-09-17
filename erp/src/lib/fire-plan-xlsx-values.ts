@@ -24,6 +24,7 @@ import {
   BRIG_ROWS, FIRE_PLAN_ANCHORS, FORM14_NAME_CELL, FORM14_NAME_FIELD, FORM14_ROWS, FORM14_SHEET,
   FP_SHEET, ZONE_ROWS, ZONE_SHEET, FIREHIST_ROWS, HAZARD_SHEET, HAZARD_PLACE_ROWS, HAZARD_BOXES,
   MU_SHEET, MU_VALUE_CELLS, MU_HOURS_CELLS, MU_USER_BOXES,
+  TRAIN_SHEET, TRAIN_ROWS, TRAIN_MONTH_COLS, TRAIN_TARGETS,
 } from '@/lib/fire-plan-anchors'
 import { boxGlyphAt, labelAt, tokenTemplateAt } from '@/lib/fire-plan-xlsx-manifest'
 import { purposeCover, purposeShort } from '@/lib/purpose-label'
@@ -145,6 +146,22 @@ export function prefixCell(sheet: string, cell: string, value: string | null | u
  */
 export function placeholderCell(sheet: string, cell: string, value: string | null | undefined): string {
   return txt(value) || labelAt(sheet, cell)
+}
+
+/**
+ * **감싼단위칸** — 자구가 값을 **양쪽에서** 감싸는 칸(`약     명`, 1.11.1 거주자 인원).
+ *
+ * 단위칸(`[값]명`)의 변종이다. `unitCell`을 쓰면 `'12약     명'`이 되어 뜻이 망가진다 —
+ * 값은 **가운데 공백 자리**에 들어가야 한다(연월칸이 `년`·`월` 사이에 넣는 것과 같은 수법).
+ *
+ * ⚠ 값이 없으면 자구만 남긴다(빈 서식). `약`도 `명`도 법정 자구다.
+ */
+export function wrappedUnitCell(sheet: string, cell: string, value: string | number | null | undefined): string {
+  const tpl = labelAt(sheet, cell)
+  const s = txt(value)
+  if (!s) return tpl
+  // 가운데 공백 run을 값으로 갈아 끼운다 — 앞뒤 자구는 그대로 남는다
+  return tpl.replace(/(\S)\s{2,}(\S)/, `$1 ${s} $2`)
 }
 
 /**
@@ -392,6 +409,37 @@ export function buildFirePlanValues(d: FirePlanGenData): Map<string, CellValue> 
    *  ⚠ PDF는 빈 행을 3줄까지 `pad`로 채워 표 모양을 만들지만 **엑셀은 그러지 않는다** —
    *    양식이 이미 15행을 그려 두었고, 빈 칸은 빈 칸으로 남는 것이 맞다(없는 사실을 지어내지 않는다).
    */
+  /* ── 서식 1.11.1 소방훈련·교육 연간계획 (2026-09-17) ─────────────────────────
+   *
+   *  🚨 상자 72칸이 통째로 비어 있던 시트다. 양식 행이 PDF 표와 한 줄씩 대응하므로
+   *    **PDF와 같은 폴백**을 쓴다 — 세부 월이 없으면 `d.trainingMonth` 한 달(구 자유 입력).
+   *    여기서 폴백을 다르게 적으면 두 산출물이 갈라진다.
+   *  ⚠ 대상자 인원은 1.1 인원현황과 **같은 원천**이다(`ops.headcount*`). 자위소방대 인원은
+   *    편성표 행 수가 유일한 근거다 — 없으면 상자도 안 켠다(0명인데 ■는 거짓이다).
+   */
+  const tr1 = d.forms?.training
+  const eduM = tr1?.eduMonths?.length ? tr1.eduMonths : d.trainingMonth != null ? [d.trainingMonth] : []
+  const drillM = tr1?.drillMonths?.length ? tr1.drillMonths : d.trainingMonth != null ? [d.trainingMonth] : []
+  for (const [row, key, kind] of TRAIN_ROWS) {
+    const months = kind === 'edu' ? eduM : drillM
+    TRAIN_MONTH_COLS.forEach((col, m) => {
+      v.set(`train_${key}_m${m + 1}`, boxLabelCell(TRAIN_SHEET, `${col}${row}`, months.includes(m + 1)))
+    })
+  }
+  const trCount: Record<string, string> = {
+    worker: txt(d.ops?.headcountWorker),
+    resident: txt(d.ops?.headcountResident),
+    brigade: String((d.brigade ?? []).length || ''),
+  }
+  for (const [key, boxCell, cntCell] of TRAIN_TARGETS) {
+    // 🚨 인원이 있을 때만 대상자 상자를 켠다 — 0명인데 체크하면 없는 사실을 인쇄하는 것이다
+    v.set(`train_t_${key}`, boxLabelCell(TRAIN_SHEET, boxCell, !!trCount[key]))
+    // ⚠ 거주자 칸만 자구가 값을 **감싼다**(`약     명`) — `unitCell`을 쓰면 `12약  명`이 된다
+    v.set(`train_n_${key}`, /\S\s{2,}\S/.test(labelAt(TRAIN_SHEET, cntCell))
+      ? wrappedUnitCell(TRAIN_SHEET, cntCell, trCount[key])
+      : unitCell(TRAIN_SHEET, cntCell, trCount[key]))
+  }
+
   /* ── 서식 1.10.3 다중이용업소 관리현황 (2026-09-17) ──────────────────────────
    *
    *  🚨 **해당 없으면 전부 비운다.** 다중이용업소가 아닌 대상물에 사업장명·영업시간을 인쇄하면
