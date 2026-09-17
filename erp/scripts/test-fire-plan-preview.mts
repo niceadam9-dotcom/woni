@@ -1068,7 +1068,10 @@ console.log('\n[20] 3.4 피난유도 — 예시문은 덮이고, 비면 남는�
     const at = await run(filled)
     const atEmpty = await run(base as never)
 
-    check('예시문칸 4개를 선언했다', FIRE_PLAN_SAMPLE_CELLS.length === 4, `${FIRE_PLAN_SAMPLE_CELLS.length}칸`)
+    /* ⚠ 선언표는 시트가 섞여 있다 — 이 절은 3.4 격자만 읽으므로 **시트로 걸러야** 한다.
+     *   안 거르면 3.6 칸을 3.4에서 찾아 빈 문자열이 나오고 단언이 거짓으로 빨개진다. */
+    const S34 = FIRE_PLAN_SAMPLE_CELLS.filter(([sh]) => sh === EVAC34_SHEET)
+    check('3.4 예시문칸 4개를 선언했다', S34.length === 4, `${S34.length}칸 / 전체 ${FIRE_PLAN_SAMPLE_CELLS.length}칸`)
 
     /* 🎯 ① 값이 있으면 **덮인다** — 면제가 「영영 공란」의 은신처가 아님을 증명 */
     check('비화재보가 덮인다', at('G4') === '오동작 시 방송으로 알리고 대기', at('G4'))
@@ -1083,8 +1086,8 @@ console.log('\n[20] 3.4 피난유도 — 예시문은 덮이고, 비면 남는�
      *   manifest 원문을 **꼬리 공백까지** 되쓴다(T13이 `'1층 주차장 '`). 깎아서 비교하면
      *   원문이 바뀌어도 초록이 되므로 핀이 구실을 잃는다. */
     check('값이 없으면 예시가 그대로 남는다(꼬리 공백까지)',
-      FIRE_PLAN_SAMPLE_CELLS.every(([, c, want]) => atEmpty(c) === want),
-      FIRE_PLAN_SAMPLE_CELLS.map(([, c]) => `${c}=${JSON.stringify(atEmpty(c))}`).join(' '))
+      S34.every(([, c, want]) => atEmpty(c) === want),
+      S34.map(([, c]) => `${c}=${JSON.stringify(atEmpty(c))}`).join(' '))
 
     /* 경로 3열 */
     check('경로 3열이 착지', at(`E${R}`) === '2층' && at(`W${R}`) === '박유도' && at(`AI${R}`) === '완강기',
@@ -1100,6 +1103,57 @@ console.log('\n[20] 3.4 피난유도 — 예시문은 덮이고, 비면 남는�
       `A${R}=${JSON.stringify(at(`A${R}`))} T14=${JSON.stringify(at('T14'))}`)
     check('「피난경로 개수」는 양식 그대로(route는 문장이지 개수가 아니다)',
       at(`J${R}`) === labelAt(EVAC34_SHEET, `J${R}`).trim(), at(`J${R}`))
+  }
+}
+
+/* ══════════════════════ [21] 3.6 유형별 피난방법 — 예시문 네 줄이 열렸다 ══════════════════════
+ *  ⭐ 유형 이름을 **양식 A열 라벨에서 읽는다** — 목록을 네 번째로 베끼지 않았다는 증거로
+ *    ERP 열쇠와 양식 라벨이 같은 문자열임을 단언한다.
+ *  🚨 양식은 **4종**뿐이다. ERP의 `영유아`·`기타`가 조용히 사라지지 않는지 센다. */
+console.log('\n[21] 3.6 유형별 피난방법 — 4종만, 나머지는 세어진다')
+{
+  const { validateAnchors } = await import('../src/lib/xlsx-anchors.ts')
+  const { toInjectTargets } = await import('../src/lib/xlsx-workbook.ts')
+  const { FIRE_PLAN_ANCHORS, VUL36_SHEET, VUL36_ROWS, VUL36_TYPES } =
+    await import('../src/lib/fire-plan-anchors.ts')
+  const { buildFirePlanValues, vulnerableMethodsUnmapped } = await import('../src/lib/fire-plan-xlsx-values.ts')
+  const { labelAt } = await import('../src/lib/fire-plan-xlsx-manifest.ts')
+
+  const methods = {
+    노인: '보조자 2인이 부축', 장애인: '휠체어로 이동',
+    영유아: '안아서 이동', 기타: '보조자 사전 지정',   // ← 양식에 줄이 없는 두 유형
+  }
+  const fx = { buildingName: 'X', facilities: [], brigade: [], zones: [], hazards: [],
+    forms: { vulnerableMethods: methods } } as never
+
+  const vc = validateAnchors(bytes, FIRE_PLAN_ANCHORS)
+  if (vc.ok) {
+    const { targets } = toInjectTargets(buildFirePlanValues(fx), vc.anchors)
+    const out = await injectWorkbook(bytes, targets)
+    const g36 = await readSheetGrid(await JSZip.loadAsync(out.bytes), VUL36_SHEET)
+    const at = (r: string) => g36.cells.find(x => x.ref === r)?.text ?? ''
+
+    check('양식 유형이 4종으로 파생된다', VUL36_TYPES.join('·') === '노인·어린이·임산부·장애인',
+      VUL36_TYPES.join('·'))
+    /* ⭐ 목록을 베끼지 않았다 — 유형 이름이 곧 양식 라벨이다 */
+    check('유형 이름이 양식 A열 라벨과 같다',
+      VUL36_ROWS.every(([a], i) => labelAt(VUL36_SHEET, a).trim() === VUL36_TYPES[i]))
+
+    check('값이 있는 유형은 덮인다(노인·장애인)',
+      at('K3') === '보조자 2인이 부축' && at('K6') === '휠체어로 이동', `${at('K3')} / ${at('K6')}`)
+    /* 🚨 값이 없는 유형은 **법정 예시가 남는다** — 빈 서식이 뜻을 잃지 않는다 */
+    check('값이 없는 유형은 예시가 남는다(어린이·임산부)',
+      at('K4') === labelAt(VUL36_SHEET, 'K4') && at('K5') === labelAt(VUL36_SHEET, 'K5'),
+      at('K4').slice(0, 14))
+    /* 🚨 양식 원문의 오자까지 그대로 남는다 — 우리가 양식을 고쳐 쓰지 않는다 */
+    check('양식 원문의 오자도 손대지 않는다(「천전히」)', at('K4').includes('천전히'))
+
+    check('갈 줄 없는 유형을 센다(영유아·기타)',
+      vulnerableMethodsUnmapped(fx).sort().join('·') === '기타·영유아',
+      vulnerableMethodsUnmapped(fx).join('·'))
+    /* 🚨 음성 — 유의사항은 ERP에 축이 없다 */
+    check('유의사항은 안 건드린다', at('AZ3') === labelAt(VUL36_SHEET, 'AZ3') && at('AZ6').trim() === '',
+      `AZ3=${at('AZ3')} AZ6=${JSON.stringify(at('AZ6'))}`)
   }
 }
 

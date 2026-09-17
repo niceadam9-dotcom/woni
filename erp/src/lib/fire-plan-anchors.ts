@@ -53,6 +53,7 @@ export const FP_SHEET = {
   F3_1: '3.1 피난시설 일반현황',
   F3_4: '3.4 피난유도 절차·경로',
   F3_5: '3.5 피난약자 현황·계획',
+  F3_6: '3.6 피난약자 유형별 방법',
 } as const
 
 /** 라벨은 manifest가, 좌표·필드는 여기가 — 한 곳에서만 정한다 */
@@ -1095,6 +1096,32 @@ const EVAC34_SEEDS: Seed[] = [
   })),
 ]
 
+/* ─────────── 서식 3.6 피난약자 유형별 피난 방법 (2026-09-17) ───────────
+ *  3.4가 세운 **법정 예시문칸**으로 열린 시트다. 네 줄이 통째로 예시문이었다.
+ *
+ *  ⭐ 유형 이름을 손으로 적지 않는다 — **A열 라벨이 곧 유형**이다(`노인`·`어린이`·…).
+ *    ERP `vulnerableMethods`는 유형 이름을 열쇠로 쓰므로 그대로 물어보면 된다.
+ *  ⚠ 양식은 **4종**뿐이다(노인·어린이·임산부·장애인). ERP의 `영유아`·`기타`는 갈 줄이 없어
+ *    버리되 **센다**(`vulnerableMethodsUnmapped`).
+ *  ⚠ `유의사항`(AZ)은 ERP에 축이 없다 — 3~5행은 양식 문구가 남고 6행은 빈 채로 둔다.
+ */
+export const VUL36_SHEET = FP_SHEET.F3_6
+
+/** 방법 칸 — [유형 라벨 셀, 방법 셀]. 유형 이름은 **라벨에서 읽는다**(목록을 베끼지 않는다) */
+export const VUL36_ROWS: ReadonlyArray<readonly [string, string]> = [
+  ['A3', 'K3'], ['A4', 'K4'], ['A5', 'K5'], ['A6', 'K6'],
+]
+
+/** 양식이 인쇄하는 유형 4종 — A열 라벨에서 파생 */
+export const VUL36_TYPES: readonly string[] = VUL36_ROWS.map(([a]) => labelAt(VUL36_SHEET, a).trim())
+
+const VUL36_SEEDS: Seed[] = VUL36_ROWS.map(([a, k]) => ({
+  field: `vul36_${labelAt(VUL36_SHEET, a).trim()}`,
+  sheet: VUL36_SHEET,
+  cell: k,
+  labelCell: a,
+}))
+
 const BRIG1_SEEDS: Seed[] = [
   { field: 'brig1_name', sheet: BRIG1_SHEET, cell: 'M5', labelCell: 'A5' },
   { field: 'brig1_address', sheet: BRIG1_SHEET, cell: 'M6', labelCell: 'A6' },
@@ -1178,7 +1205,7 @@ function assemble(seeds: Seed[]): Anchor[] {
   })
 }
 
-export const FIRE_PLAN_ANCHORS: Anchor[] = assemble([...FIXED_SEEDS, ...ZONE_SEEDS, ...BRIG_SEEDS, ...FORM14_SEEDS, ...FIREHIST_SEEDS, ...HAZARD_SEEDS, ...MU_SEEDS, ...TRAIN_SEEDS, ...EVAC1_SEEDS, ...BRIG1_SEEDS, ...FIREWORK_SEEDS, ...CONSTRUCTION_SEEDS, ...EVAC3_SEEDS, ...BRIG9_SEEDS, ...REC14_SEEDS, ...ATT14_SEEDS, ...VUL_SEEDS, ...VUL9_SEEDS, ...EVAC34_SEEDS])
+export const FIRE_PLAN_ANCHORS: Anchor[] = assemble([...FIXED_SEEDS, ...ZONE_SEEDS, ...BRIG_SEEDS, ...FORM14_SEEDS, ...FIREHIST_SEEDS, ...HAZARD_SEEDS, ...MU_SEEDS, ...TRAIN_SEEDS, ...EVAC1_SEEDS, ...BRIG1_SEEDS, ...FIREWORK_SEEDS, ...CONSTRUCTION_SEEDS, ...EVAC3_SEEDS, ...BRIG9_SEEDS, ...REC14_SEEDS, ...ATT14_SEEDS, ...VUL_SEEDS, ...VUL9_SEEDS, ...EVAC34_SEEDS, ...VUL36_SEEDS])
 
 /* ══════════════════════ §사진상자 (2026-09-14) ══════════════════════
  *
@@ -1274,6 +1301,13 @@ export const FIRE_PLAN_SAMPLE_CELLS: ReadonlyArray<readonly [string, string, str
   [FP_SHEET.F3_4, 'A11', '각 세대 출입구 앞 직통계단 이용'],
   [FP_SHEET.F3_4, 'AT10', '1층 주차장'],
   [FP_SHEET.F3_4, 'T13', '1층 주차장 '],
+  /* 3.6 유형별 피난방법 4줄 — 양식이 표준 예시를 길게 인쇄해 두었다.
+   * ⚠ 자구를 **고치지 말 것.** K4의 `천전히`는 양식 원문의 오자이고, 우리가 바로잡으면
+   *   핀이 어긋나 빨강이 된다 — 그게 이 핀이 하는 일이다(양식을 우리가 고쳐 쓰지 않는다). */
+  [FP_SHEET.F3_6, 'K3', '1. 1인 1조 또는 2인 1조로 보행을 도와주며 피난보조\n2. 긴급을 요할 경우 추가 도움을 요청하여 이동\n3. 피난층으로 피난 불가시 옥상 또는 세대 베란다로 이동하여 대기 하거나 완강기 이용하여 피난 시도'],
+  [FP_SHEET.F3_6, 'K4', '보호자의 도움을 받아 함께 보조하며 피난 \n다수의 경우 한줄로 서서 천전히 연기를 피해 업드린 자세로 피난'],
+  [FP_SHEET.F3_6, 'K5', '1. 보호자의 도움을 받아 함께 보조하며 피난 \n2. 만삭의 경우 2인 1조로 부축하여 피난 '],
+  [FP_SHEET.F3_6, 'K6', '보조자의 도움을 받아 함께 피난\n장애유형별에 따라 피난 실시\n청각 : 표정, 제스처를 통해 피난해야 함을 알림, 스마트폰 문자 알림 이용\n시각 : 옆에서 구두 지시하며 피난\n지적 : 보호자나 담당자가 도와주는 것을 보조\n지체 : 2인 1조 또는 업어서 피난 실시'],
 ]
 
 const SAMPLE_KEYS = new Set(FIRE_PLAN_SAMPLE_CELLS.map(([s, c]) => `${s}!${c}`))

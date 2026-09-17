@@ -145,7 +145,7 @@ console.log('\n[3] 백지 불변식 — 템플릿에 표본의 답이 남아 있
   check('감싼단위칸 예외 수가 그대로(1.11.1 거주자 1칸)', wrappedCells.length === 1,
     wrappedCells.map(a => `${a.sheet}!${a.cell}='${cellText(a)}'`).join(' · '))
   const sampleCells = FIRE_PLAN_ANCHORS.filter(isSampleTextAnchor)
-  check('법정예시문칸 예외 수가 그대로(3.4 4칸)', sampleCells.length === 4,
+  check('법정예시문칸 예외 수가 그대로(3.4 4칸 + 3.6 4칸)', sampleCells.length === 8,
     sampleCells.map(a => `${a.sheet}!${a.cell}`).join(' · '))
   // ① 선언한 자구가 템플릿과 **글자까지** 같은가 — 다르면 표본의 답이 바뀐 것이다.
   //   ⚠ `cellText`가 아니라 `labelAt`으로 묻는다 — 저쪽은 공백을 깎아 `'1층 주차장 '`의

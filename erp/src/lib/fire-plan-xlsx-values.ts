@@ -36,6 +36,7 @@ import {
   VUL_SHEET, VUL_WORK_CELLS, VUL_USE_CELLS, VUL_PLAN_ROWS, VUL_PLAN_COLS,
   VUL9_SHEET, VUL9_BOX_CELLS, VUL9_ROWS, VUL9_FIRST_ROW,
   EVAC34_SHEET, EVAC34_ROUTE_COLS,
+  VUL36_SHEET, VUL36_ROWS, VUL36_TYPES,
 } from '@/lib/fire-plan-anchors'
 import { boxGlyphAt, labelAt, tokenTemplateAt } from '@/lib/fire-plan-xlsx-manifest'
 import { purposeCover, purposeShort } from '@/lib/purpose-label'
@@ -774,6 +775,17 @@ export function buildFirePlanValues(d: FirePlanGenData): Map<string, CellValue> 
   v.set('evac34_assembly', placeholderCell(EVAC34_SHEET, 'T13', assembly34))
   for (const [, key] of EVAC34_ROUTE_COLS) v.set(`evac34_${key}`, txt(route0?.[key]))
 
+  /* ── 서식 3.6 피난약자 유형별 피난 방법 (2026-09-17) ──────────────────────────
+   *  3.4가 세운 **법정 예시문칸**으로 열렸다 — 네 줄이 통째로 예시문이었다.
+   *  ⭐ 유형 이름은 **양식 A열 라벨**이고 ERP `vulnerableMethods`의 열쇠와 같다(사본 없음).
+   *  ⚠ 양식은 4종뿐 — ERP의 `영유아`·`기타`는 갈 줄이 없어 버리되 센다.
+   */
+  const vmethods = (d.forms?.vulnerableMethods ?? {}) as Record<string, string>
+  VUL36_ROWS.forEach(([a, k]) => {
+    const t = labelAt(VUL36_SHEET, a).trim()
+    v.set(`vul36_${t}`, placeholderCell(VUL36_SHEET, k, vmethods[t]))
+  })
+
   /* ── 1.9 피난약자 블록 — **3.5의 축약본** ──
    *  같은 워크북 안에서 3.5는 인쇄하는데 1.9만 비면 그게 D-7 갈라짐이다. 상자 판정도 표 값도
    *  위와 **같은 것을 나눠 쓴다**(`vulCount` · `vulPlans` · `splitAreaDongFloor`). */
@@ -859,6 +871,12 @@ export function vulnerableAreaUnsplit(d: FirePlanGenData): number {
   return (d.forms?.vulnerable?.plans ?? [])
     .slice(0, VUL_PLAN_ROWS)
     .filter((p: { area?: string }) => splitAreaDongFloor(p?.area) === null).length
+}
+
+/** 3.6이 못 담은 피난약자 유형 — 양식은 **4종**뿐이라 `영유아`·`기타`는 갈 줄이 없다 */
+export function vulnerableMethodsUnmapped(d: FirePlanGenData): string[] {
+  const m = (d.forms?.vulnerableMethods ?? {}) as Record<string, string>
+  return Object.keys(m).filter(t => txt(m[t]) && !VUL36_TYPES.includes(t))
 }
 
 /** 3.4가 못 담은 피난경로 수 — 양식이 **한 줄**만 그려 두었다 */

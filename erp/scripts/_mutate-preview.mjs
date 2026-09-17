@@ -118,6 +118,14 @@ const MUTANTS = [
   ['M28 집결지를 경로표에만 넣는다 → [20] 「두 칸이 서로 같다」가 빨강이어야',
     VALUES, `  v.set('evac34_assembly_row', placeholderCell(EVAC34_SHEET, 'AT10', assembly34))`,
     `  v.set('evac34_assembly_row', placeholderCell(EVAC34_SHEET, 'AT10', ''))`, 1],
+  /* 🚨 M29 — 3.6 유형을 라벨이 아니라 **손목록**에서 읽으면 순서가 어긋나도 모른다. */
+  ['M29 3.6 유형 순서를 뒤집는다 → [21] 「라벨과 같다」가 빨강이어야',
+    ANCHORS, `  ['A3', 'K3'], ['A4', 'K4'], ['A5', 'K5'], ['A6', 'K6'],`,
+    `  ['A3', 'K6'], ['A4', 'K5'], ['A5', 'K4'], ['A6', 'K3'],`, 1],
+  /* 🚨 M30 — 양식 4종 밖 유형을 세지 않으면 영유아·기타가 조용히 사라진다. */
+  ['M30 갈 줄 없는 유형을 안 센다 → [21] 계수 단언이 빨강이어야',
+    VALUES, `  return Object.keys(m).filter(t => txt(m[t]) && !VUL36_TYPES.includes(t))`,
+    `  return []`, 1],
 ]
 
 /** 🚨 파일의 줄끝에 맞춰 needle을 바꾼다.
