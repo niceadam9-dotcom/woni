@@ -77,6 +77,8 @@ export type FirePlanFormSections = {
   evacEquip?: EvacEquipRow[]
   /** 1.9.3 입주사 현황 — ④ 첫 입력 축 신설 (2026-09-17). plan-form12의 TenantRow와 같은 꼴 */
   tenants?: Array<{ name: string; usage: string; zone: string; rep: string; phone: string }>
+  /** 2.12 비상반출물품 — ④ 셋째 축 (2026-09-18). plan-ch2의 ValuableRow와 같은 꼴 */
+  valuables?: Array<{ name: string; place: string; locked: '' | '유' | '무'; after: string }>
   fireworkLog?: LogRow[]
   constructionLog?: LogRow[]
   promoLog?: LogRow[]
@@ -826,6 +828,13 @@ ${(d.autoFilled?.length ?? 0) > 0
   <table class="small">
     ${teamRows}
   </table>
+  ${/* 2.12 비상반출물품(2026-09-18) — 엑셀 2.12 표와 같은 축(D-7). 있을 때만 인쇄. */''}
+  ${(f.valuables?.length ?? 0) > 0 ? `
+  <h3>비상반출물품 (2.12)</h3>
+  <table class="small">
+    <tr><th>물품명</th><th style="width:110px">보관장소</th><th style="width:90px">시건장치</th><th style="width:130px">반출 후 보관장소</th></tr>
+    ${(f.valuables ?? []).map(r => `<tr><td class="l">${v(r.name)}</td><td class="l">${v(r.place)}</td><td>${v(r.locked)}</td><td class="l">${v(r.after)}</td></tr>`).join('')}
+  </table>` : ''}
 
   <p class="formno">서식 2.2</p><h3 style="display:inline;margin-left:8px">자위소방대 및 초기대응체계 편성표${bg ? ` (Type-${bg === 'I' ? 'Ⅰ' : bg === 'II' ? 'Ⅱ' : 'Ⅲ'})` : ' (Type-Ⅲ)'}</h3>
   <table>

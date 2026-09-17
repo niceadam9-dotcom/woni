@@ -43,6 +43,7 @@ import {
   EQUIP37_ROWS, EQUIP37_COLS,
   ETC61_SHEET,
   HAZ61_ROWS, HAZ61_COLS, HAZ12_SHEET, HAZ12_ROWS, HAZ12_COLS,
+  VAL12_ROWS, VAL12_COLS,
 } from '@/lib/fire-plan-anchors'
 import { boxGlyphAt, labelAt, tokenTemplateAt } from '@/lib/fire-plan-xlsx-manifest'
 import { purposeCover, purposeShort } from '@/lib/purpose-label'
@@ -876,6 +877,12 @@ export function buildFirePlanValues(d: FirePlanGenData): Map<string, CellValue> 
     for (const [, key] of HAZ12_COLS) v.set(`haz12_${i}_${key}`, txt(hazItems[i]?.[key]))
   })
 
+  // 비상반출물품 — ④ 셋째 축. locked 미입력('')이면 칸이 빈다
+  const valuables12 = (d.forms?.valuables ?? []) as Array<Record<string, string>>
+  VAL12_ROWS.forEach((_, i) => {
+    for (const [, key] of VAL12_COLS) v.set(`val12_${i}_${key}`, txt(valuables12[i]?.[key]))
+  })
+
   /* ── 1.9 피난약자 블록 — **3.5의 축약본** ──
    *  같은 워크북 안에서 3.5는 인쇄하는데 1.9만 비면 그게 D-7 갈라짐이다. 상자 판정도 표 값도
    *  위와 **같은 것을 나눠 쓴다**(`vulCount` · `vulPlans` · `splitAreaDongFloor`). */
@@ -961,6 +968,11 @@ export function vulnerableAreaUnsplit(d: FirePlanGenData): number {
   return (d.forms?.vulnerable?.plans ?? [])
     .slice(0, VUL_PLAN_ROWS)
     .filter((p: { area?: string }) => splitAreaDongFloor(p?.area) === null).length
+}
+
+/** 비상반출물품(2.12)이 못 담은 행 수 — 양식 3행 */
+export function valuableRowOverflow(d: FirePlanGenData): number {
+  return Math.max(0, ((d.forms?.valuables ?? []) as unknown[]).length - VAL12_ROWS.length)
 }
 
 /** 위험물 세부(1.6.1·2.12 공용 3행)가 못 담은 행 수 */

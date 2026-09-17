@@ -1485,5 +1485,44 @@ console.log('\n[28] 위험물 세부 — 1.6.1 ↔ 2.12 항등')
   }
 }
 
+/* ══════════════════════ [29] 2.12 비상반출물품 — ④ 셋째 축 ══════════════════════
+ *  ⭐ locked는 select 3값 — 미입력('')이면 칸이 빈다(무를 지어내지 않는다). */
+console.log('\n[29] 2.12 비상반출물품')
+{
+  const { validateAnchors } = await import('../src/lib/xlsx-anchors.ts')
+  const { toInjectTargets } = await import('../src/lib/xlsx-workbook.ts')
+  const { FIRE_PLAN_ANCHORS, HAZ12_SHEET, VAL12_ROWS } = await import('../src/lib/fire-plan-anchors.ts')
+  const { buildFirePlanValues, valuableRowOverflow } = await import('../src/lib/fire-plan-xlsx-values.ts')
+  const { labelAt } = await import('../src/lib/fire-plan-xlsx-manifest.ts')
+
+  const valuables = [
+    { name: '계약서류', place: '사무실 금고', locked: '유', after: '차량 트렁크' },
+    { name: '도장·통장', place: '서랍', locked: '', after: '' },      // ← 시건 미입력
+    { name: '서버 백업디스크', place: '전산실', locked: '무', after: '관리사무소' },
+    { name: '넘침', place: '', locked: '', after: '' },
+  ]
+  const fx = { buildingName: 'X', facilities: [], brigade: [], zones: [], hazards: [],
+    forms: { valuables } } as never
+
+  const vc = validateAnchors(bytes, FIRE_PLAN_ANCHORS)
+  if (vc.ok) {
+    const { targets } = toInjectTargets(buildFirePlanValues(fx), vc.anchors)
+    const out = await injectWorkbook(bytes, targets)
+    const gv = await readSheetGrid(await JSZip.loadAsync(out.bytes), HAZ12_SHEET)
+    const at = (r: string) => gv.cells.find(x => x.ref === r)?.text ?? ''
+
+    check('1행 4열 착지', at('O15') === '계약서류' && at('Z15') === '사무실 금고'
+      && at('AM15') === '유' && at('AW15') === '차량 트렁크', `${at('O15')}/${at('AM15')}`)
+    check('시건 미입력이면 빈 칸(무를 지어내지 않는다)', at('AM16').trim() === '', JSON.stringify(at('AM16')))
+    check('3행도 착지(무는 무로)', at('O17') === '서버 백업디스크' && at('AM17') === '무',
+      `${at('O17')}/${at('AM17')}`)
+    check('넘친 물품을 센다', valuableRowOverflow(fx) === 1, `${valuableRowOverflow(fx)}건`)
+    check('머리글이 온전하다', at('O14') === labelAt(HAZ12_SHEET, 'O14')
+      && at('AM14') === labelAt(HAZ12_SHEET, 'AM14'), `${at('O14')}·${at('AM14')}`)
+    /* 위험물 표(11~13행)와 서로 안 침범한다 — 같은 시트의 두 표 */
+    check('위험물 표는 안 건드렸다(같은 시트 두 표 분리)', ['O11', 'X11', 'AG11'].every(c => at(c).trim() === ''))
+  }
+}
+
 console.log(`\n=== pass ${pass} / fail ${fail} ===`)
 process.exit(fail ? 1 : 0)

@@ -34,7 +34,7 @@ import { PlanForm110, type InspectionPlanSection, type FireHistoryRow, type Duty
 import { type MultiUseSection } from '@/components/customers/plan-multi-use-card'
 import { PlanForm1215, type LogRow } from '@/components/customers/plan-form1215'
 import { PlanForm111, type TrainingSection } from '@/components/customers/plan-form111'
-import { PlanCh2 } from '@/components/customers/plan-ch2'
+import { PlanCh2 , type ValuableRow } from '@/components/customers/plan-ch2'
 import { PlanCh3, type EvacDetailRow, type EvacPlanSection, type VulnerableSection, type EvacEquipRow } from '@/components/customers/plan-ch3'
 import { recommendPresetType } from '@/lib/fire-plan-presets'
 import { BillingClient, type BillingProfile, type Autopay } from '@/components/customers/billing-client'
@@ -397,6 +397,7 @@ export default async function CustomerDetailPage({
     dutyLog?: DutyLogRow[]
     fireworkLog?: LogRow[]; constructionLog?: LogRow[]; promoLog?: LogRow[]; recoveryLog?: LogRow[]
     tenants?: TenantRow[]
+    valuables?: ValuableRow[]
     reportCover?: ReportCoverSection
     emergencyContact?: string  // M-18(소방계획서_15): 비상연락체계 텍스트
   } } | null)?.sections) ?? {}
@@ -826,7 +827,7 @@ export default async function CustomerDetailPage({
         }} />}
       ch2={<PlanCh2 customerId={customer.id} canManage={canManage}
         initialType={fpSections.brigadeGeneral?.type ?? ''} initialTeams={fpSections.brigadeTeams ?? {}}
-        initialBrigade={planInfoInitial.brigade} people={planPeople} />}
+        initialBrigade={planInfoInitial.brigade} initialValuables={fpSections.valuables ?? []} people={planPeople} />}
       ch3={<PlanCh3 customerId={customer.id} canManage={canManage}
         evacFire={fpSections.evacFire ?? null}
         headcount={{ worker: planInfoInitial.headcountWorker, resident: planInfoInitial.headcountResident, max: planInfoInitial.headcountMax }}

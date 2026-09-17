@@ -157,6 +157,10 @@ const MUTANTS = [
   ['M38 해당없음을 무시하고 목록을 찍는다 → [28] 「다 빈다」가 빨강이어야',
     VALUES, `  const hazItems = (etc61?.hazmat?.none ? [] : (etc61?.hazmat?.items ?? [])) as Array<Record<string, string>>`,
     `  const hazItems = (etc61?.hazmat?.items ?? []) as Array<Record<string, string>>`, 1],
+  /* 🚨 M39 — 반출물품이 위험물 행(11~13)에 얹히면 같은 시트의 두 표가 섞인다. */
+  ['M39 반출물품을 위험물 행에 얹는다 → [29] 「두 표 분리」가 빨강이어야',
+    ANCHORS, `export const VAL12_ROWS: readonly number[] = [15, 16, 17]`,
+    `export const VAL12_ROWS: readonly number[] = [11, 12, 13]`, 1],
 ]
 
 /** 🚨 파일의 줄끝에 맞춰 needle을 바꾼다.

@@ -1298,6 +1298,18 @@ const HAZ_SEEDS: Seed[] = [
     }))),
 ]
 
+/* ─────────── 2.12 비상반출물품 (2026-09-18) ───────────
+ *  ④ 셋째 축(`forms.valuables`) — 화면은 2장, PDF는 팀별임무 아래 표.
+ *  ⭐ `locked`는 select('유'/'무'/'')다 — boolean 교훈을 타입에 박았다. 미입력이면 빈 칸. */
+export const VAL12_ROWS: readonly number[] = [15, 16, 17]
+export const VAL12_COLS: ReadonlyArray<readonly [string, string, string]> = [
+  ['O', 'name', 'O14'], ['Z', 'place', 'Z14'], ['AM', 'locked', 'AM14'], ['AW', 'after', 'AW14'],
+]
+const VAL12_SEEDS: Seed[] = VAL12_ROWS.flatMap((row, i) =>
+  VAL12_COLS.map(([col, key, labelCell]) => ({
+    field: `val12_${i}_${key}`, sheet: HAZ12_SHEET, cell: `${col}${row}`, labelCell,
+  })))
+
 const BRIG1_SEEDS: Seed[] = [
   { field: 'brig1_name', sheet: BRIG1_SHEET, cell: 'M5', labelCell: 'A5' },
   { field: 'brig1_address', sheet: BRIG1_SHEET, cell: 'M6', labelCell: 'A6' },
@@ -1381,7 +1393,7 @@ function assemble(seeds: Seed[]): Anchor[] {
   })
 }
 
-export const FIRE_PLAN_ANCHORS: Anchor[] = assemble([...FIXED_SEEDS, ...ZONE_SEEDS, ...BRIG_SEEDS, ...FORM14_SEEDS, ...FIREHIST_SEEDS, ...HAZARD_SEEDS, ...MU_SEEDS, ...TRAIN_SEEDS, ...EVAC1_SEEDS, ...BRIG1_SEEDS, ...FIREWORK_SEEDS, ...CONSTRUCTION_SEEDS, ...EVAC3_SEEDS, ...BRIG9_SEEDS, ...REC14_SEEDS, ...ATT14_SEEDS, ...VUL_SEEDS, ...VUL9_SEEDS, ...EVAC34_SEEDS, ...VUL36_SEEDS, ...ORG23_SEEDS, ...TENANT_SEEDS, ...RESP13_SEEDS, ...EQUIP37_SEEDS, ...ETC61_SEEDS, ...HAZ_SEEDS])
+export const FIRE_PLAN_ANCHORS: Anchor[] = assemble([...FIXED_SEEDS, ...ZONE_SEEDS, ...BRIG_SEEDS, ...FORM14_SEEDS, ...FIREHIST_SEEDS, ...HAZARD_SEEDS, ...MU_SEEDS, ...TRAIN_SEEDS, ...EVAC1_SEEDS, ...BRIG1_SEEDS, ...FIREWORK_SEEDS, ...CONSTRUCTION_SEEDS, ...EVAC3_SEEDS, ...BRIG9_SEEDS, ...REC14_SEEDS, ...ATT14_SEEDS, ...VUL_SEEDS, ...VUL9_SEEDS, ...EVAC34_SEEDS, ...VUL36_SEEDS, ...ORG23_SEEDS, ...TENANT_SEEDS, ...RESP13_SEEDS, ...EQUIP37_SEEDS, ...ETC61_SEEDS, ...HAZ_SEEDS, ...VAL12_SEEDS])
 
 /* ══════════════════════ §사진상자 (2026-09-14) ══════════════════════
  *

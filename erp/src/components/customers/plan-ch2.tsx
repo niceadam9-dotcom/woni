@@ -29,12 +29,16 @@ const TEAMS: Array<{ key: string; label: string; preset: string }> = [
 ]
 const TEAM_OPTIONS = ['자위소방대장', '부대장', '비상연락반', '초기소화반', '피난유도반', '응급구조반', '방호안전반', '반원']
 
-export function PlanCh2({ customerId, canManage, initialType, initialTeams, initialBrigade, people }: {
+/** 2.12 비상반출물품 — ④ 셋째 축(2026-09-18). 시건장치는 select 3값(boolean은 미입력과 「무」를 못 가른다) */
+export type ValuableRow = { name: string; place: string; locked: '' | '유' | '무'; after: string }
+
+export function PlanCh2({ customerId, canManage, initialType, initialTeams, initialBrigade, initialValuables, people }: {
   customerId: string
   canManage: boolean
   initialType: string
   initialTeams: Record<string, string>
   initialBrigade: BrigadeRowInput[]
+  initialValuables: ValuableRow[]
   people: Array<{ name: string; phone: string; kind: string }>
 }) {
   const router = useRouter()
@@ -45,6 +49,7 @@ export function PlanCh2({ customerId, canManage, initialType, initialTeams, init
     return map
   })
   const [rows, setRows] = useState<BrigadeRowInput[]>(initialBrigade.length > 0 ? initialBrigade : [{ team: '자위소방대장', name: '', duty: '', phone: '' }])
+  const [valuables, setValuables] = useState<ValuableRow[]>(initialValuables)
   const [showPeople, setShowPeople] = useState(false)
   const [dirty, setDirty] = useState(false)
   useUnsavedWarning(dirty, save) // §11-4 이탈 경고 + 이동 확인창 [저장하고 이동]
@@ -60,6 +65,7 @@ export function PlanCh2({ customerId, canManage, initialType, initialTeams, init
         const res1 = await saveFirePlanSectionsAction(customerId, {
           brigadeGeneral: { type },
           brigadeTeams: teams,
+          valuables: valuables.filter(r => Object.values(r).some(x => x.trim())),
         })
         if (res1.error) { setMsg(`❌ ${res1.error}`); resolve(false); return }
         const res2 = await saveBrigadeAction(customerId, rows)
@@ -171,6 +177,34 @@ export function PlanCh2({ customerId, canManage, initialType, initialTeams, init
               className="w-full rounded-lg border border-brand-line bg-surface px-2 py-1 text-form-sm outline-none focus:border-brand resize-y" />
           </div>
         ))}
+      </div>
+
+      {/* 2.12 비상반출물품 — 화재 시 먼저 들고 나갈 물품 명부(양식 3행·초과분은 엑셀 고지) */}
+      <div className="rounded-xl border border-brand-line-soft bg-brand-tint p-4">
+        <div className="flex items-center gap-2 mb-2">
+          <p className="text-form-sm font-semibold text-ink-sub">2.12 비상반출물품</p>
+          <span className="text-form-xs text-ink-meta">양식 3행 — 초과분은 엑셀 고지에 표시</span>
+        </div>
+        {valuables.length === 0 && <p className="text-form-xs text-ink-meta">[행 추가]로 화재 시 반출할 물품(서류·귀중품 등)을 등록하세요.</p>}
+        <div className="space-y-1.5">
+          {valuables.map((r, i) => (
+            <div key={i} className="flex items-center gap-1.5 flex-wrap">
+              <input value={r.name} disabled={!canManage} placeholder="물품명 (예: 계약서류)" onChange={e => { setValuables(p => p.map((x, j) => j === i ? { ...x, name: e.target.value } : x)); setDirty(true) }} className="h-form-7 w-36 rounded border border-brand-line bg-surface px-1.5 text-form-sm outline-none focus:border-brand" />
+              <input value={r.place} disabled={!canManage} placeholder="보관장소" onChange={e => { setValuables(p => p.map((x, j) => j === i ? { ...x, place: e.target.value } : x)); setDirty(true) }} className="h-form-7 w-32 rounded border border-brand-line bg-surface px-1.5 text-form-sm outline-none focus:border-brand" />
+              <select value={r.locked} disabled={!canManage} onChange={e => { setValuables(p => p.map((x, j) => j === i ? { ...x, locked: e.target.value as ValuableRow['locked'] } : x)); setDirty(true) }} className="h-form-7 w-28 rounded border border-brand-line bg-surface px-1.5 text-form-sm outline-none focus:border-brand">
+                <option value="">시건장치?</option><option value="유">시건 유</option><option value="무">시건 무</option>
+              </select>
+              <input value={r.after} disabled={!canManage} placeholder="반출 후 보관장소" onChange={e => { setValuables(p => p.map((x, j) => j === i ? { ...x, after: e.target.value } : x)); setDirty(true) }} className="h-form-7 w-36 rounded border border-brand-line bg-surface px-1.5 text-form-sm outline-none focus:border-brand" />
+              {canManage && (
+                <button onClick={() => { setValuables(p => p.filter((_, j) => j !== i)); setDirty(true) }} className="text-ink-meta hover:text-red-500" aria-label="행 삭제">✕</button>
+              )}
+            </div>
+          ))}
+        </div>
+        {canManage && (
+          <button onClick={() => { setValuables(p => [...p, { name: '', place: '', locked: '', after: '' }]); setDirty(true) }}
+            className="mt-2 inline-flex items-center gap-1 text-form-xs text-brand hover:underline">+ 행 추가</button>
+        )}
       </div>
 
       <p className="text-form-xs text-ink-meta">2.14 교육·훈련 실시 결과 기록부는 서식 1.11.4와 공용입니다 — 1장 &gt; 1.11에서 기록하세요.</p>
