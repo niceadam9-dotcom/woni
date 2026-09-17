@@ -58,6 +58,17 @@ const MUTANTS = [
    *   값 단언이 잡아야 한다. 「같기만 하면 통과」가 아님을 증명한다. */
   ['M12 공유 계산에서 용도 변환을 뺀다 → [14] 「빈 채로 일치한 게 아니다」가 빨강이어야',
     VALUES, `    usage: purposeShort(z?.name),`, `    usage: txt(z?.name),`, 1],
+  /* 🎯 M13 — 1.9가 2.2와 **같은 사람**을 뽑는가. 대장 판정을 갈라뜨린다. */
+  ['M13 1.9만 대장을 다르게 뽑는다(공유를 깬다) → [15] 「2.2와 같다」가 빨강이어야',
+    VALUES, `  put9('brig9_lead', lead)`, `  put9('brig9_lead', fieldTeam[0])`, 1],
+  /* 🚨 M14 — 「모르는 것을 안 켠다」. 해당없음을 편성표 유무로 켜 보면 [15] 음성이 물어야. */
+  ['M14 편성표가 있으면 「해당없음」도 켠다 → [15] 음성 단언이 빨강이어야',
+    ANCHORS, `  { field: 'brig9_running', sheet: BRIG9_SHEET, cell: BRIG9_RUNNING_CELL, labelCell: BRIG9_RUNNING_CELL },`,
+    `  { field: 'brig9_running', sheet: BRIG9_SHEET, cell: 'Y2', labelCell: 'Y2' },`, 1],
+  /* 🚨 M15 — 어간을 안 떼면 `비상연락반`이 제 줄을 못 찾는다(2.1·1.9가 함께 쓰는 술어). */
+  ['M15 팀 이름 꼬리를 안 뗀다 → [15] 「비상연락반이 제 줄에」가 빨강이어야',
+    VALUES, `const teamStem = (s: string | undefined) => txt(s).replace(/[팀반]$/, '')`,
+    `const teamStem = (s: string | undefined) => txt(s)`, 1],
 ]
 
 /** 🚨 파일의 줄끝에 맞춰 needle을 바꾼다.

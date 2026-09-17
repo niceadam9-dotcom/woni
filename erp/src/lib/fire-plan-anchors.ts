@@ -41,6 +41,7 @@ export const FP_SHEET = {
   F1_12_1: '1.12.1 화기취급작업 현황',
   F1_13: '1.13 소방시설 공사·정비 기록',
   F3_3: '3.3 피난인원현황',
+  F1_9: '1.9 자위소방대 현황',
   // ⚠ manifest에 `1.11.4`로 시작하는 시트가 **둘**이다(앞쪽·뒷쪽) — 용도 칸은 앞쪽에만 있다
   F1_11_4: '1.11.4 훈련·교육 결과기록부',
   // 제2장(2026-09-08 2단계)
@@ -791,6 +792,91 @@ const EVAC3_SEEDS: Seed[] = Array.from({ length: EVAC3_ROWS }, (_, i) =>
   })),
 ).flat()
 
+/* ─────────── 서식 1.9 자위소방대 현황 (2026-09-17) ───────────
+ *  2.1(일반현황)·2.2(편성표)의 **요약본**이다 — 셋이 같은 `d.brigade`를 읽는다.
+ *
+ *  ⭐ 편성표의 구분이 **넷**이다(자위소방대장 · 부대장 · 비상연락 ×2 · 현장대응 ×6).
+ *    2.2는 구분이 **둘**뿐이라(지휘통제팀/현장대응팀) 「대장·부대장 말고는 전부 현장대응」으로
+ *    정해 두었는데, 그 판정을 1.9에 그대로 쓰면 `팀=비상연락`인 대원이 **「현장대응」이라고
+ *    적힌 줄에 인쇄된다.** 양식이 제 구분을 갖고 있고 ERP도 팀 문자열을 갖고 있으므로
+ *    여기서는 **어간으로 갈라 제 줄에 놓는다**(2.1이 팀 상자에 쓴 그 어간 판정, 사본 아님).
+ *  ⚠ **알려진 불일치**: 같은 비상연락 대원이 2.2에서는 현장대응팀 줄에 인쇄된다. 2.2의
+ *    지휘통제팀 여분 두 줄(F7·F8)은 구분 라벨이 **공백**이라 양식이 「여기가 비상연락 자리」라고
+ *    말해 주지 않는다 — 추측으로 옮기지 않고, 불일치를 검사에 **못 박아 보이게** 둔다.
+ *
+ *  ⚠ 안 채우는 칸과 이유:
+ *   · `□ 해당없음` — ERP는 **면제 대상인지**를 모른다. 편성표가 비었다는 것은 미입력일 수도
+ *     있고, 미입력과 「해당없음」은 다르다(유·무 칸의 종전 규약과 같은 축).
+ *   · `☐ 상근직` / `☐ 교대직 ( 조 교대)` — ERP에 근무형태 축이 없다.
+ *   · 팀별 **인원** 6칸 — 2.1이 같은 이유로 비웠다. 상자는 「그 팀이 있다」는 사실이지만
+ *     수는 **틀리면 거짓**이고, ERP 팀 이름이 양식 6종과 정확히 겹치지 않아 합이 안 맞는다.
+ *   · `사무실(세대)` 열 — ERP 대원은 연락처가 **하나**다. 2.2도 같은 이유로 `개인`만 쓴다.
+ *   · 19행 이후 피난약자 블록 — 3.5와 같은 축이고 ERP에 데이터가 없다.
+ */
+export const BRIG9_SHEET = FP_SHEET.F1_9
+
+/** 운영 상자 · 편성인원 칸 */
+export const BRIG9_RUNNING_CELL = 'K2'
+export const BRIG9_TOTAL_CELL = 'U3'
+
+/** 팀 상자 — [필드 접미사, 어간, 셀]. 어간은 **양식 라벨에서 떼어 쓰지 않는다**(2.1과 같은 어휘) */
+export const BRIG9_TEAM_CELLS: ReadonlyArray<readonly [string, string, string]> = [
+  ['cmd', '지휘통제', 'K4'],
+  ['emer', '비상연락', 'AA4'],
+  ['fire', '초기소화', 'AO4'],
+  ['evac', '피난유도', 'K5'],
+  ['aid', '응급구조', 'AA5'],
+  ['guard', '방호안전', 'AO5'],
+]
+
+/** 편성표 — 배선한 열 [엑셀 열, 필드 접미사].
+ *  ⚠ `개별임무`(AA)는 양식이 이미 인쇄해 둔 법정 문구라 앵커가 아니다. */
+export const BRIG9_COLS: ReadonlyArray<readonly [string, string]> = [
+  ['K', 'org'],    // 소속
+  ['T', 'name'],   // 성명
+  ['AV', 'phone'], // 비상연락체계(개인)
+]
+
+export const BRIG9_LEAD_ROW = 9
+export const BRIG9_DEP_ROW = 10
+
+/** 「비상연락」이라 적힌 행들 — 라벨에서 **찾아낸다**(11·12를 손으로 적지 않는다) */
+export const BRIG9_EMER_ROWS: readonly number[] = (() => {
+  const labels = sheetManifest(BRIG9_SHEET).labels
+  const want = labels['A11']
+  if (!want) throw new Error('fire-plan-anchors: 1.9!A11 라벨이 없다 — 편성표 좌표가 밀렸다')
+  const rows = Object.keys(labels)
+    .map(k => /^A(\d+)$/.exec(k))
+    .filter((m): m is RegExpExecArray => !!m && labels[m[0]] === want)
+    .map(m => Number(m[1]))
+    .sort((a, b) => a - b)
+  if (!rows.length) throw new Error('fire-plan-anchors: 1.9 비상연락 행을 못 찾았다')
+  return rows
+})()
+
+/** 「현장대응」 블록 행 수 — 19행 피난약자 머리글이 자동으로 끊는다 */
+export const BRIG9_FIELD_ROWS = labelBlockRows(BRIG9_SHEET, 'A13')
+export const BRIG9_FIELD_FIRST_ROW = 13
+
+const BRIG9_SEEDS: Seed[] = [
+  { field: 'brig9_running', sheet: BRIG9_SHEET, cell: BRIG9_RUNNING_CELL, labelCell: BRIG9_RUNNING_CELL },
+  { field: 'brig9_total', sheet: BRIG9_SHEET, cell: BRIG9_TOTAL_CELL, labelCell: BRIG9_TOTAL_CELL },
+  ...BRIG9_TEAM_CELLS.map(([k, , cell]) => ({ field: `brig9_team_${k}`, sheet: BRIG9_SHEET, cell, labelCell: cell })),
+  ...BRIG9_COLS.flatMap(([col, key]) => [
+    { field: `brig9_lead_${key}`, sheet: BRIG9_SHEET, cell: `${col}${BRIG9_LEAD_ROW}`, labelCell: `A${BRIG9_LEAD_ROW}` },
+    { field: `brig9_dep_${key}`, sheet: BRIG9_SHEET, cell: `${col}${BRIG9_DEP_ROW}`, labelCell: `A${BRIG9_DEP_ROW}` },
+  ]),
+  ...BRIG9_EMER_ROWS.flatMap((row, i) =>
+    BRIG9_COLS.map(([col, key]) => ({ field: `brig9_emer${i}_${key}`, sheet: BRIG9_SHEET, cell: `${col}${row}`, labelCell: `A${row}` }))),
+  ...Array.from({ length: BRIG9_FIELD_ROWS }, (_, i) =>
+    BRIG9_COLS.map(([col, key]) => ({
+      field: `brig9_fld${i}_${key}`,
+      sheet: BRIG9_SHEET,
+      cell: `${col}${BRIG9_FIELD_FIRST_ROW + i}`,
+      labelCell: `A${BRIG9_FIELD_FIRST_ROW}`,
+    }))).flat(),
+]
+
 const BRIG1_SEEDS: Seed[] = [
   { field: 'brig1_name', sheet: BRIG1_SHEET, cell: 'M5', labelCell: 'A5' },
   { field: 'brig1_address', sheet: BRIG1_SHEET, cell: 'M6', labelCell: 'A6' },
@@ -874,7 +960,7 @@ function assemble(seeds: Seed[]): Anchor[] {
   })
 }
 
-export const FIRE_PLAN_ANCHORS: Anchor[] = assemble([...FIXED_SEEDS, ...ZONE_SEEDS, ...BRIG_SEEDS, ...FORM14_SEEDS, ...FIREHIST_SEEDS, ...HAZARD_SEEDS, ...MU_SEEDS, ...TRAIN_SEEDS, ...EVAC1_SEEDS, ...BRIG1_SEEDS, ...FIREWORK_SEEDS, ...CONSTRUCTION_SEEDS, ...EVAC3_SEEDS])
+export const FIRE_PLAN_ANCHORS: Anchor[] = assemble([...FIXED_SEEDS, ...ZONE_SEEDS, ...BRIG_SEEDS, ...FORM14_SEEDS, ...FIREHIST_SEEDS, ...HAZARD_SEEDS, ...MU_SEEDS, ...TRAIN_SEEDS, ...EVAC1_SEEDS, ...BRIG1_SEEDS, ...FIREWORK_SEEDS, ...CONSTRUCTION_SEEDS, ...EVAC3_SEEDS, ...BRIG9_SEEDS])
 
 /* ══════════════════════ §사진상자 (2026-09-14) ══════════════════════
  *

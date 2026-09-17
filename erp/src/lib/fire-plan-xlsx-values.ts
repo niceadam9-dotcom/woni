@@ -30,6 +30,7 @@ import {
   FIREWORK_ROWS, FIREWORK_COLS,
   CONSTRUCTION_ROWS, CONSTRUCTION_COLS,
   EVAC3_ROWS,
+  BRIG9_SHEET, BRIG9_RUNNING_CELL, BRIG9_TOTAL_CELL, BRIG9_TEAM_CELLS, BRIG9_EMER_ROWS, BRIG9_FIELD_ROWS,
 } from '@/lib/fire-plan-anchors'
 import { boxGlyphAt, labelAt, tokenTemplateAt } from '@/lib/fire-plan-xlsx-manifest'
 import { purposeCover, purposeShort } from '@/lib/purpose-label'
@@ -469,7 +470,6 @@ export function buildFirePlanValues(d: FirePlanGenData): Map<string, CellValue> 
    *    상자는 「그 팀이 있다」는 사실이고 수는 **틀리면 거짓**이다.
    */
   const brigList = d.brigade ?? []
-  const stem = (s: string) => txt(s).replace(/[팀반]$/, '')
   v.set('brig1_name', txt(d.buildingName))
   v.set('brig1_address', txt(d.address))
   for (const [cell, g] of BRIG1_GRADE_CELLS) {
@@ -486,8 +486,8 @@ export function buildFirePlanValues(d: FirePlanGenData): Map<string, CellValue> 
     v.set(`brig1_type${i}`, boxLabelCell(BRIG1_SHEET, cell, !!btype && btype.includes(mark)))
   })
   v.set('brig1_total', unitCell(BRIG1_SHEET, 'V13', String(brigList.length || '')))
-  for (const [k, teamStem, comp, duty] of BRIG1_TEAM_CELLS) {
-    const on = brigList.some(b => stem(b.team) === teamStem)
+  for (const [k, stemWant, comp, duty] of BRIG1_TEAM_CELLS) {
+    const on = brigList.some(b => teamStem(b.team) === stemWant)
     v.set(`brig1_team_${k}_c`, boxLabelCell(BRIG1_SHEET, comp, on))
     v.set(`brig1_team_${k}_d`, boxLabelCell(BRIG1_SHEET, duty, on))
   }
@@ -629,9 +629,7 @@ export function buildFirePlanValues(d: FirePlanGenData): Map<string, CellValue> 
    *    나머지는 전부 현장대응팀으로 보낸다 — 목록을 새로 베껴 세 번째 원천을 만들지 않는다.
    */
   const brig = d.brigade ?? []
-  const lead = brig.find(b => (b.team ?? '').startsWith('자위소방대장'))
-  const deputy = brig.find(b => (b.team ?? '').startsWith('부대장'))
-  const fieldTeam = brig.filter(b => b !== lead && b !== deputy)
+  const { lead, deputy, rest: fieldTeam } = brigadeHeads(brig)
   // 소속은 **대원이 있을 때만** 채운다 — 빈 줄에 건물명만 찍히면 '이름 없는 소속'이 인쇄된다
   const org = (b: BrigadeRow | undefined) => (b ? txt(d.buildingName) : '')
 
@@ -643,6 +641,35 @@ export function buildFirePlanValues(d: FirePlanGenData): Map<string, CellValue> 
   v.set('brig_dep_name', txt(deputy?.name))
   v.set('brig_dep_duty', txt(deputy?.duty))
   v.set('brig_dep_phone', formatTel(txt(deputy?.phone)))
+
+  /* ── 서식 1.9 자위소방대 현황 (2026-09-17) ─────────────────────────────────
+   *
+   *  ⭐ 2.1·2.2의 요약본이다. 대장·부대장은 **같은 술어**(`brigadeHeads`)로 뽑고
+   *    편성인원은 2.1 `brig1_total`과 **같은 수**다 — 갈라질 수 없다.
+   *  ⭐ 구분이 넷이라 비상연락 대원을 제 줄에 놓는다(어간 판정, 앵커 §1.9 참조).
+   *  ⚠ 해당없음·근무형태·팀별 인원·사무실 칸은 비운다 — 사유는 앵커 선언부.
+   */
+  const b9emer = fieldTeam.filter(b => teamStem(b.team) === '비상연락')
+  const b9field = fieldTeam.filter(b => !b9emer.includes(b))
+  v.set('brig9_running', boxLabelCell(BRIG9_SHEET, BRIG9_RUNNING_CELL, brig.length > 0))
+  v.set('brig9_total', unitCell(BRIG9_SHEET, BRIG9_TOTAL_CELL, String(brig.length || '')))
+  for (const [k, stemWant, cell] of BRIG9_TEAM_CELLS) {
+    // 지휘통제팀은 ERP에 그 이름의 팀이 없다 — **대장·부대장이 곧 지휘통제**다
+    const on = stemWant === '지휘통제'
+      ? !!(lead || deputy)
+      : brig.some(b => teamStem(b.team) === stemWant)
+    v.set(`brig9_team_${k}`, boxLabelCell(BRIG9_SHEET, cell, on))
+  }
+  // 소속은 **대원이 있을 때만** — 2.2와 같은 규약(빈 줄에 건물명만 찍히면 '이름 없는 소속')
+  const put9 = (pfx: string, b: BrigadeRow | undefined) => {
+    v.set(`${pfx}_org`, org(b))
+    v.set(`${pfx}_name`, txt(b?.name))
+    v.set(`${pfx}_phone`, formatTel(txt(b?.phone)))
+  }
+  put9('brig9_lead', lead)
+  put9('brig9_dep', deputy)
+  BRIG9_EMER_ROWS.forEach((_, i) => put9(`brig9_emer${i}`, b9emer[i]))
+  for (let i = 0; i < BRIG9_FIELD_ROWS; i++) put9(`brig9_fld${i}`, b9field[i])
 
   for (let i = 0; i < BRIG_ROWS; i++) {
     const b = fieldTeam[i]
@@ -663,6 +690,19 @@ export function zoneRowOverflow(d: FirePlanGenData): number {
 /** 화기취급작업 표(1.12.1)가 못 담은 행 수 — 구역·대원과 같은 축(라우트가 고지에 싣는다) */
 export function fireworkRowOverflow(d: FirePlanGenData): number {
   return Math.max(0, ((d.forms?.fireworkLog ?? []) as unknown[]).length - FIREWORK_ROWS)
+}
+
+/** 팀 이름의 **어간** — 양식 `비상연락팀` ↔ ERP `비상연락`·`비상연락반`.
+ *  팀 구분 문자열의 단일 원천이 없어(입력 화면 둘이 다른 목록을 든다) 꼬리를 떼어 비교한다.
+ *  목록을 새로 베껴 세 번째 원천을 만들지 않는다 — 2.1·1.9가 이 함수 하나를 쓴다. */
+const teamStem = (s: string | undefined) => txt(s).replace(/[팀반]$/, '')
+
+/** 대장·부대장 가르기 — **2.2와 1.9가 나눠 쓴다**(같은 사람이 두 시트에서 달리 뽑히면 안 된다).
+ *  두 입력 화면의 팀 목록이 서로 다르지만 **앞 둘은 양쪽 다** `자위소방대장`·`부대장`이다. */
+function brigadeHeads(brig: readonly BrigadeRow[]) {
+  const lead = brig.find(b => (b.team ?? '').startsWith('자위소방대장'))
+  const deputy = brig.find(b => (b.team ?? '').startsWith('부대장'))
+  return { lead, deputy, rest: brig.filter(b => b !== lead && b !== deputy) }
 }
 
 /** 구역 한 줄이 내는 값 — **1.2.1과 3.3이 나눠 쓴다.**

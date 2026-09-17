@@ -659,5 +659,89 @@ console.log('\n[14] 3.3 피난인원현황 — 1.2.1과 같은 값인가')
   }
 }
 
+/* ══════════════════════ [15] 1.9 자위소방대 현황 — 2.1·2.2의 요약본 ══════════════════════
+ *  ⭐ 셋이 같은 `d.brigade`를 읽는다. 그래서 묻는 것은 **「같은 사람이 같게 뽑히는가」**다:
+ *    대장·부대장은 2.2와 **같은 술어**, 편성인원은 2.1과 **같은 수**여야 한다.
+ *  🚨 그리고 **알려진 불일치를 일부러 못 박는다** — 1.9는 구분이 넷이라 비상연락 대원을 제
+ *    줄에 놓지만, 2.2는 구분이 둘뿐이라 같은 사람을 현장대응팀 줄에 인쇄한다. 숨기면 다음
+ *    사람이 「통일한다」며 어느 한쪽을 조용히 되돌린다 — 보이게 두고 고정한다. */
+console.log('\n[15] 1.9 자위소방대 현황 — 2.1·2.2와 같은 사람인가')
+{
+  const { validateAnchors } = await import('../src/lib/xlsx-anchors.ts')
+  const { toInjectTargets } = await import('../src/lib/xlsx-workbook.ts')
+  const { FIRE_PLAN_ANCHORS, BRIG9_SHEET, BRIG9_EMER_ROWS, BRIG9_FIELD_ROWS, BRIG9_FIELD_FIRST_ROW,
+    BRIG1_SHEET, BRIG_SHEET, BRIG_FIRST_ROW } = await import('../src/lib/fire-plan-anchors.ts')
+  const { buildFirePlanValues } = await import('../src/lib/fire-plan-xlsx-values.ts')
+  const { labelAt } = await import('../src/lib/fire-plan-xlsx-manifest.ts')
+
+  const brigade = [
+    { team: '자위소방대장', name: '김대장', duty: '총괄', phone: '01011112222' },
+    { team: '부대장', name: '이부장', duty: '보좌', phone: '01033334444' },
+    { team: '비상연락반', name: '박연락', duty: '신고', phone: '01055556666' },   // ← 꼬리가 '반'
+    { team: '초기소화팀', name: '최소화', duty: '초기소화', phone: '01077778888' },
+    { team: '피난유도', name: '정유도', duty: '피난유도', phone: '01099990000' },
+  ]
+  const fx = { buildingName: '가온빌딩', facilities: [], brigade, zones: [], hazards: [], forms: {} } as never
+
+  const vc = validateAnchors(bytes, FIRE_PLAN_ANCHORS)
+  if (vc.ok) {
+    const { targets } = toInjectTargets(buildFirePlanValues(fx), vc.anchors)
+    const out = await injectWorkbook(bytes, targets)
+    const z2 = await JSZip.loadAsync(out.bytes)
+    const g9 = await readSheetGrid(z2, BRIG9_SHEET)
+    const g21 = await readSheetGrid(z2, BRIG1_SHEET)
+    const g22 = await readSheetGrid(z2, BRIG_SHEET)
+    const at = (g: typeof g9, r: string) => g.cells.find(x => x.ref === r)?.text ?? ''
+
+    check('비상연락 행을 라벨에서 찾았다(손으로 안 적었다)',
+      BRIG9_EMER_ROWS.join(',') === '11,12', BRIG9_EMER_ROWS.join(','))
+    check('현장대응 블록 행 수가 파생된다(6행)', BRIG9_FIELD_ROWS === 6, `${BRIG9_FIELD_ROWS}행`)
+
+    /* 🎯 2.2와 **같은 사람**이 대장·부대장으로 뽑혔는가 */
+    check('대장·부대장이 2.2와 같다', at(g9, 'T9') === at(g22, 'X5') && at(g9, 'T10') === at(g22, 'X6')
+      && at(g9, 'T9') === '김대장', `1.9=${at(g9, 'T9')}/${at(g9, 'T10')} 2.2=${at(g22, 'X5')}/${at(g22, 'X6')}`)
+    check('연락처도 같은 표기(formatTel 공유)', at(g9, 'AV9') === at(g22, 'AZ5') && at(g9, 'AV9').includes('-'),
+      at(g9, 'AV9'))
+    check('소속은 대원이 있을 때만(2.2와 같은 규약)',
+      at(g9, 'K9') === '가온빌딩' && at(g9, `K${BRIG9_FIELD_FIRST_ROW + 5}`) === '', `K9=${at(g9, 'K9')}`)
+
+    /* 🎯 2.1과 **같은 수** */
+    check('편성인원이 2.1과 같다', at(g9, 'U3') === at(g21, 'V13') && at(g9, 'U3').startsWith('5'),
+      `1.9=${at(g9, 'U3')} 2.1=${at(g21, 'V13')}`)
+    check('운영 상자가 켜졌다', at(g9, 'K2').includes('■'), at(g9, 'K2'))
+
+    /* ⭐ 꼬리가 '반'이어도 어간으로 맞는다 — 제 줄(11)에 놓였다 */
+    check('비상연락반이 「비상연락」 줄에 놓인다', at(g9, 'T11') === '박연락', at(g9, 'T11'))
+    check('나머지는 현장대응 줄로', at(g9, 'T13') === '최소화' && at(g9, 'T14') === '정유도',
+      `T13=${at(g9, 'T13')} T14=${at(g9, 'T14')}`)
+    check('팀 상자 셋이 켜졌다(어간 매칭)', at(g9, 'AA4').includes('■')
+      && at(g9, 'AO4').includes('■') && at(g9, 'K5').includes('■'),
+      `${at(g9, 'AA4')}·${at(g9, 'AO4')}·${at(g9, 'K5')}`)
+    check('지휘통제 상자는 대장·부대장이 켠다', at(g9, 'K4').includes('■'), at(g9, 'K4'))
+    check('없는 팀 상자는 꺼져 있다(응급구조·방호안전)',
+      !at(g9, 'AA5').includes('■') && !at(g9, 'AO5').includes('■'), `${at(g9, 'AA5')}·${at(g9, 'AO5')}`)
+
+    /* 🚨 **알려진 불일치를 고정한다** — 같은 박연락이 2.2에서는 현장대응팀 첫 줄에 있다.
+     *   2.2의 지휘통제 여분 줄(F7·F8)은 구분 라벨이 **공백**이라 양식이 「여기가 비상연락
+     *   자리」라고 말해 주지 않는다. 추측으로 옮기지 않고, 어긋남을 보이게 둔다. */
+    check('⚠ 알려진 불일치: 같은 대원이 2.2에선 현장대응 줄에 있다',
+      at(g22, `X${BRIG_FIRST_ROW}`) === '박연락' && at(g9, 'T13') !== '박연락',
+      `2.2 X${BRIG_FIRST_ROW}=${at(g22, `X${BRIG_FIRST_ROW}`)}`)
+
+    /* 🚨 음성 — 근거 없는 칸은 비어 있다 */
+    check('「해당없음」 상자는 꺼져 있다(면제 여부를 ERP는 모른다)',
+      !at(g9, 'Y2').includes('■'), at(g9, 'Y2'))
+    check('근무형태 두 상자는 꺼져 있다(ERP에 축이 없다)',
+      !at(g9, 'AK3').includes('■') && !at(g9, 'AR3').includes('■'), `${at(g9, 'AK3')}·${at(g9, 'AR3')}`)
+    check('팀별 인원 칸은 비어 있다(2.1과 같은 결정)',
+      at(g9, 'U4') === labelAt(BRIG9_SHEET, 'U4') && at(g9, 'AJ4') === labelAt(BRIG9_SHEET, 'AJ4'),
+      `U4=${JSON.stringify(at(g9, 'U4'))}`)
+    check('사무실 칸은 비어 있다(ERP 연락처는 하나뿐)',
+      at(g9, 'AN9') === '' && at(g9, 'AN11') === '', `AN9=${JSON.stringify(at(g9, 'AN9'))}`)
+    check('개별임무 법정 문구가 온전하다', at(g9, 'AA9') === labelAt(BRIG9_SHEET, 'AA9'), at(g9, 'AA9'))
+    check('피난약자 블록은 안 건드렸다', at(g9, 'A21') === labelAt(BRIG9_SHEET, 'A21'), at(g9, 'A21'))
+  }
+}
+
 console.log(`\n=== pass ${pass} / fail ${fail} ===`)
 process.exit(fail ? 1 : 0)
