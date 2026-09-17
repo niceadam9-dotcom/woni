@@ -531,5 +531,60 @@ console.log('\n[12] 1.12.1 화기취급작업 — 4열만')
   }
 }
 
+/* ══════════════════════ [13] 1.13 공사·정비 — 5열 중 3열만 ══════════════════════
+ *  🚨 1.12.1보다 어긋남이 크다. 열 수만 5:5이고 **뜻은 3열만 겹친다** —
+ *    `작업책임자`에 ERP `company`(시공업체)를 넣는 것, `확인일자`에 `date`를 넣는 것이
+ *    이 시트의 두 유혹이다. 픽스처가 둘 다 담아 시험하고, **두 칸이 비어 있는지**를 묻는다.
+ *  ⚠ 버린 축(`facility`·`company`)을 **세는지**도 함께 단언한다 — 이 시트는 PDF가 인쇄하는
+ *    사실을 엑셀이 못 싣는 첫 사례라, 안 세면 사용자가 엑셀을 손으로 고치러 간다. */
+console.log('\n[13] 1.13 공사·정비 — 3열만')
+{
+  const { validateAnchors } = await import('../src/lib/xlsx-anchors.ts')
+  const { toInjectTargets } = await import('../src/lib/xlsx-workbook.ts')
+  const { FIRE_PLAN_ANCHORS, CONSTRUCTION_SHEET, CONSTRUCTION_ROWS } = await import('../src/lib/fire-plan-anchors.ts')
+  const { buildFirePlanValues, constructionRowOverflow, constructionUnmapped } = await import('../src/lib/fire-plan-xlsx-values.ts')
+  const { labelAt } = await import('../src/lib/fire-plan-xlsx-manifest.ts')
+
+  const rows = Array.from({ length: CONSTRUCTION_ROWS + 3 }, (_, i) => ({
+    date: `2026-05-0${(i % 9) + 1}`, facility: `설비${i}`, content: `내용${i}`,
+    company: `업체${i}`, note: `비고${i}`,            // ← facility·company는 양식에 칸이 없다
+  }))
+  const fx = {
+    buildingName: 'X', facilities: [], brigade: [], zones: [], hazards: [],
+    forms: { constructionLog: rows },
+  } as never
+
+  const vc = validateAnchors(bytes, FIRE_PLAN_ANCHORS)
+  if (vc.ok) {
+    const { targets } = toInjectTargets(buildFirePlanValues(fx), vc.anchors)
+    const out = await injectWorkbook(bytes, targets)
+    const gg = await readSheetGrid(await JSZip.loadAsync(out.bytes), CONSTRUCTION_SHEET)
+    const at = (r: string) => gg.cells.find(x => x.ref === r)?.text ?? ''
+    /* 🚨 손으로 14행이라 짐작했다가 파생에 틀렸다 — A14「관련서류 보관방법」이 표를 끊는다.
+     *   행 수를 적어 두지 않고 라벨에서 유도하기 때문에 **양식이 스스로 답했다**. */
+    check('반복행 예산이 파생된다(11행 — A14 라벨에서 끊긴다)', CONSTRUCTION_ROWS === 11,
+      `${CONSTRUCTION_ROWS}행`)
+    check('첫 행 3열 착지', at('A3') === '내용0' && at('O3') === '2026-05-01' && at('AP3') === '비고0',
+      `A3=${at('A3')} O3=${at('O3')} AP3=${at('AP3')}`)
+    check('마지막 행(13)도 착지', at('A13') === rows[10].content, at('A13'))
+    /* 🚨 음성 — 표를 넘어 「관련서류 보관방법」 블록을 침범하지 않았다 */
+    check('표 밖(A14) 라벨이 온전하다', at('A14') === labelAt(CONSTRUCTION_SHEET, 'A14'), at('A14'))
+    /* 🚨 음성 둘 — 업체를 사람 칸에, 일자를 확인칸에 몰래 넣지 않았는가 */
+    check('작업책임자 칸은 비어 있다(시공업체를 넣지 않았다)',
+      at('X3') === '' && at('X13') === '', `X3=${JSON.stringify(at('X3'))}`)
+    check('확인일자 칸은 비어 있다(작업일자를 넣지 않았다)',
+      at('AG3') === '' && at('AG13') === '', `AG3=${JSON.stringify(at('AG3'))}`)
+    /* 🚨 머리글은 manifest에서 읽는다 — 법정 자구를 검사에 베끼지 않는다 */
+    check('머리글 두 칸이 살아 있다',
+      at('X2') === labelAt(CONSTRUCTION_SHEET, 'X2') && at('AG2') === labelAt(CONSTRUCTION_SHEET, 'AG2'),
+      `${at('X2')}·${at('AG2')}`)
+    check('넘친 행을 센다', constructionRowOverflow(fx) === 3, `${constructionRowOverflow(fx)}건`)
+    /* 버린 축은 **담긴 14행 기준**으로 센다(넘친 3건을 두 번 세지 않는다) */
+    const um = constructionUnmapped(fx)
+    check('갈 칸 없는 두 축을 센다(넘침과 따로)', um.facility === 11 && um.company === 11,
+      `설비 ${um.facility} · 업체 ${um.company}`)
+  }
+}
+
 console.log(`\n=== pass ${pass} / fail ${fail} ===`)
 process.exit(fail ? 1 : 0)

@@ -6,7 +6,7 @@ import { assembleFirePlan } from '@/lib/fire-plan-generate'
 import { firePlanTemplate } from '@/lib/fire-plan-template-cache'
 import { toInjectTargets } from '@/lib/xlsx-workbook'
 import { injectWorkbook } from '@/lib/xlsx-inject'
-import { brigadeRowOverflow, buildFirePlanValues, fireworkRowOverflow, hazardUnmatched, missingValueFields, zoneRowOverflow } from '@/lib/fire-plan-xlsx-values'
+import { brigadeRowOverflow, buildFirePlanValues, constructionRowOverflow, constructionUnmapped, fireworkRowOverflow, hazardUnmatched, missingValueFields, zoneRowOverflow } from '@/lib/fire-plan-xlsx-values'
 import { FIRE_PLAN_MANIFEST } from '@/lib/fire-plan-xlsx-manifest'
 import { embedFirePlanImages, planFirePlanImages } from '@/lib/fire-plan-xlsx-images'
 import { applyFirePlanCheckboxes } from '@/lib/fire-plan-checkbox-controls'
@@ -128,6 +128,11 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
             ? [`화재취약장소 ${hazardUnmatched(data).length}곳 미표기(양식 고정 3개소 밖): ${hazardUnmatched(data).slice(0, 4).join(' ')}`]
             : []),
           ...(fireworkRowOverflow(data) ? [`화기취급작업 ${fireworkRowOverflow(data)}건 미표기(양식 고정 행 상한)`] : []),
+          ...(constructionRowOverflow(data) ? [`소방시설 공사·정비 ${constructionRowOverflow(data)}건 미표기(양식 고정 행 상한)`] : []),
+          // 🚨 넘침과 다른 축 — 양식 1.13에 **「대상 설비」·「시공업체」 열이 아예 없다**.
+          //    PDF는 둘 다 인쇄하므로 말해 주지 않으면 「엑셀이 빠뜨렸다」고 오해한다.
+          ...(constructionUnmapped(data).facility ? [`공사·정비 「대상 설비」 ${constructionUnmapped(data).facility}건 미표기(양식에 해당 열 없음)`] : []),
+          ...(constructionUnmapped(data).company ? [`공사·정비 「시공업체」 ${constructionUnmapped(data).company}건 미표기(양식 「작업책임자」는 사람 칸이다)`] : []),
           // 대원 넘침도 같은 축이다 — 편성표는 잘려 나가도 인쇄물이 멀쩡해 보인다
           ...(brigadeRowOverflow(data) ? [`자위소방대 현장대응팀 ${brigadeRowOverflow(data)}명 미표기(양식 고정 행 상한)`] : []),
           // 체크박스를 못 단 칸 — 그 칸은 상자가 **글자로 남아** 클릭이 안 된다. 문서는 멀쩡해

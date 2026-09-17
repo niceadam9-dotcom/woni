@@ -39,6 +39,7 @@ export const FP_SHEET = {
   F1_10_4: '1.10.4 화재·비화재보 이력',
   F1_11_1: '1.11.1 소방훈련·교육 연간계획',
   F1_12_1: '1.12.1 화기취급작업 현황',
+  F1_13: '1.13 소방시설 공사·정비 기록',
   // ⚠ manifest에 `1.11.4`로 시작하는 시트가 **둘**이다(앞쪽·뒷쪽) — 용도 칸은 앞쪽에만 있다
   F1_11_4: '1.11.4 훈련·교육 결과기록부',
   // 제2장(2026-09-08 2단계)
@@ -705,6 +706,49 @@ const FIREWORK_SEEDS: Seed[] = Array.from({ length: FIREWORK_ROWS }, (_, i) =>
   })),
 ).flat()
 
+/* ─────────── 서식 1.13 소방시설 공사·정비 기록 (2026-09-17) ───────────
+ *  14행 × 5열. 입력 화면은 `plan-form1215`의 `constructionLog`(`LogRow[]`).
+ *
+ *  🚨 **1.12.1과 달리 5:5로 겹치지 않는다.** 열 수만 같고 뜻이 어긋난다:
+ *
+ *    양식 머리글        ERP 필드            판정
+ *    ──────────────────────────────────────────────────────────────
+ *    작업내용     ←   content(공사·정비 내용)   ✅ 같은 뜻
+ *    작업기간     ←   date(일자)               ✅ 하루짜리 기간이다
+ *    작업책임자   ←   company(시공업체)         ❌ **업체는 사람이 아니다**
+ *    확인일자     ←   (없음)                   ❌ ERP에 확인 축이 없다
+ *    비고        ←   note(비고)               ✅ 같은 말
+ *
+ *  → **3열만 배선한다.** 시공업체를 「작업책임자」 밑에 찍으면 머리글이 거짓말을 한다
+ *    (1.12.1 `연락처`와 같은 규약). `확인일자`는 관계인이 손으로 적을 칸이다.
+ *  ⚠ 갈 곳 없는 두 축(`facility` 대상 설비 · `company` 시공업체)은 **버리되 센다** —
+ *    `constructionUnmapped()`가 라우트 고지에 싣는다. PDF는 이 둘을 인쇄하는데 양식엔
+ *    칸이 없으므로, 말해 주지 않으면 사용자는 **엑셀이 빠뜨렸다고 오해한다.**
+ */
+export const CONSTRUCTION_SHEET = FP_SHEET.F1_13
+
+/** 데이터 행 수 — `labelBlockRows('A2')`가 머리글 행까지 세므로 −1(A열에 아래 라벨이 없어 시트 끝까지). */
+export const CONSTRUCTION_ROWS = labelBlockRows(CONSTRUCTION_SHEET, 'A2') - 1
+export const CONSTRUCTION_FIRST_ROW = 3
+
+/** [엑셀 열, `LogRow` 열쇠, 머리글 셀] */
+export const CONSTRUCTION_COLS: ReadonlyArray<readonly [string, string, string]> = [
+  ['A', 'content', 'A2'],  // 작업내용
+  ['O', 'date', 'O2'],     // 작업기간
+  // ['X', ?, 'X2']  작업책임자 — 시공업체(법인)를 사람 자리에 넣지 않는다
+  // ['AG', ?, 'AG2'] 확인일자 — ERP에 확인 축이 없다
+  ['AP', 'note', 'AP2'],   // 비고
+]
+
+const CONSTRUCTION_SEEDS: Seed[] = Array.from({ length: CONSTRUCTION_ROWS }, (_, i) =>
+  CONSTRUCTION_COLS.map(([col, key, labelCell]) => ({
+    field: `construction_${i}_${key}`,
+    sheet: CONSTRUCTION_SHEET,
+    cell: `${col}${CONSTRUCTION_FIRST_ROW + i}`,
+    labelCell,
+  })),
+).flat()
+
 const BRIG1_SEEDS: Seed[] = [
   { field: 'brig1_name', sheet: BRIG1_SHEET, cell: 'M5', labelCell: 'A5' },
   { field: 'brig1_address', sheet: BRIG1_SHEET, cell: 'M6', labelCell: 'A6' },
@@ -788,7 +832,7 @@ function assemble(seeds: Seed[]): Anchor[] {
   })
 }
 
-export const FIRE_PLAN_ANCHORS: Anchor[] = assemble([...FIXED_SEEDS, ...ZONE_SEEDS, ...BRIG_SEEDS, ...FORM14_SEEDS, ...FIREHIST_SEEDS, ...HAZARD_SEEDS, ...MU_SEEDS, ...TRAIN_SEEDS, ...EVAC1_SEEDS, ...BRIG1_SEEDS, ...FIREWORK_SEEDS])
+export const FIRE_PLAN_ANCHORS: Anchor[] = assemble([...FIXED_SEEDS, ...ZONE_SEEDS, ...BRIG_SEEDS, ...FORM14_SEEDS, ...FIREHIST_SEEDS, ...HAZARD_SEEDS, ...MU_SEEDS, ...TRAIN_SEEDS, ...EVAC1_SEEDS, ...BRIG1_SEEDS, ...FIREWORK_SEEDS, ...CONSTRUCTION_SEEDS])
 
 /* ══════════════════════ §사진상자 (2026-09-14) ══════════════════════
  *

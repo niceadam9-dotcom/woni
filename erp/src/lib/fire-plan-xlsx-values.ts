@@ -28,6 +28,7 @@ import {
   EVAC1_SHEET, EVAC1_STAIR_CELLS, EVAC1_ETC_CELLS, EVAC1_ELEVATOR_CELL,
   BRIG1_SHEET, BRIG1_GRADE_CELLS, BRIG1_HEADCOUNT_BANDS, BRIG1_TYPE_CELLS, BRIG1_TEAM_CELLS,
   FIREWORK_ROWS, FIREWORK_COLS,
+  CONSTRUCTION_ROWS, CONSTRUCTION_COLS,
 } from '@/lib/fire-plan-anchors'
 import { boxGlyphAt, labelAt, tokenTemplateAt } from '@/lib/fire-plan-xlsx-manifest'
 import { purposeCover, purposeShort } from '@/lib/purpose-label'
@@ -439,6 +440,19 @@ export function buildFirePlanValues(d: FirePlanGenData): Map<string, CellValue> 
     for (const [, key] of FIREWORK_COLS) v.set(`firework_${i}_${key}`, txt(r?.[key]))
   }
 
+  /* ── 서식 1.13 소방시설 공사·정비 기록 (2026-09-17) ───────────────────────────
+   *
+   *  🚨 열 수만 5:5이고 **뜻은 3열만 겹친다**(anchors §1.13 대조표 참조).
+   *    `작업책임자`에 ERP의 `company`(시공업체)를 넣으면 **법인을 사람 자리에 찍는 것**이고,
+   *    `확인일자`는 ERP가 모르는 사실이다 — 둘 다 비운다.
+   *  ⚠ 갈 곳 없는 `facility`·`company`는 버리되 `constructionUnmapped()`가 센다.
+   */
+  const cvLog = (d.forms?.constructionLog ?? []) as Array<Record<string, string>>
+  for (let i = 0; i < CONSTRUCTION_ROWS; i++) {
+    const r = cvLog[i]
+    for (const [, key] of CONSTRUCTION_COLS) v.set(`construction_${i}_${key}`, txt(r?.[key]))
+  }
+
   /* ── 서식 2.1 자위소방대 일반현황 (2026-09-17) ──────────────────────────────
    *
    *  ⭐ 대부분 **1.1이 이미 쓰는 그 원천**이다(명칭·주소·등급·근무인원) — 같은 사실을
@@ -644,6 +658,25 @@ export function zoneRowOverflow(d: FirePlanGenData): number {
 /** 화기취급작업 표(1.12.1)가 못 담은 행 수 — 구역·대원과 같은 축(라우트가 고지에 싣는다) */
 export function fireworkRowOverflow(d: FirePlanGenData): number {
   return Math.max(0, ((d.forms?.fireworkLog ?? []) as unknown[]).length - FIREWORK_ROWS)
+}
+
+/** 공사·정비 기록(1.13)이 못 담은 행 수 — 화기취급과 같은 축 */
+export function constructionRowOverflow(d: FirePlanGenData): number {
+  return Math.max(0, ((d.forms?.constructionLog ?? []) as unknown[]).length - CONSTRUCTION_ROWS)
+}
+
+/** 1.13에서 **양식에 갈 칸이 없어 버려진** 축을 쓴 행 수 — `[대상 설비, 시공업체]` 각각.
+ *
+ *  🚨 넘침(`constructionRowOverflow`)과 성격이 다르다 — 저기는 「줄이 모자랐다」이고
+ *    여기는 **「양식에 그 열이 아예 없다」**다. PDF는 이 둘을 인쇄하는데 엑셀은 못 하므로,
+ *    말해 주지 않으면 사용자는 **엑셀이 값을 빠뜨렸다고 오해하고 손으로 적으러 간다** —
+ *    이 과제가 없애려는 바로 그 행동이다.
+ */
+export function constructionUnmapped(d: FirePlanGenData): { facility: number; company: number } {
+  const rows = ((d.forms?.constructionLog ?? []) as Array<Record<string, string>>)
+    .slice(0, CONSTRUCTION_ROWS)
+  const n = (k: string) => rows.filter(r => txt(r?.[k]).trim() !== '').length
+  return { facility: n('facility'), company: n('company') }
 }
 
 /** 1.2.2 양식의 고정 3개소에 **맞물리지 못한** 화재취약장소 이름들.

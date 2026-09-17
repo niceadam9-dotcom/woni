@@ -16,6 +16,7 @@ import { dirname, resolve } from 'node:path'
 const HERE = dirname(fileURLToPath(import.meta.url))
 const READER = resolve(HERE, '../src/lib/xlsx-read-sheet.ts')
 const TEST = resolve(HERE, 'test-fire-plan-preview.mts')
+const ANCHORS = resolve(HERE, '../src/lib/fire-plan-anchors.ts')
 
 const MUTANTS = [
   ['M1 테두리를 전부 none으로 읽는다 → [2]·[5]가 빨강이어야 (SheetJS는 이 축을 모른다)',
@@ -36,6 +37,11 @@ const MUTANTS = [
   ['M8 정렬을 늘 center로 읽는다 → [2]·[5]가 빨강이어야',
     READER, `    const align = (/horizontal="(left|center|right)"/.exec(xf)?.[1] as HAlign) ?? 'left'`,
     `    const align = 'center' as HAlign`, 1],
+  /* 🚨 M9는 **리더가 아니라 제품의 유혹**을 겨눈다. 1.13의 「남는 열에 남는 값을 넣기」가
+   *   실제로 잡히는지 — 시공업체를 「작업책임자」 칸에 배선해 본다. [13]의 음성 단언이
+   *   물지 않으면 이 규약은 주석일 뿐이다. */
+  ['M9 시공업체를 「작업책임자」 칸에 넣는다 → [13] 음성 단언이 빨강이어야',
+    ANCHORS, `  ['AP', 'note', 'AP2'],`, `  ['X', 'company', 'X2'],\n  ['AP', 'note', 'AP2'],`, 1],
 ]
 
 /** 🚨 파일의 줄끝에 맞춰 needle을 바꾼다.
