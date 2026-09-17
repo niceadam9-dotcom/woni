@@ -1419,5 +1419,71 @@ console.log('\n[27] 1.6.1 기타시설 — 전기·가스·위험물')
   }
 }
 
+/* ══════════════════════ [28] 위험물 세부 — 1.6.1 ↔ 2.12 한 축 ══════════════════════
+ *  🎯 같은 위험물이 두 시트에 인쇄된다 — 공통 3열(품명·보유량·위치)을 칸 대 칸으로 맞댄다.
+ *  ⭐ valve는 select('유'/'무'/'')다 — 차단기구 boolean의 교훈. 미입력이면 빈 칸. */
+console.log('\n[28] 위험물 세부 — 1.6.1 ↔ 2.12 항등')
+{
+  const { validateAnchors } = await import('../src/lib/xlsx-anchors.ts')
+  const { toInjectTargets } = await import('../src/lib/xlsx-workbook.ts')
+  const { FIRE_PLAN_ANCHORS, ETC61_SHEET, HAZ12_SHEET, HAZ61_ROWS, HAZ12_ROWS } =
+    await import('../src/lib/fire-plan-anchors.ts')
+  const { buildFirePlanValues, hazmatItemOverflow } = await import('../src/lib/fire-plan-xlsx-values.ts')
+
+  const items = [
+    { kind: '옥내저장', location: '지하 1층', category: '제4류', name: '경유', amount: '400ℓ', multiple: '0.4', valve: '유', method: '수동 밸브' },
+    { kind: '', location: '옥상', category: '', name: '윤활유', amount: '60ℓ', multiple: '', valve: '무', method: '' },
+    { kind: '', location: '', category: '', name: '등유', amount: '', multiple: '', valve: '', method: '' },
+    { kind: '', location: '', category: '', name: '넘침', amount: '', multiple: '', valve: '', method: '' },
+  ]
+  const base = { buildingName: 'X', facilities: [], brigade: [], zones: [], hazards: [] }
+  const etcOf = (none: boolean) => ({ electric: { kw: '', kva: '', location: '', qty: '', generator: false, generatorNote: '', note: '' }, gas: { kind: '', location: '', usage: '', regulator: false, shutoff: false, shutoffLocation: '' }, hazmat: { none, note: '', items } })
+  const fx = { ...base, forms: { etcFacility: etcOf(false) } } as never
+
+  const vc = validateAnchors(bytes, FIRE_PLAN_ANCHORS)
+  if (vc.ok) {
+    const run = async (f: never) => {
+      const { targets } = toInjectTargets(buildFirePlanValues(f), vc.anchors)
+      const out = await injectWorkbook(bytes, targets)
+      const z2 = await JSZip.loadAsync(out.bytes)
+      const g61 = await readSheetGrid(z2, ETC61_SHEET)
+      const g12 = await readSheetGrid(z2, HAZ12_SHEET)
+      return {
+        a61: (r: string) => g61.cells.find(x => x.ref === r)?.text ?? '',
+        a12: (r: string) => g12.cells.find(x => x.ref === r)?.text ?? '',
+      }
+    }
+    const { a61, a12 } = await run(fx)
+
+    /* 🎯 공통 3열 항등 — 두 시트가 담는 3행 전부 */
+    const diff: string[] = []
+    let cmp = 0
+    for (let i = 0; i < 3; i++) {
+      for (const [c61, c12] of [['AI', 'O'], ['AR', 'X'], ['R', 'AG']] as const) {
+        const x = a61(`${c61}${HAZ61_ROWS[i]}`), y = a12(`${c12}${HAZ12_ROWS[i]}`)
+        if (x !== y) diff.push(`${i}행 ${c61}↔${c12}: '${x}' ≠ '${y}'`)
+        cmp++
+      }
+    }
+    check('대조가 실제로 돌았다(9칸)', cmp === 9, `${cmp}칸`)
+    check('1.6.1 ↔ 2.12 공통 3열 전건 일치 (D-7 항등)', diff.length === 0, diff.slice(0, 3).join(' / '))
+    check('빈 채로 일치한 게 아니다', a61('AI15') === '경유' && a12('O11') === '경유'
+      && a61('AA15') === '제4류' && a12('AQ11') === '유',
+      `${a61('AI15')}/${a12('O11')}/${a12('AQ11')}`)
+    check('2.12 대상명이 붙는다', a12('A2') === '■ 대상명 : X', a12('A2'))
+    /* ⭐ valve 미입력은 빈 칸 — 무를 지어내지 않는다 */
+    check('밸브 미입력이면 빈 칸(3행)', a12('AQ13').trim() === '', JSON.stringify(a12('AQ13')))
+    check('넘친 위험물을 센다', hazmatItemOverflow(fx) === 1, `${hazmatItemOverflow(fx)}건`)
+
+    /* 🚨 해당없음이면 목록이 양쪽 다 빈다 — 모순 금지 */
+    const { a61: n61, a12: n12 } = await run({ ...base, forms: { etcFacility: etcOf(true) } } as never)
+    check('해당없음이면 두 시트 목록이 다 빈다',
+      n61('AI15').trim() === '' && n12('O11').trim() === '' && n61('J18').includes('■'),
+      `${JSON.stringify(n61('AI15'))}/${JSON.stringify(n12('O11'))}`)
+    /* 🚨 음성 — 2.12 비상반출물품·방화구획 조치는 안 건드린다 */
+    check('비상반출물품·방화구획 칸은 비어 있다', ['O15', 'Z15', 'Z5'].every(c => a12(c).trim() === ''))
+  }
+}
+
 console.log(`\n=== pass ${pass} / fail ${fail} ===`)
 process.exit(fail ? 1 : 0)

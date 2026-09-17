@@ -52,6 +52,7 @@ export const FP_SHEET = {
   F2_13: '2.13 초기대응체계',
   F3_7: '3.7 피난기구·유도장비 현황',
   F1_6_1: '1.6.1 기타시설 일반현황',
+  F2_12: '2.12 방호안전팀',
   F2_14: '2.14 교육·훈련 결과기록부',
   F2_14_BACK: '2.14 결과기록부 뒷쪽',
   // 제3장(2026-09-09 B-15) — 3.1은 용도 칸만 배선한다(나머지는 별건)
@@ -1264,6 +1265,39 @@ const ETC61_SEEDS: Seed[] = [
   { field: 'etc61_haz_note', sheet: ETC61_SHEET, cell: 'R19', labelCell: 'J19' },
 ]
 
+/* ─────────── 위험물 세부 — 1.6.1 세부 표 + 2.12 위험물질 표 (2026-09-17) ───────────
+ *  🚨 **한 축(`hazmat.items`)을 두 시트가 나눠 쓴다.** 같은 위험물이 1.6.1과 2.12에 다르게
+ *    인쇄되면 D-7 갈라짐이다 — 열 구성만 다르다(1.6.1: 구분·위치·유별·품명·보유량·배수 /
+ *    2.12: 품명·보유량·위치·밸브유무·차단방법).
+ *  ⭐ `valve`는 select('유'/'무'/'')다 — 1.6.1 차단기구에서 배운 그 교훈(boolean은 미입력과
+ *    「무」를 못 가른다). 미입력이면 칸을 비운다.
+ *  ⚠ 양식 두 시트 다 **3행**이라 4번째부터는 넘침으로 센다.
+ *  ⚠ 2.12 비상반출물품(14~16행)·방화구획 조치(Z5~Z9)는 ERP에 축이 없어 비운다.
+ */
+export const HAZ61_ROWS: readonly number[] = [15, 16, 17]
+export const HAZ61_COLS: ReadonlyArray<readonly [string, string, string]> = [
+  ['J', 'kind', 'J14'], ['R', 'location', 'R14'], ['AA', 'category', 'AA14'],
+  ['AI', 'name', 'AI14'], ['AR', 'amount', 'AR14'], ['AZ', 'multiple', 'AZ14'],
+]
+export const HAZ12_SHEET = FP_SHEET.F2_12
+export const HAZ12_ROWS: readonly number[] = [11, 12, 13]
+export const HAZ12_COLS: ReadonlyArray<readonly [string, string, string]> = [
+  ['O', 'name', 'O10'], ['X', 'amount', 'X10'], ['AG', 'location', 'AG10'],
+  ['AQ', 'valve', 'AQ10'], ['BC', 'method', 'BC10'],
+]
+
+const HAZ_SEEDS: Seed[] = [
+  { field: 'haz12_name', sheet: HAZ12_SHEET, cell: 'A2', labelCell: 'A2' },  // ■ 대상명 :
+  ...HAZ61_ROWS.flatMap((row, i) =>
+    HAZ61_COLS.map(([col, key, labelCell]) => ({
+      field: `haz61_${i}_${key}`, sheet: ETC61_SHEET, cell: `${col}${row}`, labelCell,
+    }))),
+  ...HAZ12_ROWS.flatMap((row, i) =>
+    HAZ12_COLS.map(([col, key, labelCell]) => ({
+      field: `haz12_${i}_${key}`, sheet: HAZ12_SHEET, cell: `${col}${row}`, labelCell,
+    }))),
+]
+
 const BRIG1_SEEDS: Seed[] = [
   { field: 'brig1_name', sheet: BRIG1_SHEET, cell: 'M5', labelCell: 'A5' },
   { field: 'brig1_address', sheet: BRIG1_SHEET, cell: 'M6', labelCell: 'A6' },
@@ -1347,7 +1381,7 @@ function assemble(seeds: Seed[]): Anchor[] {
   })
 }
 
-export const FIRE_PLAN_ANCHORS: Anchor[] = assemble([...FIXED_SEEDS, ...ZONE_SEEDS, ...BRIG_SEEDS, ...FORM14_SEEDS, ...FIREHIST_SEEDS, ...HAZARD_SEEDS, ...MU_SEEDS, ...TRAIN_SEEDS, ...EVAC1_SEEDS, ...BRIG1_SEEDS, ...FIREWORK_SEEDS, ...CONSTRUCTION_SEEDS, ...EVAC3_SEEDS, ...BRIG9_SEEDS, ...REC14_SEEDS, ...ATT14_SEEDS, ...VUL_SEEDS, ...VUL9_SEEDS, ...EVAC34_SEEDS, ...VUL36_SEEDS, ...ORG23_SEEDS, ...TENANT_SEEDS, ...RESP13_SEEDS, ...EQUIP37_SEEDS, ...ETC61_SEEDS])
+export const FIRE_PLAN_ANCHORS: Anchor[] = assemble([...FIXED_SEEDS, ...ZONE_SEEDS, ...BRIG_SEEDS, ...FORM14_SEEDS, ...FIREHIST_SEEDS, ...HAZARD_SEEDS, ...MU_SEEDS, ...TRAIN_SEEDS, ...EVAC1_SEEDS, ...BRIG1_SEEDS, ...FIREWORK_SEEDS, ...CONSTRUCTION_SEEDS, ...EVAC3_SEEDS, ...BRIG9_SEEDS, ...REC14_SEEDS, ...ATT14_SEEDS, ...VUL_SEEDS, ...VUL9_SEEDS, ...EVAC34_SEEDS, ...VUL36_SEEDS, ...ORG23_SEEDS, ...TENANT_SEEDS, ...RESP13_SEEDS, ...EQUIP37_SEEDS, ...ETC61_SEEDS, ...HAZ_SEEDS])
 
 /* ══════════════════════ §사진상자 (2026-09-14) ══════════════════════
  *

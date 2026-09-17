@@ -669,6 +669,13 @@ ${(d.autoFilled?.length ?? 0) > 0
         <td class="l" colspan="2">차단밸브: ${ck(!!etc?.gas?.shutoff, '있음')}${etc?.gas?.shutoffLocation?.trim() ? ` — 위치: ${esc(etc.gas.shutoffLocation)}` : ''}</td></tr>
     <tr><th>위험물</th><td class="l" colspan="3">${ck(!!etc?.hazmat?.none, '해당없음')}${etc?.hazmat?.note?.trim() ? ` — ${esc(etc.hazmat.note)}` : ''}</td></tr>
   </table>
+  ${/* 위험물 세부 목록(2026-09-17) — 엑셀 1.6.1 세부 표·2.12 위험물질 표와 같은 축(D-7).
+      해당없음이면 목록을 찍지 않는다(모순 금지 — 엑셀 값 축과 같은 판정). */''}
+  ${!etc?.hazmat?.none && (etc?.hazmat?.items?.length ?? 0) > 0 ? `
+  <table class="small">
+    <tr><th style="width:70px">구분</th><th style="width:80px">설치위치</th><th style="width:60px">유별</th><th>품명</th><th style="width:90px">보유량(ℓ,㎏)</th><th style="width:70px">지정수량 배수</th><th style="width:70px">차단밸브</th><th style="width:90px">차단방법</th></tr>
+    ${(etc?.hazmat?.items ?? []).map(h => `<tr><td>${v(h.kind)}</td><td class="l">${v(h.location)}</td><td>${v(h.category)}</td><td class="l">${v(h.name)}</td><td>${v(h.amount)}</td><td>${v(h.multiple)}</td><td>${v(h.valve)}</td><td class="l">${v(h.method)}</td></tr>`).join('')}
+  </table>` : ''}
 </div>
 
 <!-- 서식 1.10 자체점검·업무수행 -->

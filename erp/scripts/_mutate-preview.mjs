@@ -149,6 +149,14 @@ const MUTANTS = [
   ['M36 차단기구 false에 무를 체크한다 → [27] 「둘 다 꺼짐」이 빨강이어야',
     VALUES, `  v.set('etc61_gas_shutoff', yesNoCell(ETC61_SHEET, 'AR9', etc61?.gas?.shutoff === true ? true : null))`,
     `  v.set('etc61_gas_shutoff', yesNoCell(ETC61_SHEET, 'AR9', etc61?.gas?.shutoff === true))`, 1],
+  /* 🎯 M37 — 2.12가 목록 공유를 깨면 두 시트가 갈라진다. */
+  ['M37 2.12만 다른 행을 집는다(공유를 깬다) → [28] 항등이 빨강이어야',
+    VALUES, "    for (const [, key] of HAZ12_COLS) v.set(`haz12_${i}_${key}`, txt(hazItems[i]?.[key]))",
+    "    for (const [, key] of HAZ12_COLS) v.set(`haz12_${i}_${key}`, txt(hazItems[i + 1]?.[key]))", 1],
+  /* 🚨 M38 — 해당없음인데 목록을 찍으면 모순이다. */
+  ['M38 해당없음을 무시하고 목록을 찍는다 → [28] 「다 빈다」가 빨강이어야',
+    VALUES, `  const hazItems = (etc61?.hazmat?.none ? [] : (etc61?.hazmat?.items ?? [])) as Array<Record<string, string>>`,
+    `  const hazItems = (etc61?.hazmat?.items ?? []) as Array<Record<string, string>>`, 1],
 ]
 
 /** 🚨 파일의 줄끝에 맞춰 needle을 바꾼다.

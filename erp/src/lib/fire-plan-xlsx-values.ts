@@ -42,6 +42,7 @@ import {
   RESP13_SHEET,
   EQUIP37_ROWS, EQUIP37_COLS,
   ETC61_SHEET,
+  HAZ61_ROWS, HAZ61_COLS, HAZ12_SHEET, HAZ12_ROWS, HAZ12_COLS,
 } from '@/lib/fire-plan-anchors'
 import { boxGlyphAt, labelAt, tokenTemplateAt } from '@/lib/fire-plan-xlsx-manifest'
 import { purposeCover, purposeShort } from '@/lib/purpose-label'
@@ -863,6 +864,18 @@ export function buildFirePlanValues(d: FirePlanGenData): Map<string, CellValue> 
   v.set('etc61_haz_none', boxLabelCell(ETC61_SHEET, 'J18', etc61?.hazmat?.none === true))
   v.set('etc61_haz_note', txt(etc61?.hazmat?.note))
 
+  /* ── 위험물 세부 — 1.6.1 + 2.12가 **한 목록**을 나눠 쓴다 (2026-09-17) ──────
+   *  `none === true`면 목록도 비운다(3.5 해당없음과 같은 규약 — 켜 두고 목록을 찍으면 모순).
+   */
+  const hazItems = (etc61?.hazmat?.none ? [] : (etc61?.hazmat?.items ?? [])) as Array<Record<string, string>>
+  HAZ61_ROWS.forEach((_, i) => {
+    for (const [, key] of HAZ61_COLS) v.set(`haz61_${i}_${key}`, txt(hazItems[i]?.[key]))
+  })
+  v.set('haz12_name', prefixCell(HAZ12_SHEET, 'A2', d.buildingName))
+  HAZ12_ROWS.forEach((_, i) => {
+    for (const [, key] of HAZ12_COLS) v.set(`haz12_${i}_${key}`, txt(hazItems[i]?.[key]))
+  })
+
   /* ── 1.9 피난약자 블록 — **3.5의 축약본** ──
    *  같은 워크북 안에서 3.5는 인쇄하는데 1.9만 비면 그게 D-7 갈라짐이다. 상자 판정도 표 값도
    *  위와 **같은 것을 나눠 쓴다**(`vulCount` · `vulPlans` · `splitAreaDongFloor`). */
@@ -948,6 +961,13 @@ export function vulnerableAreaUnsplit(d: FirePlanGenData): number {
   return (d.forms?.vulnerable?.plans ?? [])
     .slice(0, VUL_PLAN_ROWS)
     .filter((p: { area?: string }) => splitAreaDongFloor(p?.area) === null).length
+}
+
+/** 위험물 세부(1.6.1·2.12 공용 3행)가 못 담은 행 수 */
+export function hazmatItemOverflow(d: FirePlanGenData): number {
+  const h = d.forms?.etcFacility?.hazmat
+  if (h?.none) return 0
+  return Math.max(0, ((h?.items ?? []) as unknown[]).length - HAZ61_ROWS.length)
 }
 
 /** 피난기구 표(3.7)가 못 담은 행 수 — 배선 블록은 3개(블록 1은 완강기 예시로 고정) */

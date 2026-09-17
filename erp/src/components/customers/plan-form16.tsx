@@ -23,8 +23,15 @@ export type EtcFacilitySection = {
     regulator: boolean; shutoff: boolean; shutoffLocation: string
     regulatorLocation?: string
   }
-  hazmat: { none: boolean; note: string }
+  /** 위험물 세부 목록(2026-09-17 신설) — 1.6.1 세부 표 **와** 2.12 위험물질 표가 한 축을 나눠 쓴다.
+   *  `valve`는 select('유'/'무'/'')다 — boolean이면 「미입력」과 「무」를 못 가른다(차단기구의 교훈). */
+  hazmat: { none: boolean; note: string; items?: HazmatItemRow[] }
 }
+export type HazmatItemRow = {
+  kind: string; location: string; category: string; name: string
+  amount: string; multiple: string; valve: '' | '유' | '무'; method: string
+}
+const EMPTY_HAZMAT: HazmatItemRow = { kind: '', location: '', category: '', name: '', amount: '', multiple: '', valve: '', method: '' }
 export const EMPTY_ETC_FACILITY: EtcFacilitySection = {
   electric: { kw: '', kva: '', location: '', qty: '', generator: false, generatorNote: '', note: '', genKw: '', genLocation: '', genQty: '' },
   gas: { kind: '', location: '', usage: '', regulator: false, shutoff: false, shutoffLocation: '', regulatorLocation: '' },
@@ -133,9 +140,36 @@ export function PlanForm16({ customerId, canManage, initial }: {
           <p className="text-form-sm font-semibold text-ink-sub">위험물</p>
           <button disabled={!canManage} className={chip(v.hazmat.none)} onClick={() => ph({ none: !v.hazmat.none })}>해당없음</button>
           {!v.hazmat.none && (
-            <input value={v.hazmat.note} disabled={!canManage} placeholder="품명·수량·저장 위치" onChange={e => ph({ note: e.target.value })} className={`${inputCls} flex-1 min-w-48`} />
+            <input value={v.hazmat.note} disabled={!canManage} placeholder="비고" onChange={e => ph({ note: e.target.value })} className={`${inputCls} flex-1 min-w-48`} />
           )}
         </div>
+        {/* 위험물 세부 목록 — 1.6.1 세부 표(구분·유별·배수)와 2.12 위험물질 표(밸브·차단방법)가
+            이 한 축을 나눠 쓴다. 양식 두 시트 다 3행이라 4번째부터는 엑셀 고지에 세어진다. */}
+        {!v.hazmat.none && (
+          <div className="mt-2 space-y-1.5">
+            {(v.hazmat.items ?? []).map((r, i) => (
+              <div key={i} className="flex items-center gap-1.5 flex-wrap">
+                <input value={r.name} disabled={!canManage} placeholder="품명 (예: 경유)" onChange={e => ph({ items: (v.hazmat.items ?? []).map((x, j) => j === i ? { ...x, name: e.target.value } : x) })} className={`${inputCls} w-28`} />
+                <input value={r.kind} disabled={!canManage} placeholder="구분" onChange={e => ph({ items: (v.hazmat.items ?? []).map((x, j) => j === i ? { ...x, kind: e.target.value } : x) })} className={`${inputCls} w-20`} />
+                <input value={r.category} disabled={!canManage} placeholder="유별 (예: 제4류)" onChange={e => ph({ items: (v.hazmat.items ?? []).map((x, j) => j === i ? { ...x, category: e.target.value } : x) })} className={`${inputCls} w-24`} />
+                <input value={r.location} disabled={!canManage} placeholder="설치위치" onChange={e => ph({ items: (v.hazmat.items ?? []).map((x, j) => j === i ? { ...x, location: e.target.value } : x) })} className={`${inputCls} w-24`} />
+                <input value={r.amount} disabled={!canManage} placeholder="보유량(ℓ,㎏)" onChange={e => ph({ items: (v.hazmat.items ?? []).map((x, j) => j === i ? { ...x, amount: e.target.value } : x) })} className={`${inputCls} w-24`} />
+                <input value={r.multiple} disabled={!canManage} placeholder="지정수량 배수" onChange={e => ph({ items: (v.hazmat.items ?? []).map((x, j) => j === i ? { ...x, multiple: e.target.value } : x) })} className={`${inputCls} w-24`} />
+                <select value={r.valve} disabled={!canManage} onChange={e => ph({ items: (v.hazmat.items ?? []).map((x, j) => j === i ? { ...x, valve: e.target.value as HazmatItemRow['valve'] } : x) })} className={`${inputCls} w-24`}>
+                  <option value="">차단밸브?</option><option value="유">밸브 유</option><option value="무">밸브 무</option>
+                </select>
+                <input value={r.method} disabled={!canManage} placeholder="차단방법" onChange={e => ph({ items: (v.hazmat.items ?? []).map((x, j) => j === i ? { ...x, method: e.target.value } : x) })} className={`${inputCls} w-28`} />
+                {canManage && (
+                  <button onClick={() => ph({ items: (v.hazmat.items ?? []).filter((_, j) => j !== i) })} className="text-ink-meta hover:text-red-500" aria-label="행 삭제">✕</button>
+                )}
+              </div>
+            ))}
+            {canManage && (
+              <button onClick={() => ph({ items: [...(v.hazmat.items ?? []), { ...EMPTY_HAZMAT }] })}
+                className="inline-flex items-center gap-1 text-form-xs text-brand hover:underline">+ 위험물 행 추가</button>
+            )}
+          </div>
+        )}
       </div>
 
       {canManage && (
