@@ -980,6 +980,54 @@ console.log('\n[18] 3.5 피난약자 — 구역 쪼개기는 전부 아니면 �
     check('해당없음이면 인원·계획도 비운다', at2('Q3') === labelAt(VUL_SHEET, 'Q3') && at2(`U${R0}`) === '',
       `Q3='${at2('Q3')}' U${R0}='${at2(`U${R0}`)}'`)
     check('해당없음이어도 법정 비고는 온전하다', at2('A22') === labelAt(VUL_SHEET, 'A22'))
+
+    /* ══ [19] 1.9 피난약자 블록 — 3.5의 축약본이 같은 값을 찍는가 ══
+     *  🎯 같은 워크북 안에서 3.5는 인쇄하는데 1.9만 비어 있으면 **그게 D-7 갈라짐**이다.
+     *    두 시트를 맞대어 유형·보조자·층이 같은지 묻는다(1.9가 담는 3행 전부). */
+    console.log('\n[19] 1.9 피난약자 블록 — 3.5와 같은 값인가')
+    const { VUL9_SHEET, VUL9_BOX_CELLS, VUL9_ROWS, VUL9_FIRST_ROW } =
+      await import('../src/lib/fire-plan-anchors.ts')
+    const g9v = await readSheetGrid(await JSZip.loadAsync(out.bytes), VUL9_SHEET)
+    const a9 = (r: string) => g9v.cells.find(x => x.ref === r)?.text ?? ''
+
+    check('1.9 표 행 수가 파생된다(3행)', VUL9_ROWS === 3, `${VUL9_ROWS}행`)
+    check('상자는 5종뿐이다(3.5의 「기타」가 없다)', VUL9_BOX_CELLS.length === 5
+      && !VUL9_BOX_CELLS.some(([t]) => t === '기타'), `${VUL9_BOX_CELLS.length}종`)
+    check('상자 자구가 전부 양식 라벨과 맞는다',
+      VUL9_BOX_CELLS.every(([t, c]) => labelAt(VUL9_SHEET, c).includes(t)))
+
+    /* 🎯 항등 — 3.5가 담은 같은 행과 글자까지 같은가 */
+    const vdiff: string[] = []
+    let vcmp = 0
+    for (let i = 0; i < VUL9_ROWS; i++) {
+      for (const [c9, c35] of [['N', 'U'], ['AT', 'AD']] as const) {
+        const x = a9(`${c9}${VUL9_FIRST_ROW + i}`), y = at(`${c35}${R0 + i}`)
+        if (x !== y) vdiff.push(`${i}행 ${c9}: '${x}' ≠ '${y}'`)
+        vcmp++
+      }
+    }
+    check('대조가 실제로 돌았다(0건이면 공허)', vcmp === 6, `${vcmp}칸`)
+    check('1.9 ↔ 3.5 유형·보조자 전건 일치 (D-7 항등)', vdiff.length === 0, vdiff.join(' / '))
+    check('빈 채로 일치한 게 아니다', a9(`N${VUL9_FIRST_ROW}`) === '노인'
+      && a9(`AT${VUL9_FIRST_ROW}`) === '김보조', `${a9(`N${VUL9_FIRST_ROW}`)}/${a9(`AT${VUL9_FIRST_ROW}`)}`)
+
+    /* 활동 구역은 단위칸 — 3.5가 쪼갠 층 조각 + 법정 자구 */
+    check('활동 구역에 층 조각이 들어가고 자구가 남는다',
+      a9(`H${VUL9_FIRST_ROW}`).startsWith('3') && a9(`H${VUL9_FIRST_ROW}`).trim().endsWith('층'),
+      `'${a9(`H${VUL9_FIRST_ROW}`)}'`)
+    check('못 쪼갠 행은 자구만 남는다(조각을 넣지 않는다)',
+      a9(`H${VUL9_FIRST_ROW + 1}`) === labelAt(VUL9_SHEET, `H${VUL9_FIRST_ROW + 1}`),
+      `'${a9(`H${VUL9_FIRST_ROW + 1}`)}'`)
+    check('상자도 3.5와 같은 판정(노인 켜짐·장애인 꺼짐)',
+      a9('H20').includes('■') && !a9('AY20').includes('■'), `${a9('H20')}·${a9('AY20')}`)
+
+    /* 🚨 음성 — ERP에 축이 없는 칸은 비어 있다 */
+    check('성명·연락처 세 칸은 비어 있다(plans는 인원 수만 담는다)',
+      [`A${VUL9_FIRST_ROW}`, `W${VUL9_FIRST_ROW}`, `BA${VUL9_FIRST_ROW}`].every(c => a9(c).trim() === ''),
+      [`A${VUL9_FIRST_ROW}`, `W${VUL9_FIRST_ROW}`, `BA${VUL9_FIRST_ROW}`].map(c => `${c}=${JSON.stringify(a9(c))}`).join(' '))
+    check('피난계획 표준문구가 온전하다',
+      a9(`AG${VUL9_FIRST_ROW}`) === labelAt(VUL9_SHEET, `AG${VUL9_FIRST_ROW}`),
+      a9(`AG${VUL9_FIRST_ROW}`).slice(0, 10))
   }
 }
 

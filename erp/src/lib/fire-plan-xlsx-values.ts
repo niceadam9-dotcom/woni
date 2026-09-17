@@ -34,6 +34,7 @@ import {
   REC14_SHEET, REC14_GRADE_CELLS,
   ATT14_SHEET, ATT14_CAPACITY,
   VUL_SHEET, VUL_WORK_CELLS, VUL_USE_CELLS, VUL_PLAN_ROWS, VUL_PLAN_COLS,
+  VUL9_SHEET, VUL9_BOX_CELLS, VUL9_ROWS, VUL9_FIRST_ROW,
 } from '@/lib/fire-plan-anchors'
 import { boxGlyphAt, labelAt, tokenTemplateAt } from '@/lib/fire-plan-xlsx-manifest'
 import { purposeCover, purposeShort } from '@/lib/purpose-label'
@@ -754,6 +755,21 @@ export function buildFirePlanValues(d: FirePlanGenData): Map<string, CellValue> 
     const split = splitAreaDongFloor(p?.area)
     v.set(`vul_plan${i}_dong`, split?.dong ?? '')
     v.set(`vul_plan${i}_floor`, split?.floor ?? '')
+  }
+
+  /* ── 1.9 피난약자 블록 — **3.5의 축약본** ──
+   *  같은 워크북 안에서 3.5는 인쇄하는데 1.9만 비면 그게 D-7 갈라짐이다. 상자 판정도 표 값도
+   *  위와 **같은 것을 나눠 쓴다**(`vulCount` · `vulPlans` · `splitAreaDongFloor`). */
+  for (const [t, cell] of VUL9_BOX_CELLS) {
+    v.set(`vul9_box_${t}`, boxLabelCell(VUL9_SHEET, cell, !!vulCount(t, 'work')))
+  }
+  for (let i = 0; i < VUL9_ROWS; i++) {
+    const p = vulPlans[i] as Record<string, string> | undefined
+    v.set(`vul9_${i}_type`, txt(p?.type))
+    v.set(`vul9_${i}_helper`, txt(p?.helper))
+    // 활동 구역은 단위칸(`    층`) — 3.5가 쪼갠 **층 조각**만 들어간다(못 쪼개면 자구만 남는다)
+    v.set(`vul9_${i}_floor`,
+      unitCell(VUL9_SHEET, `H${VUL9_FIRST_ROW + i}`, splitAreaDongFloor(p?.area)?.floor ?? ''))
   }
 
   return v

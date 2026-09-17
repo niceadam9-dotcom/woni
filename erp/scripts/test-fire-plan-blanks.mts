@@ -41,8 +41,8 @@ const wiredBoxes = all.reduce((n, r) => n + r.wiredBoxes, 0)
 //   옳다는 방증이다 — 손으로 맞춘 게 아니라 분류가 제자리를 찾았다.
 check('값 슬롯 1,812칸', slots === 1812, `${slots}칸`)
 check('상자 658칸', boxes === 658, `${boxes}칸`)
-check('배선된 값 슬롯 ≥ 625', wired >= 625, `${wired}칸 (${(wired / slots * 100).toFixed(1)}%)`)
-check('배선된 상자 ≥ 228', wiredBoxes >= 228, `${wiredBoxes}칸 (${(wiredBoxes / boxes * 100).toFixed(1)}%)`)
+check('배선된 값 슬롯 ≥ 631', wired >= 631, `${wired}칸 (${(wired / slots * 100).toFixed(1)}%)`)
+check('배선된 상자 ≥ 233', wiredBoxes >= 233, `${wiredBoxes}칸 (${(wiredBoxes / boxes * 100).toFixed(1)}%)`)
 // 🚨 **회계가 딱 맞아야 한다.** 앵커는 셋 중 하나에 앉는다 — 상자칸 · 라벨칸(단위·접두라벨 갈래) ·
 //   순수 빈칸. 합이 안 맞으면 분류 규칙 어딘가가 틀린 것이다(1칸이라도 반올림으로 넘기지 않는다).
 const box = FIRE_PLAN_ANCHORS.filter(a => sheetManifest(a.sheet).boxes[a.cell]).length

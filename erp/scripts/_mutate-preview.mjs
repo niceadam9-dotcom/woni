@@ -98,6 +98,13 @@ const MUTANTS = [
   ['M23 해당없음을 무시하고 상자를 켠다 → [18] 음성 단언이 빨강이어야',
     VALUES, `  const vulCount = (t: string, k: 'work' | 'use') => (vulNone ? '' : txt(vul?.counts?.[t]?.[k]))`,
     `  const vulCount = (t: string, k: 'work' | 'use') => txt(vul?.counts?.[t]?.[k])`, 1],
+  /* 🎯 M24 — 1.9가 3.5와 **다른 행**을 집으면(공유를 깬다) 두 시트가 갈라진다. */
+  ['M24 1.9만 다른 행을 집는다(공유를 깬다) → [19] D-7 항등이 빨강이어야',
+    VALUES, `    v.set(\`vul9_\${i}_type\`, txt(p?.type))`, `    v.set(\`vul9_\${i}_type\`, txt(vulPlans[i + 1]?.type))`, 1],
+  /* 🚨 M25 — 1.9 성명 칸에 유형을 넣는다(축 없는 칸을 남는 값으로 채우는 유혹). */
+  ['M25 1.9 성명 칸을 배선한다 → [19] 음성 단언이 빨강이어야',
+    ANCHORS, `  ['N', 'type', 'N21'],    // 피난약자 유형`,
+    `  ['A', 'type2', 'A21'],\n  ['N', 'type', 'N21'],    // 피난약자 유형`, 1],
 ]
 
 /** 🚨 파일의 줄끝에 맞춰 needle을 바꾼다.

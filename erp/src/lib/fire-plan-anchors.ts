@@ -813,9 +813,8 @@ const EVAC3_SEEDS: Seed[] = Array.from({ length: EVAC3_ROWS }, (_, i) =>
  *   · 팀별 **인원** 6칸 — 2.1이 같은 이유로 비웠다. 상자는 「그 팀이 있다」는 사실이지만
  *     수는 **틀리면 거짓**이고, ERP 팀 이름이 양식 6종과 정확히 겹치지 않아 합이 안 맞는다.
  *   · `사무실(세대)` 열 — ERP 대원은 연락처가 **하나**다. 2.2도 같은 이유로 `개인`만 쓴다.
- *   · 19행 이후 피난약자 블록 — 3.5와 같은 축이다. 🚨 여기 「ERP에 데이터가 없다」고 적어
- *     두었던 건 **틀린 말이었다**(`vulnerable`이 있다 — 3.5를 배선하며 발견). 이 블록은
- *     3.5의 축약본이라 다음 차례에 3.5와 **같은 값을 나눠 쓰게** 배선한다.
+ *   · 19행 이후 피난약자 블록 — **배선했다**(아래 `VUL9_*`, 3.5와 값을 나눠 쓴다).
+ *     🚨 여기 「ERP에 데이터가 없다」고 적어 두었던 건 **틀린 말이었다**(`vulnerable`이 있다).
  */
 export const BRIG9_SHEET = FP_SHEET.F1_9
 
@@ -1017,6 +1016,48 @@ const VUL_SEEDS: Seed[] = [
     }))).flat(),
 ]
 
+/* ─────────── 1.9 19~25행 피난약자 블록 (2026-09-17) ───────────
+ *  **3.5의 축약본이다.** 같은 워크북 안에서 3.5는 피난약자를 인쇄하는데 1.9만 비어 있으면
+ *  그게 D-7 갈라짐이다 — 그래서 값을 **나눠 쓴다**(상자는 `counts[유형].work`, 표는 같은
+ *  `plans[]`와 같은 `splitAreaDongFloor`).
+ *
+ *  ⚠ 3.5보다 **좁다**. 이 블록에만 있는 칸은 ERP에 축이 없다:
+ *   · `성 명` · `연락처(피난약자)` · `피난보조 연락처` — `plans[]`는 **인원 수**를 담지
+ *     이름·전화를 담지 않는다(3.5도 같다).
+ *   · `피난계획`(AG) — 양식이 표준문구를 이미 인쇄해 두었다(`피난보조자의 보조를 받아 피난`).
+ *   · 상자가 **5종**뿐이다 — 3.5의 `기타`가 여기엔 없다. 목록을 베끼지 않고 각 셀에 적은
+ *     자구가 양식 라벨에 실제로 있는지 검사가 확인한다.
+ *  ⚠ `활동 구역`은 단위칸(`    층`)이다 — 3.5가 쪼갠 **층 조각**만 들어간다.
+ */
+export const VUL9_SHEET = BRIG9_SHEET
+
+/** 피난약자 상자 5종 — [유형, 셀]. 3.5 `VUL_WORK_CELLS`와 **같은 판정**을 쓴다 */
+export const VUL9_BOX_CELLS: ReadonlyArray<readonly [string, string]> = [
+  ['노인', 'H20'], ['임산부', 'Q20'], ['영유아', 'AD20'], ['어린이', 'AL20'], ['장애인', 'AY20'],
+]
+
+/** 표 행 수 — 머리글 2줄(21·22행)을 빼고 나머지(26행 비고가 끊는다) */
+export const VUL9_ROWS = labelBlockRows(VUL9_SHEET, 'A21') - 2
+export const VUL9_FIRST_ROW = 23
+
+/** [엑셀 열, 필드 접미사, 머리글 셀] — `성명`·`연락처` 두 칸은 ERP에 축이 없어 뺐다 */
+export const VUL9_COLS: ReadonlyArray<readonly [string, string, string]> = [
+  ['H', 'floor', 'H21'],   // 활동 구역 — 단위칸 `    층`
+  ['N', 'type', 'N21'],    // 피난약자 유형
+  ['AT', 'helper', 'AT22'], // 피난보조 보조자
+]
+
+const VUL9_SEEDS: Seed[] = [
+  ...VUL9_BOX_CELLS.map(([t, cell]) => ({ field: `vul9_box_${t}`, sheet: VUL9_SHEET, cell, labelCell: cell })),
+  ...Array.from({ length: VUL9_ROWS }, (_, i) =>
+    VUL9_COLS.map(([col, key, labelCell]) => ({
+      field: `vul9_${i}_${key}`,
+      sheet: VUL9_SHEET,
+      cell: `${col}${VUL9_FIRST_ROW + i}`,
+      labelCell: key === 'floor' ? `${col}${VUL9_FIRST_ROW + i}` : labelCell,
+    }))).flat(),
+]
+
 const BRIG1_SEEDS: Seed[] = [
   { field: 'brig1_name', sheet: BRIG1_SHEET, cell: 'M5', labelCell: 'A5' },
   { field: 'brig1_address', sheet: BRIG1_SHEET, cell: 'M6', labelCell: 'A6' },
@@ -1100,7 +1141,7 @@ function assemble(seeds: Seed[]): Anchor[] {
   })
 }
 
-export const FIRE_PLAN_ANCHORS: Anchor[] = assemble([...FIXED_SEEDS, ...ZONE_SEEDS, ...BRIG_SEEDS, ...FORM14_SEEDS, ...FIREHIST_SEEDS, ...HAZARD_SEEDS, ...MU_SEEDS, ...TRAIN_SEEDS, ...EVAC1_SEEDS, ...BRIG1_SEEDS, ...FIREWORK_SEEDS, ...CONSTRUCTION_SEEDS, ...EVAC3_SEEDS, ...BRIG9_SEEDS, ...REC14_SEEDS, ...ATT14_SEEDS, ...VUL_SEEDS])
+export const FIRE_PLAN_ANCHORS: Anchor[] = assemble([...FIXED_SEEDS, ...ZONE_SEEDS, ...BRIG_SEEDS, ...FORM14_SEEDS, ...FIREHIST_SEEDS, ...HAZARD_SEEDS, ...MU_SEEDS, ...TRAIN_SEEDS, ...EVAC1_SEEDS, ...BRIG1_SEEDS, ...FIREWORK_SEEDS, ...CONSTRUCTION_SEEDS, ...EVAC3_SEEDS, ...BRIG9_SEEDS, ...REC14_SEEDS, ...ATT14_SEEDS, ...VUL_SEEDS, ...VUL9_SEEDS])
 
 /* ══════════════════════ §사진상자 (2026-09-14) ══════════════════════
  *
