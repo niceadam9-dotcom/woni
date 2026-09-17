@@ -41,8 +41,8 @@ const wiredBoxes = all.reduce((n, r) => n + r.wiredBoxes, 0)
 //   옳다는 방증이다 — 손으로 맞춘 게 아니라 분류가 제자리를 찾았다.
 check('값 슬롯 1,812칸', slots === 1812, `${slots}칸`)
 check('상자 658칸', boxes === 658, `${boxes}칸`)
-check('배선된 값 슬롯 ≥ 716', wired >= 716, `${wired}칸 (${(wired / slots * 100).toFixed(1)}%)`)
-check('배선된 상자 ≥ 233', wiredBoxes >= 233, `${wiredBoxes}칸 (${(wiredBoxes / boxes * 100).toFixed(1)}%)`)
+check('배선된 값 슬롯 ≥ 720', wired >= 720, `${wired}칸 (${(wired / slots * 100).toFixed(1)}%)`)
+check('배선된 상자 ≥ 235', wiredBoxes >= 235, `${wiredBoxes}칸 (${(wiredBoxes / boxes * 100).toFixed(1)}%)`)
 // 🚨 **회계가 딱 맞아야 한다.** 앵커는 셋 중 하나에 앉는다 — 상자칸 · 라벨칸(단위·접두라벨 갈래) ·
 //   순수 빈칸. 합이 안 맞으면 분류 규칙 어딘가가 틀린 것이다(1칸이라도 반올림으로 넘기지 않는다).
 const box = FIRE_PLAN_ANCHORS.filter(a => sheetManifest(a.sheet).boxes[a.cell]).length
@@ -124,7 +124,7 @@ const EXPECT: Array<[string, string, string]> = [
   ['1.7.1 소방안전관리자 선임현황', 'A10', '소방안전관리자'],
   // ── 첫째 패스(같은 행 왼쪽 라벨)로 결정되는 칸 — 왼쪽에 라벨이 **넷**이라 가장 가까운 것을
   //    골라야만 맞는다. 행/열을 뒤집거나 거리 비교를 깨면 반드시 달라진다.
-  ['1.6.1 기타시설 일반현황', 'AI20', '위치'],
+  ['AI20', '위치'],
   ['1.5.1 피난·방화시설 현황', 'AE19', '□ 거실 제연'],
 ]
 for (const [sheet, ref, want] of EXPECT) {
@@ -160,7 +160,7 @@ const RED_EXPECTED = [
   '1.11.2 소방훈련·교육 세부계획', '1.11.3 소방훈련 시나리오', '1.11.4 결과기록부 뒷쪽',
   '1.14.1 화재예방 및 홍보 계획',
   '1.14.2 화재예방 및 홍보 결과', '1.15 피해 복구',
-  '1.3 건축물 위치·운영현황', '1.5.2 방화·제연구획 현황도', '1.6.1 기타시설 일반현황',
+  '1.3 건축물 위치·운영현황', '1.5.2 방화·제연구획 현황도', 
   '2.10 피난유도팀',
   '2.11 응급구조팀', '2.12 방호안전팀', 
   '2.3 임무', '2.4 개별임무카드', '2.5 지휘통제팀', '2.6 비상연락팀(지휘반)',
@@ -206,6 +206,7 @@ const fixture = {
     training: { scenario: MARK('TRAIN'), eduMonths: [3], drillMonths: [9] },
     // 🚨 3.7이 마커 목록에 **빠져 있었다** — PDF가 evacEquip을 인쇄 중인데 사각지대였다(2026-09-17)
     evacEquip: [{ name: MARK('EQUIP'), location: '창고', qty: '2' }],
+    etcFacility: { electric: { kw: '350', kva: '', location: MARK('ETC'), qty: '', generator: false, generatorNote: '', note: '' }, gas: { kind: '', location: '', usage: '', regulator: false, shutoff: false, shutoffLocation: '' }, hazmat: { none: false, note: '' } },
   },
 } as unknown as Parameters<typeof buildFirePlanHtml>[0]
 const html = buildFirePlanHtml(fixture)
@@ -217,6 +218,7 @@ const MARKERS: Array<[string, string]> = [
   ['TRAIN', '1.11.3 소방훈련 시나리오'],
   ['EVAC', '3.4 피난유도 절차·경로'],
   ['EQUIP', '3.7 피난기구·유도장비 현황'],
+  ['ETC', '1.6.1 기타시설 일반현황'],
 ]
 const printed = MARKERS.filter(([m]) => html.includes(MARK(m)))
 // 🚨 **전건**을 요구한다. `> 0`으로 두었더니 5개 중 2개가 조용히 안 나왔고, 그게

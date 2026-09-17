@@ -145,6 +145,10 @@ const MUTANTS = [
   ['M35 완강기 예시 블록을 덮는다 → [26] 「예시가 온전하다」가 빨강이어야',
     ANCHORS, `export const EQUIP37_ROWS: readonly number[] = [7, 11, 15]`,
     `export const EQUIP37_ROWS: readonly number[] = [3, 7, 11]`, 1],
+  /* 🚨 M36 — boolean false에 「무」를 체크하면 없는 사실을 단언한다. */
+  ['M36 차단기구 false에 무를 체크한다 → [27] 「둘 다 꺼짐」이 빨강이어야',
+    VALUES, `  v.set('etc61_gas_shutoff', yesNoCell(ETC61_SHEET, 'AR9', etc61?.gas?.shutoff === true ? true : null))`,
+    `  v.set('etc61_gas_shutoff', yesNoCell(ETC61_SHEET, 'AR9', etc61?.gas?.shutoff === true))`, 1],
 ]
 
 /** 🚨 파일의 줄끝에 맞춰 needle을 바꾼다.

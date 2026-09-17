@@ -1359,5 +1359,65 @@ console.log('\n[26] 3.7 피난기구 — 블록 2부터, 완강기 예시는 쌍
   }
 }
 
+/* ══════════════════════ [27] 1.6.1 기타시설 — 사각지대 ①류 둘째 ══════════════════════
+ *  ⭐ 차단기구 □유□무는 **켜기만** — boolean은 미입력과 「무」를 못 가른다.
+ *  ⭐ 가스 예시 행은 덮이고, 비면 남는다(LPG·각층·…). */
+console.log('\n[27] 1.6.1 기타시설 — 전기·가스·위험물')
+{
+  const { validateAnchors } = await import('../src/lib/xlsx-anchors.ts')
+  const { toInjectTargets } = await import('../src/lib/xlsx-workbook.ts')
+  const { FIRE_PLAN_ANCHORS, ETC61_SHEET } = await import('../src/lib/fire-plan-anchors.ts')
+  const { buildFirePlanValues } = await import('../src/lib/fire-plan-xlsx-values.ts')
+  const { labelAt } = await import('../src/lib/fire-plan-xlsx-manifest.ts')
+
+  const etcFacility = {
+    electric: { kw: '350', kva: '500', location: '지하 1층 전기실', qty: '2',
+      generator: true, generatorNote: '', note: '월 1회 점검', genKw: '80', genLocation: '옥상', genQty: '1' },
+    gas: { kind: 'LNG', location: '주방', usage: '취사', regulator: true,
+      shutoff: true, shutoffLocation: '주방 입구', regulatorLocation: '외벽' },
+    hazmat: { none: true, note: '경유 소량(발전기용)' },
+  }
+  const fx = { buildingName: 'X', facilities: [], brigade: [], zones: [], hazards: [],
+    forms: { etcFacility } } as never
+
+  const vc = validateAnchors(bytes, FIRE_PLAN_ANCHORS)
+  if (vc.ok) {
+    const run = async (f: never) => {
+      const { targets } = toInjectTargets(buildFirePlanValues(f), vc.anchors)
+      const out = await injectWorkbook(bytes, targets)
+      const g = await readSheetGrid(await JSZip.loadAsync(out.bytes), ETC61_SHEET)
+      return (r: string) => g.cells.find(x => x.ref === r)?.text ?? ''
+    }
+    const at = await run(fx)
+    const at0 = await run({ ...(fx as object), forms: {} } as never)
+
+    /* 전기 — 단위 자구가 남는다 */
+    check('수전·변압·발전 용량에 단위가 남는다', at('R4') === '350kW' && at('R5') === '500kVA'
+      && at('R6').includes('80') && at('R6').trim().endsWith('kW'), `${at('R4')}/${at('R5')}/${at('R6')}`)
+    check('위치·수량·비고 착지', at('AI5') === '지하 1층 전기실' && at('AZ5') === '2대'
+      && at('R7') === '월 1회 점검', `${at('AI5')}/${at('AZ5')}`)
+    /* 가스 — 예시 행이 덮인다 */
+    check('가스 예시 행이 값으로 덮인다', at('J9') === 'LNG' && at('R9') === '주방' && at('AA9') === '취사'
+      && at('AI9') === '외벽' && at('AZ9') === '주방 입구', `${at('J9')}/${at('R9')}/${at('AI9')}`)
+    check('차단기구 유가 켜진다', at('AR9').startsWith('■'), at('AR9'))
+    /* 위험물 */
+    check('해당없음 상자가 켜지고 비고가 실린다', at('J18').includes('■') && at('R19') === '경유 소량(발전기용)',
+      `${at('J18')}/${at('R19')}`)
+
+    /* 🎯 빈 픽스처 — 예시가 남고, 상자는 어느 쪽도 안 켜진다 */
+    check('비면 가스 예시가 그대로 남는다', at0('J9') === 'LPG' && at0('R9') === '각층'
+      && at0('AI9') === '/', `${at0('J9')}/${at0('R9')}/${at0('AI9')}`)
+    check('비면 차단기구 상자 둘 다 꺼짐(무를 지어내지 않는다)',
+      !at0('AR9').includes('■') && at0('AR9') === labelAt(ETC61_SHEET, 'AR9'), at0('AR9'))
+    check('비면 단위 자구만 남는다', at0('R4') === 'kW' && at0('AZ5') === '대', `${at0('R4')}/${at0('AZ5')}`)
+    /* 🚨 음성 — 축 없는 칸은 안 건드린다 */
+    check('가스 둘째·셋째 행은 비어 있다', ['J10', 'R10', 'J11'].every(c => at(c).trim() === ''))
+    check('둘째 행 유무 상자는 원본 그대로', at('AR10') === labelAt(ETC61_SHEET, 'AR10'))
+    check('위험물 세부·흡연장은 안 건드린다', ['J15', 'R15', 'AI20'].every(c => at(c).trim() === '')
+      && at('R20') === labelAt(ETC61_SHEET, 'R20'), at('R20'))
+    check('가스 해당없음(J12)은 축이 없어 꺼진 채', !at('J12').includes('■'))
+  }
+}
+
 console.log(`\n=== pass ${pass} / fail ${fail} ===`)
 process.exit(fail ? 1 : 0)

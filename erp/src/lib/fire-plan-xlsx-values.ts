@@ -41,6 +41,7 @@ import {
   TENANT_SHEET, TENANT_ROWS, TENANT_COLS, TENANT_FIRST_ROW, isDashPlaceholderAnchor,
   RESP13_SHEET,
   EQUIP37_ROWS, EQUIP37_COLS,
+  ETC61_SHEET,
 } from '@/lib/fire-plan-anchors'
 import { boxGlyphAt, labelAt, tokenTemplateAt } from '@/lib/fire-plan-xlsx-manifest'
 import { purposeCover, purposeShort } from '@/lib/purpose-label'
@@ -838,6 +839,29 @@ export function buildFirePlanValues(d: FirePlanGenData): Map<string, CellValue> 
   EQUIP37_ROWS.forEach((_, i) => {
     for (const [, key] of EQUIP37_COLS) v.set(`equip37_${i}_${key}`, txt(eq37[i]?.[key]))
   })
+
+  /* ── 서식 1.6.1 기타시설 일반현황 (2026-09-17) ─────────────────────────────
+   *  🚨 ①류 사각지대였다 — PDF는 `etcFacility` 전부를 인쇄 중, 엑셀은 앵커 0.
+   *  ⚠ 차단기구 □유□무는 **켜기만**(boolean은 미입력과 「무」를 못 가른다 — PDF도 같은 판정).
+   *  ⚠ 가스 예시 행(9행)은 값이 있으면 덮고 없으면 남는다(§1.6.1).
+   */
+  const etc61 = d.forms?.etcFacility
+  v.set('etc61_kw', unitCell(ETC61_SHEET, 'R4', etc61?.electric?.kw))
+  v.set('etc61_kva', unitCell(ETC61_SHEET, 'R5', etc61?.electric?.kva))
+  v.set('etc61_loc', txt(etc61?.electric?.location))
+  v.set('etc61_qty', unitCell(ETC61_SHEET, 'AZ5', etc61?.electric?.qty))
+  v.set('etc61_gen_kw', unitCell(ETC61_SHEET, 'R6', etc61?.electric?.genKw))
+  v.set('etc61_gen_loc', txt(etc61?.electric?.genLocation))
+  v.set('etc61_gen_qty', unitCell(ETC61_SHEET, 'AZ6', etc61?.electric?.genQty))
+  v.set('etc61_elec_note', txt(etc61?.electric?.note))
+  v.set('etc61_gas_kind', placeholderCell(ETC61_SHEET, 'J9', etc61?.gas?.kind))
+  v.set('etc61_gas_loc', placeholderCell(ETC61_SHEET, 'R9', etc61?.gas?.location))
+  v.set('etc61_gas_usage', placeholderCell(ETC61_SHEET, 'AA9', etc61?.gas?.usage))
+  v.set('etc61_gas_reg_loc', placeholderCell(ETC61_SHEET, 'AI9', etc61?.gas?.regulatorLocation))
+  v.set('etc61_gas_shutoff', yesNoCell(ETC61_SHEET, 'AR9', etc61?.gas?.shutoff === true ? true : null))
+  v.set('etc61_gas_shutoff_loc', placeholderCell(ETC61_SHEET, 'AZ9', etc61?.gas?.shutoffLocation))
+  v.set('etc61_haz_none', boxLabelCell(ETC61_SHEET, 'J18', etc61?.hazmat?.none === true))
+  v.set('etc61_haz_note', txt(etc61?.hazmat?.note))
 
   /* ── 1.9 피난약자 블록 — **3.5의 축약본** ──
    *  같은 워크북 안에서 3.5는 인쇄하는데 1.9만 비면 그게 D-7 갈라짐이다. 상자 판정도 표 값도

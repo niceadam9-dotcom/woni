@@ -150,7 +150,7 @@ console.log('\n[3] 백지 불변식 — 템플릿에 표본의 답이 남아 있
   check('대시자리표시칸 예외 수가 그대로(1.9.3 관리구역 10칸 — 양식이 3~12행에만 `-`)', dashCells.length === 10,
     `${dashCells.length}칸`)
   const sampleCells = FIRE_PLAN_ANCHORS.filter(isSampleTextAnchor)
-  check('법정예시문칸 예외 수가 그대로(3.4 4칸 + 3.6 4칸)', sampleCells.length === 8,
+  check('법정예시문칸 예외 수가 그대로(3.4 4 + 3.6 4 + 1.6.1 가스 5)', sampleCells.length === 13,
     sampleCells.map(a => `${a.sheet}!${a.cell}`).join(' · '))
   // ① 선언한 자구가 템플릿과 **글자까지** 같은가 — 다르면 표본의 답이 바뀐 것이다.
   //   ⚠ `cellText`가 아니라 `labelAt`으로 묻는다 — 저쪽은 공백을 깎아 `'1층 주차장 '`의
@@ -221,11 +221,12 @@ console.log('\n[3] 백지 불변식 — 템플릿에 표본의 답이 남아 있
   //   ⚠ 「해당없음」·근무형태 2상자는 **일부러 안 켠다**(면제 여부·근무형태 축이 ERP에 없다).
   // 2026-09-17(8): 3.5 배선으로 216→228 — 근무·거주자 6 + 시설이용자 6.
   // 2026-09-17(9): 1.9 피난약자 블록으로 228→233 — 상자 5종(3.5의 `기타`가 여긴 없다).
-  check('상자칸 예외 수가 그대로(… + 3.5 12 + 1.9약자 5)',
-    boxLabel.length === 233, `${boxLabel.length}칸`)
+  // 2026-09-17(13): 1.6.1 차단기구 유무(AR9)·위험물 해당없음(J18)으로 233→235
+  check('상자칸 예외 수가 그대로(… + 1.9약자 5 + 1.6.1 2)',
+    boxLabel.length === 235, `${boxLabel.length}칸`)
   check('상자칸은 템플릿에서 전부 미체크', boxLabel.every(a => !/■/.test(cellText(a))),
     boxLabel.filter(a => /■/.test(cellText(a))).map(a => a.cell).join(','))
-  const unitCells = FIRE_PLAN_ANCHORS.filter(isUnitLabelAnchor)
+  const unitCells = FIRE_PLAN_ANCHORS.filter(a => isUnitLabelAnchor(a) && !isSampleTextAnchor(a))
   // 2026-09-17: 1.10.3 수용인원(AS8 '명')을 배선해 5→6
   // 2026-09-17(2): 1.11.1 근무자·자위소방대 인원(AA4·AA5)을 배선해 6→8.
   //   ⚠ 거주자(BB4)는 `약     명`이라 **감싼단위칸**이다 — 아래에서 따로 센다.
@@ -233,7 +234,9 @@ console.log('\n[3] 백지 불변식 — 템플릿에 표본의 답이 남아 있
   // 2026-09-17(6): 1.9 편성인원(U3 '명')을 배선해 9→10 — 2.1 V13과 **같은 수**다
   // 2026-09-17(8): 3.5 근무·거주자 인원 6칸(' 명')을 배선해 10→16
   // 2026-09-17(9): 1.9 피난약자 활동구역 3칸('    층')을 배선해 16→19
-  check('단위칸 예외 수가 그대로(급·㎡·명·층 19칸)', unitCells.length === 19,
+  // 2026-09-17(13): 1.6.1 kW·kVA·대 5칸으로 19→24 — ⚠ R9 '각층'은 단위 꼴이지만
+  //   **예시문칸이 우선**이라 아래에서 뺀다(한 칸이 두 예외에 걸리면 더 구체적인 쪽이 정체다).
+  check('단위칸 예외 수가 그대로(급·㎡·명·층·kW 24칸)', unitCells.length === 24,
     unitCells.map(a => `${a.cell}='${cellText(a)}'`).join(' · '))
   // 🎯 표본 답이 단위칸 예외 **뒤에 숨지 못한다** — 숫자가 남았으면 그건 단위가 아니라 답이다
   //   (이 칸들에 실제로 `100명`·`1 개소`가 있었다)

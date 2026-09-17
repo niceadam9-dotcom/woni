@@ -51,6 +51,7 @@ export const FP_SHEET = {
   F1_9_3: '1.9.3 입주사 현황',
   F2_13: '2.13 초기대응체계',
   F3_7: '3.7 피난기구·유도장비 현황',
+  F1_6_1: '1.6.1 기타시설 일반현황',
   F2_14: '2.14 교육·훈련 결과기록부',
   F2_14_BACK: '2.14 결과기록부 뒷쪽',
   // 제3장(2026-09-09 B-15) — 3.1은 용도 칸만 배선한다(나머지는 별건)
@@ -1226,6 +1227,43 @@ const EQUIP37_SEEDS: Seed[] = EQUIP37_ROWS.flatMap((row, i) =>
     labelCell: `${col.replace(/\d/g, '')}${row - 1}`,
   })))
 
+/* ─────────── 서식 1.6.1 기타시설 일반현황 (2026-09-17) ───────────
+ *  🚨 3.7과 같은 **①류 사각지대** — PDF는 `etcFacility`(전기·가스·위험물) 전부를 서식 1.6
+ *    표로 인쇄하는데 엑셀은 앵커 0이었다(마커에 ETC 추가).
+ *
+ *  ⭐ 가스 첫 행(9행)은 **예시가 차 있다**(LPG·각층·주방,보일러·/·주방, 보일러) — 3.4식
+ *    법정 예시문 핀으로 고정하고 값이 있으면 덮는다. ERP 가스 축이 **한 벌**이라 10·11행은
+ *    비워 둔다(두 번째 가스를 지어내지 않는다).
+ *  ⚠ 차단기구 `□유 □무`(AR9)는 **켜기만** 한다 — ERP `shutoff`는 boolean이라 「미입력」과
+ *    「무」를 못 가른다. false에 무를 체크하면 없는 사실을 단언하는 것이고, PDF도 있음만
+ *    표시한다(같은 판정). AR10·AR11은 행이 비므로 안 건드린다.
+ *  ⚠ 흡연장(20행)·가스 해당없음(J12)·위험물 세부(15~17행)는 ERP에 축이 없다 —
+ *    `hazmat`은 {none, note}뿐이라 **해당없음 상자(J18)와 비고(R19)만** 배선한다.
+ */
+export const ETC61_SHEET = FP_SHEET.F1_6_1
+
+const ETC61_SEEDS: Seed[] = [
+  // 전기 — 단위칸(kW·kVA·대)은 자구를 남긴다
+  { field: 'etc61_kw', sheet: ETC61_SHEET, cell: 'R4', labelCell: 'R4' },
+  { field: 'etc61_kva', sheet: ETC61_SHEET, cell: 'R5', labelCell: 'R5' },
+  { field: 'etc61_loc', sheet: ETC61_SHEET, cell: 'AI5', labelCell: 'AA5' },
+  { field: 'etc61_qty', sheet: ETC61_SHEET, cell: 'AZ5', labelCell: 'AZ5' },
+  { field: 'etc61_gen_kw', sheet: ETC61_SHEET, cell: 'R6', labelCell: 'R6' },
+  { field: 'etc61_gen_loc', sheet: ETC61_SHEET, cell: 'AI6', labelCell: 'AA6' },
+  { field: 'etc61_gen_qty', sheet: ETC61_SHEET, cell: 'AZ6', labelCell: 'AZ6' },
+  { field: 'etc61_elec_note', sheet: ETC61_SHEET, cell: 'R7', labelCell: 'J7' },
+  // 가스 — 예시 행(9행)을 덮는다
+  { field: 'etc61_gas_kind', sheet: ETC61_SHEET, cell: 'J9', labelCell: 'J9' },
+  { field: 'etc61_gas_loc', sheet: ETC61_SHEET, cell: 'R9', labelCell: 'R9' },
+  { field: 'etc61_gas_usage', sheet: ETC61_SHEET, cell: 'AA9', labelCell: 'AA9' },
+  { field: 'etc61_gas_reg_loc', sheet: ETC61_SHEET, cell: 'AI9', labelCell: 'AI9' },
+  { field: 'etc61_gas_shutoff', sheet: ETC61_SHEET, cell: 'AR9', labelCell: 'AR9' },
+  { field: 'etc61_gas_shutoff_loc', sheet: ETC61_SHEET, cell: 'AZ9', labelCell: 'AZ9' },
+  // 위험물 — 해당없음 상자·비고만(축이 {none, note}뿐)
+  { field: 'etc61_haz_none', sheet: ETC61_SHEET, cell: 'J18', labelCell: 'J18' },
+  { field: 'etc61_haz_note', sheet: ETC61_SHEET, cell: 'R19', labelCell: 'J19' },
+]
+
 const BRIG1_SEEDS: Seed[] = [
   { field: 'brig1_name', sheet: BRIG1_SHEET, cell: 'M5', labelCell: 'A5' },
   { field: 'brig1_address', sheet: BRIG1_SHEET, cell: 'M6', labelCell: 'A6' },
@@ -1309,7 +1347,7 @@ function assemble(seeds: Seed[]): Anchor[] {
   })
 }
 
-export const FIRE_PLAN_ANCHORS: Anchor[] = assemble([...FIXED_SEEDS, ...ZONE_SEEDS, ...BRIG_SEEDS, ...FORM14_SEEDS, ...FIREHIST_SEEDS, ...HAZARD_SEEDS, ...MU_SEEDS, ...TRAIN_SEEDS, ...EVAC1_SEEDS, ...BRIG1_SEEDS, ...FIREWORK_SEEDS, ...CONSTRUCTION_SEEDS, ...EVAC3_SEEDS, ...BRIG9_SEEDS, ...REC14_SEEDS, ...ATT14_SEEDS, ...VUL_SEEDS, ...VUL9_SEEDS, ...EVAC34_SEEDS, ...VUL36_SEEDS, ...ORG23_SEEDS, ...TENANT_SEEDS, ...RESP13_SEEDS, ...EQUIP37_SEEDS])
+export const FIRE_PLAN_ANCHORS: Anchor[] = assemble([...FIXED_SEEDS, ...ZONE_SEEDS, ...BRIG_SEEDS, ...FORM14_SEEDS, ...FIREHIST_SEEDS, ...HAZARD_SEEDS, ...MU_SEEDS, ...TRAIN_SEEDS, ...EVAC1_SEEDS, ...BRIG1_SEEDS, ...FIREWORK_SEEDS, ...CONSTRUCTION_SEEDS, ...EVAC3_SEEDS, ...BRIG9_SEEDS, ...REC14_SEEDS, ...ATT14_SEEDS, ...VUL_SEEDS, ...VUL9_SEEDS, ...EVAC34_SEEDS, ...VUL36_SEEDS, ...ORG23_SEEDS, ...TENANT_SEEDS, ...RESP13_SEEDS, ...EQUIP37_SEEDS, ...ETC61_SEEDS])
 
 /* ══════════════════════ §사진상자 (2026-09-14) ══════════════════════
  *
@@ -1424,6 +1462,12 @@ export const FIRE_PLAN_SAMPLE_CELLS: ReadonlyArray<readonly [string, string, str
   [FP_SHEET.F3_7, 'S3', '완강기'],
   [FP_SHEET.F3_7, 'AH3', '베란다'],
   [FP_SHEET.F3_7, 'BB3', '각 1개'],
+  /* 1.6.1 가스 예시 행(9행) — ERP 가스 축이 한 벌이라 이 행만 덮는다 */
+  [FP_SHEET.F1_6_1, 'J9', 'LPG'],
+  [FP_SHEET.F1_6_1, 'R9', '각층'],
+  [FP_SHEET.F1_6_1, 'AA9', '주방,보일러'],
+  [FP_SHEET.F1_6_1, 'AI9', '/'],
+  [FP_SHEET.F1_6_1, 'AZ9', '주방, 보일러'],
 ]
 
 const SAMPLE_KEYS = new Set(FIRE_PLAN_SAMPLE_CELLS.map(([s, c]) => `${s}!${c}`))
@@ -1443,7 +1487,8 @@ export function isSampleTextAnchor(a: { sheet: string; cell: string }): boolean 
  */
 export function isUnitLabelAnchor(a: { sheet: string; cell: string }): boolean {
   const lbl = sheetManifest(a.sheet).labels[a.cell]
-  return !!lbl && /^[가-힣㎡]{1,2}$/.test(lbl.trim())
+  // 2026-09-17: 1.6.1 전기 단위(kW·kVA)를 위해 라틴 갈래 추가 — 여전히 숫자·공백 섞이면 탈락
+  return !!lbl && (/^[가-힣㎡]{1,2}$/.test(lbl.trim()) || /^k(W|VA)$/.test(lbl.trim()))
 }
 
 /**
