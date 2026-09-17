@@ -126,6 +126,13 @@ const MUTANTS = [
   ['M30 갈 줄 없는 유형을 안 센다 → [21] 계수 단언이 빨강이어야',
     VALUES, `  return Object.keys(m).filter(t => txt(m[t]) && !VUL36_TYPES.includes(t))`,
     `  return []`, 1],
+  /* 🎯 M31 — 2.3이 대장 술어 공유를 깨면 네 시트 항등이 물어야 한다. */
+  ['M31 2.3만 다른 사람을 대장으로 찍는다 → [23] 네 시트 항등이 빨강이어야',
+    VALUES, `  v.set('org23_lead_name', txt(lead?.name))`, `  v.set('org23_lead_name', txt(fieldTeam[0]?.name))`, 1],
+  /* 🚨 M32 — 빈 편성표에 건물명만 찍는 회귀(2.2 org 규약 위반). */
+  ['M32 대원 없이 소속만 찍는다 → [23] 「전부 빈다」가 빨강이어야',
+    VALUES, `  v.set('org23_field_org', fieldTeam.length ? txt(d.buildingName) : '')`,
+    `  v.set('org23_field_org', txt(d.buildingName))`, 1],
 ]
 
 /** 🚨 파일의 줄끝에 맞춰 needle을 바꾼다.

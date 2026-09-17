@@ -47,6 +47,7 @@ export const FP_SHEET = {
   // 제2장(2026-09-08 2단계)
   F2_1: '2.1 자위소방대 일반현황',
   F2_2: '2.2 자위소방대 편성표',
+  F2_3: '2.3 조직도',
   F2_14: '2.14 교육·훈련 결과기록부',
   F2_14_BACK: '2.14 결과기록부 뒷쪽',
   // 제3장(2026-09-09 B-15) — 3.1은 용도 칸만 배선한다(나머지는 별건)
@@ -1122,6 +1123,27 @@ const VUL36_SEEDS: Seed[] = VUL36_ROWS.map(([a, k]) => ({
   labelCell: a,
 }))
 
+/* ─────────── 서식 2.3 조직도 (2026-09-17) ───────────
+ *  Type-Ⅲ 조직도다. 대장·부대장 상자와 현장대응팀 소속·인원 표.
+ *
+ *  ⭐ 대장·부대장은 **2.2·1.9·2.14와 같은 술어**(`brigadeHeads`)로 뽑는다 — 네 시트가
+ *    같은 사람을 다르게 그리면 D-7 갈라짐이다. 소속도 2.2와 같은 규약(대원 있을 때만 건물명).
+ *  ⭐ 현장대응팀 표(3행)는 **첫 행에만** 건물명·대원 수를 적는다 — ERP 편성표는 조직(부서)
+ *    축이 없어 한 소속으로 본다(2.2가 org를 건물명 하나로 두는 그 판정). 남는 두 행은 비운다.
+ *  ⚠ 초기대응체계 조·인원 칸(AU7·BA7·AU9·BA9)은 비운다 — ERP에 조 편성 축이 없다
+ *    (2.1의 「운영시간·조 편성은 일부러 안 세웠다」와 같은 결정).
+ */
+export const ORG23_SHEET = FP_SHEET.F2_3
+
+const ORG23_SEEDS: Seed[] = [
+  { field: 'org23_lead_org', sheet: ORG23_SHEET, cell: 'V5', labelCell: 'V4' },
+  { field: 'org23_lead_name', sheet: ORG23_SHEET, cell: 'AE5', labelCell: 'AE4' },
+  { field: 'org23_dep_org', sheet: ORG23_SHEET, cell: 'V9', labelCell: 'V8' },
+  { field: 'org23_dep_name', sheet: ORG23_SHEET, cell: 'AE9', labelCell: 'AE8' },
+  { field: 'org23_field_org', sheet: ORG23_SHEET, cell: 'C14', labelCell: 'C13' },
+  { field: 'org23_field_n', sheet: ORG23_SHEET, cell: 'AG14', labelCell: 'AG13' },
+]
+
 const BRIG1_SEEDS: Seed[] = [
   { field: 'brig1_name', sheet: BRIG1_SHEET, cell: 'M5', labelCell: 'A5' },
   { field: 'brig1_address', sheet: BRIG1_SHEET, cell: 'M6', labelCell: 'A6' },
@@ -1205,7 +1227,7 @@ function assemble(seeds: Seed[]): Anchor[] {
   })
 }
 
-export const FIRE_PLAN_ANCHORS: Anchor[] = assemble([...FIXED_SEEDS, ...ZONE_SEEDS, ...BRIG_SEEDS, ...FORM14_SEEDS, ...FIREHIST_SEEDS, ...HAZARD_SEEDS, ...MU_SEEDS, ...TRAIN_SEEDS, ...EVAC1_SEEDS, ...BRIG1_SEEDS, ...FIREWORK_SEEDS, ...CONSTRUCTION_SEEDS, ...EVAC3_SEEDS, ...BRIG9_SEEDS, ...REC14_SEEDS, ...ATT14_SEEDS, ...VUL_SEEDS, ...VUL9_SEEDS, ...EVAC34_SEEDS, ...VUL36_SEEDS])
+export const FIRE_PLAN_ANCHORS: Anchor[] = assemble([...FIXED_SEEDS, ...ZONE_SEEDS, ...BRIG_SEEDS, ...FORM14_SEEDS, ...FIREHIST_SEEDS, ...HAZARD_SEEDS, ...MU_SEEDS, ...TRAIN_SEEDS, ...EVAC1_SEEDS, ...BRIG1_SEEDS, ...FIREWORK_SEEDS, ...CONSTRUCTION_SEEDS, ...EVAC3_SEEDS, ...BRIG9_SEEDS, ...REC14_SEEDS, ...ATT14_SEEDS, ...VUL_SEEDS, ...VUL9_SEEDS, ...EVAC34_SEEDS, ...VUL36_SEEDS, ...ORG23_SEEDS])
 
 /* ══════════════════════ §사진상자 (2026-09-14) ══════════════════════
  *

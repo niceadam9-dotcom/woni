@@ -1157,5 +1157,67 @@ console.log('\n[21] 3.6 유형별 피난방법 — 4종만, 나머지는 세어�
   }
 }
 
+/* ══════════════════════ [23] 2.3 조직도 — 대장을 그리는 네 번째 시트 ══════════════════════
+ *  ⭐ 같은 대장이 이제 **네 시트**에 인쇄된다(2.2 · 1.9 · 2.14 · 2.3). 넷을 한꺼번에 맞댄다 —
+ *    한 시트라도 다른 사람을 찍으면 D-7 갈라짐이다. */
+console.log('\n[23] 2.3 조직도 — 네 시트가 같은 대장인가')
+{
+  const { validateAnchors } = await import('../src/lib/xlsx-anchors.ts')
+  const { toInjectTargets } = await import('../src/lib/xlsx-workbook.ts')
+  const { FIRE_PLAN_ANCHORS, ORG23_SHEET, BRIG_SHEET, BRIG9_SHEET, REC14_SHEET } =
+    await import('../src/lib/fire-plan-anchors.ts')
+  const { buildFirePlanValues } = await import('../src/lib/fire-plan-xlsx-values.ts')
+  const { labelAt } = await import('../src/lib/fire-plan-xlsx-manifest.ts')
+
+  const brigade = [
+    { team: '자위소방대장', name: '김대장', duty: '총괄', phone: '01011112222' },
+    { team: '부대장', name: '이부장', duty: '보좌', phone: '01033334444' },
+    { team: '초기소화팀', name: '최소화', duty: '초기소화', phone: '01077778888' },
+    { team: '피난유도', name: '정유도', duty: '피난유도', phone: '01099990000' },
+  ]
+  const fx = { buildingName: '가온빌딩', facilities: [], brigade, zones: [], hazards: [], forms: {} } as never
+
+  const vc = validateAnchors(bytes, FIRE_PLAN_ANCHORS)
+  if (vc.ok) {
+    const { targets } = toInjectTargets(buildFirePlanValues(fx), vc.anchors)
+    const out = await injectWorkbook(bytes, targets)
+    const z2 = await JSZip.loadAsync(out.bytes)
+    const g23 = await readSheetGrid(z2, ORG23_SHEET)
+    const g22 = await readSheetGrid(z2, BRIG_SHEET)
+    const g9 = await readSheetGrid(z2, BRIG9_SHEET)
+    const g14 = await readSheetGrid(z2, REC14_SHEET)
+    const at = (g: typeof g23, r: string) => g.cells.find(x => x.ref === r)?.text ?? ''
+
+    /* 🎯 네 시트의 대장이 같은 사람이다 */
+    const leads = [at(g23, 'AE5'), at(g22, 'X5'), at(g9, 'T9'), at(g14, 'R18')]
+    check('네 시트의 대장이 같다(2.3·2.2·1.9·2.14)',
+      leads.every(x => x === '김대장'), leads.join(' / '))
+    check('부대장도 같다(2.3·2.2·1.9)',
+      at(g23, 'AE9') === '이부장' && at(g22, 'X6') === '이부장' && at(g9, 'T10') === '이부장',
+      `${at(g23, 'AE9')}/${at(g22, 'X6')}/${at(g9, 'T10')}`)
+    check('소속은 건물명(2.2와 같은 규약)', at(g23, 'V5') === '가온빌딩' && at(g23, 'V9') === '가온빌딩')
+
+    /* 현장대응팀 — 첫 행에만, 대장·부대장을 뺀 수 */
+    check('현장대응팀 소속·인원이 첫 행에', at(g23, 'C14') === '가온빌딩' && at(g23, 'AG14') === '2',
+      `${at(g23, 'C14')}/${at(g23, 'AG14')}`)
+    check('남는 두 행은 비어 있다', ['C15', 'AG15', 'C16', 'AG16'].every(c => at(g23, c).trim() === ''))
+
+    /* 🚨 음성 — 초기대응체계 조·인원 칸은 비어 있다(조 편성 축이 ERP에 없다) */
+    check('초기대응체계 칸은 비어 있다', ['AU7', 'BA7', 'AU9', 'BA9'].every(c => at(g23, c).trim() === ''),
+      ['AU7', 'BA7'].map(c => JSON.stringify(at(g23, c))).join(' '))
+    check('머리글·법정 자구가 온전하다', at(g23, 'V4') === labelAt(ORG23_SHEET, 'V4')
+      && at(g23, 'C13') === labelAt(ORG23_SHEET, 'C13'), `${at(g23, 'V4')}·${at(g23, 'C13')}`)
+
+    /* 편성표가 비면 전부 빈다 — 빈 소속에 건물명만 찍히지 않는다(2.2 org 규약) */
+    const t2 = toInjectTargets(buildFirePlanValues(
+      { ...(fx as object), brigade: [] } as never), vc.anchors)
+    const o2 = await injectWorkbook(bytes, t2.targets)
+    const g0 = await readSheetGrid(await JSZip.loadAsync(o2.bytes), ORG23_SHEET)
+    check('편성표가 비면 여섯 칸 전부 빈다',
+      ['V5', 'AE5', 'V9', 'AE9', 'C14', 'AG14'].every(c =>
+        (g0.cells.find(x => x.ref === c)?.text ?? '').trim() === ''))
+  }
+}
+
 console.log(`\n=== pass ${pass} / fail ${fail} ===`)
 process.exit(fail ? 1 : 0)

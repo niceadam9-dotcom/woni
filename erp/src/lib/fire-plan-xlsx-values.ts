@@ -37,6 +37,7 @@ import {
   VUL9_SHEET, VUL9_BOX_CELLS, VUL9_ROWS, VUL9_FIRST_ROW,
   EVAC34_SHEET, EVAC34_ROUTE_COLS,
   VUL36_SHEET, VUL36_ROWS, VUL36_TYPES,
+  ORG23_SHEET,
 } from '@/lib/fire-plan-anchors'
 import { boxGlyphAt, labelAt, tokenTemplateAt } from '@/lib/fire-plan-xlsx-manifest'
 import { purposeCover, purposeShort } from '@/lib/purpose-label'
@@ -724,6 +725,17 @@ export function buildFirePlanValues(d: FirePlanGenData): Map<string, CellValue> 
     v.set(`att14_${i}_name`, txt(m?.name))
   }
   v.set('rec14_brig_phone', formatTel(txt(lead?.phone)))
+
+  /* ── 서식 2.3 조직도 (2026-09-17) ──────────────────────────────────────────
+   *  ⭐ 대장·부대장은 2.2·1.9·2.14와 **같은 술어**(`brigadeHeads`) — 네 시트가 같은 사람.
+   *  ⭐ 현장대응팀 표는 첫 행에만 건물명·대원 수 — ERP 편성표에 조직(부서) 축이 없다.
+   */
+  v.set('org23_lead_org', org(lead))
+  v.set('org23_lead_name', txt(lead?.name))
+  v.set('org23_dep_org', org(deputy))
+  v.set('org23_dep_name', txt(deputy?.name))
+  v.set('org23_field_org', fieldTeam.length ? txt(d.buildingName) : '')
+  v.set('org23_field_n', fieldTeam.length ? String(fieldTeam.length) : '')
 
   for (let i = 0; i < BRIG_ROWS; i++) {
     const b = fieldTeam[i]
