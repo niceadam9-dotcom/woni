@@ -40,6 +40,7 @@ import {
   ORG23_SHEET,
   TENANT_SHEET, TENANT_ROWS, TENANT_COLS, TENANT_FIRST_ROW, isDashPlaceholderAnchor,
   RESP13_SHEET,
+  EQUIP37_ROWS, EQUIP37_COLS,
 } from '@/lib/fire-plan-anchors'
 import { boxGlyphAt, labelAt, tokenTemplateAt } from '@/lib/fire-plan-xlsx-manifest'
 import { purposeCover, purposeShort } from '@/lib/purpose-label'
@@ -828,6 +829,16 @@ export function buildFirePlanValues(d: FirePlanGenData): Map<string, CellValue> 
   v.set('resp13_false_alarm', txt(d.evacFalseAlarm))
   v.set('resp13_fire', txt(d.evacNote))
 
+  /* ── 서식 3.7 피난기구·유도장비 (2026-09-17) ──────────────────────────────
+   *  🚨 ①류 사각지대였다 — PDF는 `evacEquip`을 인쇄 중, 엑셀만 공란.
+   *  ⭐ 블록 1(완강기 예시)은 안 덮는다 — 사용방법(A5)과 쌍이다(앵커 §3.7).
+   *    그래서 evacEquip[0]은 **블록 2**부터 들어간다.
+   */
+  const eq37 = (d.forms?.evacEquip ?? []) as Array<Record<string, string>>
+  EQUIP37_ROWS.forEach((_, i) => {
+    for (const [, key] of EQUIP37_COLS) v.set(`equip37_${i}_${key}`, txt(eq37[i]?.[key]))
+  })
+
   /* ── 1.9 피난약자 블록 — **3.5의 축약본** ──
    *  같은 워크북 안에서 3.5는 인쇄하는데 1.9만 비면 그게 D-7 갈라짐이다. 상자 판정도 표 값도
    *  위와 **같은 것을 나눠 쓴다**(`vulCount` · `vulPlans` · `splitAreaDongFloor`). */
@@ -913,6 +924,11 @@ export function vulnerableAreaUnsplit(d: FirePlanGenData): number {
   return (d.forms?.vulnerable?.plans ?? [])
     .slice(0, VUL_PLAN_ROWS)
     .filter((p: { area?: string }) => splitAreaDongFloor(p?.area) === null).length
+}
+
+/** 피난기구 표(3.7)가 못 담은 행 수 — 배선 블록은 3개(블록 1은 완강기 예시로 고정) */
+export function equipRowOverflow(d: FirePlanGenData): number {
+  return Math.max(0, ((d.forms?.evacEquip ?? []) as unknown[]).length - EQUIP37_ROWS.length)
 }
 
 /** 입주사 표(1.9.3)가 못 담은 행 수 — 양식 15행 고정 */

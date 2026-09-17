@@ -41,7 +41,7 @@ const wiredBoxes = all.reduce((n, r) => n + r.wiredBoxes, 0)
 //   옳다는 방증이다 — 손으로 맞춘 게 아니라 분류가 제자리를 찾았다.
 check('값 슬롯 1,812칸', slots === 1812, `${slots}칸`)
 check('상자 658칸', boxes === 658, `${boxes}칸`)
-check('배선된 값 슬롯 ≥ 707', wired >= 707, `${wired}칸 (${(wired / slots * 100).toFixed(1)}%)`)
+check('배선된 값 슬롯 ≥ 716', wired >= 716, `${wired}칸 (${(wired / slots * 100).toFixed(1)}%)`)
 check('배선된 상자 ≥ 233', wiredBoxes >= 233, `${wiredBoxes}칸 (${(wiredBoxes / boxes * 100).toFixed(1)}%)`)
 // 🚨 **회계가 딱 맞아야 한다.** 앵커는 셋 중 하나에 앉는다 — 상자칸 · 라벨칸(단위·접두라벨 갈래) ·
 //   순수 빈칸. 합이 안 맞으면 분류 규칙 어딘가가 틀린 것이다(1칸이라도 반올림으로 넘기지 않는다).
@@ -165,7 +165,7 @@ const RED_EXPECTED = [
   '2.11 응급구조팀', '2.12 방호안전팀', 
   '2.3 임무', '2.4 개별임무카드', '2.5 지휘통제팀', '2.6 비상연락팀(지휘반)',
   '2.8 비상상황별 연락방법', '2.9 초기소화팀(진압반)', '3.2 피난시설 세부현황',
-  '3.6 피난약자 유형별 방법', '3.7 피난기구·유도장비 현황', '개정이력',
+  '3.6 피난약자 유형별 방법', '개정이력',
 ].sort()
 const gone = RED_EXPECTED.filter(s => !red.includes(s))
 const grew = red.filter(s => !RED_EXPECTED.includes(s))
@@ -204,6 +204,8 @@ const fixture = {
     // ⚠ 화재이력의 날짜 칸은 `at`이지 `date`가 아니다
     fireHistory: [{ kind: '화재', at: '2025-03-01', place: MARK('FIRE'), cause: '', action: '' }],
     training: { scenario: MARK('TRAIN'), eduMonths: [3], drillMonths: [9] },
+    // 🚨 3.7이 마커 목록에 **빠져 있었다** — PDF가 evacEquip을 인쇄 중인데 사각지대였다(2026-09-17)
+    evacEquip: [{ name: MARK('EQUIP'), location: '창고', qty: '2' }],
   },
 } as unknown as Parameters<typeof buildFirePlanHtml>[0]
 const html = buildFirePlanHtml(fixture)
@@ -214,6 +216,7 @@ const MARKERS: Array<[string, string]> = [
   ['FIRE', '1.10.4 화재·비화재보 이력'],
   ['TRAIN', '1.11.3 소방훈련 시나리오'],
   ['EVAC', '3.4 피난유도 절차·경로'],
+  ['EQUIP', '3.7 피난기구·유도장비 현황'],
 ]
 const printed = MARKERS.filter(([m]) => html.includes(MARK(m)))
 // 🚨 **전건**을 요구한다. `> 0`으로 두었더니 5개 중 2개가 조용히 안 나왔고, 그게

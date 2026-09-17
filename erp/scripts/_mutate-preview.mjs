@@ -141,6 +141,10 @@ const MUTANTS = [
   ['M34 2.13만 비화재보를 달리 적는다 → [25] D-7 항등이 빨강이어야',
     VALUES, `  v.set('resp13_false_alarm', txt(d.evacFalseAlarm))`,
     `  v.set('resp13_false_alarm', txt(d.evacNote))`, 1],
+  /* 🎯 M35 — 3.7 블록 1을 덮으면 사용방법(완강기 설명)과 **거짓 쌍**이 된다. */
+  ['M35 완강기 예시 블록을 덮는다 → [26] 「예시가 온전하다」가 빨강이어야',
+    ANCHORS, `export const EQUIP37_ROWS: readonly number[] = [7, 11, 15]`,
+    `export const EQUIP37_ROWS: readonly number[] = [3, 7, 11]`, 1],
 ]
 
 /** 🚨 파일의 줄끝에 맞춰 needle을 바꾼다.

@@ -6,7 +6,7 @@ import { assembleFirePlan } from '@/lib/fire-plan-generate'
 import { firePlanTemplate } from '@/lib/fire-plan-template-cache'
 import { toInjectTargets } from '@/lib/xlsx-workbook'
 import { injectWorkbook } from '@/lib/xlsx-inject'
-import { brigadeRowOverflow, buildFirePlanValues, attendanceOverflow, constructionRowOverflow, constructionUnmapped, evac3RowOverflow, evacRouteOverflow, fireworkRowOverflow, hazardUnmatched, missingValueFields, tenantRowOverflow, vulnerableAreaUnsplit, vulnerableMethodsUnmapped, vulnerablePlanOverflow, zoneRowOverflow } from '@/lib/fire-plan-xlsx-values'
+import { brigadeRowOverflow, buildFirePlanValues, attendanceOverflow, constructionRowOverflow, constructionUnmapped, equipRowOverflow, evac3RowOverflow, evacRouteOverflow, fireworkRowOverflow, hazardUnmatched, missingValueFields, tenantRowOverflow, vulnerableAreaUnsplit, vulnerableMethodsUnmapped, vulnerablePlanOverflow, zoneRowOverflow } from '@/lib/fire-plan-xlsx-values'
 import { FIRE_PLAN_MANIFEST } from '@/lib/fire-plan-xlsx-manifest'
 import { embedFirePlanImages, planFirePlanImages } from '@/lib/fire-plan-xlsx-images'
 import { applyFirePlanCheckboxes } from '@/lib/fire-plan-checkbox-controls'
@@ -131,6 +131,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
             : []),
           ...(fireworkRowOverflow(data) ? [`화기취급작업 ${fireworkRowOverflow(data)}건 미표기(양식 고정 행 상한)`] : []),
           ...(tenantRowOverflow(data) ? [`입주사 ${tenantRowOverflow(data)}곳 미표기(양식 고정 15행)`] : []),
+          ...(equipRowOverflow(data) ? [`피난기구·장비 ${equipRowOverflow(data)}건 미표기(양식 3블록·첫 블록은 완강기 예시)`] : []),
           ...(constructionRowOverflow(data) ? [`소방시설 공사·정비 ${constructionRowOverflow(data)}건 미표기(양식 고정 행 상한)`] : []),
           // 🚨 넘침과 다른 축 — 양식 1.13에 **「대상 설비」·「시공업체」 열이 아예 없다**.
           //    PDF는 둘 다 인쇄하므로 말해 주지 않으면 「엑셀이 빠뜨렸다」고 오해한다.

@@ -50,6 +50,7 @@ export const FP_SHEET = {
   F2_3: '2.3 조직도',
   F1_9_3: '1.9.3 입주사 현황',
   F2_13: '2.13 초기대응체계',
+  F3_7: '3.7 피난기구·유도장비 현황',
   F2_14: '2.14 교육·훈련 결과기록부',
   F2_14_BACK: '2.14 결과기록부 뒷쪽',
   // 제3장(2026-09-09 B-15) — 3.1은 용도 칸만 배선한다(나머지는 별건)
@@ -1197,6 +1198,34 @@ const RESP13_SEEDS: Seed[] = [
   { field: 'resp13_fire', sheet: RESP13_SHEET, cell: 'I25', labelCell: 'A25' },
 ]
 
+/* ─────────── 서식 3.7 피난기구·유도장비 (2026-09-17) ───────────
+ *  🚨 **①류 검출기의 사각지대였다** — PDF는 `evacEquip`을 이미 인쇄하는데([8] 마커 5종에
+ *    이 시트가 빠져 있었다) 엑셀은 공란이었다. 마커에 EQUIP를 추가해 사각을 메웠다.
+ *
+ *  ⭐ 4블록 중 **블록 1(완강기)은 일부러 안 덮는다.** 명칭·보관장소·수량이 예시로 차 있고
+ *    바로 아래 「사용방법」(A5)이 **완강기 전용 설명**이다 — 명칭만 소화기로 갈면 사용방법이
+ *    완강기 설명인 채 남아 **거짓 쌍**이 된다. 예시는 쌍으로 남거나 쌍으로 덮여야 하는데
+ *    사용방법 축이 ERP에 없으므로 블록째 남긴다(법정 예시문 핀으로 고정).
+ *  ⚠ `동별`·`층별`은 비운다 — `EvacEquipRow`는 name·location·qty뿐이다.
+ */
+export const EQUIP37_SHEET = FP_SHEET.F3_7
+
+/** 배선 블록(2~4) — [데이터 행]. 각 행 3칸: S(명칭)·AH(보관장소)·BB(수량) */
+export const EQUIP37_ROWS: readonly number[] = [7, 11, 15]
+export const EQUIP37_COLS: ReadonlyArray<readonly [string, string, string]> = [
+  ['S', 'name', 'S6'],      // 기구 및 장비 명칭
+  ['AH', 'location', 'AH6'], // 보관장소
+  ['BB', 'qty', 'BB6'],      // 수량
+]
+
+const EQUIP37_SEEDS: Seed[] = EQUIP37_ROWS.flatMap((row, i) =>
+  EQUIP37_COLS.map(([col, key]) => ({
+    field: `equip37_${i}_${key}`,
+    sheet: EQUIP37_SHEET,
+    cell: `${col}${row}`,
+    labelCell: `${col.replace(/\d/g, '')}${row - 1}`,
+  })))
+
 const BRIG1_SEEDS: Seed[] = [
   { field: 'brig1_name', sheet: BRIG1_SHEET, cell: 'M5', labelCell: 'A5' },
   { field: 'brig1_address', sheet: BRIG1_SHEET, cell: 'M6', labelCell: 'A6' },
@@ -1280,7 +1309,7 @@ function assemble(seeds: Seed[]): Anchor[] {
   })
 }
 
-export const FIRE_PLAN_ANCHORS: Anchor[] = assemble([...FIXED_SEEDS, ...ZONE_SEEDS, ...BRIG_SEEDS, ...FORM14_SEEDS, ...FIREHIST_SEEDS, ...HAZARD_SEEDS, ...MU_SEEDS, ...TRAIN_SEEDS, ...EVAC1_SEEDS, ...BRIG1_SEEDS, ...FIREWORK_SEEDS, ...CONSTRUCTION_SEEDS, ...EVAC3_SEEDS, ...BRIG9_SEEDS, ...REC14_SEEDS, ...ATT14_SEEDS, ...VUL_SEEDS, ...VUL9_SEEDS, ...EVAC34_SEEDS, ...VUL36_SEEDS, ...ORG23_SEEDS, ...TENANT_SEEDS, ...RESP13_SEEDS])
+export const FIRE_PLAN_ANCHORS: Anchor[] = assemble([...FIXED_SEEDS, ...ZONE_SEEDS, ...BRIG_SEEDS, ...FORM14_SEEDS, ...FIREHIST_SEEDS, ...HAZARD_SEEDS, ...MU_SEEDS, ...TRAIN_SEEDS, ...EVAC1_SEEDS, ...BRIG1_SEEDS, ...FIREWORK_SEEDS, ...CONSTRUCTION_SEEDS, ...EVAC3_SEEDS, ...BRIG9_SEEDS, ...REC14_SEEDS, ...ATT14_SEEDS, ...VUL_SEEDS, ...VUL9_SEEDS, ...EVAC34_SEEDS, ...VUL36_SEEDS, ...ORG23_SEEDS, ...TENANT_SEEDS, ...RESP13_SEEDS, ...EQUIP37_SEEDS])
 
 /* ══════════════════════ §사진상자 (2026-09-14) ══════════════════════
  *
@@ -1390,6 +1419,11 @@ export const FIRE_PLAN_SAMPLE_CELLS: ReadonlyArray<readonly [string, string, str
   [FP_SHEET.F3_6, 'K4', '보호자의 도움을 받아 함께 보조하며 피난 \n다수의 경우 한줄로 서서 천전히 연기를 피해 업드린 자세로 피난'],
   [FP_SHEET.F3_6, 'K5', '1. 보호자의 도움을 받아 함께 보조하며 피난 \n2. 만삭의 경우 2인 1조로 부축하여 피난 '],
   [FP_SHEET.F3_6, 'K6', '보조자의 도움을 받아 함께 피난\n장애유형별에 따라 피난 실시\n청각 : 표정, 제스처를 통해 피난해야 함을 알림, 스마트폰 문자 알림 이용\n시각 : 옆에서 구두 지시하며 피난\n지적 : 보호자나 담당자가 도와주는 것을 보조\n지체 : 2인 1조 또는 업어서 피난 실시'],
+  /* 3.7 블록 1 — 완강기 예시 4칸. 사용방법(A5)과 쌍이라 **블록째** 남긴다(§3.7 참조) */
+  [FP_SHEET.F3_7, 'L3', '3~5층'],
+  [FP_SHEET.F3_7, 'S3', '완강기'],
+  [FP_SHEET.F3_7, 'AH3', '베란다'],
+  [FP_SHEET.F3_7, 'BB3', '각 1개'],
 ]
 
 const SAMPLE_KEYS = new Set(FIRE_PLAN_SAMPLE_CELLS.map(([s, c]) => `${s}!${c}`))

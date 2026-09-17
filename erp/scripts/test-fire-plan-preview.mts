@@ -1312,5 +1312,52 @@ console.log('\n[25] 2.13 초기대응절차 — 3.4와 같은 원천')
   }
 }
 
+/* ══════════════════════ [26] 3.7 피난기구 — 사각지대였던 ①류 · 예시 블록은 쌍으로 남긴다 ══════════════════════
+ *  🚨 PDF는 evacEquip을 인쇄 중인데 [8] 마커 5종에 이 시트가 빠져 **사각지대**였다(마커 추가).
+ *  ⭐ 블록 1(완강기)은 일부러 안 덮는다 — 사용방법(A5)이 완강기 전용 설명이라 명칭만 갈면
+ *    **거짓 쌍**이 된다. evacEquip[0]은 블록 2부터 들어간다. */
+console.log('\n[26] 3.7 피난기구 — 블록 2부터, 완강기 예시는 쌍으로')
+{
+  const { validateAnchors } = await import('../src/lib/xlsx-anchors.ts')
+  const { toInjectTargets } = await import('../src/lib/xlsx-workbook.ts')
+  const { FIRE_PLAN_ANCHORS, EQUIP37_SHEET, EQUIP37_ROWS } = await import('../src/lib/fire-plan-anchors.ts')
+  const { buildFirePlanValues, equipRowOverflow } = await import('../src/lib/fire-plan-xlsx-values.ts')
+  const { labelAt } = await import('../src/lib/fire-plan-xlsx-manifest.ts')
+
+  const evacEquip = [
+    { name: '소화기', location: '각 층 복도', qty: '6' },
+    { name: '유도등', location: '비상구 상부', qty: '12' },
+    { name: '피난사다리', location: '3층 창고', qty: '1' },
+    { name: '구조대', location: '옥상', qty: '1' },        // ← 4번째는 넘친다
+  ]
+  const fx = { buildingName: 'X', facilities: [], brigade: [], zones: [], hazards: [],
+    forms: { evacEquip } } as never
+
+  const vc = validateAnchors(bytes, FIRE_PLAN_ANCHORS)
+  if (vc.ok) {
+    const { targets } = toInjectTargets(buildFirePlanValues(fx), vc.anchors)
+    const out = await injectWorkbook(bytes, targets)
+    const ge = await readSheetGrid(await JSZip.loadAsync(out.bytes), EQUIP37_SHEET)
+    const at = (r: string) => ge.cells.find(x => x.ref === r)?.text ?? ''
+
+    check('배선 블록은 3개(7·11·15행)', EQUIP37_ROWS.join(',') === '7,11,15', EQUIP37_ROWS.join(','))
+    check('evacEquip[0]이 블록 2에 착지', at('S7') === '소화기' && at('AH7') === '각 층 복도' && at('BB7') === '6',
+      `${at('S7')}/${at('AH7')}/${at('BB7')}`)
+    check('블록 3·4도 착지', at('S11') === '유도등' && at('S15') === '피난사다리',
+      `${at('S11')}/${at('S15')}`)
+    check('넘친 장비를 센다', equipRowOverflow(fx) === 1, `${equipRowOverflow(fx)}건`)
+
+    /* 🎯 완강기 예시 4칸이 **그대로** — 쌍(사용방법 A5)과 함께 남는다 */
+    check('완강기 예시가 온전하다(명칭·장소·수량·층)',
+      at('S3') === '완강기' && at('AH3') === '베란다' && at('BB3') === '각 1개' && at('L3') === '3~5층',
+      `${at('S3')}/${at('AH3')}/${at('BB3')}/${at('L3')}`)
+    check('사용방법 설명도 온전하다(쌍이 안 깨졌다)', at('A5') === labelAt(EQUIP37_SHEET, 'A5'),
+      at('A5').slice(0, 14))
+    /* 🚨 음성 — 동별·층별은 축이 없다 */
+    check('동별·층별 칸은 비어 있다', ['E7', 'L7', 'E11', 'L11', 'E15', 'L15'].every(c => at(c).trim() === ''))
+    check('자료삽입 자리는 안 건드렸다', at('S8') === labelAt(EQUIP37_SHEET, 'S8'))
+  }
+}
+
 console.log(`\n=== pass ${pass} / fail ${fail} ===`)
 process.exit(fail ? 1 : 0)
