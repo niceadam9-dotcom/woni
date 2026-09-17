@@ -41,8 +41,8 @@ const wiredBoxes = all.reduce((n, r) => n + r.wiredBoxes, 0)
 //   옳다는 방증이다 — 손으로 맞춘 게 아니라 분류가 제자리를 찾았다.
 check('값 슬롯 1,812칸', slots === 1812, `${slots}칸`)
 check('상자 658칸', boxes === 658, `${boxes}칸`)
-check('배선된 값 슬롯 ≥ 849', wired >= 849, `${wired}칸 (${(wired / slots * 100).toFixed(1)}%)`)
-check('배선된 상자 ≥ 235', wiredBoxes >= 235, `${wiredBoxes}칸 (${(wiredBoxes / boxes * 100).toFixed(1)}%)`)
+check('배선된 값 슬롯 ≥ 856', wired >= 856, `${wired}칸 (${(wired / slots * 100).toFixed(1)}%)`)
+check('배선된 상자 ≥ 239', wiredBoxes >= 239, `${wiredBoxes}칸 (${(wiredBoxes / boxes * 100).toFixed(1)}%)`)
 // 🚨 **회계가 딱 맞아야 한다.** 앵커는 셋 중 하나에 앉는다 — 상자칸 · 라벨칸(단위·접두라벨 갈래) ·
 //   순수 빈칸. 합이 안 맞으면 분류 규칙 어딘가가 틀린 것이다(1칸이라도 반올림으로 넘기지 않는다).
 const box = FIRE_PLAN_ANCHORS.filter(a => sheetManifest(a.sheet).boxes[a.cell]).length
@@ -160,9 +160,8 @@ const RED_EXPECTED = [
   '1.11.2 소방훈련·교육 세부계획', '1.11.3 소방훈련 시나리오', '1.11.4 결과기록부 뒷쪽',
   '1.14.1 화재예방 및 홍보 계획',
   '1.14.2 화재예방 및 홍보 결과', '1.15 피해 복구',
-  '1.3 건축물 위치·운영현황', '1.5.2 방화·제연구획 현황도', 
-  '2.10 피난유도팀',
-  '2.11 응급구조팀', 
+  '1.3 건축물 위치·운영현황', '1.5.2 방화·제연구획 현황도',
+  '2.11 응급구조팀',
   '2.3 임무', '2.5 지휘통제팀', '2.6 비상연락팀(지휘반)',
   '2.8 비상상황별 연락방법', '2.9 초기소화팀(진압반)', 
   '3.6 피난약자 유형별 방법', 

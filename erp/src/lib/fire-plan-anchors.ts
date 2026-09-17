@@ -56,6 +56,7 @@ export const FP_SHEET = {
   F3_2: '3.2 피난시설 세부현황',
   REV: '개정이력',
   F2_4: '2.4 개별임무카드',
+  F2_10: '2.10 피난유도팀',
   F2_14: '2.14 교육·훈련 결과기록부',
   F2_14_BACK: '2.14 결과기록부 뒷쪽',
   // 제3장(2026-09-09 B-15) — 3.1은 용도 칸만 배선한다(나머지는 별건)
@@ -1381,6 +1382,37 @@ const CARD24_SEEDS: Seed[] = CARD24_CELLS.map(([cell, stem, labelCell]) => ({
   field: `card24_${stem}`, sheet: CARD24_SHEET, cell, labelCell,
 }))
 
+/* ─────────── 서식 2.10 피난유도팀 (2026-09-18) ───────────
+ *  「일괄 표준문구」가 아니라 **기존 축 재사용**이다 — 절차 두 칸(비화재보·화재 시)은
+ *  2.13·3.4와 같은 원천(evacFalseAlarm·evacNote), 방법·집결지는 evacMethod·assembly,
+ *  경로 세 줄은 evacRoutes. 비상방송설비 상자는 1.4 J15와 같은 집합(d.facilities) —
+ *  한 워크북 안에서 1.4와 2.10이 갈라질 수 없다.
+ *  ⚠ 안 켜는 것들(모르면 안 켠다):
+ *    · 경보방식 3상자(R4·AF4·AF5) — 수신기 설정을 ERP가 모른다
+ *    · 주·지구경종(R6) — 구성품 수준이라 대장 입도가 아니다
+ *    · 시각경보기(AF6) — 1.4는 「자동화재탐지설비 및 시각경보기」 묶음이라 단독 유무를 모른다
+ *    · 피난안전구역·옥상·기타 상자(R10~R12)와 그 서술칸(AF10~AF12) — 축 없음
+ *    · 확인사항(R15)·피난유도장비 표(A18~AW20) — 축 없음
+ */
+export const EVAC210_SHEET = FP_SHEET.F2_10
+
+/** 경로 한 줄 — [상자칸, 경로 서술칸] · i번째 evacRoutes가 있으면 켠다 */
+export const EVAC210_ROUTE_CELLS: ReadonlyArray<readonly [string, string]> = [
+  ['R7', 'AF7'], ['R8', 'AF8'], ['R9', 'AF9'],
+]
+
+const EVAC210_SEEDS: Seed[] = [
+  { field: 'evac210_false_alarm', sheet: EVAC210_SHEET, cell: 'J23', labelCell: 'A23' },
+  { field: 'evac210_procedure', sheet: EVAC210_SHEET, cell: 'J24', labelCell: 'A24' },
+  { field: 'evac210_method', sheet: EVAC210_SHEET, cell: 'R13', labelCell: 'I13' },
+  { field: 'evac210_assembly', sheet: EVAC210_SHEET, cell: 'R14', labelCell: 'I14' },
+  { field: 'evac210_broadcast', sheet: EVAC210_SHEET, cell: 'AU6', labelCell: 'AU6' },
+  ...EVAC210_ROUTE_CELLS.flatMap(([box, text], i) => [
+    { field: `evac210_route${i + 1}`, sheet: EVAC210_SHEET, cell: box, labelCell: box },
+    { field: `evac210_route${i + 1}_text`, sheet: EVAC210_SHEET, cell: text, labelCell: box },
+  ]),
+]
+
 const BRIG1_SEEDS: Seed[] = [
   { field: 'brig1_name', sheet: BRIG1_SHEET, cell: 'M5', labelCell: 'A5' },
   { field: 'brig1_address', sheet: BRIG1_SHEET, cell: 'M6', labelCell: 'A6' },
@@ -1464,7 +1496,7 @@ function assemble(seeds: Seed[]): Anchor[] {
   })
 }
 
-export const FIRE_PLAN_ANCHORS: Anchor[] = assemble([...FIXED_SEEDS, ...ZONE_SEEDS, ...BRIG_SEEDS, ...FORM14_SEEDS, ...FIREHIST_SEEDS, ...HAZARD_SEEDS, ...MU_SEEDS, ...TRAIN_SEEDS, ...EVAC1_SEEDS, ...BRIG1_SEEDS, ...FIREWORK_SEEDS, ...CONSTRUCTION_SEEDS, ...EVAC3_SEEDS, ...BRIG9_SEEDS, ...REC14_SEEDS, ...ATT14_SEEDS, ...VUL_SEEDS, ...VUL9_SEEDS, ...EVAC34_SEEDS, ...VUL36_SEEDS, ...ORG23_SEEDS, ...TENANT_SEEDS, ...RESP13_SEEDS, ...EQUIP37_SEEDS, ...ETC61_SEEDS, ...HAZ_SEEDS, ...VAL12_SEEDS, ...EVDET32_SEEDS, ...REV_SEEDS, ...CARD24_SEEDS])
+export const FIRE_PLAN_ANCHORS: Anchor[] = assemble([...FIXED_SEEDS, ...ZONE_SEEDS, ...BRIG_SEEDS, ...FORM14_SEEDS, ...FIREHIST_SEEDS, ...HAZARD_SEEDS, ...MU_SEEDS, ...TRAIN_SEEDS, ...EVAC1_SEEDS, ...BRIG1_SEEDS, ...FIREWORK_SEEDS, ...CONSTRUCTION_SEEDS, ...EVAC3_SEEDS, ...BRIG9_SEEDS, ...REC14_SEEDS, ...ATT14_SEEDS, ...VUL_SEEDS, ...VUL9_SEEDS, ...EVAC34_SEEDS, ...VUL36_SEEDS, ...ORG23_SEEDS, ...TENANT_SEEDS, ...RESP13_SEEDS, ...EQUIP37_SEEDS, ...ETC61_SEEDS, ...HAZ_SEEDS, ...VAL12_SEEDS, ...EVDET32_SEEDS, ...REV_SEEDS, ...CARD24_SEEDS, ...EVAC210_SEEDS])
 
 /* ══════════════════════ §사진상자 (2026-09-14) ══════════════════════
  *

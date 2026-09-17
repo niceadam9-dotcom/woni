@@ -222,8 +222,11 @@ console.log('\n[3] 백지 불변식 — 템플릿에 표본의 답이 남아 있
   // 2026-09-17(8): 3.5 배선으로 216→228 — 근무·거주자 6 + 시설이용자 6.
   // 2026-09-17(9): 1.9 피난약자 블록으로 228→233 — 상자 5종(3.5의 `기타`가 여긴 없다).
   // 2026-09-17(13): 1.6.1 차단기구 유무(AR9)·위험물 해당없음(J18)으로 233→235
-  check('상자칸 예외 수가 그대로(… + 1.9약자 5 + 1.6.1 2)',
-    boxLabel.length === 235, `${boxLabel.length}칸`)
+  // 2026-09-18: 2.10 피난유도팀으로 235→239 — 경로 3(R7~R9) + 비상방송설비 1(AU6).
+  //   ⚠ 경보방식 3·주지구경종·시각경보기·피난안전구역·옥상·기타는 **일부러 안 켠다**
+  //     (수신기 설정·구성품 입도·1.4 묶음 입도 — 사유는 앵커 선언부).
+  check('상자칸 예외 수가 그대로(… + 1.6.1 2 + 2.10 4)',
+    boxLabel.length === 239, `${boxLabel.length}칸`)
   check('상자칸은 템플릿에서 전부 미체크', boxLabel.every(a => !/■/.test(cellText(a))),
     boxLabel.filter(a => /■/.test(cellText(a))).map(a => a.cell).join(','))
   const unitCells = FIRE_PLAN_ANCHORS.filter(a => isUnitLabelAnchor(a) && !isSampleTextAnchor(a))

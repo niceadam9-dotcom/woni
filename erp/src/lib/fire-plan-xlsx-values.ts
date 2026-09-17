@@ -47,6 +47,7 @@ import {
   EVDET32_ROWS, EVDET32_COLS,
   REV_ROWS, REV_COLS,
   CARD24_SHEET, CARD24_CELLS,
+  EVAC210_SHEET, EVAC210_ROUTE_CELLS,
 } from '@/lib/fire-plan-anchors'
 import { boxGlyphAt, labelAt, tokenTemplateAt } from '@/lib/fire-plan-xlsx-manifest'
 import { purposeCover, purposeShort } from '@/lib/purpose-label'
@@ -796,6 +797,22 @@ export function buildFirePlanValues(d: FirePlanGenData): Map<string, CellValue> 
   v.set('evac34_assembly', placeholderCell(EVAC34_SHEET, 'T13', assembly34))
   for (const [, key] of EVAC34_ROUTE_COLS) v.set(`evac34_${key}`, txt(route0?.[key]))
 
+  /* ── 서식 2.10 피난유도팀 (2026-09-18) ────────────────────────────────────
+   *  값을 새로 만들지 않는다 — 절차 두 칸은 2.13(resp13_*)·3.4와 **같은 원천**
+   *  (evacFalseAlarm·evacNote), 방법·집결지는 evacMethod·assembly, 경로는 evacRoutes,
+   *  비상방송설비 상자는 1.4와 같은 집합(facSet). 한 워크북 안 네 시트가 갈라질 수 없다.
+   */
+  v.set('evac210_false_alarm', txt(d.evacFalseAlarm))
+  v.set('evac210_procedure', txt(d.evacNote))
+  v.set('evac210_method', txt(d.evacMethod))
+  v.set('evac210_assembly', assembly34)
+  v.set('evac210_broadcast', boxLabelCell(EVAC210_SHEET, 'AU6', facSet.has('비상방송설비')))
+  const evRoutes = (d.evacRoutes ?? []) as Array<Record<string, string>>
+  EVAC210_ROUTE_CELLS.forEach(([box], i) => {
+    v.set(`evac210_route${i + 1}`, boxLabelCell(EVAC210_SHEET, box, !!evRoutes[i]))
+    v.set(`evac210_route${i + 1}_text`, txt(evRoutes[i]?.route))
+  })
+
   /* ── 서식 1.9.3 입주사 현황 (2026-09-17) ──────────────────────────────────
    *  🚨 ④ 첫 사례 — `forms.tenants` 축을 이 커밋에서 신설했다(화면·PDF·엑셀 동시).
    *  ⚠ `관리구역`은 값이 없으면 양식의 `-`를 남긴다(placeholderCell — 17행만 라벨이 없어
@@ -1057,6 +1074,11 @@ export function attendanceOverflow(d: FirePlanGenData): number {
 /** 3.3 피난인원현황이 못 담은 구역 수 — 1.2.1(8행)과 **예산이 달라** 따로 센다(19행) */
 export function evac3RowOverflow(d: FirePlanGenData): number {
   return Math.max(0, (d.zones ?? []).length - EVAC3_ROWS)
+}
+
+/** 2.10 피난유도팀이 못 담은 피난경로 수 — 3.4(한 줄)와 **예산이 달라** 따로 센다(세 줄) */
+export function evac210RouteOverflow(d: FirePlanGenData): number {
+  return Math.max(0, (d.evacRoutes ?? []).length - EVAC210_ROUTE_CELLS.length)
 }
 
 /** 공사·정비 기록(1.13)이 못 담은 행 수 — 화기취급과 같은 축 */

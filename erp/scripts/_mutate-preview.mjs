@@ -172,6 +172,14 @@ const MUTANTS = [
   ['M42 2.4 어간 매칭을 정확 일치로 → [32] 착지·쉼표 단언이 빨강이어야',
     VALUES, "    const names = brig.filter(m => teamStem(m.team) === stem).map(m => txt(m.name)).filter(Boolean)",
     "    const names = brig.filter(m => txt(m.team) === stem).map(m => txt(m.name)).filter(Boolean)", 1],
+  /* 🚨 M43 — 2.10 경로 상자를 항상 켜면 없는 경로를 단언하는 것이다(없는 사실 지어내기). */
+  ['M43 2.10 경로 상자를 항상 켠다 → [33] 「셋째 경로 줄은 빈 채로」가 빨강이어야',
+    VALUES, "    v.set(`evac210_route${i + 1}`, boxLabelCell(EVAC210_SHEET, box, !!evRoutes[i]))",
+    "    v.set(`evac210_route${i + 1}`, boxLabelCell(EVAC210_SHEET, box, true))", 1],
+  /* 🎯 M44 — 2.10 절차가 2.13과 다른 원천을 쓰면 한 워크북 안에서 갈라진다. */
+  ['M44 2.10 화재 시 절차의 원천을 간다 → [33] 2.13 항등이 빨강이어야',
+    VALUES, "  v.set('evac210_procedure', txt(d.evacNote))",
+    "  v.set('evac210_procedure', txt(d.evacMethod))", 1],
 ]
 
 /** 🚨 파일의 줄끝에 맞춰 needle을 바꾼다.

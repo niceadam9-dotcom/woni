@@ -1656,5 +1656,68 @@ console.log('\n[32] 2.4 개별임무카드 — 성명 5칸')
   }
 }
 
+/* ══════════════════════ [33] 2.10 피난유도팀 — 기존 축 재사용 ══════════════════════
+ *  「일괄 표준문구」가 아니었다 — 절차 두 칸은 2.13·3.4와 같은 원천(evacFalseAlarm·evacNote),
+ *  비상방송설비 상자는 1.4 J15와 같은 집합. 핵심 단언은 개수가 아니라 **시트 간 항등**이다.
+ *  ⚠ 안 켜는 것(모르면 안 켠다): 경보방식 3상자·주지구경종·시각경보기(1.4 입도 불일치)·
+ *    피난안전구역·옥상·기타·확인사항·장비 표. */
+console.log('\n[33] 2.10 피난유도팀 — 7슬롯 + 4상자')
+{
+  const { validateAnchors } = await import('../src/lib/xlsx-anchors.ts')
+  const { toInjectTargets } = await import('../src/lib/xlsx-workbook.ts')
+  const { FIRE_PLAN_ANCHORS, EVAC210_SHEET, EVAC210_ROUTE_CELLS, FP_SHEET } =
+    await import('../src/lib/fire-plan-anchors.ts')
+  const { buildFirePlanValues, evac210RouteOverflow } = await import('../src/lib/fire-plan-xlsx-values.ts')
+  const { labelAt } = await import('../src/lib/fire-plan-xlsx-manifest.ts')
+
+  const fx = {
+    buildingName: 'X', facilities: ['비상방송설비'], brigade: [], zones: [], hazards: [],
+    forms: {}, evacRoutes: [
+      { route: '동편 계단 → 1층 정문', floor: '전층' },
+      { route: '서편 계단 → 지하 주차장 출구', floor: '전층' },
+    ],
+    assembly: '정문 앞 광장', evacFalseAlarm: '방송 확인 후 대기', evacNote: '유도자 지시로 피난',
+    evacMethod: '낮은 자세로 최단 경로 이동',
+  } as never
+
+  const vc = validateAnchors(bytes, FIRE_PLAN_ANCHORS)
+  if (vc.ok) {
+    const vals = buildFirePlanValues(fx)
+    const { targets } = toInjectTargets(vals, vc.anchors)
+    const out = await injectWorkbook(bytes, targets)
+    const zip2 = await JSZip.loadAsync(out.bytes)
+    const gr = await readSheetGrid(zip2, EVAC210_SHEET)
+    const at = (r: string) => gr.cells.find(x => x.ref === r)?.text ?? ''
+
+    check('절차 두 칸이 착지한다', at('J23') === '방송 확인 후 대기' && at('J24') === '유도자 지시로 피난',
+      `${at('J23')}/${at('J24')}`)
+    /* 🎯 시트 간 항등 — 같은 원천을 나눠 쓰므로 값이 다를 방법이 없어야 한다 */
+    check('2.13과 항등(비화재보·화재 시)', vals.get('resp13_false_alarm') === vals.get('evac210_false_alarm')
+      && vals.get('resp13_fire') === vals.get('evac210_procedure'))
+    check('방법·집결지가 착지한다', at('R13') === '낮은 자세로 최단 경로 이동' && at('R14') === '정문 앞 광장',
+      `${at('R13')}/${at('R14')}`)
+    check('경로 2건 — 상자 두 개 켜지고 서술이 실린다',
+      at('R7').startsWith('■') && at('R8').startsWith('■')
+      && at('AF7') === '동편 계단 → 1층 정문' && at('AF8') === '서편 계단 → 지하 주차장 출구',
+      `${at('R7').slice(0, 6)}/${at('AF8')}`)
+    check('셋째 경로 줄은 상자도 서술도 빈 채로', at('R9') === labelAt(EVAC210_SHEET, 'R9') && at('AF9').trim() === '')
+    /* 1.4와 같은 집합 — 비상방송설비 J15가 켜져 있으면 2.10 AU6도 켜져 있다 */
+    const g14 = await readSheetGrid(zip2, FP_SHEET.F1_4)
+    const at14 = (r: string) => g14.cells.find(x => x.ref === r)?.text ?? ''
+    check('1.4와 항등(비상방송설비)', at('AU6').startsWith('■') && at14('J15').startsWith('■'),
+      `2.10=${at('AU6').slice(0, 2)} 1.4=${at14('J15').slice(0, 2)}`)
+    /* 🚨 음성 — 모르는 것은 안 켠다·앵커도 없다 */
+    const noAnchor = (cell: string) => !FIRE_PLAN_ANCHORS.some(a => a.sheet === EVAC210_SHEET && a.cell === cell)
+    check('경보방식·주지구경종·시각경보기는 앵커가 없고 미체크',
+      ['R4', 'AF4', 'AF5', 'R6', 'AF6'].every(c => noAnchor(c) && at(c) === labelAt(EVAC210_SHEET, c)))
+    check('피난안전구역·옥상·기타·확인사항·장비 표는 앵커가 없다',
+      ['R10', 'R11', 'R12', 'AF10', 'R15', 'A18', 'M19', 'AW20'].every(noAnchor))
+    check('넘친 경로를 센다(3줄 예산)', evac210RouteOverflow({ evacRoutes: [1, 2, 3, 4] } as never) === 1
+      && evac210RouteOverflow(fx) === 0)
+    check('경로 상자 라벨 자구가 온전하다', EVAC210_ROUTE_CELLS.every(([box], i) =>
+      labelAt(EVAC210_SHEET, box).includes(`제${i + 1}피난로`)))
+  }
+}
+
 console.log(`\n=== pass ${pass} / fail ${fail} ===`)
 process.exit(fail ? 1 : 0)
