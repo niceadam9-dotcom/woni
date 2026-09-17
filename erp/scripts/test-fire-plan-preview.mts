@@ -1609,5 +1609,52 @@ console.log('\n[31] 개정이력 — 11행 5열')
   }
 }
 
+/* ══════════════════════ [32] 2.4 개별임무카드 — 성명 칸만 채운다 ══════════════════════
+ *  임무 문구는 양식이 전부 인쇄해 두었고 사람 이름만 비어 있었다. 팀 판정은 2.1·1.9와
+ *  같은 술어(`teamStem`) — 「비상연락팀」도 「지휘반」식 어미도 어간으로 접힌다.
+ *  ⚠ 초기대응체계 블록(58행)은 앵커도 값도 없다 — ERP에 그 축이 없다(2.14 확인 칸과 같은 판정). */
+console.log('\n[32] 2.4 개별임무카드 — 성명 5칸')
+{
+  const { validateAnchors } = await import('../src/lib/xlsx-anchors.ts')
+  const { toInjectTargets } = await import('../src/lib/xlsx-workbook.ts')
+  const { FIRE_PLAN_ANCHORS, CARD24_SHEET, CARD24_CELLS } =
+    await import('../src/lib/fire-plan-anchors.ts')
+  const { buildFirePlanValues } = await import('../src/lib/fire-plan-xlsx-values.ts')
+  const { labelAt } = await import('../src/lib/fire-plan-xlsx-manifest.ts')
+
+  /* 🚨 어간 목록이 양식의 사본이 되지 않게 — 각 어간이 블록 머리 라벨에 실제로 있는가 */
+  check('어간 5개가 블록 머리 라벨에 실제로 들어 있다',
+    CARD24_CELLS.every(([, stem, labelCell]) => labelAt(CARD24_SHEET, labelCell).includes(stem)),
+    CARD24_CELLS.map(([, s]) => s).join('·'))
+
+  const brigade = [
+    { team: '비상연락팀', name: '김연락' },
+    { team: '초기소화팀', name: '박소화' }, { team: '초기소화반', name: '이진압' },
+    { team: '피난유도팀', name: '최유도' },
+    { team: '응급구조팀', name: '정구조' },
+    { team: '자위소방대장', name: '총대장' }, // 어느 카드에도 안 실린다
+  ]
+  const fx = { buildingName: 'X', facilities: [], brigade, zones: [], hazards: [], forms: {} } as never
+
+  const vc = validateAnchors(bytes, FIRE_PLAN_ANCHORS)
+  if (vc.ok) {
+    const { targets } = toInjectTargets(buildFirePlanValues(fx), vc.anchors)
+    const out = await injectWorkbook(bytes, targets)
+    const gr = await readSheetGrid(await JSZip.loadAsync(out.bytes), CARD24_SHEET)
+    const at = (r: string) => gr.cells.find(x => x.ref === r)?.text ?? ''
+
+    check('팀별 성명이 제 카드에 착지한다', at('W9') === '김연락' && at('W31') === '최유도'
+      && at('W42') === '정구조', `${at('W9')}/${at('W31')}/${at('W42')}`)
+    check('같은 어간(팀·반 어미)은 쉼표로 잇는다', at('W20') === '박소화, 이진압', at('W20'))
+    check('대원 없는 팀(방호안전)은 빈 칸', at('W53').trim() === '', at('W53'))
+    check('대장·부대장은 어느 카드에도 안 실린다',
+      ['W9', 'W20', 'W31', 'W42', 'W53'].every(c => !at(c).includes('총대장')))
+    /* 🚨 음성 — 초기대응체계 블록은 배선하지 않는다(축이 없다) */
+    check('초기대응체계 성명 칸(W64)은 앵커가 없다',
+      !FIRE_PLAN_ANCHORS.some(a => a.sheet === CARD24_SHEET && a.cell === 'W64') && at('W64').trim() === '')
+    check('임무 문구는 양식 그대로다', at('A10') === labelAt(CARD24_SHEET, 'A10'), at('A10'))
+  }
+}
+
 console.log(`\n=== pass ${pass} / fail ${fail} ===`)
 process.exit(fail ? 1 : 0)

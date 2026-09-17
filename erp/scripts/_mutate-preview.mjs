@@ -168,6 +168,10 @@ const MUTANTS = [
   ['M41 개정이력 행을 하나 민다 → [31] 착지 단언이 빨강이어야',
     VALUES, "    for (const [, key] of REV_COLS) v.set(`rev_${i}_${key}`, txt(revs[i]?.[key]))",
     "    for (const [, key] of REV_COLS) v.set(`rev_${i}_${key}`, txt(revs[i + 1]?.[key]))", 1],
+  /* 🚨 M42 — 2.4 팀 판정이 어간이 아니라 정확 일치가 되면 「팀」 어미가 못 닿는다. */
+  ['M42 2.4 어간 매칭을 정확 일치로 → [32] 착지·쉼표 단언이 빨강이어야',
+    VALUES, "    const names = brig.filter(m => teamStem(m.team) === stem).map(m => txt(m.name)).filter(Boolean)",
+    "    const names = brig.filter(m => txt(m.team) === stem).map(m => txt(m.name)).filter(Boolean)", 1],
 ]
 
 /** 🚨 파일의 줄끝에 맞춰 needle을 바꾼다.

@@ -46,6 +46,7 @@ import {
   VAL12_ROWS, VAL12_COLS,
   EVDET32_ROWS, EVDET32_COLS,
   REV_ROWS, REV_COLS,
+  CARD24_SHEET, CARD24_CELLS,
 } from '@/lib/fire-plan-anchors'
 import { boxGlyphAt, labelAt, tokenTemplateAt } from '@/lib/fire-plan-xlsx-manifest'
 import { purposeCover, purposeShort } from '@/lib/purpose-label'
@@ -898,6 +899,15 @@ export function buildFirePlanValues(d: FirePlanGenData): Map<string, CellValue> 
   const revs = (d.revisions ?? []) as Array<Record<string, string>>
   for (let i = 0; i < REV_ROWS; i++) {
     for (const [, key] of REV_COLS) v.set(`rev_${i}_${key}`, txt(revs[i]?.[key]))
+  }
+
+  /* ── 서식 2.4 개별임무카드 — 성명 칸 (2026-09-18) ─────────────────────────
+   *  임무 문구는 양식이 전부 인쇄해 두었다 — 사람 이름만 채운다(팀 판정은 `teamStem` 공유).
+   *  대원이 여럿이면 쉼표로 잇는다 — 카드 한 장에 그 팀 전원이 실리는 서식이다.
+   */
+  for (const [cell, stem] of CARD24_CELLS) {
+    const names = brig.filter(m => teamStem(m.team) === stem).map(m => txt(m.name)).filter(Boolean)
+    v.set(`card24_${stem}`, names.join(', '))
   }
 
   /* ── 1.9 피난약자 블록 — **3.5의 축약본** ──

@@ -55,6 +55,7 @@ export const FP_SHEET = {
   F2_12: '2.12 방호안전팀',
   F3_2: '3.2 피난시설 세부현황',
   REV: '개정이력',
+  F2_4: '2.4 개별임무카드',
   F2_14: '2.14 교육·훈련 결과기록부',
   F2_14_BACK: '2.14 결과기록부 뒷쪽',
   // 제3장(2026-09-09 B-15) — 3.1은 용도 칸만 배선한다(나머지는 별건)
@@ -1357,6 +1358,29 @@ const REV_SEEDS: Seed[] = Array.from({ length: REV_ROWS }, (_, i) =>
     field: `rev_${i}_${key}`, sheet: REV_SHEET, cell: `${col}${REV_FIRST_ROW + i}`, labelCell,
   }))).flat()
 
+/* ─────────── 서식 2.4 개별임무카드 — 성명 칸 (2026-09-18) ───────────
+ *  6블록 팀별 카드. 각 카드의 **성명 칸**에 그 팀 대원 이름을 채운다 — 임무 문구는 양식이
+ *  전부 인쇄해 두었고(공통·개별임무), 사람 이름만 비어 있었다.
+ *  ⭐ 팀 판정은 `teamStem`(2.1·1.9와 같은 술어) — 블록 머리 라벨에서 어간을 **적어 두고**
+ *    검사가 라벨에 실제로 들어 있는지 확인한다(목록 사본 방지).
+ *  ⚠ 초기대응체계 블록(58행·성명 W64)은 비운다 — ERP에 그 축이 없다(2.14·1.9와 같은 결정).
+ *  ⚠ PDF에 2.4는 없다 — 카드 서식은 엑셀 전용 지면이라 역방향 D-7이 아니다(확인 0건).
+ */
+export const CARD24_SHEET = FP_SHEET.F2_4
+
+/** [성명 칸, 팀 어간, 블록 머리 라벨 셀] */
+export const CARD24_CELLS: ReadonlyArray<readonly [string, string, string]> = [
+  ['W9', '비상연락', 'A3'],
+  ['W20', '초기소화', 'A14'],
+  ['W31', '피난유도', 'A25'],
+  ['W42', '응급구조', 'A36'],
+  ['W53', '방호안전', 'A47'],
+]
+
+const CARD24_SEEDS: Seed[] = CARD24_CELLS.map(([cell, stem, labelCell]) => ({
+  field: `card24_${stem}`, sheet: CARD24_SHEET, cell, labelCell,
+}))
+
 const BRIG1_SEEDS: Seed[] = [
   { field: 'brig1_name', sheet: BRIG1_SHEET, cell: 'M5', labelCell: 'A5' },
   { field: 'brig1_address', sheet: BRIG1_SHEET, cell: 'M6', labelCell: 'A6' },
@@ -1440,7 +1464,7 @@ function assemble(seeds: Seed[]): Anchor[] {
   })
 }
 
-export const FIRE_PLAN_ANCHORS: Anchor[] = assemble([...FIXED_SEEDS, ...ZONE_SEEDS, ...BRIG_SEEDS, ...FORM14_SEEDS, ...FIREHIST_SEEDS, ...HAZARD_SEEDS, ...MU_SEEDS, ...TRAIN_SEEDS, ...EVAC1_SEEDS, ...BRIG1_SEEDS, ...FIREWORK_SEEDS, ...CONSTRUCTION_SEEDS, ...EVAC3_SEEDS, ...BRIG9_SEEDS, ...REC14_SEEDS, ...ATT14_SEEDS, ...VUL_SEEDS, ...VUL9_SEEDS, ...EVAC34_SEEDS, ...VUL36_SEEDS, ...ORG23_SEEDS, ...TENANT_SEEDS, ...RESP13_SEEDS, ...EQUIP37_SEEDS, ...ETC61_SEEDS, ...HAZ_SEEDS, ...VAL12_SEEDS, ...EVDET32_SEEDS, ...REV_SEEDS])
+export const FIRE_PLAN_ANCHORS: Anchor[] = assemble([...FIXED_SEEDS, ...ZONE_SEEDS, ...BRIG_SEEDS, ...FORM14_SEEDS, ...FIREHIST_SEEDS, ...HAZARD_SEEDS, ...MU_SEEDS, ...TRAIN_SEEDS, ...EVAC1_SEEDS, ...BRIG1_SEEDS, ...FIREWORK_SEEDS, ...CONSTRUCTION_SEEDS, ...EVAC3_SEEDS, ...BRIG9_SEEDS, ...REC14_SEEDS, ...ATT14_SEEDS, ...VUL_SEEDS, ...VUL9_SEEDS, ...EVAC34_SEEDS, ...VUL36_SEEDS, ...ORG23_SEEDS, ...TENANT_SEEDS, ...RESP13_SEEDS, ...EQUIP37_SEEDS, ...ETC61_SEEDS, ...HAZ_SEEDS, ...VAL12_SEEDS, ...EVDET32_SEEDS, ...REV_SEEDS, ...CARD24_SEEDS])
 
 /* ══════════════════════ §사진상자 (2026-09-14) ══════════════════════
  *
