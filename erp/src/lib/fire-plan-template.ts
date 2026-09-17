@@ -75,6 +75,8 @@ export type FirePlanFormSections = {
   vulnerable?: VulnerableSection
   vulnerableMethods?: Record<string, string>
   evacEquip?: EvacEquipRow[]
+  /** 1.9.3 입주사 현황 — ④ 첫 입력 축 신설 (2026-09-17). plan-form12의 TenantRow와 같은 꼴 */
+  tenants?: Array<{ name: string; usage: string; zone: string; rep: string; phone: string }>
   fireworkLog?: LogRow[]
   constructionLog?: LogRow[]
   promoLog?: LogRow[]
@@ -601,6 +603,16 @@ ${(d.autoFilled?.length ?? 0) > 0
     <tr><th>감독사항</th><td class="l" colspan="3">점검 후 소방안전관리업무 대행 점검표 확인 후 서명</td></tr>
   </table>
   <p class="note">※ 업무대행 점검 기술인력은 대행 시 '소방안전관리업무 대행 점검표'를 작성하고 소방안전관리자(또는 관계인)에게 점검결과를 설명·제출하여야 한다.</p>
+
+
+  ${/* 서식 1.9.3 입주사 현황 — ④ 첫 입력 축(2026-09-17). 엑셀과 같은 forms.tenants를 먹는다(D-7).
+      입주사가 없는 건물이 다수라 **있을 때만** 인쇄한다 — 빈 표는 「미입력」으로 오독된다. */''}
+  ${(f.tenants?.length ?? 0) > 0 ? `
+  <p class="formno">서식 1.9.3</p><h3 style="display:inline;margin-left:8px">입주사 현황</h3>
+  <table class="small">
+    <tr><th style="width:40px">번호</th><th>업체명</th><th style="width:80px">용도</th><th style="width:80px">관리구역</th><th style="width:90px">대표자(책임자)</th><th style="width:110px">연락처</th></tr>
+    ${(f.tenants ?? []).map((t, i) => `<tr><td>${i + 1}</td><td class="l">${v(t.name)}</td><td>${v(t.usage)}</td><td>${v(t.zone)}</td><td>${v(t.rep)}</td><td>${v(t.phone)}</td></tr>`).join('')}
+  </table>` : ''}
 </div>
 
 <!-- 서식 1.5 피난·방화시설 -->

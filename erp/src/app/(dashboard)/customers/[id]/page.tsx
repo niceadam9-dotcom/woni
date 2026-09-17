@@ -20,7 +20,7 @@ import type { FirePlanStatusKey } from '@/lib/fire-plan-sections'
 import { formBlankSummaries } from '@/lib/fire-plan-blanks'
 import type { RevisionYearGroup } from '@/app/(dashboard)/customers/fire-plan-revision-actions'
 import { CustomerAssetsClient } from '@/components/customers/customer-assets-client'
-import { PlanForm12, type ZoneRow, type HazardRow } from '@/components/customers/plan-form12'
+import { PlanForm12, type ZoneRow, type HazardRow, type TenantRow } from '@/components/customers/plan-form12'
 import { PlanForm13, type LocationSection, type FireAccessSection } from '@/components/customers/plan-form13'
 import { PlanForm14 } from '@/components/customers/plan-form14'
 import { PlanForm15, EMPTY_EVAC_FIRE, type EvacFireSection, type EvacMapRow } from '@/components/customers/plan-form15'
@@ -396,6 +396,7 @@ export default async function CustomerDetailPage({
     photos?: Array<{ path: string | null; kind: string; caption: string }>
     dutyLog?: DutyLogRow[]
     fireworkLog?: LogRow[]; constructionLog?: LogRow[]; promoLog?: LogRow[]; recoveryLog?: LogRow[]
+    tenants?: TenantRow[]
     reportCover?: ReportCoverSection
     emergencyContact?: string  // M-18(소방계획서_15): 비상연락체계 텍스트
   } } | null)?.sections) ?? {}
@@ -758,6 +759,7 @@ export default async function CustomerDetailPage({
       form11={<FirePlanInfoPanel customerId={customer.id} initial={planInfoInitial} people={planPeople} />}
       form12={<PlanForm12 customerId={customer.id} canManage={canManage}
         initialZones={fpSections.zones ?? []} initialHazards={fpSections.hazards ?? []}
+        initialTenants={fpSections.tenants ?? []}
         floorsAbove={planInfoInitial.floorsAbove} floorsBelow={planInfoInitial.floorsBelow}
         purpose={planInfoInitial.purpose} />}
       form13={<PlanForm13 customerId={customer.id} canManage={canManage}

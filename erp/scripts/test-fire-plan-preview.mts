@@ -1219,5 +1219,58 @@ console.log('\n[23] 2.3 조직도 — 네 시트가 같은 대장인가')
   }
 }
 
+/* ══════════════════════ [24] 1.9.3 입주사 — ④ 첫 입력 축 신설 ══════════════════════
+ *  🚨 종전 기각(「축이 없다」)의 답은 유추가 아니라 **제 축 신설**이었다(`forms.tenants`).
+ *  ⚠ `관리구역` 열은 양식이 「없음」을 `-`로 인쇄해 둔 자리다(3~12행) — 값이 없으면 `-`가
+ *    남아야 하고, 지우면 양식의 「없음」 표기가 사라진다. */
+console.log('\n[24] 1.9.3 입주사 — 5열 착지·대시 자리표시')
+{
+  const { validateAnchors } = await import('../src/lib/xlsx-anchors.ts')
+  const { toInjectTargets } = await import('../src/lib/xlsx-workbook.ts')
+  const { FIRE_PLAN_ANCHORS, TENANT_SHEET, TENANT_ROWS, TENANT_FIRST_ROW } =
+    await import('../src/lib/fire-plan-anchors.ts')
+  const { buildFirePlanValues, tenantRowOverflow } = await import('../src/lib/fire-plan-xlsx-values.ts')
+  const { labelAt } = await import('../src/lib/fire-plan-xlsx-manifest.ts')
+
+  const tenants = Array.from({ length: TENANT_ROWS + 1 }, (_, i) => ({
+    name: `업체${i}`, usage: `용도${i}`, zone: i === 1 ? '' : `${i + 1}층`,   // ← 2행은 구역 미입력
+    rep: `대표${i}`, phone: `0101234${String(i).padStart(4, '0')}`,
+  }))
+  const fx = { buildingName: 'X', facilities: [], brigade: [], zones: [], hazards: [],
+    forms: { tenants } } as never
+
+  const vc = validateAnchors(bytes, FIRE_PLAN_ANCHORS)
+  if (vc.ok) {
+    const { targets } = toInjectTargets(buildFirePlanValues(fx), vc.anchors)
+    const out = await injectWorkbook(bytes, targets)
+    const gt = await readSheetGrid(await JSZip.loadAsync(out.bytes), TENANT_SHEET)
+    const at = (r: string) => gt.cells.find(x => x.ref === r)?.text ?? ''
+    const R0 = TENANT_FIRST_ROW
+
+    check('행 수가 연번에서 파생된다(15행)', TENANT_ROWS === 15, `${TENANT_ROWS}행`)
+    check('첫 행 5열 착지', at(`G${R0}`) === '업체0' && at(`U${R0}`) === '용도0'
+      && at(`AD${R0}`) === '1층' && at(`AO${R0}`) === '대표0', `${at(`G${R0}`)}/${at(`AD${R0}`)}`)
+    check('연락처는 formatTel 표기', at(`AY${R0}`) === '010-1234-0000', at(`AY${R0}`))
+    check('마지막 행(17)도 착지', at(`G${R0 + 14}`) === '업체14', at(`G${R0 + 14}`))
+
+    /* 🎯 대시 자리표시 — 구역 미입력 행(2행)은 `-`가 남는다 */
+    check('구역 미입력이면 양식의 -가 남는다', at(`AD${R0 + 1}`) === '-', JSON.stringify(at(`AD${R0 + 1}`)))
+    check('값이 있으면 -를 덮는다', at(`AD${R0 + 2}`) === '3층', at(`AD${R0 + 2}`))
+
+    check('연번은 양식 그대로', at(`A${R0}`) === labelAt(TENANT_SHEET, `A${R0}`)
+      && at(`A${R0 + 14}`) === '15', `${at(`A${R0}`)}·${at(`A${R0 + 14}`)}`)
+    check('넘친 입주사를 센다', tenantRowOverflow(fx) === 1, `${tenantRowOverflow(fx)}곳`)
+
+    /* 빈 픽스처 — 표가 온전히 빈 서식으로 남는가 */
+    const t0 = toInjectTargets(buildFirePlanValues(
+      { ...(fx as object), forms: {} } as never), vc.anchors)
+    const o0 = await injectWorkbook(bytes, t0.targets)
+    const g0 = await readSheetGrid(await JSZip.loadAsync(o0.bytes), TENANT_SHEET)
+    const a0 = (r: string) => g0.cells.find(x => x.ref === r)?.text ?? ''
+    check('입주사가 없으면 업체명 칸은 빈다', a0(`G${R0}`) === '' && a0(`G${R0 + 14}`) === '')
+    check('입주사가 없어도 -는 남는다(빈 서식의 「없음」 표기)', a0(`AD${R0}`) === '-', JSON.stringify(a0(`AD${R0}`)))
+  }
+}
+
 console.log(`\n=== pass ${pass} / fail ${fail} ===`)
 process.exit(fail ? 1 : 0)

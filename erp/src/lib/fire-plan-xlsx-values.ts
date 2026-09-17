@@ -38,6 +38,7 @@ import {
   EVAC34_SHEET, EVAC34_ROUTE_COLS,
   VUL36_SHEET, VUL36_ROWS, VUL36_TYPES,
   ORG23_SHEET,
+  TENANT_SHEET, TENANT_ROWS, TENANT_COLS, TENANT_FIRST_ROW, isDashPlaceholderAnchor,
 } from '@/lib/fire-plan-anchors'
 import { boxGlyphAt, labelAt, tokenTemplateAt } from '@/lib/fire-plan-xlsx-manifest'
 import { purposeCover, purposeShort } from '@/lib/purpose-label'
@@ -787,6 +788,25 @@ export function buildFirePlanValues(d: FirePlanGenData): Map<string, CellValue> 
   v.set('evac34_assembly', placeholderCell(EVAC34_SHEET, 'T13', assembly34))
   for (const [, key] of EVAC34_ROUTE_COLS) v.set(`evac34_${key}`, txt(route0?.[key]))
 
+  /* ── 서식 1.9.3 입주사 현황 (2026-09-17) ──────────────────────────────────
+   *  🚨 ④ 첫 사례 — `forms.tenants` 축을 이 커밋에서 신설했다(화면·PDF·엑셀 동시).
+   *  ⚠ `관리구역`은 값이 없으면 양식의 `-`를 남긴다(placeholderCell — 17행만 라벨이 없어
+   *    txt로 흘린다). 빈 행의 다른 열은 그냥 빈 칸이다.
+   */
+  const tenants = (d.forms?.tenants ?? []) as Array<Record<string, string>>
+  for (let i = 0; i < TENANT_ROWS; i++) {
+    const t = tenants[i]
+    for (const [col, key] of TENANT_COLS) {
+      const cell = `${col}${TENANT_FIRST_ROW + i}`
+      const raw = key === 'phone' ? formatTel(txt(t?.[key])) : txt(t?.[key])
+      // 관리구역 3~16행은 라벨(`-`)이 있어 placeholderCell, 17행은 라벨이 없어 그대로
+      v.set(`tenant_${i}_${key}`,
+        key === 'zone' && isDashPlaceholderAnchor({ sheet: TENANT_SHEET, cell })
+          ? placeholderCell(TENANT_SHEET, cell, raw)
+          : raw)
+    }
+  }
+
   /* ── 서식 3.6 피난약자 유형별 피난 방법 (2026-09-17) ──────────────────────────
    *  3.4가 세운 **법정 예시문칸**으로 열렸다 — 네 줄이 통째로 예시문이었다.
    *  ⭐ 유형 이름은 **양식 A열 라벨**이고 ERP `vulnerableMethods`의 열쇠와 같다(사본 없음).
@@ -883,6 +903,11 @@ export function vulnerableAreaUnsplit(d: FirePlanGenData): number {
   return (d.forms?.vulnerable?.plans ?? [])
     .slice(0, VUL_PLAN_ROWS)
     .filter((p: { area?: string }) => splitAreaDongFloor(p?.area) === null).length
+}
+
+/** 입주사 표(1.9.3)가 못 담은 행 수 — 양식 15행 고정 */
+export function tenantRowOverflow(d: FirePlanGenData): number {
+  return Math.max(0, ((d.forms?.tenants ?? []) as unknown[]).length - TENANT_ROWS)
 }
 
 /** 3.6이 못 담은 피난약자 유형 — 양식은 **4종**뿐이라 `영유아`·`기타`는 갈 줄이 없다 */

@@ -14,7 +14,7 @@ import * as XLSX from 'xlsx'
 import { validateAnchors } from '../src/lib/xlsx-anchors.ts'
 import { toInjectTargets } from '../src/lib/xlsx-workbook.ts'
 import { injectWorkbook } from '../src/lib/xlsx-inject.ts'
-import { FIRE_PLAN_ANCHORS, FIRE_PLAN_FIELDS, isPlaceholderLabelAnchor, isWrappedUnitAnchor, isBracketBoxAnchor, isSampleTextAnchor, FIRE_PLAN_SAMPLE_CELLS, FP_SHEET, ZONE_ROWS, ZONE_SHEET, ZONE_FIRST_ROW, BRIG_ROWS, BRIG_FIRST_ROW, isBoxLabelAnchor, isUnitLabelAnchor, isPrefixLabelAnchor, isYearMonthLabelAnchor, FORM14_ROWS, FORM14_SHEET, FORM14_NAME_CELL, FORM14_NAME_FIELD } from '../src/lib/fire-plan-anchors.ts'
+import { FIRE_PLAN_ANCHORS, FIRE_PLAN_FIELDS, isPlaceholderLabelAnchor, isWrappedUnitAnchor, isBracketBoxAnchor, isDashPlaceholderAnchor, isSampleTextAnchor, FIRE_PLAN_SAMPLE_CELLS, FP_SHEET, ZONE_ROWS, ZONE_SHEET, ZONE_FIRST_ROW, BRIG_ROWS, BRIG_FIRST_ROW, isBoxLabelAnchor, isUnitLabelAnchor, isPrefixLabelAnchor, isYearMonthLabelAnchor, FORM14_ROWS, FORM14_SHEET, FORM14_NAME_CELL, FORM14_NAME_FIELD } from '../src/lib/fire-plan-anchors.ts'
 import { ALL_STANDARD_CODES } from '../src/lib/facility-codes.ts'
 import { brigadeRowOverflow, buildFirePlanValues, missingValueFields, planDate, zoneRowOverflow } from '../src/lib/fire-plan-xlsx-values.ts'
 import { FIRE_PLAN_MANIFEST, labelAt, boxGlyphAt, sheetManifest } from '../src/lib/fire-plan-xlsx-manifest.ts'
@@ -126,7 +126,7 @@ console.log('\n[3] 백지 불변식 — 템플릿에 표본의 답이 남아 있
     return t && !/^[□☐]$/.test(t) && !boxLabelOk(a) && !isUnitLabelAnchor(a) && !isPrefixLabelAnchor(a)
       && !isYearMonthLabelAnchor(a) && !isPlaceholderLabelAnchor(a) && !isWrappedUnitAnchor(a)
       && !isBracketBoxAnchor(a)
-      && !isSampleTextAnchor(a)
+      && !isSampleTextAnchor(a) && !isDashPlaceholderAnchor(a)
   })
   // 여덟째 갈래는 **각괄호 상자칸**(2026-09-17, 2.14 결과기록부): 별지 제13호 계열은 상자를
   // `□`가 아니라 `[  ]`로 그리고 표시도 `√`다. `isBoxLabelAnchor`가 `□`만 보므로 이 시트는
@@ -138,12 +138,17 @@ console.log('\n[3] 백지 불변식 — 템플릿에 표본의 답이 남아 있
   // 🚨 좌표만 적으면 봐주기지만 **자구까지 적으면 봐주기가 아니다**. 아래 두 단언이 짝이다:
   //    ①선언한 자구가 템플릿과 글자까지 같은가  ②값이 있을 때 **실제로 덮이는가**.
   //    ②가 없으면 「선언만 해 두고 영영 공란」이 조용히 통과한다.
-  check('앵커 셀 공란(… 자리표시칸·감싼단위칸·각괄호상자·법정예시문만 예외)', dirty.length === 0,
+  // 열째 갈래는 **대시 자리표시칸**(2026-09-17, 1.9.3 관리구역): 양식이 「없음」을 `-`로
+  // 표기해 둔 자리다. 외자 대시엔 답이 숨을 수 없어 판별이 좁다(라벨.trim() === '-').
+  check('앵커 셀 공란(… 각괄호상자·법정예시문·대시자리표시만 예외)', dirty.length === 0,
     dirty.slice(0, 5).map(a => `${a.sheet}!${a.cell}='${cellText(a)}'`).join(' · '))
   // 🚨 예외가 늘면 **그 수를 못 박는다** — 봐주기가 조용히 번지지 않게.
   const wrappedCells = FIRE_PLAN_ANCHORS.filter(isWrappedUnitAnchor)
   check('감싼단위칸 예외 수가 그대로(1.11.1 거주자 1칸)', wrappedCells.length === 1,
     wrappedCells.map(a => `${a.sheet}!${a.cell}='${cellText(a)}'`).join(' · '))
+  const dashCells = FIRE_PLAN_ANCHORS.filter(isDashPlaceholderAnchor)
+  check('대시자리표시칸 예외 수가 그대로(1.9.3 관리구역 10칸 — 양식이 3~12행에만 `-`)', dashCells.length === 10,
+    `${dashCells.length}칸`)
   const sampleCells = FIRE_PLAN_ANCHORS.filter(isSampleTextAnchor)
   check('법정예시문칸 예외 수가 그대로(3.4 4칸 + 3.6 4칸)', sampleCells.length === 8,
     sampleCells.map(a => `${a.sheet}!${a.cell}`).join(' · '))

@@ -48,6 +48,7 @@ export const FP_SHEET = {
   F2_1: '2.1 자위소방대 일반현황',
   F2_2: '2.2 자위소방대 편성표',
   F2_3: '2.3 조직도',
+  F1_9_3: '1.9.3 입주사 현황',
   F2_14: '2.14 교육·훈련 결과기록부',
   F2_14_BACK: '2.14 결과기록부 뒷쪽',
   // 제3장(2026-09-09 B-15) — 3.1은 용도 칸만 배선한다(나머지는 별건)
@@ -1144,6 +1145,39 @@ const ORG23_SEEDS: Seed[] = [
   { field: 'org23_field_n', sheet: ORG23_SHEET, cell: 'AG14', labelCell: 'AG13' },
 ]
 
+/* ─────────── 서식 1.9.3 입주사 현황 (2026-09-17) ───────────
+ *  🚨 **④ 첫 사례 — 입력 축을 새로 만들었다**(`forms.tenants` · 화면은 1.2 노드의 셋째 카드).
+ *    종전 기각 사유는 「축이 없다」였다 — 구역 `managerCo`로 유추하는 건 추측이라 기각이
+ *    맞았고, 답은 유추가 아니라 **제 축 신설**이다.
+ *  ⭐ PDF에도 같은 커밋에서 표를 넣었다 — 엑셀만 배선하면 **역방향 D-7**(엑셀은 인쇄하는데
+ *    PDF가 비는)이 생긴다. 둘 다 같은 `forms.tenants`를 먹는다.
+ *  ⚠ `관리구역` 열(AD)은 템플릿 3~16행에 `-`가 인쇄돼 있다(17행만 공란) — 값이 없으면
+ *    `-`를 남긴다(양식의 「없음」 표기). 백지 불변식은 `isDashPlaceholderAnchor`가 면제한다.
+ */
+export const TENANT_SHEET = FP_SHEET.F1_9_3
+
+/** 행 수 — 양식이 매긴 연번(1~15)에서 파생 */
+export const TENANT_ROWS = numberedRowBudget(TENANT_SHEET)
+export const TENANT_FIRST_ROW = 3
+
+/** [엑셀 열, `TenantRow` 열쇠, 머리글 셀] */
+export const TENANT_COLS: ReadonlyArray<readonly [string, string, string]> = [
+  ['G', 'name', 'G2'],   // 업체명
+  ['U', 'usage', 'U2'],  // 용도
+  ['AD', 'zone', 'AD2'], // 관리구역 — `-` 자리표시
+  ['AO', 'rep', 'AO2'],  // 대표자(책임자)
+  ['AY', 'phone', 'AY2'], // 연락처
+]
+
+const TENANT_SEEDS: Seed[] = Array.from({ length: TENANT_ROWS }, (_, i) =>
+  TENANT_COLS.map(([col, key, labelCell]) => ({
+    field: `tenant_${i}_${key}`,
+    sheet: TENANT_SHEET,
+    cell: `${col}${TENANT_FIRST_ROW + i}`,
+    labelCell,
+  })),
+).flat()
+
 const BRIG1_SEEDS: Seed[] = [
   { field: 'brig1_name', sheet: BRIG1_SHEET, cell: 'M5', labelCell: 'A5' },
   { field: 'brig1_address', sheet: BRIG1_SHEET, cell: 'M6', labelCell: 'A6' },
@@ -1227,7 +1261,7 @@ function assemble(seeds: Seed[]): Anchor[] {
   })
 }
 
-export const FIRE_PLAN_ANCHORS: Anchor[] = assemble([...FIXED_SEEDS, ...ZONE_SEEDS, ...BRIG_SEEDS, ...FORM14_SEEDS, ...FIREHIST_SEEDS, ...HAZARD_SEEDS, ...MU_SEEDS, ...TRAIN_SEEDS, ...EVAC1_SEEDS, ...BRIG1_SEEDS, ...FIREWORK_SEEDS, ...CONSTRUCTION_SEEDS, ...EVAC3_SEEDS, ...BRIG9_SEEDS, ...REC14_SEEDS, ...ATT14_SEEDS, ...VUL_SEEDS, ...VUL9_SEEDS, ...EVAC34_SEEDS, ...VUL36_SEEDS, ...ORG23_SEEDS])
+export const FIRE_PLAN_ANCHORS: Anchor[] = assemble([...FIXED_SEEDS, ...ZONE_SEEDS, ...BRIG_SEEDS, ...FORM14_SEEDS, ...FIREHIST_SEEDS, ...HAZARD_SEEDS, ...MU_SEEDS, ...TRAIN_SEEDS, ...EVAC1_SEEDS, ...BRIG1_SEEDS, ...FIREWORK_SEEDS, ...CONSTRUCTION_SEEDS, ...EVAC3_SEEDS, ...BRIG9_SEEDS, ...REC14_SEEDS, ...ATT14_SEEDS, ...VUL_SEEDS, ...VUL9_SEEDS, ...EVAC34_SEEDS, ...VUL36_SEEDS, ...ORG23_SEEDS, ...TENANT_SEEDS])
 
 /* ══════════════════════ §사진상자 (2026-09-14) ══════════════════════
  *
@@ -1301,6 +1335,13 @@ export function isBoxLabelAnchor(a: { sheet: string; cell: string }): boolean {
  * 🚨 규칙을 좁게 잡는다: **각괄호 안이 공백뿐**이어야 한다. `[√]`·`[1]`은 통과하지 못하므로
  *   표본의 답이 이 예외 뒤에 숨지 못한다(단위칸이 숫자를 거르는 것과 같은 수법).
  */
+/** **대시 자리표시칸인가**(2026-09-17, 1.9.3 관리구역) — 라벨이 `-` 하나뿐인 칸.
+ *  양식이 「없음」을 `-`로 표기해 둔 자리다. 외자 대시엔 답이 숨을 수 없어 좁고 안전하다. */
+export function isDashPlaceholderAnchor(a: { sheet: string; cell: string }): boolean {
+  const lbl = sheetManifest(a.sheet).labels[a.cell]
+  return !!lbl && lbl.trim() === '-'
+}
+
 export function isBracketBoxAnchor(a: { sheet: string; cell: string }): boolean {
   const lbl = sheetManifest(a.sheet).labels[a.cell]
   return !!lbl && /\[\s+\]/.test(lbl) && !/\[[^\]\s]/.test(lbl)

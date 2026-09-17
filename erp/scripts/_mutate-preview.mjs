@@ -133,6 +133,10 @@ const MUTANTS = [
   ['M32 대원 없이 소속만 찍는다 → [23] 「전부 빈다」가 빨강이어야',
     VALUES, `  v.set('org23_field_org', fieldTeam.length ? txt(d.buildingName) : '')`,
     `  v.set('org23_field_org', txt(d.buildingName))`, 1],
+  /* 🚨 M33 — 대시 자리표시를 빈 값으로 지우면 양식의 「없음」 표기가 사라진다. */
+  ['M33 관리구역 -를 지운다 → [24] 「-가 남는다」가 빨강이어야',
+    VALUES, `        key === 'zone' && isDashPlaceholderAnchor({ sheet: TENANT_SHEET, cell })`,
+    `        false`, 1],
 ]
 
 /** 🚨 파일의 줄끝에 맞춰 needle을 바꾼다.

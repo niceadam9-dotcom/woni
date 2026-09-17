@@ -11,6 +11,9 @@ import { TableWrap, useUnsavedWarning } from '@/components/ui/fields'
 
 export type ZoneRow = { zone: string; name: string; area: string; workersWeekday: string; workersHoliday: string; company: string; phone: string }
 export type HazardRow = { place: string; loc: string; risks: string[] }
+/** 1.9.3 입주사 — 양식 5열 그대로(번호는 양식이 인쇄). ⚠ 1.2.1 `company`(관리주체)와 다른 축이다:
+ *  저긴 「그 구역을 관리하는 주체」 한 칸이고 여긴 **입주 업체의 명부**(대표자·연락처 포함)다. */
+export type TenantRow = { name: string; usage: string; zone: string; rep: string; phone: string }
 
 const RISKS = ['전기', '기계', '화학', '가스누출', '부주의', '자연재해'] as const
 const HAZARD_PRESETS: HazardRow[] = [
@@ -20,11 +23,13 @@ const HAZARD_PRESETS: HazardRow[] = [
 ]
 const EMPTY_ZONE: ZoneRow = { zone: '', name: '', area: '', workersWeekday: '', workersHoliday: '', company: '', phone: '' }
 
-export function PlanForm12({ customerId, canManage, initialZones, initialHazards, floorsAbove, floorsBelow, purpose }: {
+export function PlanForm12({ customerId, canManage, initialZones, initialHazards, initialTenants, floorsAbove, floorsBelow, purpose }: {
   customerId: string
   canManage: boolean
   initialZones: ZoneRow[]
   initialHazards: HazardRow[]
+  /** 1.9.3 입주사 — 이 화면(1.2)이 담당한다(절↔시트 대장이 1.9.3을 1.2 노드에 귀속) */
+  initialTenants: TenantRow[]
   floorsAbove: number | null
   floorsBelow: number | null
   /** 건물 주용도 — [층 자동 생성] 시 명칭/용도 기본값(2026-08-06, 1.2.2 프리셋과 같은 취지) */
@@ -33,6 +38,7 @@ export function PlanForm12({ customerId, canManage, initialZones, initialHazards
   const router = useRouter()
   const [zones, setZones] = useState<ZoneRow[]>(initialZones.length > 0 ? initialZones : [{ ...EMPTY_ZONE }])
   const [hazards, setHazards] = useState<HazardRow[]>(initialHazards)
+  const [tenants, setTenants] = useState<TenantRow[]>(initialTenants)
   const [dirty, setDirty] = useState(false)
   useUnsavedWarning(dirty, save) // §11-4 이탈 경고 + 이동 확인창 [저장하고 이동]
   const [msg, setMsg] = useState('')
@@ -44,6 +50,10 @@ export function PlanForm12({ customerId, canManage, initialZones, initialHazards
   }
   function setHazard(i: number, patch: Partial<HazardRow>) {
     setHazards(p => p.map((r, j) => (j === i ? { ...r, ...patch } : r)))
+    setDirty(true)
+  }
+  function setTenant(i: number, patch: Partial<TenantRow>) {
+    setTenants(p => p.map((r, j) => (j === i ? { ...r, ...patch } : r)))
     setDirty(true)
   }
   function toggleRisk(i: number, risk: string) {
@@ -78,6 +88,7 @@ export function PlanForm12({ customerId, canManage, initialZones, initialHazards
         const res = await saveFirePlanSectionsAction(customerId, {
           zones: zones.filter(z => Object.values(z).some(v => String(v).trim())),
           hazards: hazards.filter(h => h.place.trim() || h.loc.trim() || h.risks.length > 0),
+          tenants: tenants.filter(t => Object.values(t).some(v => v.trim())),
         })
         if (res.error) { setMsg(`❌ ${res.error}`); resolve(false); return }
         setDirty(false)
@@ -185,6 +196,54 @@ export function PlanForm12({ customerId, canManage, initialZones, initialHazards
         </div>
         {canManage && (
           <button onClick={() => { setHazards(p => [...p, { place: '', loc: '', risks: [] }]); setDirty(true) }}
+            className="mt-2 inline-flex items-center gap-1 text-form-xs text-brand hover:underline">
+            <Plus className="size-3" /> 행 추가
+          </button>
+        )}
+      </div>
+
+      {/* 1.9.3 입주사 현황 — 절↔시트 대장이 1.2 노드에 귀속한 시트다(같은 건물 세부 축).
+          ⚠ 양식은 15행 고정 — 넘치는 입주사는 엑셀 생성 시 고지에 세어진다. */}
+      <div className="rounded-xl border border-brand-line-soft bg-brand-tint p-4">
+        <div className="flex items-center gap-2 mb-2">
+          <p className="text-form-sm font-semibold text-ink-sub">1.9.3 입주사 현황</p>
+          <span className="text-form-xs text-ink-meta">양식 15행 — 초과분은 엑셀 고지에 표시</span>
+        </div>
+        {tenants.length === 0 && <p className="text-form-xs text-ink-meta">[행 추가]로 입주 업체를 등록하세요. 입주사가 없는 건물이면 비워 둡니다.</p>}
+        {tenants.length > 0 && (
+          <TableWrap><table className="w-full text-form-sm min-w-[560px]">
+            <thead>
+              <tr className="text-left text-form-xs text-ink-sub border-b border-brand-line-soft">
+                <th className="pb-1 pr-1 font-medium">업체명</th>
+                <th className="pb-1 pr-1 w-24 font-medium">용도</th>
+                <th className="pb-1 pr-1 w-24 font-medium">관리구역</th>
+                <th className="pb-1 pr-1 w-24 font-medium">대표자(책임자)</th>
+                <th className="pb-1 pr-1 w-32 font-medium">연락처</th>
+                <th className="pb-1 w-7" />
+              </tr>
+            </thead>
+            <tbody>
+              {tenants.map((t, i) => (
+                <tr key={i}>
+                  <td className="py-0.5 pr-1"><input value={t.name} onChange={e => setTenant(i, { name: e.target.value })} disabled={!canManage} placeholder="예: 리원커피" className={inputCls} /></td>
+                  <td className="py-0.5 pr-1"><input value={t.usage} onChange={e => setTenant(i, { usage: e.target.value })} disabled={!canManage} placeholder="예: 카페" className={inputCls} /></td>
+                  <td className="py-0.5 pr-1"><input value={t.zone} onChange={e => setTenant(i, { zone: e.target.value })} disabled={!canManage} placeholder="예: 1층" className={inputCls} /></td>
+                  <td className="py-0.5 pr-1"><input value={t.rep} onChange={e => setTenant(i, { rep: e.target.value })} disabled={!canManage} placeholder="예: 김대표" className={inputCls} /></td>
+                  <td className="py-0.5 pr-1"><input value={t.phone} onChange={e => setTenant(i, { phone: e.target.value })} disabled={!canManage} inputMode="tel" placeholder="예: 010-0000-0000" className={inputCls} /></td>
+                  <td className="py-0.5">
+                    {canManage && (
+                      <button onClick={() => { setTenants(p => p.filter((_, j) => j !== i)); setDirty(true) }} className="text-ink-meta hover:text-red-500" aria-label="행 삭제">
+                        <Trash2 className="size-3.5" />
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table></TableWrap>
+        )}
+        {canManage && (
+          <button onClick={() => { setTenants(p => [...p, { name: '', usage: '', zone: '', rep: '', phone: '' }]); setDirty(true) }}
             className="mt-2 inline-flex items-center gap-1 text-form-xs text-brand hover:underline">
             <Plus className="size-3" /> 행 추가
           </button>
