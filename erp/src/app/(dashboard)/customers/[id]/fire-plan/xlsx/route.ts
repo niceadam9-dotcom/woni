@@ -6,7 +6,7 @@ import { assembleFirePlan } from '@/lib/fire-plan-generate'
 import { firePlanTemplate } from '@/lib/fire-plan-template-cache'
 import { toInjectTargets } from '@/lib/xlsx-workbook'
 import { injectWorkbook } from '@/lib/xlsx-inject'
-import { brigadeRowOverflow, buildFirePlanValues, missingValueFields, zoneRowOverflow } from '@/lib/fire-plan-xlsx-values'
+import { brigadeRowOverflow, buildFirePlanValues, hazardUnmatched, missingValueFields, zoneRowOverflow } from '@/lib/fire-plan-xlsx-values'
 import { FIRE_PLAN_MANIFEST } from '@/lib/fire-plan-xlsx-manifest'
 import { embedFirePlanImages, planFirePlanImages } from '@/lib/fire-plan-xlsx-images'
 import { applyFirePlanCheckboxes } from '@/lib/fire-plan-checkbox-controls'
@@ -121,6 +121,12 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
           // 사진 상자도 같은 1순위다 — 치유됐다는 건 그림이 원래 자리에 안 붙었다는 뜻이다
           ...imgCheck.healed.map(h => `사진 상자 좌표 자가치유: ${h}`),
           ...(zoneRowOverflow(data) ? [`구역별 세부현황 ${zoneRowOverflow(data)}개 구역 미표기(양식 고정 행 상한)`] : []),
+          // 1.2.2는 「칸이 모자라 잘렸다」가 아니라 **「이름이 달라 어디에도 못 넣었다」**다.
+          // 양식이 보일러실·주방·전기실 셋만 인쇄해 두어 그 밖의 장소는 자리가 없다 —
+          // 버리되 **이름을 적어** 알린다(조용한 절단은 조용한 누락이다).
+          ...(hazardUnmatched(data).length
+            ? [`화재취약장소 ${hazardUnmatched(data).length}곳 미표기(양식 고정 3개소 밖): ${hazardUnmatched(data).slice(0, 4).join(' ')}`]
+            : []),
           // 대원 넘침도 같은 축이다 — 편성표는 잘려 나가도 인쇄물이 멀쩡해 보인다
           ...(brigadeRowOverflow(data) ? [`자위소방대 현장대응팀 ${brigadeRowOverflow(data)}명 미표기(양식 고정 행 상한)`] : []),
           // 체크박스를 못 단 칸 — 그 칸은 상자가 **글자로 남아** 클릭이 안 된다. 문서는 멀쩡해

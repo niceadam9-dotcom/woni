@@ -33,7 +33,8 @@ export const FP_SHEET = {
   F1_7_1: '1.7.1 소방안전관리자 선임현황',
   F1_8: '1.8 업무대행 현황',
   F1_10_1: '1.10.1 연간 점검 계획',
-  // 2026-09-16 — PDF는 이미 인쇄하는데 엑셀만 공란이던 시트(소방계획서_50 §5-3이 마커로 확정)
+  // 2026-09-16~17 — PDF는 이미 인쇄하는데 엑셀만 공란이던 시트들(소방계획서_50 §5-3이 마커로 확정)
+  F1_2_2: '1.2.2 화재취약장소 현황',
   F1_10_4: '1.10.4 화재·비화재보 이력',
   // ⚠ manifest에 `1.11.4`로 시작하는 시트가 **둘**이다(앞쪽·뒷쪽) — 용도 칸은 앞쪽에만 있다
   F1_11_4: '1.11.4 훈련·교육 결과기록부',
@@ -466,6 +467,53 @@ const FIREHIST_COLS: ReadonlyArray<readonly [string, string, string]> = [
   ['AM', 'action', 'AM2'],  // 조치사항
 ]
 
+/* ══════════════════════ 서식 1.2.2 화재취약장소 현황 (2026-09-17) ══════════════════════
+ *
+ *  🚨 **이 표는 반복 행이 아니다.** 양식이 장소를 **세 개소로 고정**해 인쇄해 둔다
+ *    (보일러실 4행 · 주방 8행 · 전기실 12행, 간격 4). 그래서 장소 이름은 **쓰지 않는다** —
+ *    법정 자구이고, 덮어쓰면 서식이 훼손된다. 우리가 채우는 것은 **위치 칸과 체크상자**뿐이다.
+ *
+ *  ⭐ ERP 프리셋이 같은 세 개소다(`plan-form12.tsx`의 `HAZARD_PRESETS`) — 우연이 아니라
+ *    이 서식을 보고 만든 것이라 이름으로 맞물린다. 사용자가 [행 추가]로 넷째를 넣으면
+ *    양식에 자리가 없다 → **버리되 세어서** 라우트가 고지에 싣는다(ZONE 넘침과 같은 규약).
+ *
+ *  ⚠ 상자 어휘는 `HAZARD_FACTORS`(조립기가 `normHazardFactors`로 이미 그 어휘로 바꿔 준다)와
+ *    **정확히 같다**. 여기서 다시 문자열을 적지 않고 그 상수를 쓴다.
+ *  ⚠ `☐ 기타( )`는 ERP에 축이 없어 **일부러 안 세운다**(없는 근거로 체크하지 않는다).
+ *  ⚠ 하단 블록(인명피해우려장소 16~20행, 시건장치)도 ERP에 축이 없어 비워 둔다.
+ */
+export const HAZARD_SHEET = FP_SHEET.F1_2_2
+
+/** 고정 장소의 첫 행(1-based)과 행 간격 — 좌표를 손으로 적되 **라벨로 검증**한다.
+ *  `labelAt(sheet, 'A4')`가 '보일러실'과 다르면 적재 시점에 throw 하므로, 양식이 바뀌면 멈춘다. */
+export const HAZARD_FIRST_ROW = 4
+export const HAZARD_ROW_STRIDE = 4
+export const HAZARD_PLACE_ROWS = [0, 1, 2].map(i => HAZARD_FIRST_ROW + i * HAZARD_ROW_STRIDE)
+
+/** 위험요소 상자 — [엑셀 열, 행 오프셋, `HAZARD_FACTORS`의 자구].
+ *  양식 배치: 왼열(AB) 전기/기계/화학/가스누출 · 오른열(AO) 자연재해/부주의/기타. */
+export const HAZARD_BOXES: ReadonlyArray<readonly [string, number, string]> = [
+  ['AB', 0, '전기적 요인'],
+  ['AB', 1, '기계적 요인'],
+  ['AB', 2, '화학적 요인'],
+  ['AB', 3, '가스누출(폭발)'],
+  ['AO', 0, '자연재해'],
+  ['AO', 1, '부주의'],
+  // ['AO', 2, '기타( )'] — ERP에 축이 없다. 없는 근거로 체크하지 않는다.
+]
+
+const HAZARD_SEEDS: Seed[] = HAZARD_PLACE_ROWS.flatMap((row, p) => [
+  // 위치 — 값칸. 라벨은 그 행의 장소 이름(A열)이 닻이다.
+  { field: `hazard_${p}_location`, sheet: HAZARD_SHEET, cell: `N${row}`, labelCell: `A${row}` },
+  // 위험요소 — 상자칸(자기 칸이 라벨이다)
+  ...HAZARD_BOXES.map(([col, dy]) => ({
+    field: `hazard_${p}_${col}${dy}`,
+    sheet: HAZARD_SHEET,
+    cell: `${col}${row + dy}`,
+    labelCell: `${col}${row + dy}`,
+  })),
+])
+
 const FIREHIST_SEEDS: Seed[] = Array.from({ length: FIREHIST_ROWS }, (_, i) =>
   FIREHIST_COLS.map(([col, key, labelCell]) => ({
     field: `firehist_${i}_${key}`,
@@ -495,7 +543,7 @@ function assemble(seeds: Seed[]): Anchor[] {
   })
 }
 
-export const FIRE_PLAN_ANCHORS: Anchor[] = assemble([...FIXED_SEEDS, ...ZONE_SEEDS, ...BRIG_SEEDS, ...FORM14_SEEDS, ...FIREHIST_SEEDS])
+export const FIRE_PLAN_ANCHORS: Anchor[] = assemble([...FIXED_SEEDS, ...ZONE_SEEDS, ...BRIG_SEEDS, ...FORM14_SEEDS, ...FIREHIST_SEEDS, ...HAZARD_SEEDS])
 
 /* ══════════════════════ §사진상자 (2026-09-14) ══════════════════════
  *

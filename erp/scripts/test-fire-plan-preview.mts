@@ -226,5 +226,53 @@ console.log('\n[6] 값 착지 — 되읽어 확인 (1.10.4 화재·비화재보 
   }
 }
 
+/* ══════════════════════ [7] 1.2.2 화재취약장소 — 고정 3개소 매칭 ══════════════════════
+ *  🚨 이 표는 반복 행이 **아니다**. 양식이 보일러실·주방·전기실을 인쇄해 두었고 우리는
+ *    위치 칸과 상자만 채운다. 그래서 물어야 할 것이 셋이다 —
+ *    ① 맞물린 장소가 채워지는가(양성) ② **안 고른 요소는 미체크로 남는가**(음성)
+ *    ③ **장소 이름(법정 자구)이 보존되는가**. ①만 보면 「전부 체크하는 구현」이 통과한다. */
+console.log('\n[7] 1.2.2 화재취약장소 — 고정 3개소 매칭')
+{
+  const { validateAnchors } = await import('../src/lib/xlsx-anchors.ts')
+  const { toInjectTargets } = await import('../src/lib/xlsx-workbook.ts')
+  const { FIRE_PLAN_ANCHORS, HAZARD_SHEET } = await import('../src/lib/fire-plan-anchors.ts')
+  const { buildFirePlanValues, hazardUnmatched } = await import('../src/lib/fire-plan-xlsx-values.ts')
+  const { labelAt } = await import('../src/lib/fire-plan-xlsx-manifest.ts')
+
+  const fx = {
+    buildingName: 'X', facilities: [], brigade: [], zones: [],
+    hazards: [
+      { place: '보일러실', location: '지하1층', factors: ['기계적 요인', '가스누출(폭발)'] },
+      { place: '전기실', location: '1층 EPS', factors: ['전기적 요인'] },
+      // 🚨 양식에 자리가 없는 장소 — 버리되 **세어서** 고지에 실려야 한다
+      { place: '창고', location: '옥탑', factors: ['부주의'] },
+    ],
+    forms: {},
+  } as never
+
+  const vc = validateAnchors(bytes, FIRE_PLAN_ANCHORS)
+  if (vc.ok) {
+    const { targets } = toInjectTargets(buildFirePlanValues(fx), vc.anchors)
+    const out = await injectWorkbook(bytes, targets)
+    const gg = await readSheetGrid(await JSZip.loadAsync(out.bytes), HAZARD_SHEET)
+    const at = (r: string) => gg.cells.find(x => x.ref === r)?.text ?? ''
+    // 양성 — 맞물린 두 곳
+    check('보일러실 위치 착지', at('N4') === '지하1층', at('N4'))
+    check('전기실 위치 착지', at('N12') === '1층 EPS', at('N12'))
+    check('보일러실 기계·가스 체크', at('AB5').startsWith('■') && at('AB7').startsWith('■'),
+      `AB5=${at('AB5')} AB7=${at('AB7')}`)
+    // 🚨 음성 — 안 고른 요소는 **미체크로 남아야** 한다(전부 켜는 구현을 잡는다)
+    check('보일러실 전기는 미체크', !at('AB4').startsWith('■'), at('AB4'))
+    check('주방은 통째로 빈칸·미체크(입력 없음)',
+      at('N8') === '' && !at('AB8').startsWith('■') && !at('AO9').startsWith('■'),
+      `N8=${JSON.stringify(at('N8'))} AB8=${at('AB8')}`)
+    // 🚨 법정 자구 — 장소 이름을 덮어쓰면 서식이 훼손된다. manifest에 묻는다(베끼지 않는다).
+    check('장소 이름이 보존된다', at('A4') === labelAt(HAZARD_SHEET, 'A4'), JSON.stringify(at('A4')))
+    // 자리 없는 장소는 **이름으로** 잡힌다(조용한 절단 금지)
+    check('자리 없는 장소를 이름으로 센다', hazardUnmatched(fx).join(',') === '창고',
+      hazardUnmatched(fx).join(','))
+  }
+}
+
 console.log(`\n=== pass ${pass} / fail ${fail} ===`)
 process.exit(fail ? 1 : 0)

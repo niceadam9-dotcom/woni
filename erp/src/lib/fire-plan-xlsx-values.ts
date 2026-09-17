@@ -22,7 +22,7 @@ import type { BrigadeRow, FirePlanGenData } from '@/lib/fire-plan-template'
 import { formatTel } from '@/lib/format-contact'
 import {
   BRIG_ROWS, FIRE_PLAN_ANCHORS, FORM14_NAME_CELL, FORM14_NAME_FIELD, FORM14_ROWS, FORM14_SHEET,
-  FP_SHEET, ZONE_ROWS, ZONE_SHEET, FIREHIST_ROWS,
+  FP_SHEET, ZONE_ROWS, ZONE_SHEET, FIREHIST_ROWS, HAZARD_SHEET, HAZARD_PLACE_ROWS, HAZARD_BOXES,
 } from '@/lib/fire-plan-anchors'
 import { boxGlyphAt, labelAt, tokenTemplateAt } from '@/lib/fire-plan-xlsx-manifest'
 import { purposeCover, purposeShort } from '@/lib/purpose-label'
@@ -378,6 +378,27 @@ export function buildFirePlanValues(d: FirePlanGenData): Map<string, CellValue> 
    *  ⚠ PDF는 빈 행을 3줄까지 `pad`로 채워 표 모양을 만들지만 **엑셀은 그러지 않는다** —
    *    양식이 이미 15행을 그려 두었고, 빈 칸은 빈 칸으로 남는 것이 맞다(없는 사실을 지어내지 않는다).
    */
+  /* ── 서식 1.2.2 화재취약장소 현황 (2026-09-17) ──────────────────────────────
+   *
+   *  🚨 **장소 이름은 쓰지 않는다.** 양식이 보일러실·주방·전기실을 **인쇄해 두었고**(법정 자구),
+   *    우리가 채우는 것은 위치 칸과 체크상자뿐이다. 이름을 덮어쓰면 서식이 훼손된다.
+   *
+   *  ⭐ 매칭은 **양식 자신의 라벨**로 한다(`labelAt`) — 여기에 `'보일러실'`이라 베껴 적으면
+   *    양식이 개정될 때 코드가 옛 이름으로 찾다가 조용히 아무것도 못 채운다.
+   *  ⚠ `A8` 라벨은 앞에 공백이 있다(`' 주방'`) — `trim()`으로 맞춘다.
+   */
+  const hz = d.hazards ?? []
+  for (let p = 0; p < HAZARD_PLACE_ROWS.length; p++) {
+    const row = HAZARD_PLACE_ROWS[p]
+    const placeLabel = labelAt(HAZARD_SHEET, `A${row}`).trim()
+    const h = hz.find(x => txt(x.place) === placeLabel)
+    v.set(`hazard_${p}_location`, txt(h?.location))
+    for (const [col, dy, factor] of HAZARD_BOXES) {
+      v.set(`hazard_${p}_${col}${dy}`,
+        boxLabelCell(HAZARD_SHEET, `${col}${row + dy}`, !!h?.factors?.includes(factor)))
+    }
+  }
+
   const hist = d.forms?.fireHistory ?? []
   for (let i = 0; i < FIREHIST_ROWS; i++) {
     const h = hist[i]
@@ -427,6 +448,17 @@ export function buildFirePlanValues(d: FirePlanGenData): Map<string, CellValue> 
 /** 넘쳐서 인쇄되지 못한 구역 수 — 0이면 손실 없음. 잘린 채로도 인쇄물은 멀쩡해 보인다 */
 export function zoneRowOverflow(d: FirePlanGenData): number {
   return Math.max(0, (d.zones ?? []).length - ZONE_ROWS)
+}
+
+/** 1.2.2 양식의 고정 3개소에 **맞물리지 못한** 화재취약장소 이름들.
+ *
+ *  🚨 구역 넘침과 성격이 다르다 — 저기는 「칸이 모자라 잘렸다」이고 여기는 **「이름이 달라
+ *    어디에도 못 넣었다」**다. 사용자가 [행 추가]로 '창고'를 넣으면 양식에 그 줄이 없다.
+ *    버리되 **이름을 세어서** 라우트가 고지에 싣는다 — 조용한 절단은 조용한 누락이다.
+ */
+export function hazardUnmatched(d: FirePlanGenData): string[] {
+  const fixed = new Set(HAZARD_PLACE_ROWS.map(r => labelAt(HAZARD_SHEET, `A${r}`).trim()))
+  return (d.hazards ?? []).map(h => txt(h.place)).filter(p => p && !fixed.has(p))
 }
 
 /** 현장대응팀 칸을 넘어 인쇄되지 못한 대원 수 — 구역과 같은 축(라우트가 고지 헤더에 싣는다) */

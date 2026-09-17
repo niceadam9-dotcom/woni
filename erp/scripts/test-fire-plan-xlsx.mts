@@ -151,7 +151,12 @@ console.log('\n[3] 백지 불변식 — 템플릿에 표본의 답이 남아 있
   //   (최초·종합·2차), 점검자 4(작동 자체/외주 · 종합 자체/외주). 이 시트도 종전 앵커 0이었다.
   // 2026-09-16: 서식 1.1 전기차충전소(AR13) 1칸을 배선해 1.1이 25→26, 합이 77→78. 주차장 13행의
   //   셋째 칸이고 원천은 같은 `parking_summary`다(판정 `parseParkingEv` — 별지 9호엔 이 칸이 없다).
-  check('상자칸 예외 수가 그대로(1.5.1 3 + 1.1 26 + 1.4 40 + 1.10.1 9)', boxLabel.length === 78, `${boxLabel.length}칸`)
+  // 2026-09-17: 서식 1.2.2 화재취약장소 위험요소 상자 18을 배선해 78→96 —
+  //   고정 3개소(보일러실·주방·전기실) × 6요소(전기/기계/화학/가스누출/자연재해/부주의).
+  //   ⚠ `☐ 기타( )` 3칸은 **일부러 안 세웠다** — ERP에 축이 없다(없는 근거로 체크하지 않는다).
+  //   이 시트도 종전 앵커 0이었고 PDF는 같은 값을 이미 인쇄 중이었다(D-7 갈라짐).
+  check('상자칸 예외 수가 그대로(1.5.1 3 + 1.1 26 + 1.4 40 + 1.10.1 9 + 1.2.2 18)',
+    boxLabel.length === 96, `${boxLabel.length}칸`)
   check('상자칸은 템플릿에서 전부 미체크', boxLabel.every(a => !/■/.test(cellText(a))),
     boxLabel.filter(a => /■/.test(cellText(a))).map(a => a.cell).join(','))
   const unitCells = FIRE_PLAN_ANCHORS.filter(isUnitLabelAnchor)
