@@ -33,6 +33,7 @@ import {
   BRIG9_SHEET, BRIG9_RUNNING_CELL, BRIG9_TOTAL_CELL, BRIG9_TEAM_CELLS, BRIG9_EMER_ROWS, BRIG9_FIELD_ROWS,
   REC14_SHEET, REC14_GRADE_CELLS,
   ATT14_SHEET, ATT14_CAPACITY,
+  VUL_SHEET, VUL_WORK_CELLS, VUL_USE_CELLS, VUL_PLAN_ROWS, VUL_PLAN_COLS,
 } from '@/lib/fire-plan-anchors'
 import { boxGlyphAt, labelAt, tokenTemplateAt } from '@/lib/fire-plan-xlsx-manifest'
 import { purposeCover, purposeShort } from '@/lib/purpose-label'
@@ -729,6 +730,32 @@ export function buildFirePlanValues(d: FirePlanGenData): Map<string, CellValue> 
     v.set(`brig_f${i}_phone`, formatTel(txt(b?.phone)))
   }
 
+  /* ── 서식 3.5 피난약자 현황·계획 (2026-09-17) ────────────────────────────────
+   *
+   *  🚨 ①류다 — PDF가 이미 인쇄하던 사실을 엑셀이 통째로 비워 두고 있었다.
+   *  ⚠ `none === true`면 **상자를 하나도 켜지 않는다**(「해당없음」은 곧 「해당 유형이 없다」).
+   *  ⚠ 시설이용자는 인원 칸이 없다 — 상자만 켠다.
+   *  ⚠ 구역은 **전부 아니면 전무**로 쪼갠다(`splitAreaDongFloor`).
+   */
+  const vul = d.forms?.vulnerable
+  const vulNone = vul?.none === true
+  const vulCount = (t: string, k: 'work' | 'use') => (vulNone ? '' : txt(vul?.counts?.[t]?.[k]))
+  for (const [t, box, n] of VUL_WORK_CELLS) {
+    v.set(`vul_work_${t}_box`, boxLabelCell(VUL_SHEET, box, !!vulCount(t, 'work')))
+    v.set(`vul_work_${t}_n`, unitCell(VUL_SHEET, n, vulCount(t, 'work')))
+  }
+  for (const [t, box] of VUL_USE_CELLS) {
+    v.set(`vul_use_${t}_box`, boxLabelCell(VUL_SHEET, box, !!vulCount(t, 'use')))
+  }
+  const vulPlans = vulNone ? [] : (vul?.plans ?? [])
+  for (let i = 0; i < VUL_PLAN_ROWS; i++) {
+    const p = vulPlans[i] as Record<string, string> | undefined
+    for (const [, key] of VUL_PLAN_COLS) v.set(`vul_plan${i}_${key}`, txt(p?.[key]))
+    const split = splitAreaDongFloor(p?.area)
+    v.set(`vul_plan${i}_dong`, split?.dong ?? '')
+    v.set(`vul_plan${i}_floor`, split?.floor ?? '')
+  }
+
   return v
 }
 
@@ -771,6 +798,39 @@ function zoneRowValues(z: FirePlanGenData['zones'][number] | undefined) {
     company: txt(z?.managerCo),
     contact: txt(z?.contact),
   }
+}
+
+/**
+ * **구역 문자열을 동·층 두 칸으로** — 3.5 피난계획 표가 그 둘을 나눠 그린다.
+ *
+ * ERP는 한 칸이다(입력 힌트가 `구역(동·층)`). 🚨 쪼개되 **전부 아니면 전무**로 한다:
+ * 토큰이 **모두** `동`·`층`으로 끝나고 각각 하나 이하일 때만 넣고, 하나라도 남으면 `null`.
+ * 조각만 넣으면 `3동 4층 로비`의 `로비`가 **조용히 사라진다** — 조용한 절단은 조용한 누락이다.
+ *
+ * 받는 예: `3층` · `1동 3층` · `B1층`.  물러나는 예: `로비` · `3동 4층 로비` · `1층~3층`.
+ */
+export function splitAreaDongFloor(area: string | undefined): { dong: string; floor: string } | null {
+  const s = txt(area)
+  if (!s) return { dong: '', floor: '' }
+  let dong = '', floor = ''
+  for (const t of s.split(/\s+/).filter(Boolean)) {
+    if (t.endsWith('동') && !dong) dong = t
+    else if (t.endsWith('층') && !floor) floor = t
+    else return null          // 해석 못 한 토큰이 하나라도 있으면 통째로 물러난다
+  }
+  return { dong, floor }
+}
+
+/** 3.5 피난계획에서 **구역을 동·층으로 못 쪼갠** 행 수 — 라우트가 고지에 싣는다 */
+export function vulnerableAreaUnsplit(d: FirePlanGenData): number {
+  return (d.forms?.vulnerable?.plans ?? [])
+    .slice(0, VUL_PLAN_ROWS)
+    .filter((p: { area?: string }) => splitAreaDongFloor(p?.area) === null).length
+}
+
+/** 3.5 피난계획 표가 못 담은 행 수 */
+export function vulnerablePlanOverflow(d: FirePlanGenData): number {
+  return Math.max(0, (d.forms?.vulnerable?.plans ?? []).length - VUL_PLAN_ROWS)
 }
 
 /** 참석확인 명단(2.14 뒷쪽)에 못 담은 대원 수 — 양식 정원은 50명이다 */

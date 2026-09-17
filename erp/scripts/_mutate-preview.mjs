@@ -90,6 +90,14 @@ const MUTANTS = [
   /* 🚨 M21 — 직책에 개별임무를 넣는다(1.13 「남는 열」과 같은 유혹). */
   ['M21 직책 칸에 개별임무를 넣는다 → [17] 음성 단언이 빨강이어야',
     VALUES, "    v.set(`att14_${i}_role`, txt(m?.team))", "    v.set(`att14_${i}_role`, txt(m?.duty))", 1],
+  /* 🎯 M22 — 3.5의 핵심. 물러나지 않고 **조각만** 넣으면 `로비`가 조용히 사라진다. */
+  ['M22 구역을 조각만 넣는다(물러나지 않는다) → [18] 「둘 다 비었다」가 빨강이어야',
+    VALUES, `    else return null          // 해석 못 한 토큰이 하나라도 있으면 통째로 물러난다`,
+    `    else continue`, 1],
+  /* 🚨 M23 — 「해당없음」인데 상자를 켠다(없는 사실을 지어내기). */
+  ['M23 해당없음을 무시하고 상자를 켠다 → [18] 음성 단언이 빨강이어야',
+    VALUES, `  const vulCount = (t: string, k: 'work' | 'use') => (vulNone ? '' : txt(vul?.counts?.[t]?.[k]))`,
+    `  const vulCount = (t: string, k: 'work' | 'use') => txt(vul?.counts?.[t]?.[k])`, 1],
 ]
 
 /** 🚨 파일의 줄끝에 맞춰 needle을 바꾼다.

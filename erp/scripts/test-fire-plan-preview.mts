@@ -885,5 +885,103 @@ console.log('\n[17] 2.14 뒷쪽 — 참석확인 명단 · 확인 칸은 비어�
   }
 }
 
+/* ══════════════════════ [18] 3.5 피난약자 — ①류(PDF는 인쇄, 엑셀만 공란이었다) ══════════════════════
+ *  🎯 핵심은 **구역 쪼개기가 물러날 줄 아는가**다. 양식은 `구역`을 동·층 두 칸으로 그리는데
+ *    ERP는 한 칸(`구역(동·층)`)이다. 조각만 넣으면 `3동 4층 로비`의 `로비`가 조용히 사라진다 —
+ *    **전부 아니면 전무**여야 하고, 물러난 건수는 세어져야 한다.
+ *  ⭐ 유형 자구가 **양식 라벨에 실제로 들어 있는지**도 묻는다(목록을 세 번째로 베낀 게 아니라는 증거). */
+console.log('\n[18] 3.5 피난약자 — 구역 쪼개기는 전부 아니면 전무')
+{
+  const { validateAnchors } = await import('../src/lib/xlsx-anchors.ts')
+  const { toInjectTargets } = await import('../src/lib/xlsx-workbook.ts')
+  const { FIRE_PLAN_ANCHORS, VUL_SHEET, VUL_WORK_CELLS, VUL_USE_CELLS, VUL_PLAN_ROWS, VUL_PLAN_FIRST_ROW } =
+    await import('../src/lib/fire-plan-anchors.ts')
+  const { buildFirePlanValues, splitAreaDongFloor, vulnerableAreaUnsplit, vulnerablePlanOverflow } =
+    await import('../src/lib/fire-plan-xlsx-values.ts')
+  const { labelAt } = await import('../src/lib/fire-plan-xlsx-manifest.ts')
+
+  /* 🎯 순수 함수부터 — 받는 꼴과 물러나는 꼴 */
+  check("'3층' → 층만", JSON.stringify(splitAreaDongFloor('3층')) === '{"dong":"","floor":"3층"}')
+  check("'1동 3층' → 둘 다", JSON.stringify(splitAreaDongFloor('1동 3층')) === '{"dong":"1동","floor":"3층"}')
+  check("'B1층' → 층", splitAreaDongFloor('B1층')?.floor === 'B1층')
+  check("'로비' → 물러난다(null)", splitAreaDongFloor('로비') === null)
+  check("'3동 4층 로비' → 물러난다(조각만 넣지 않는다)", splitAreaDongFloor('3동 4층 로비') === null)
+  /* ⚠ `1층~3층`은 **한 토큰**이라 층 칸에 그대로 들어간다 — 범위 표기는 층 칸이 맞다.
+   *   물러나는 건 「층으로 읽을 토큰이 둘」인 경우다(`1층 3층`). */
+  check("'1층~3층' → 층 칸에 그대로(범위도 층이다)", splitAreaDongFloor('1층~3층')?.floor === '1층~3층')
+  check("'1층 3층' → 물러난다(층이 둘)", splitAreaDongFloor('1층 3층') === null)
+  check('빈 값은 빈 두 칸', JSON.stringify(splitAreaDongFloor('')) === '{"dong":"","floor":""}')
+
+  const plans = [
+    { area: '1동 3층', count: '2', type: '노인', helper: '김보조', equip: '휠체어', method: '부축 이동' },
+    { area: '로비', count: '1', type: '장애인', helper: '이보조', equip: '들것', method: '2인 이동' },
+    ...Array.from({ length: VUL_PLAN_ROWS }, (_, i) => ({
+      area: `${i + 2}층`, count: '1', type: '기타', helper: `보조${i}`, equip: '', method: '',
+    })),
+  ]
+  const fx = {
+    buildingName: 'X', facilities: [], brigade: [], zones: [], hazards: [],
+    forms: {
+      vulnerable: {
+        none: false,
+        counts: { 노인: { work: '3', use: '0' }, 장애인: { work: '', use: '5' } },
+        plans,
+      },
+    },
+  } as never
+
+  const vc = validateAnchors(bytes, FIRE_PLAN_ANCHORS)
+  if (vc.ok) {
+    const { targets } = toInjectTargets(buildFirePlanValues(fx), vc.anchors)
+    const out = await injectWorkbook(bytes, targets)
+    const gv = await readSheetGrid(await JSZip.loadAsync(out.bytes), VUL_SHEET)
+    const at = (r: string) => gv.cells.find(x => x.ref === r)?.text ?? ''
+    const R0 = VUL_PLAN_FIRST_ROW
+
+    check('피난계획 행 수가 파생된다(14행)', VUL_PLAN_ROWS === 14, `${VUL_PLAN_ROWS}행`)
+    /* ⭐ 유형 자구가 양식 라벨에 실제로 있다 — 목록을 베낀 게 아니다 */
+    check('유형 12개가 전부 양식 라벨과 맞는다',
+      [...VUL_WORK_CELLS.map(([t, b]) => [t, b] as const), ...VUL_USE_CELLS]
+        .every(([t, b]) => labelAt(VUL_SHEET, b).includes(t)),
+      [...VUL_WORK_CELLS, ...VUL_USE_CELLS].length + '칸')
+
+    /* 근무·거주자 — 노인만 3명 */
+    check('노인 상자 켜지고 인원 3명', at('H3').includes('■') && at('Q3').includes('3'),
+      `${at('H3')} / ${at('Q3')}`)
+    check('근무 0인 유형은 꺼짐(장애인)', !at('Y4').includes('■'), at('Y4'))
+    /* 시설이용자 — 장애인만 5명(인원 칸은 양식에 없다) */
+    check('시설이용 장애인 상자 켜짐', at('AU5').includes('■'), at('AU5'))
+    check('시설이용 노인은 꺼짐(use=0)', !at('H5').includes('■'), at('H5'))
+    /* 단위 자구가 살아 있다 */
+    check('인원 칸의 「명」이 남는다', at('Q3').trim().endsWith('명') && at('Q4') === labelAt(VUL_SHEET, 'Q4'),
+      `Q3='${at('Q3')}' Q4='${at('Q4')}'`)
+
+    /* 🎯 구역 — 쪼개진 행과 물러난 행 */
+    check('쪼개진 행: 동·층이 각 칸에', at(`H${R0}`) === '1동' && at(`M${R0}`) === '3층',
+      `${at(`H${R0}`)}/${at(`M${R0}`)}`)
+    check('물러난 행: 동·층 **둘 다** 비었다(조각만 넣지 않았다)',
+      at(`H${R0 + 1}`) === '' && at(`M${R0 + 1}`) === '',
+      `H=${JSON.stringify(at(`H${R0 + 1}`))} M=${JSON.stringify(at(`M${R0 + 1}`))}`)
+    check('물러나도 나머지 열은 채운다', at(`R${R0 + 1}`) === '1' && at(`U${R0 + 1}`) === '장애인'
+      && at(`AS${R0 + 1}`) === '2인 이동', `${at(`U${R0 + 1}`)}/${at(`AS${R0 + 1}`)}`)
+    check('못 쪼갠 건수를 센다', vulnerableAreaUnsplit(fx) === 1, `${vulnerableAreaUnsplit(fx)}건`)
+    check('넘친 계획을 센다', vulnerablePlanOverflow(fx) === 2, `${vulnerablePlanOverflow(fx)}건`)
+    check('마지막 행도 착지', at(`AD${R0 + VUL_PLAN_ROWS - 1}`) === '보조11', at(`AD${R0 + VUL_PLAN_ROWS - 1}`))
+
+    /* 🚨 음성 — 「해당없음」이면 상자가 하나도 안 켜진다 */
+    const fxNone = { ...(fx as object), forms: { vulnerable: { none: true, counts: { 노인: { work: '3', use: '2' } }, plans } } } as never
+    const t2 = toInjectTargets(buildFirePlanValues(fxNone), vc.anchors)
+    const o2 = await injectWorkbook(bytes, t2.targets)
+    const g2 = await readSheetGrid(await JSZip.loadAsync(o2.bytes), VUL_SHEET)
+    const at2 = (r: string) => g2.cells.find(x => x.ref === r)?.text ?? ''
+    check('해당없음이면 상자 12개가 전부 꺼진다',
+      [...VUL_WORK_CELLS.map(([, b]) => b), ...VUL_USE_CELLS.map(([, b]) => b)].every(b => !at2(b).includes('■')),
+      at2('H3'))
+    check('해당없음이면 인원·계획도 비운다', at2('Q3') === labelAt(VUL_SHEET, 'Q3') && at2(`U${R0}`) === '',
+      `Q3='${at2('Q3')}' U${R0}='${at2(`U${R0}`)}'`)
+    check('해당없음이어도 법정 비고는 온전하다', at2('A22') === labelAt(VUL_SHEET, 'A22'))
+  }
+}
+
 console.log(`\n=== pass ${pass} / fail ${fail} ===`)
 process.exit(fail ? 1 : 0)
