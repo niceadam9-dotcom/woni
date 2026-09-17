@@ -40,6 +40,7 @@ export const FP_SHEET = {
   F1_11_1: '1.11.1 소방훈련·교육 연간계획',
   F1_12_1: '1.12.1 화기취급작업 현황',
   F1_13: '1.13 소방시설 공사·정비 기록',
+  F3_3: '3.3 피난인원현황',
   // ⚠ manifest에 `1.11.4`로 시작하는 시트가 **둘**이다(앞쪽·뒷쪽) — 용도 칸은 앞쪽에만 있다
   F1_11_4: '1.11.4 훈련·교육 결과기록부',
   // 제2장(2026-09-08 2단계)
@@ -749,6 +750,47 @@ const CONSTRUCTION_SEEDS: Seed[] = Array.from({ length: CONSTRUCTION_ROWS }, (_,
   })),
 ).flat()
 
+/* ─────────── 서식 3.3 피난인원현황 (2026-09-17) ───────────
+ *  ⭐ **1.2.1 구역별 세부현황의 쌍둥이다.** 머리글 자구가 글자까지 같다 —
+ *    `명칭/용도` · `(바닥)면적` · `관리주체\n(입주사)` · `담당자\n(연락처)`.
+ *    같은 사실을 두 시트가 다르게 찍으면 **D-7 갈라짐**이므로 값 계산을 통째로 나눠 쓴다
+ *    (`zoneRowValues()`) — 열 좌표만 다르고 **값은 한 번만 만든다.**
+ *
+ *  ⭐ 행 예산이 다르다: 1.2.1은 **8행**, 3.3은 **19행**. 갈라짐이 아니라 양식의 용량 차이다
+ *    (9번째 구역부터는 3.3에만 실린다). 넘침은 각자의 예산으로 따로 센다.
+ *
+ *  ⚠ 인원 3칸(`근무`·`거주`·`방문`)은 **비운다.** ERP 구역의 인원은 `weekday`·`holiday`
+ *    (평일/휴일 × 주간/야간)라 **축이 다르다** — 「평일 주간」을 「근무」 밑에 찍으면
+ *    시간대를 인원 구분으로 둔갑시키는 것이다. 1.2.1이 그 둘을 이미 제 이름으로 인쇄한다.
+ *  ⚠ A열 `동`도 비운다 — 1.2.1 0열과 **같은 사유**(ERP 구역에 동 축이 없다).
+ */
+export const EVAC3_SHEET = FP_SHEET.F3_3
+
+/** 데이터 행 수 — `labelBlockRows('A6')`가 머리글 행까지 세므로 −1.
+ *  ⚠ A26 「* 추가서식 필요 시 별첨…」 주석이 표를 끊는다 → 자동으로 19행. */
+export const EVAC3_ROWS = labelBlockRows(EVAC3_SHEET, 'A6') - 1
+export const EVAC3_FIRST_ROW = 7
+
+/** [엑셀 열, 필드 접미사, 머리글 셀] — 접미사는 **1.2.1과 같은 이름**을 쓴다(같은 값이니까) */
+export const EVAC3_COLS: ReadonlyArray<readonly [string, string, string]> = [
+  // ['A', ?, 'A6']  동 — 1.2.1 0열과 같은 사유로 비운다
+  ['E', 'floor', 'E6'],     // 층
+  ['I', 'usage', 'I4'],     // 명칭/용도
+  ['R', 'area', 'R4'],      // (바닥)면적
+  // ['AA'|'AE'|'AJ', ?, 'AA5'|'AE5'|'AJ5']  근무·거주·방문 — ERP는 평일/휴일 축이다
+  ['AO', 'company', 'AO4'], // 관리주체(입주사)
+  ['AY', 'contact', 'AY4'], // 담당자(연락처)
+]
+
+const EVAC3_SEEDS: Seed[] = Array.from({ length: EVAC3_ROWS }, (_, i) =>
+  EVAC3_COLS.map(([col, key, labelCell]) => ({
+    field: `evac3_${i}_${key}`,
+    sheet: EVAC3_SHEET,
+    cell: `${col}${EVAC3_FIRST_ROW + i}`,
+    labelCell,
+  })),
+).flat()
+
 const BRIG1_SEEDS: Seed[] = [
   { field: 'brig1_name', sheet: BRIG1_SHEET, cell: 'M5', labelCell: 'A5' },
   { field: 'brig1_address', sheet: BRIG1_SHEET, cell: 'M6', labelCell: 'A6' },
@@ -832,7 +874,7 @@ function assemble(seeds: Seed[]): Anchor[] {
   })
 }
 
-export const FIRE_PLAN_ANCHORS: Anchor[] = assemble([...FIXED_SEEDS, ...ZONE_SEEDS, ...BRIG_SEEDS, ...FORM14_SEEDS, ...FIREHIST_SEEDS, ...HAZARD_SEEDS, ...MU_SEEDS, ...TRAIN_SEEDS, ...EVAC1_SEEDS, ...BRIG1_SEEDS, ...FIREWORK_SEEDS, ...CONSTRUCTION_SEEDS])
+export const FIRE_PLAN_ANCHORS: Anchor[] = assemble([...FIXED_SEEDS, ...ZONE_SEEDS, ...BRIG_SEEDS, ...FORM14_SEEDS, ...FIREHIST_SEEDS, ...HAZARD_SEEDS, ...MU_SEEDS, ...TRAIN_SEEDS, ...EVAC1_SEEDS, ...BRIG1_SEEDS, ...FIREWORK_SEEDS, ...CONSTRUCTION_SEEDS, ...EVAC3_SEEDS])
 
 /* ══════════════════════ §사진상자 (2026-09-14) ══════════════════════
  *

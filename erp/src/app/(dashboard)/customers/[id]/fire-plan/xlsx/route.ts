@@ -6,7 +6,7 @@ import { assembleFirePlan } from '@/lib/fire-plan-generate'
 import { firePlanTemplate } from '@/lib/fire-plan-template-cache'
 import { toInjectTargets } from '@/lib/xlsx-workbook'
 import { injectWorkbook } from '@/lib/xlsx-inject'
-import { brigadeRowOverflow, buildFirePlanValues, constructionRowOverflow, constructionUnmapped, fireworkRowOverflow, hazardUnmatched, missingValueFields, zoneRowOverflow } from '@/lib/fire-plan-xlsx-values'
+import { brigadeRowOverflow, buildFirePlanValues, constructionRowOverflow, constructionUnmapped, evac3RowOverflow, fireworkRowOverflow, hazardUnmatched, missingValueFields, zoneRowOverflow } from '@/lib/fire-plan-xlsx-values'
 import { FIRE_PLAN_MANIFEST } from '@/lib/fire-plan-xlsx-manifest'
 import { embedFirePlanImages, planFirePlanImages } from '@/lib/fire-plan-xlsx-images'
 import { applyFirePlanCheckboxes } from '@/lib/fire-plan-checkbox-controls'
@@ -121,6 +121,8 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
           // 사진 상자도 같은 1순위다 — 치유됐다는 건 그림이 원래 자리에 안 붙었다는 뜻이다
           ...imgCheck.healed.map(h => `사진 상자 좌표 자가치유: ${h}`),
           ...(zoneRowOverflow(data) ? [`구역별 세부현황 ${zoneRowOverflow(data)}개 구역 미표기(양식 고정 행 상한)`] : []),
+          // 3.3은 같은 구역을 19행까지 싣는다 — 1.2.1(8행)에서 잘린 구역이 여기엔 남으므로 따로 센다
+          ...(evac3RowOverflow(data) ? [`피난인원현황 ${evac3RowOverflow(data)}개 구역 미표기(양식 고정 행 상한)`] : []),
           // 1.2.2는 「칸이 모자라 잘렸다」가 아니라 **「이름이 달라 어디에도 못 넣었다」**다.
           // 양식이 보일러실·주방·전기실 셋만 인쇄해 두어 그 밖의 장소는 자리가 없다 —
           // 버리되 **이름을 적어** 알린다(조용한 절단은 조용한 누락이다).

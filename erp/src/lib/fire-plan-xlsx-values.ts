@@ -29,6 +29,7 @@ import {
   BRIG1_SHEET, BRIG1_GRADE_CELLS, BRIG1_HEADCOUNT_BANDS, BRIG1_TYPE_CELLS, BRIG1_TEAM_CELLS,
   FIREWORK_ROWS, FIREWORK_COLS,
   CONSTRUCTION_ROWS, CONSTRUCTION_COLS,
+  EVAC3_ROWS,
 } from '@/lib/fire-plan-anchors'
 import { boxGlyphAt, labelAt, tokenTemplateAt } from '@/lib/fire-plan-xlsx-manifest'
 import { purposeCover, purposeShort } from '@/lib/purpose-label'
@@ -405,15 +406,19 @@ export function buildFirePlanValues(d: FirePlanGenData): Map<string, CellValue> 
   // S4-3: 양식 고정 행 수를 지킨다. 넘치는 구역은 **버리되 세어서** 라우트가 고지 헤더에 싣는다.
   const zones = d.zones ?? []
   for (let i = 0; i < ZONE_ROWS; i++) {
-    const z = zones[i]
-    v.set(`zone_${i}_floor`, txt(z?.zone))
-    // 1.1 주용도와 **같은 성격의 칸**이라 같은 표기를 쓴다(사용자 승인 2026-09-08).
-    // ⚠ `d.purpose`가 아니라 구역 레코드의 `name`이다 — 구역마다 다를 수 있고, 근린생활시설
-    //   갈래가 아니면 `purposeShort`가 그대로 통과시킨다(사무실·창고 등은 손대지 않는다).
-    v.set(`zone_${i}_usage`, purposeShort(z?.name))
-    v.set(`zone_${i}_area`, txt(z?.area))
-    v.set(`zone_${i}_company`, txt(z?.managerCo))
-    v.set(`zone_${i}_contact`, txt(z?.contact))
+    for (const [k, val] of Object.entries(zoneRowValues(zones[i]))) v.set(`zone_${i}_${k}`, val)
+  }
+
+  /* ── 서식 3.3 피난인원현황 (2026-09-17) ────────────────────────────────────
+   *
+   *  ⭐ **1.2.1의 쌍둥이다.** `zoneRowValues()`를 나눠 쓰므로 같은 구역이 두 시트에서
+   *    다르게 인쇄될 **방법이 없다**(사본 금지 — 규칙을 두 벌 두지 않는다).
+   *  ⭐ 3.3이 19행, 1.2.1이 8행이라 **9번째 구역부터는 3.3에만 실린다** — 갈라짐이 아니라
+   *    양식의 용량 차이다.
+   *  ⚠ 인원 3칸·동 칸은 비운다(앵커 §3.3 참조).
+   */
+  for (let i = 0; i < EVAC3_ROWS; i++) {
+    for (const [k, val] of Object.entries(zoneRowValues(zones[i]))) v.set(`evac3_${i}_${k}`, val)
   }
 
   /* ── 서식 1.10.4 화재·비화재보 이력 (2026-09-16) ──────────────────────────────
@@ -658,6 +663,29 @@ export function zoneRowOverflow(d: FirePlanGenData): number {
 /** 화기취급작업 표(1.12.1)가 못 담은 행 수 — 구역·대원과 같은 축(라우트가 고지에 싣는다) */
 export function fireworkRowOverflow(d: FirePlanGenData): number {
   return Math.max(0, ((d.forms?.fireworkLog ?? []) as unknown[]).length - FIREWORK_ROWS)
+}
+
+/** 구역 한 줄이 내는 값 — **1.2.1과 3.3이 나눠 쓴다.**
+ *
+ *  ⭐ 두 시트의 머리글 자구가 글자까지 같다(`명칭/용도`·`(바닥)면적`·`관리주체(입주사)`·
+ *    `담당자(연락처)`). 같은 사실을 다르게 찍으면 D-7 갈라짐이므로 **여기서 한 번만 만든다.**
+ *  ⚠ `purposeShort`는 1.1 주용도와 같은 표기(사용자 승인 2026-09-08). `d.purpose`가 아니라
+ *    구역 레코드의 `name`이다 — 구역마다 다를 수 있고, 근린생활시설 갈래가 아니면
+ *    그대로 통과시킨다(사무실·창고 등은 손대지 않는다).
+ */
+function zoneRowValues(z: FirePlanGenData['zones'][number] | undefined) {
+  return {
+    floor: txt(z?.zone),
+    usage: purposeShort(z?.name),
+    area: txt(z?.area),
+    company: txt(z?.managerCo),
+    contact: txt(z?.contact),
+  }
+}
+
+/** 3.3 피난인원현황이 못 담은 구역 수 — 1.2.1(8행)과 **예산이 달라** 따로 센다(19행) */
+export function evac3RowOverflow(d: FirePlanGenData): number {
+  return Math.max(0, (d.zones ?? []).length - EVAC3_ROWS)
 }
 
 /** 공사·정비 기록(1.13)이 못 담은 행 수 — 화기취급과 같은 축 */

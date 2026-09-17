@@ -586,5 +586,78 @@ console.log('\n[13] 1.13 공사·정비 — 3열만')
   }
 }
 
+/* ══════════════════════ [14] 3.3 피난인원현황 — 1.2.1의 쌍둥이 ══════════════════════
+ *  ⭐ 이 절의 **핵심 단언은 개수가 아니라 「두 시트가 같은가」**다. 같은 구역이 1.2.1과 3.3에
+ *    다르게 인쇄되면 D-7 갈라짐이고, 그건 「값이 들어갔다」를 아무리 세어도 안 잡힌다.
+ *    그래서 **두 시트를 되읽어 칸 대 칸으로 맞댄다**(1.2.1 예산 8행까지).
+ *  ⚠ 9번째 구역부터는 3.3에만 실린다 — 갈라짐이 아니라 양식의 용량 차이(8행 vs 19행)다.
+ *    그 사실도 양성으로 단언한다(안 그러면 「덜 채워도 초록」이 된다). */
+console.log('\n[14] 3.3 피난인원현황 — 1.2.1과 같은 값인가')
+{
+  const { validateAnchors } = await import('../src/lib/xlsx-anchors.ts')
+  const { toInjectTargets } = await import('../src/lib/xlsx-workbook.ts')
+  const { FIRE_PLAN_ANCHORS, EVAC3_SHEET, EVAC3_ROWS, EVAC3_COLS, ZONE_SHEET, ZONE_ROWS, ZONE_FIRST_ROW, EVAC3_FIRST_ROW } =
+    await import('../src/lib/fire-plan-anchors.ts')
+  const { buildFirePlanValues, evac3RowOverflow } = await import('../src/lib/fire-plan-xlsx-values.ts')
+  const { labelAt } = await import('../src/lib/fire-plan-xlsx-manifest.ts')
+
+  /* 1.2.1(8행)·3.3(19행) 둘 다 넘기는 21개 구역 */
+  const zones = Array.from({ length: EVAC3_ROWS + 2 }, (_, i) => ({
+    zone: `${i + 1}층`, name: i === 0 ? '제1종근린생활시설' : `용도${i}`, area: `${100 + i}`,
+    weekday: `${i}/0`, holiday: `0/${i}`,          // ← 양식 3.3에 축이 없는 인원 두 칸
+    managerCo: `업체${i}`, contact: `담당${i}`,
+  }))
+  const fx = { buildingName: 'X', facilities: [], brigade: [], zones, hazards: [], forms: {} } as never
+
+  const vc = validateAnchors(bytes, FIRE_PLAN_ANCHORS)
+  if (vc.ok) {
+    const { targets } = toInjectTargets(buildFirePlanValues(fx), vc.anchors)
+    const out = await injectWorkbook(bytes, targets)
+    const z2 = await JSZip.loadAsync(out.bytes)
+    const g33 = await readSheetGrid(z2, EVAC3_SHEET)
+    const g121 = await readSheetGrid(z2, ZONE_SHEET)
+    const at = (g: typeof g33, r: string) => g.cells.find(x => x.ref === r)?.text ?? ''
+
+    check('반복행 예산이 파생된다(19행 — A26 주석에서 끊긴다)', EVAC3_ROWS === 19, `${EVAC3_ROWS}행`)
+    check('1.2.1은 8행뿐이다(예산이 다르다는 전제)', ZONE_ROWS === 8, `${ZONE_ROWS}행`)
+
+    /* 🎯 핵심 — 두 시트가 **같은 값**을 찍는가(1.2.1이 담는 8행 전부, 5열 전부 = 40칸) */
+    const ZCOL: Record<string, string> = { floor: 'D', usage: 'H', area: 'O', company: 'AL', contact: 'AR' }
+    const diff: string[] = []
+    let cmp = 0
+    for (let i = 0; i < ZONE_ROWS; i++) {
+      for (const [col, key] of EVAC3_COLS) {
+        const a = at(g121, `${ZCOL[key]}${ZONE_FIRST_ROW + i}`)
+        const b = at(g33, `${col}${EVAC3_FIRST_ROW + i}`)
+        if (a !== b) diff.push(`${i}행 ${key}: '${a}' ≠ '${b}'`)
+        cmp++
+      }
+    }
+    check('대조가 실제로 돌았다(0건이면 공허)', cmp === 40, `${cmp}칸`)
+    check('1.2.1 ↔ 3.3 전 칸 일치 (D-7 항등)', diff.length === 0, diff.slice(0, 4).join(' / '))
+    /* 값이 비어 있어도 위 단언은 초록이다 — 실제로 채워졌는지를 따로 묻는다 */
+    /* `근생`은 `purposeShort`가 「제1종근린생활시설」을 줄인 표기다 — 1.1 주용도와 같은 어휘.
+     * 원값이 아니라 **변환된 값**이 들어갔는지까지 묻는다(두 시트가 같은 변환을 탔다는 증거). */
+    check('빈 채로 일치한 게 아니다', at(g33, 'E7') === '1층' && at(g33, 'I7') === '근생'
+      && at(g33, 'AO7') === '업체0', `E7=${at(g33, 'E7')} I7=${at(g33, 'I7')}`)
+
+    /* ⭐ 용량 차이 — 9번째 구역은 3.3에만 있다(1.2.1은 8행에서 잘린다) */
+    check('9번째 구역은 3.3에만 실린다', at(g33, 'E15') === '9층', `E15=${at(g33, 'E15')}`)
+    check('마지막 행(25)도 착지', at(g33, 'E25') === '19층', at(g33, 'E25'))
+
+    /* 🚨 음성 — 축이 다른 칸을 몰래 채우지 않았는가 */
+    check('인원 3칸은 비어 있다(평일/휴일을 근무/거주로 둔갑시키지 않았다)',
+      at(g33, 'AA7') === '' && at(g33, 'AE7') === '' && at(g33, 'AJ7') === '',
+      `AA7=${JSON.stringify(at(g33, 'AA7'))} AE7=${JSON.stringify(at(g33, 'AE7'))}`)
+    check('「동」 칸은 비어 있다(1.2.1 0열과 같은 사유)',
+      at(g33, 'A7') === '' && at(g33, 'A25') === '', `A7=${JSON.stringify(at(g33, 'A7'))}`)
+    check('인원 머리글은 살아 있다', at(g33, 'AA5') === labelAt(EVAC3_SHEET, 'AA5')
+      && at(g33, 'A6') === labelAt(EVAC3_SHEET, 'A6'), `${at(g33, 'AA5')}·${at(g33, 'A6')}`)
+    check('표 밖(A26) 주석이 온전하다', at(g33, 'A26') === labelAt(EVAC3_SHEET, 'A26'))
+
+    check('넘친 구역을 센다(1.2.1과 따로)', evac3RowOverflow(fx) === 2, `${evac3RowOverflow(fx)}개`)
+  }
+}
+
 console.log(`\n=== pass ${pass} / fail ${fail} ===`)
 process.exit(fail ? 1 : 0)

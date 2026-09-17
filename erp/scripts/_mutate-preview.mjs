@@ -17,6 +17,7 @@ const HERE = dirname(fileURLToPath(import.meta.url))
 const READER = resolve(HERE, '../src/lib/xlsx-read-sheet.ts')
 const TEST = resolve(HERE, 'test-fire-plan-preview.mts')
 const ANCHORS = resolve(HERE, '../src/lib/fire-plan-anchors.ts')
+const VALUES = resolve(HERE, '../src/lib/fire-plan-xlsx-values.ts')
 
 const MUTANTS = [
   ['M1 테두리를 전부 none으로 읽는다 → [2]·[5]가 빨강이어야 (SheetJS는 이 축을 모른다)',
@@ -42,6 +43,21 @@ const MUTANTS = [
    *   물지 않으면 이 규약은 주석일 뿐이다. */
   ['M9 시공업체를 「작업책임자」 칸에 넣는다 → [13] 음성 단언이 빨강이어야',
     ANCHORS, `  ['AP', 'note', 'AP2'],`, `  ['X', 'company', 'X2'],\n  ['AP', 'note', 'AP2'],`, 1],
+  /* 🚨 M10 — 3.3의 유혹. 「평일 주간」을 「근무」 칸에 넣으면 시간대가 인원 구분으로 둔갑한다. */
+  ['M10 평일 인원을 3.3 「근무」 칸에 넣는다 → [14] 음성 단언이 빨강이어야',
+    ANCHORS, `  ['AO', 'company', 'AO4'], // 관리주체(입주사)`,
+    `  ['AA', 'weekday', 'AA5'],\n  ['AO', 'company', 'AO4'], // 관리주체(입주사)`, 1],
+  /* 🎯 M11 — 이 시트의 **핵심 계약**. 3.3만 제 계산을 하게 **갈라뜨린다**.
+   *   ⚠ `zoneRowValues` 자체를 고치면 두 시트가 **함께** 바뀌어 항등이 안 물린다 — 그게 바로
+   *     공유의 목적이다. 그래서 변이는 공유를 **깨는** 쪽이어야 한다. */
+  ['M11 3.3만 제 계산을 한다(공유를 깬다) → [14] D-7 항등이 빨강이어야',
+    VALUES,
+    'Object.entries(zoneRowValues(zones[i]))) v.set(`evac3_',
+    'Object.entries({ ...zoneRowValues(zones[i]), usage: txt(zones[i]?.name) })) v.set(`evac3_', 1],
+  /* M12 — 공유 함수를 고치면 **두 시트가 같이** 바뀐다. 항등은 초록이고(설계대로),
+   *   값 단언이 잡아야 한다. 「같기만 하면 통과」가 아님을 증명한다. */
+  ['M12 공유 계산에서 용도 변환을 뺀다 → [14] 「빈 채로 일치한 게 아니다」가 빨강이어야',
+    VALUES, `    usage: purposeShort(z?.name),`, `    usage: txt(z?.name),`, 1],
 ]
 
 /** 🚨 파일의 줄끝에 맞춰 needle을 바꾼다.
