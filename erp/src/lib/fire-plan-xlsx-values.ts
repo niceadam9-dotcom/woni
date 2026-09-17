@@ -26,6 +26,7 @@ import {
   MU_SHEET, MU_VALUE_CELLS, MU_HOURS_CELLS, MU_USER_BOXES,
   TRAIN_SHEET, TRAIN_ROWS, TRAIN_MONTH_COLS, TRAIN_TARGETS,
   EVAC1_SHEET, EVAC1_STAIR_CELLS, EVAC1_ETC_CELLS, EVAC1_ELEVATOR_CELL,
+  BRIG1_SHEET, BRIG1_GRADE_CELLS, BRIG1_HEADCOUNT_BANDS, BRIG1_TYPE_CELLS, BRIG1_TEAM_CELLS,
 } from '@/lib/fire-plan-anchors'
 import { boxGlyphAt, labelAt, tokenTemplateAt } from '@/lib/fire-plan-xlsx-manifest'
 import { purposeCover, purposeShort } from '@/lib/purpose-label'
@@ -425,6 +426,40 @@ export function buildFirePlanValues(d: FirePlanGenData): Map<string, CellValue> 
    *  ⚠ PDF는 빈 행을 3줄까지 `pad`로 채워 표 모양을 만들지만 **엑셀은 그러지 않는다** —
    *    양식이 이미 15행을 그려 두었고, 빈 칸은 빈 칸으로 남는 것이 맞다(없는 사실을 지어내지 않는다).
    */
+  /* ── 서식 2.1 자위소방대 일반현황 (2026-09-17) ──────────────────────────────
+   *
+   *  ⭐ 대부분 **1.1이 이미 쓰는 그 원천**이다(명칭·주소·등급·근무인원) — 같은 사실을
+   *    두 시트가 다르게 찍으면 D-7 갈라짐이다.
+   *  ⭐ 팀 상자는 **어간**으로 맞춘다(양식 `비상연락팀` ↔ ERP `비상연락`·`비상연락반`).
+   *    2.2 배선이 「팀 구분 문자열의 단일 원천이 없다」고 기록해 둔 그 문제다 —
+   *    목록을 세 번째로 베끼지 않고 꼬리(팀·반)를 떼어 비교한다.
+   *  ⚠ 팀별 **인원**은 비운다 — 상자는 어간으로 맞출 수 있지만 수는 한쪽 목록에서만 맞는다.
+   *    상자는 「그 팀이 있다」는 사실이고 수는 **틀리면 거짓**이다.
+   */
+  const brigList = d.brigade ?? []
+  const stem = (s: string) => txt(s).replace(/[팀반]$/, '')
+  v.set('brig1_name', txt(d.buildingName))
+  v.set('brig1_address', txt(d.address))
+  for (const [cell, g] of BRIG1_GRADE_CELLS) {
+    v.set(`brig1_grade_${g}`, boxLabelCell(BRIG1_SHEET, cell, txt(d.grade) === g))
+  }
+  // 상시근무인원 — 값이 없으면 **어느 구간도 켜지 않는다**(0명은 「50명 미만」이 아니라 미입력이다)
+  const hcw = Number(txt(d.ops?.headcountWorker))
+  BRIG1_HEADCOUNT_BANDS.forEach(([cell, lo, hi], i) => {
+    v.set(`brig1_hc${i}`, boxLabelCell(BRIG1_SHEET, cell,
+      Number.isFinite(hcw) && hcw > 0 && hcw >= lo && hcw < hi))
+  })
+  const btype = txt(d.forms?.brigadeGeneral?.type)
+  BRIG1_TYPE_CELLS.forEach(([cell, mark], i) => {
+    v.set(`brig1_type${i}`, boxLabelCell(BRIG1_SHEET, cell, !!btype && btype.includes(mark)))
+  })
+  v.set('brig1_total', unitCell(BRIG1_SHEET, 'V13', String(brigList.length || '')))
+  for (const [k, teamStem, comp, duty] of BRIG1_TEAM_CELLS) {
+    const on = brigList.some(b => stem(b.team) === teamStem)
+    v.set(`brig1_team_${k}_c`, boxLabelCell(BRIG1_SHEET, comp, on))
+    v.set(`brig1_team_${k}_d`, boxLabelCell(BRIG1_SHEET, duty, on))
+  }
+
   /* ── 서식 3.1 피난시설 일반현황 (2026-09-17) ────────────────────────────────
    *
    *  ⭐ **1.1·1.5가 이미 쓰는 그 원천을 그대로 쓴다**(사본 금지) — 계단은 `stairChecks`,

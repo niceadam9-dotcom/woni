@@ -41,6 +41,7 @@ export const FP_SHEET = {
   // ⚠ manifest에 `1.11.4`로 시작하는 시트가 **둘**이다(앞쪽·뒷쪽) — 용도 칸은 앞쪽에만 있다
   F1_11_4: '1.11.4 훈련·교육 결과기록부',
   // 제2장(2026-09-08 2단계)
+  F2_1: '2.1 자위소방대 일반현황',
   F2_2: '2.2 자위소방대 편성표',
   F2_14: '2.14 교육·훈련 결과기록부',
   // 제3장(2026-09-09 B-15) — 3.1은 용도 칸만 배선한다(나머지는 별건)
@@ -620,6 +621,68 @@ export const EVAC1_ETC_CELLS: ReadonlyArray<readonly [string, string]> = [
 /** 승강기 — 한 칸에 상자 셋(`☐ 승용 ☐ 비상용 ☐ 피난용`) */
 export const EVAC1_ELEVATOR_CELL = 'Q21'
 
+/* ══════════════════════ 서식 2.1 자위소방대 일반현황 (2026-09-17) ══════════════════════
+ *
+ *  🚨 상자 35칸 중 **근거가 확실한 20칸 + 값칸 3**만 세운다(3.1과 같은 규약).
+ *
+ *  ✅ 세우는 것 — 대부분 **1.1이 이미 쓰는 그 원천**이다:
+ *    · 명칭·도로명주소(5~6행) ← `buildingName`·`address`
+ *    · 등급 4상자(7행) ← `d.grade` — 1.1 T9와 같은 원천
+ *    · 상시근무인원 4상자(8행) ← `ops.headcountWorker`를 **구간**으로 판정
+ *    · 편성표 Type 2상자(11~12행) ← `brigadeGeneral.type`
+ *    · 자위소방대 총원(13행) ← `d.brigade.length`
+ *    · 팀 상자 10(구성 15~17행 · 임무 23~27행) ← 편성표에 **그 팀 대원이 있는가**
+ *
+ *  ⚠ **안 세우는 것과 이유**:
+ *    · 운영시간 시간칸(`시 ~ 시`, 9~10행) — ERP는 `09:00~18:00` 자유 텍스트라 양식의
+ *      두 자리(`[N]시 ~ [M]시`)로 쪼갤 근거가 없다. 상자도 같이 비운다(반만 켜면 더 틀리다).
+ *    · 근무형태 상근/교대(13·18행) · 초기대응체계 조 편성(18~20행) — ERP에 축이 없다.
+ *    · 팀별 인원(15~17행 `명`) — 편성표 대원의 팀 문자열이 **두 목록으로 갈려 있어**
+ *      (`비상연락` vs `비상연락반`) 수를 세면 한쪽 목록에서만 맞는다. 상자는 어간으로
+ *      맞출 수 있지만 **수는 틀리면 거짓**이라 비운다.
+ *
+ *  ⭐ 팀 상자는 **어간**으로 맞춘다 — 양식은 `비상연락팀`인데 ERP는 `비상연락`·`비상연락반`
+ *    둘 다 쓴다(2.2 배선이 남긴 기록). 꼬리(팀·반)를 떼고 비교하면 두 목록을 다 받는다.
+ */
+export const BRIG1_SHEET = FP_SHEET.F2_1
+
+/** 등급 4상자 — [셀, `d.grade` 값] */
+export const BRIG1_GRADE_CELLS: ReadonlyArray<readonly [string, string]> = [
+  ['M7', '특급'], ['Y7', '1급'], ['AK7', '2급'], ['AU7', '3급'],
+]
+
+/** 상시근무인원 4상자 — [셀, 하한(이상), 상한(미만)]. 양식 구간을 그대로 옮긴다 */
+export const BRIG1_HEADCOUNT_BANDS: ReadonlyArray<readonly [string, number, number]> = [
+  ['M8', 0, 50], ['AA8', 50, 100], ['AN8', 100, 500], ['AX8', 500, Number.POSITIVE_INFINITY],
+]
+
+/** 편성표 서식 2상자 — [셀, `brigadeGeneral.type`에 들어 있어야 할 자구] */
+export const BRIG1_TYPE_CELLS: ReadonlyArray<readonly [string, string]> = [
+  ['M11', 'Ⅱ'], ['M12', 'Ⅲ'],
+]
+
+/** 팀 상자 — [필드 접미사, 어간, 구성 블록 셀, 임무 블록 셀] */
+export const BRIG1_TEAM_CELLS: ReadonlyArray<readonly [string, string, string, string]> = [
+  ['emer', '비상연락', 'AB15', 'M23'],
+  ['fire', '초기소화', 'AB16', 'M24'],
+  ['evac', '피난유도', 'AB17', 'M25'],
+  ['aid', '응급구조', 'AR15', 'M26'],
+  ['guard', '방호안전', 'AR16', 'M27'],
+]
+
+const BRIG1_SEEDS: Seed[] = [
+  { field: 'brig1_name', sheet: BRIG1_SHEET, cell: 'M5', labelCell: 'A5' },
+  { field: 'brig1_address', sheet: BRIG1_SHEET, cell: 'M6', labelCell: 'A6' },
+  ...BRIG1_GRADE_CELLS.map(([cell, g]) => ({ field: `brig1_grade_${g}`, sheet: BRIG1_SHEET, cell, labelCell: cell })),
+  ...BRIG1_HEADCOUNT_BANDS.map(([cell], i) => ({ field: `brig1_hc${i}`, sheet: BRIG1_SHEET, cell, labelCell: cell })),
+  ...BRIG1_TYPE_CELLS.map(([cell], i) => ({ field: `brig1_type${i}`, sheet: BRIG1_SHEET, cell, labelCell: cell })),
+  { field: 'brig1_total', sheet: BRIG1_SHEET, cell: 'V13', labelCell: 'V13' },
+  ...BRIG1_TEAM_CELLS.flatMap(([k, , comp, duty]) => [
+    { field: `brig1_team_${k}_c`, sheet: BRIG1_SHEET, cell: comp, labelCell: comp },
+    { field: `brig1_team_${k}_d`, sheet: BRIG1_SHEET, cell: duty, labelCell: duty },
+  ]),
+]
+
 const EVAC1_SEEDS: Seed[] = [
   ...EVAC1_STAIR_CELLS.map(([cell, k]) => ({ field: `evac1_stair_${k}`, sheet: EVAC1_SHEET, cell, labelCell: cell })),
   ...EVAC1_ETC_CELLS.map(([cell, k]) => ({ field: `evac1_etc_${k}`, sheet: EVAC1_SHEET, cell, labelCell: cell })),
@@ -690,7 +753,7 @@ function assemble(seeds: Seed[]): Anchor[] {
   })
 }
 
-export const FIRE_PLAN_ANCHORS: Anchor[] = assemble([...FIXED_SEEDS, ...ZONE_SEEDS, ...BRIG_SEEDS, ...FORM14_SEEDS, ...FIREHIST_SEEDS, ...HAZARD_SEEDS, ...MU_SEEDS, ...TRAIN_SEEDS, ...EVAC1_SEEDS])
+export const FIRE_PLAN_ANCHORS: Anchor[] = assemble([...FIXED_SEEDS, ...ZONE_SEEDS, ...BRIG_SEEDS, ...FORM14_SEEDS, ...FIREHIST_SEEDS, ...HAZARD_SEEDS, ...MU_SEEDS, ...TRAIN_SEEDS, ...EVAC1_SEEDS, ...BRIG1_SEEDS])
 
 /* ══════════════════════ §사진상자 (2026-09-14) ══════════════════════
  *

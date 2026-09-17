@@ -430,5 +430,65 @@ console.log('\n[10] 3.1 피난시설 — 1.1·1.5와 같은 사실')
   }
 }
 
+/* ══════════════════════ [11] 2.1 자위소방대 일반현황 ══════════════════════
+ *  🚨 **팀 어간 매칭이 이 시트의 핵심 위험이다.** 편성표 대원의 팀 문자열이 화면 두 곳에서
+ *    다르다(`비상연락` vs `비상연락반`). 픽스처가 **두 표기를 섞어** 준다 — 한쪽만 받는
+ *    구현이면 절반이 꺼진다.
+ *  🚨 그리고 **구간 판정**은 경계가 위험하다. 근무인원 50명은 「50명 미만」이 아니라
+ *    「50~100」이다(하한 이상·상한 미만). 미입력(0)은 **어느 구간도 켜지 않는다**. */
+console.log('\n[11] 2.1 자위소방대 일반현황')
+{
+  const { validateAnchors } = await import('../src/lib/xlsx-anchors.ts')
+  const { toInjectTargets } = await import('../src/lib/xlsx-workbook.ts')
+  const { FIRE_PLAN_ANCHORS, BRIG1_SHEET } = await import('../src/lib/fire-plan-anchors.ts')
+  const { buildFirePlanValues } = await import('../src/lib/fire-plan-xlsx-values.ts')
+
+  const vc = validateAnchors(bytes, FIRE_PLAN_ANCHORS)
+  const render = async (over: Record<string, unknown>) => {
+    const { targets } = toInjectTargets(buildFirePlanValues({
+      buildingName: '가상건물', address: '경기 어딘가 1', facilities: [], zones: [], hazards: [],
+      grade: '2급', brigade: [], forms: {}, ...over,
+    } as never), (vc as { anchors: Parameters<typeof toInjectTargets>[1] }).anchors)
+    const out = await injectWorkbook(bytes, targets)
+    const gg = await readSheetGrid(await JSZip.loadAsync(out.bytes), BRIG1_SHEET)
+    return (r: string) => gg.cells.find(x => x.ref === r)?.text ?? ''
+  }
+  if (vc.ok) {
+    const at = await render({
+      ops: { headcountWorker: '50' },                 // 경계값 — 「50~100」이어야 한다
+      forms: { brigadeGeneral: { type: 'Type-Ⅲ' } },
+      brigade: [
+        { team: '자위소방대장', name: 'A' },
+        { team: '비상연락', name: 'B' },              // 목록 ①의 표기
+        { team: '초기소화반', name: 'C' },            // 목록 ②의 표기(꼬리가 다르다)
+      ],
+    })
+    check('명칭·주소 착지', at('M5') === '가상건물' && at('M6') === '경기 어딘가 1', `${at('M5')} / ${at('M6')}`)
+    check('등급 2급만 켜진다(양성·음성)',
+      at('AK7').includes('■') && !at('M7').includes('■') && !at('Y7').includes('■'),
+      `AK7=${at('AK7')} M7=${at('M7')}`)
+    // 🚨 경계 — 50은 「50명 미만」이 아니다
+    check('근무인원 50명 → 「50~100」 구간',
+      at('AA8').includes('■') && !at('M8').includes('■'), `M8=${at('M8')} AA8=${at('AA8')}`)
+    check('Type-Ⅲ만 켜진다', at('M12').includes('■') && !at('M11').includes('■'),
+      `M11=${at('M11')} M12=${at('M12')}`)
+    check('총원 = 편성표 행 수', at('V13').startsWith('3'), at('V13'))
+    // ⭐ 어간 매칭 — 두 표기를 다 받는가
+    check('팀 상자: 비상연락(꼬리 없음) 켜짐', at('AB15').includes('■'), at('AB15'))
+    check('팀 상자: 초기소화반(꼬리 다름) 켜짐', at('AB16').includes('■'), at('AB16'))
+    check('팀 상자: 없는 팀은 꺼짐(피난유도)', !at('AB17').includes('■'), at('AB17'))
+    check('임무 블록도 같은 판정', at('M23').includes('■') && at('M24').includes('■')
+      && !at('M25').includes('■'), `M23=${at('M23')} M25=${at('M25')}`)
+
+    // 🚨 음성 — 미입력이면 어느 구간도 켜지 않는다(0명은 「50명 미만」이 아니다)
+    const off = await render({ ops: {}, brigade: [] })
+    check('근무인원 미입력 → 구간 전부 꺼짐',
+      !off('M8').includes('■') && !off('AA8').includes('■') && !off('AN8').includes('■')
+      && !off('AX8').includes('■'), `M8=${off('M8')}`)
+    check('편성표가 비면 팀 상자도 전부 꺼짐',
+      !off('AB15').includes('■') && !off('AB16').includes('■'), `AB15=${off('AB15')}`)
+  }
+}
+
 console.log(`\n=== pass ${pass} / fail ${fail} ===`)
 process.exit(fail ? 1 : 0)
