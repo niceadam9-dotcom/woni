@@ -38,6 +38,7 @@ export const FP_SHEET = {
   F1_10_3: '1.10.3 다중이용업소 관리현황',
   F1_10_4: '1.10.4 화재·비화재보 이력',
   F1_11_1: '1.11.1 소방훈련·교육 연간계획',
+  F1_12_1: '1.12.1 화기취급작업 현황',
   // ⚠ manifest에 `1.11.4`로 시작하는 시트가 **둘**이다(앞쪽·뒷쪽) — 용도 칸은 앞쪽에만 있다
   F1_11_4: '1.11.4 훈련·교육 결과기록부',
   // 제2장(2026-09-08 2단계)
@@ -670,6 +671,40 @@ export const BRIG1_TEAM_CELLS: ReadonlyArray<readonly [string, string, string, s
   ['guard', '방호안전', 'AR16', 'M27'],
 ]
 
+/* ══════════════════════ 서식 1.12.1 화기취급작업 현황 (2026-09-17) ══════════════════════
+ *
+ *  깨끗한 반복 표다 — 13행 × 5열. 입력 화면은 `plan-form1215`의 `fireworkLog`(`LogRow[]`).
+ *
+ *  ⚠ **5열 중 4열만 배선한다.** 양식의 `연락처`는 ERP에 축이 없고, 반대로 ERP의
+ *    `measure`(안전조치)는 양식에 칸이 없다. 🚨 `measure`를 `연락처` 칸에 넣으면 **머리글이
+ *    거짓말을 한다** — 비워 두는 쪽이 옳다.
+ *  ⚠ 행 수는 손으로 적지 않는다 — 머리글(4행) 다음부터 시트 끝까지가 데이터 행이다.
+ */
+export const FIREWORK_SHEET = FP_SHEET.F1_12_1
+
+/** 데이터 행 수 — `labelBlockRows('A4')`가 머리글 행까지 세므로 −1.
+ *  ⚠ 18행부터는 「관련서류 보관방법」 블록이라 A열에 라벨이 있다 → 자동으로 거기서 끊긴다. */
+export const FIREWORK_ROWS = labelBlockRows(FIREWORK_SHEET, 'A4') - 1
+export const FIREWORK_FIRST_ROW = 5
+
+/** [엑셀 열, `LogRow` 열쇠, 머리글 셀] */
+export const FIREWORK_COLS: ReadonlyArray<readonly [string, string, string]> = [
+  ['A', 'date', 'A4'],        // 작업일자 및 시간
+  ['T', 'place', 'T4'],       // 작업장소
+  ['AE', 'work', 'AE4'],      // 작업내용
+  ['AO', 'supervisor', 'AO4'], // 작업책임자(업체명)
+  // ['AY', ?, 'AY4'] 연락처 — ERP에 축이 없다. 안전조치를 여기 넣으면 머리글이 거짓이 된다.
+]
+
+const FIREWORK_SEEDS: Seed[] = Array.from({ length: FIREWORK_ROWS }, (_, i) =>
+  FIREWORK_COLS.map(([col, key, labelCell]) => ({
+    field: `firework_${i}_${key}`,
+    sheet: FIREWORK_SHEET,
+    cell: `${col}${FIREWORK_FIRST_ROW + i}`,
+    labelCell,
+  })),
+).flat()
+
 const BRIG1_SEEDS: Seed[] = [
   { field: 'brig1_name', sheet: BRIG1_SHEET, cell: 'M5', labelCell: 'A5' },
   { field: 'brig1_address', sheet: BRIG1_SHEET, cell: 'M6', labelCell: 'A6' },
@@ -753,7 +788,7 @@ function assemble(seeds: Seed[]): Anchor[] {
   })
 }
 
-export const FIRE_PLAN_ANCHORS: Anchor[] = assemble([...FIXED_SEEDS, ...ZONE_SEEDS, ...BRIG_SEEDS, ...FORM14_SEEDS, ...FIREHIST_SEEDS, ...HAZARD_SEEDS, ...MU_SEEDS, ...TRAIN_SEEDS, ...EVAC1_SEEDS, ...BRIG1_SEEDS])
+export const FIRE_PLAN_ANCHORS: Anchor[] = assemble([...FIXED_SEEDS, ...ZONE_SEEDS, ...BRIG_SEEDS, ...FORM14_SEEDS, ...FIREHIST_SEEDS, ...HAZARD_SEEDS, ...MU_SEEDS, ...TRAIN_SEEDS, ...EVAC1_SEEDS, ...BRIG1_SEEDS, ...FIREWORK_SEEDS])
 
 /* ══════════════════════ §사진상자 (2026-09-14) ══════════════════════
  *

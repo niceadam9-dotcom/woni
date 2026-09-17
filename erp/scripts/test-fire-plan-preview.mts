@@ -490,5 +490,46 @@ console.log('\n[11] 2.1 자위소방대 일반현황')
   }
 }
 
+/* ══════════════════════ [12] 1.12.1 화기취급작업 — 4열만 배선 ══════════════════════
+ *  🚨 **안 채운 칸이 비어 있는지**가 이 시트의 핵심 음성이다. 양식의 `연락처`는 ERP에 축이
+ *    없고 ERP의 `measure`(안전조치)는 양식에 칸이 없다 — 그걸 연락처 칸에 넣으면
+ *    **머리글이 거짓말을 한다**. 픽스처가 `measure`를 담아 그 유혹을 실제로 시험한다. */
+console.log('\n[12] 1.12.1 화기취급작업 — 4열만')
+{
+  const { validateAnchors } = await import('../src/lib/xlsx-anchors.ts')
+  const { toInjectTargets } = await import('../src/lib/xlsx-workbook.ts')
+  const { FIRE_PLAN_ANCHORS, FIREWORK_SHEET, FIREWORK_ROWS } = await import('../src/lib/fire-plan-anchors.ts')
+  const { buildFirePlanValues, fireworkRowOverflow } = await import('../src/lib/fire-plan-xlsx-values.ts')
+
+  const rows = Array.from({ length: FIREWORK_ROWS + 2 }, (_, i) => ({
+    date: `2026-03-0${(i % 9) + 1}`, place: `장소${i}`, work: `작업${i}`,
+    supervisor: `책임자${i}`, measure: `안전조치${i}`,   // ← 양식에 칸이 없는 열
+  }))
+  const fx = {
+    buildingName: 'X', facilities: [], brigade: [], zones: [], hazards: [],
+    forms: { fireworkLog: rows },
+  } as never
+
+  const vc = validateAnchors(bytes, FIRE_PLAN_ANCHORS)
+  if (vc.ok) {
+    const { targets } = toInjectTargets(buildFirePlanValues(fx), vc.anchors)
+    const out = await injectWorkbook(bytes, targets)
+    const gg = await readSheetGrid(await JSZip.loadAsync(out.bytes), FIREWORK_SHEET)
+    const at = (r: string) => gg.cells.find(x => x.ref === r)?.text ?? ''
+    check('반복행 예산이 파생된다(13행)', FIREWORK_ROWS === 13, `${FIREWORK_ROWS}행`)
+    check('1행 4열 착지', at('A5') === '2026-03-01' && at('T5') === '장소0'
+      && at('AE5') === '작업0' && at('AO5') === '책임자0', `A5=${at('A5')} AO5=${at('AO5')}`)
+    check('마지막 행(17)도 착지', at('A17') === rows[12].date, at('A17'))
+    // 🚨 음성 — 연락처 칸은 **비어야** 한다(안전조치를 몰래 넣지 않았는가)
+    check('연락처 칸은 비어 있다(안전조치를 넣지 않았다)',
+      at('AY5') === '' && at('AY17') === '', `AY5=${JSON.stringify(at('AY5'))}`)
+    // 🚨 음성 — 머리글은 살아 있다
+    check('머리글이 살아 있다', at('AY4').includes('연락처'), at('AY4'))
+    // 넘친 2건은 **세어서** 고지로 나간다
+    check('넘친 행을 센다(잘렸다는 사실을 드러낸다)', fireworkRowOverflow(fx) === 2,
+      `${fireworkRowOverflow(fx)}건`)
+  }
+}
+
 console.log(`\n=== pass ${pass} / fail ${fail} ===`)
 process.exit(fail ? 1 : 0)

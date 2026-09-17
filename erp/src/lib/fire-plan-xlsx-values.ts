@@ -27,6 +27,7 @@ import {
   TRAIN_SHEET, TRAIN_ROWS, TRAIN_MONTH_COLS, TRAIN_TARGETS,
   EVAC1_SHEET, EVAC1_STAIR_CELLS, EVAC1_ETC_CELLS, EVAC1_ELEVATOR_CELL,
   BRIG1_SHEET, BRIG1_GRADE_CELLS, BRIG1_HEADCOUNT_BANDS, BRIG1_TYPE_CELLS, BRIG1_TEAM_CELLS,
+  FIREWORK_ROWS, FIREWORK_COLS,
 } from '@/lib/fire-plan-anchors'
 import { boxGlyphAt, labelAt, tokenTemplateAt } from '@/lib/fire-plan-xlsx-manifest'
 import { purposeCover, purposeShort } from '@/lib/purpose-label'
@@ -426,6 +427,18 @@ export function buildFirePlanValues(d: FirePlanGenData): Map<string, CellValue> 
    *  ⚠ PDF는 빈 행을 3줄까지 `pad`로 채워 표 모양을 만들지만 **엑셀은 그러지 않는다** —
    *    양식이 이미 15행을 그려 두었고, 빈 칸은 빈 칸으로 남는 것이 맞다(없는 사실을 지어내지 않는다).
    */
+  /* ── 서식 1.12.1 화기취급작업 현황 (2026-09-17) ─────────────────────────────
+   *
+   *  ⚠ **양식의 `연락처`는 안 채운다** — ERP에 축이 없다. 반대로 ERP의 `measure`(안전조치)는
+   *    양식에 칸이 없다. 🚨 그걸 `연락처` 칸에 넣으면 **머리글이 거짓말을 한다**.
+   *  ⚠ 넘치는 행은 버리되 **세어서** 라우트가 고지에 싣는다(구역·대원과 같은 규약).
+   */
+  const fwLog = (d.forms?.fireworkLog ?? []) as Array<Record<string, string>>
+  for (let i = 0; i < FIREWORK_ROWS; i++) {
+    const r = fwLog[i]
+    for (const [, key] of FIREWORK_COLS) v.set(`firework_${i}_${key}`, txt(r?.[key]))
+  }
+
   /* ── 서식 2.1 자위소방대 일반현황 (2026-09-17) ──────────────────────────────
    *
    *  ⭐ 대부분 **1.1이 이미 쓰는 그 원천**이다(명칭·주소·등급·근무인원) — 같은 사실을
@@ -626,6 +639,11 @@ export function buildFirePlanValues(d: FirePlanGenData): Map<string, CellValue> 
 /** 넘쳐서 인쇄되지 못한 구역 수 — 0이면 손실 없음. 잘린 채로도 인쇄물은 멀쩡해 보인다 */
 export function zoneRowOverflow(d: FirePlanGenData): number {
   return Math.max(0, (d.zones ?? []).length - ZONE_ROWS)
+}
+
+/** 화기취급작업 표(1.12.1)가 못 담은 행 수 — 구역·대원과 같은 축(라우트가 고지에 싣는다) */
+export function fireworkRowOverflow(d: FirePlanGenData): number {
+  return Math.max(0, ((d.forms?.fireworkLog ?? []) as unknown[]).length - FIREWORK_ROWS)
 }
 
 /** 1.2.2 양식의 고정 3개소에 **맞물리지 못한** 화재취약장소 이름들.

@@ -6,7 +6,7 @@ import { assembleFirePlan } from '@/lib/fire-plan-generate'
 import { firePlanTemplate } from '@/lib/fire-plan-template-cache'
 import { toInjectTargets } from '@/lib/xlsx-workbook'
 import { injectWorkbook } from '@/lib/xlsx-inject'
-import { brigadeRowOverflow, buildFirePlanValues, hazardUnmatched, missingValueFields, zoneRowOverflow } from '@/lib/fire-plan-xlsx-values'
+import { brigadeRowOverflow, buildFirePlanValues, fireworkRowOverflow, hazardUnmatched, missingValueFields, zoneRowOverflow } from '@/lib/fire-plan-xlsx-values'
 import { FIRE_PLAN_MANIFEST } from '@/lib/fire-plan-xlsx-manifest'
 import { embedFirePlanImages, planFirePlanImages } from '@/lib/fire-plan-xlsx-images'
 import { applyFirePlanCheckboxes } from '@/lib/fire-plan-checkbox-controls'
@@ -127,6 +127,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
           ...(hazardUnmatched(data).length
             ? [`화재취약장소 ${hazardUnmatched(data).length}곳 미표기(양식 고정 3개소 밖): ${hazardUnmatched(data).slice(0, 4).join(' ')}`]
             : []),
+          ...(fireworkRowOverflow(data) ? [`화기취급작업 ${fireworkRowOverflow(data)}건 미표기(양식 고정 행 상한)`] : []),
           // 대원 넘침도 같은 축이다 — 편성표는 잘려 나가도 인쇄물이 멀쩡해 보인다
           ...(brigadeRowOverflow(data) ? [`자위소방대 현장대응팀 ${brigadeRowOverflow(data)}명 미표기(양식 고정 행 상한)`] : []),
           // 체크박스를 못 단 칸 — 그 칸은 상자가 **글자로 남아** 클릭이 안 된다. 문서는 멀쩡해
