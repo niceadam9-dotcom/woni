@@ -242,5 +242,52 @@ for (const r of all.filter(untouched).sort((a, b) => (b.slots + b.boxes) - (a.sl
   console.log(`   슬롯 ${String(r.slots).padStart(4)} · 상자 ${String(r.boxes).padStart(4)}   ${r.sheet}`)
 }
 
+/* ══════════════════════ [10] 1.11.3 — PDF 기본 시나리오는 양식의 사본이다 ══════════════════════
+ *  🚨 마지막 ①류(위 [8])를 파 보니 **엑셀을 배선할 일이 아니었다.** ERP `training.scenario`는
+ *    **자유 문장 한 칸**인데 양식은 5열 표다 — 한 칸을 표로 펼치는 건 지어내기다.
+ *    대신 진짜 결함이 **반대편**에 있었다: PDF 기본값이 양식의 **손실된 사본**이었고
+ *    `2. 발신기 작동` 등 **세 줄을 떨어뜨려** PDF가 법정 양식보다 덜 인쇄하고 있었다.
+ *  🎯 런타임은 그대로 둔다 — PDF가 manifest를 물면 엑셀 격자가 밀릴 때 **PDF도 500**이 된다.
+ *    대신 여기서 **줄 단위로 맞대어** 사본이 다시 낡는 것을 막는다. */
+console.log('\n[10] 1.11.3 — PDF 기본 시나리오 ↔ 양식 (사본 감시)')
+{
+  const { SCENARIO_DEFAULTS, SCENARIO_OUTSIDE_FORM } = await import('../src/lib/fire-plan-template.ts')
+  const { labelAt } = await import('../src/lib/fire-plan-xlsx-manifest.ts')
+  const S = '1.11.3 소방훈련 시나리오'
+
+  /** 양식 5~7행이 담은 줄 전부(훈련상황 A5 + 훈련내용 AK5~AK7) */
+  const formLines = ['A5', 'AK5', 'AK6', 'AK7']
+    .flatMap(c => labelAt(S, c).split('\n'))
+    .map(x => x.trim()).filter(Boolean)
+  check('양식에서 줄을 실제로 걷었다(0줄이면 공허)', formLines.length === 8, `${formLines.length}줄`)
+
+  const inside = SCENARIO_DEFAULTS.filter(s => !SCENARIO_OUTSIDE_FORM.includes(s.label))
+  const defLines = inside.flatMap(s => s.text.split('\n')).map(x => x.trim()).filter(Boolean)
+
+  /* ① PDF가 적은 줄은 전부 양식에 **그대로** 있다 — 지어낸 문장이 없다 */
+  const invented = defLines.filter(l => !formLines.includes(l))
+  check('PDF 기본값에 양식 밖 문장이 없다', invented.length === 0, invented.join(' / '))
+  /* 🎯 ② 양식에 있는데 PDF가 안 쓰는 줄이 **0** — 이게 이번에 잡힌 결함이다 */
+  const dropped = formLines.filter(l => !defLines.includes(l))
+  check('양식 줄을 하나도 떨어뜨리지 않는다', dropped.length === 0, dropped.join(' / '))
+
+  /* ⚠ 예외는 이름으로만 — 「양식 밖」 표식이 없는 항목은 봐주지 않는다 */
+  check('양식 밖 예외는 안내방송 하나뿐', SCENARIO_OUTSIDE_FORM.length === 1
+    && SCENARIO_OUTSIDE_FORM[0] === '안내방송', SCENARIO_OUTSIDE_FORM.join('·'))
+  check('그 예외는 실제로 양식에 없다',
+    !formLines.includes(SCENARIO_DEFAULTS.find(s => s.label === '안내방송')!.text.trim()))
+
+  /* 🚨 줄을 되살려 놓고 한 줄로 인쇄하면 헛수고다.
+   *  ⚠ [8]의 HTML은 못 쓴다 — 거기 픽스처는 `scenario`가 **차 있어서** 기본값이 아니라
+   *    고객 문장 한 줄만 인쇄된다. 기본값 경로를 보려면 시나리오를 **비워** 다시 만들어야 한다. */
+  const htmlNoScenario = buildFirePlanHtml({
+    ...fixture,
+    forms: { ...(fixture as { forms?: object }).forms, training: { scenario: '', eduMonths: [], drillMonths: [] } },
+  } as Parameters<typeof buildFirePlanHtml>[0])
+  check('되살린 줄이 실제로 인쇄된다', htmlNoScenario.includes('발신기 작동'))
+  check('여러 줄이 줄바꿈을 지킨다(pre-wrap)',
+    /white-space:pre-wrap"?>[^<]*발신기 작동/.test(htmlNoScenario), '')
+}
+
 console.log(`\n=== pass ${pass} / fail ${fail} ===`)
 process.exit(fail ? 1 : 0)

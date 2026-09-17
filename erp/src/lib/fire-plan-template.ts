@@ -214,15 +214,26 @@ const BRIGADE_TEAMS: Array<{ key: string; label: string; preset: string }> = [
 
 /** 1.11.3 훈련 시나리오 기본값 — 고객이 시나리오를 입력하지 않았을 때 인쇄되는 표준양식 예시 문구.
  *  종전엔 프리셋이 이 문구들을 유형별로 전역 치환했다(2026-08-19 폐지) — 이제 유형별 시나리오는
- *  '계획서 공통문구' 1.11 섹션의 대안 항목을 고객에게 주입해 training.scenario를 채우는 방식이다. */
-const SCENARIO_DEFAULTS: Array<{ label: string; text: string }> = [
+ *  '계획서 공통문구' 1.11 섹션의 대안 항목을 고객에게 주입해 training.scenario를 채우는 방식이다.
+ *
+ *  🚨 **이 목록은 워크북 양식 `1.11.3` 5~7행의 사본이고, 사본이라 낡아 있었다** (2026-09-17).
+ *    `2. 발신기 작동` · `2. 119에 조속히 신고` · `3. 자위소방대 초기대응실시` **세 줄을 떨어뜨려**
+ *    PDF가 법정 양식보다 **덜 인쇄**하고 있었다. 세 줄을 되살렸다.
+ *  ⚠ 왜 manifest에서 읽지 않는가 — 이 파일이 manifest를 물면 **엑셀 격자가 밀릴 때 PDF도 500**이
+ *    된다(`purposeShort`를 소모듈로 뗀 그 이유). 그래서 런타임은 그대로 두고, **검사가 양식과
+ *    줄 단위로 맞대어** 사본이 다시 낡는 것을 막는다(`test-fire-plan-preview` [22]).
+ *  ⚠ `안내방송` 한 줄만 양식 밖이다(5~7행에 없다) — 검사가 그 예외를 이름으로 안다. */
+export const SCENARIO_DEFAULTS: Array<{ label: string; text: string }> = [
   { label: '훈련상황', text: '2층 주방 초기화재' },
-  { label: '화재발생 인지', text: '1. 2층 세대에서 연기발생' },
-  { label: '화재전파·신고', text: '1. 2층에서 화재발생 구두로 각 세대 전파' },
+  { label: '화재발생 인지', text: '1. 2층 세대에서 연기발생\n2. 발신기 작동' },
+  { label: '화재전파·신고', text: '1. 2층에서 화재발생 구두로 각 세대 전파\n2. 119에 조속히 신고\n3. 자위소방대 초기대응실시' },
   { label: '초기소화', text: '소화기를 이용하여 화재진압 실시' },
   { label: '피난 확인', text: '자위소방대 피난유도팀은 피난이 안된 세대 확인 후 소방서 도착시 통보' },
   { label: '안내방송', text: '1층 화재 발생 (최대한 빨리 집결 요함)' },
 ]
+
+/** 양식 밖 기본값 — 워크북 1.11.3 5~7행에 없는 줄. 검사가 이 이름만 예외로 봐준다 */
+export const SCENARIO_OUTSIDE_FORM: readonly string[] = ['안내방송']
 
 // applyPresetPairs 삭제(2026-08-19) — 완성된 HTML에 find→value를 **문서 전역** 치환하던 함수.
 // 폐지 이유: 섹션 범위가 없어 '1층 주차장'(6자) 같은 짧은 앵커가 문서 어디든 바꿨고,
@@ -739,7 +750,7 @@ ${(d.autoFilled?.length ?? 0) > 0
   ${tr?.scenario?.trim()
     ? `<table><tr><th style="width:90px">시나리오${tr.scenarioType ? `<br><span class="small">(${esc(tr.scenarioType)})</span>` : ''}</th><td class="l">${esc(tr.scenario)}</td></tr></table>`
     : `<table class="small">
-    ${SCENARIO_DEFAULTS.map(s => `<tr><th style="width:110px">${esc(s.label)}</th><td class="l">${esc(s.text)}</td></tr>`).join('')}
+    ${SCENARIO_DEFAULTS.map(s => `<tr><th style="width:110px">${esc(s.label)}</th><td class="l" style="white-space:pre-wrap">${esc(s.text)}</td></tr>`).join('')}
   </table>`}
 
   <h3>1.11.4 훈련·교육 결과 기록부 <span class="small">(2년 보관)</span></h3>

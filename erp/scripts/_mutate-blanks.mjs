@@ -14,6 +14,7 @@ import { dirname, resolve } from 'node:path'
 const HERE = dirname(fileURLToPath(import.meta.url))
 const LIB = resolve(HERE, '../src/lib/fire-plan-blanks.ts')
 const TEST = resolve(HERE, 'test-fire-plan-blanks.mts')
+const TEMPLATE = resolve(HERE, '../src/lib/fire-plan-template.ts')
 
 const MUTANTS = [
   ['M1 병합에 덮인 칸을 제외하지 않는다 → 분모가 부푼다',
@@ -42,6 +43,19 @@ const MUTANTS = [
   ['M11 아무것도 배선 안 된 척한다 → [7] 적색 목록이 **늘어야**',
     LIB, `  const anchored = anchorCells.get(sheet) ?? new Map<string, string>()`,
     `  const anchored = new Map<string, string>()`, 1],
+  /* 🎯 M12 — 사본 감시. PDF 기본값이 양식 줄을 다시 떨어뜨리면 [10]이 물어야 한다.
+   *   (이번에 실제로 잡힌 결함을 **원래 상태로 되돌려** 재현한다.) */
+  ['M12 PDF 기본값이 양식 줄을 다시 떨어뜨린다 → [10]이 빨강이어야',
+    TEMPLATE, `  { label: '화재발생 인지', text: '1. 2층 세대에서 연기발생\\n2. 발신기 작동' },`,
+    `  { label: '화재발생 인지', text: '1. 2층 세대에서 연기발생' },`, 1],
+  /* 🚨 M13 — 반대 방향. 양식에 없는 문장을 지어 넣으면 [10] ①이 물어야 한다. */
+  ['M13 PDF 기본값에 양식 밖 문장을 넣는다 → [10]이 빨강이어야',
+    TEMPLATE, `  { label: '초기소화', text: '소화기를 이용하여 화재진압 실시' },`,
+    `  { label: '초기소화', text: '소화전을 이용하여 화재진압 실시' },`, 1],
+  /* 🚨 M14 — 줄바꿈이 뭉개지면 되살린 줄이 한 줄로 인쇄된다(헛수고). */
+  ['M14 pre-wrap을 뺀다 → [10] 줄바꿈 단언이 빨강이어야',
+    TEMPLATE, `<td class="l" style="white-space:pre-wrap">\${esc(s.text)}</td>`,
+    `<td class="l">\${esc(s.text)}</td>`, 1],
 ]
 
 /** 🚨 파일의 줄끝에 맞춰 needle을 바꾼다.
