@@ -743,5 +743,83 @@ console.log('\n[15] 1.9 자위소방대 현황 — 2.1·2.2와 같은 사람인�
   }
 }
 
+/* ══════════════════════ [16] 2.14 앞쪽 — 각괄호 상자 + 세 시트 항등 ══════════════════════
+ *  ⭐ 이 시트는 1.1 · 1.7.1 · 2.2의 사실을 **다시 인쇄한다**. 그래서 묻는 것은 또 항등이다 —
+ *    등급·관리자 성명·연락처·선임일자·대장이 원본 시트와 **글자까지** 같은가.
+ *  🚨 상자가 `□`가 아니라 `[  ]`고 표시가 `√`다. `boxLabelCell`을 쓰면 throw 하므로
+ *    「그냥 되겠지」가 통하지 않는다 — 폭이 유지되는지(`[√ ]`)까지 단언한다. */
+console.log('\n[16] 2.14 앞쪽 — 각괄호 상자 √ · 1.1·1.7.1·2.2와 항등')
+{
+  const { validateAnchors } = await import('../src/lib/xlsx-anchors.ts')
+  const { toInjectTargets } = await import('../src/lib/xlsx-workbook.ts')
+  const { FIRE_PLAN_ANCHORS, REC14_SHEET, REC14_GRADE_CELLS, FP_SHEET, BRIG_SHEET } =
+    await import('../src/lib/fire-plan-anchors.ts')
+  const { buildFirePlanValues, bracketBoxCell } = await import('../src/lib/fire-plan-xlsx-values.ts')
+  const { labelAt } = await import('../src/lib/fire-plan-xlsx-manifest.ts')
+
+  const fx = {
+    buildingName: '가온빌딩', address: '서울시 중구 1', grade: '2급',
+    managerName: '홍관리', managerPhone: '010-2222-3333', managerSelectedAt: '2025-04-07',
+    facilities: [], hazards: [], zones: [], forms: {},
+    brigade: [{ team: '자위소방대장', name: '김대장', duty: '총괄', phone: '01011112222' }],
+  } as never
+
+  const vc = validateAnchors(bytes, FIRE_PLAN_ANCHORS)
+  if (vc.ok) {
+    const { targets } = toInjectTargets(buildFirePlanValues(fx), vc.anchors)
+    const out = await injectWorkbook(bytes, targets)
+    const z2 = await JSZip.loadAsync(out.bytes)
+    const g14 = await readSheetGrid(z2, REC14_SHEET)
+    const g11 = await readSheetGrid(z2, FP_SHEET.F1_1)
+    const g171 = await readSheetGrid(z2, FP_SHEET.F1_7_1)
+    const g22 = await readSheetGrid(z2, BRIG_SHEET)
+    const at = (g: typeof g14, r: string) => g.cells.find(x => x.ref === r)?.text ?? ''
+
+    /* 🎯 각괄호 상자 — 맞는 급만 √, 폭은 유지 */
+    check('2급 칸에만 √가 찍힌다', at(g14, 'AL11').includes('√')
+      && !at(g14, 'R11').includes('√') && !at(g14, 'AB11').includes('√') && !at(g14, 'AV11').includes('√'),
+      REC14_GRADE_CELLS.map(([c]) => at(g14, c)).join(' '))
+    check('각괄호 폭이 유지된다(뒤 자구가 안 밀린다)',
+      at(g14, 'AL11').length === labelAt(REC14_SHEET, 'AL11').length,
+      `'${at(g14, 'AL11')}' (${at(g14, 'AL11').length}자)`)
+    check('미체크 칸은 원본 그대로', at(g14, 'R11') === labelAt(REC14_SHEET, 'R11'), at(g14, 'R11'))
+    /* 🚨 `□` 어휘를 섞지 않았다 — 이 양식은 `√`를 쓴다고 스스로 적어 두었다 */
+    check('■를 쓰지 않았다(이 양식의 표시는 √)',
+      !REC14_GRADE_CELLS.some(([c]) => at(g14, c).includes('■')))
+    /* 각괄호가 없는 칸에 쓰면 반드시 터진다 — 「조용히 통과」가 불가능함을 증명 */
+    let threw = false
+    try { bracketBoxCell(REC14_SHEET, 'J12', true) } catch { threw = true }
+    check('각괄호 없는 칸이면 throw', threw)
+
+    /* 🎯 항등 — 같은 사실이 원본 시트와 글자까지 같은가 */
+    check('등급이 1.1과 같은 사실', at(g11, 'T9').includes('2'), at(g11, 'T9'))
+    check('관리자 성명이 1.1·1.7.1과 같다',
+      at(g14, 'J13') === at(g11, 'AW6') && at(g14, 'J13') === at(g171, 'V4') && at(g14, 'J13') === '홍관리',
+      `2.14=${at(g14, 'J13')} 1.1=${at(g11, 'AW6')} 1.7.1=${at(g171, 'V4')}`)
+    check('선임일자가 1.7.1과 같은 표기(planDate 공유)',
+      at(g14, 'R13') === at(g171, 'AE4') && at(g14, 'R13') === '2025. 4. 7.', at(g14, 'R13'))
+    check('관리자 연락처가 1.1과 같다', at(g14, 'AS13') === at(g11, 'AW7'), at(g14, 'AS13'))
+    check('대장 성명이 2.2와 같다', at(g14, 'R18') === at(g22, 'X5') && at(g14, 'R18') === '김대장',
+      `2.14=${at(g14, 'R18')} 2.2=${at(g22, 'X5')}`)
+    check('대장 연락처도 같은 표기', at(g14, 'R20') === at(g22, 'AZ5'), at(g14, 'R20'))
+    check('자위소방대 총원이 들어간다', at(g14, 'J18') === '1', at(g14, 'J18'))
+    check('자격구분은 「주」만 √', at(g14, 'AG13').includes('√') && !at(g14, 'AK13').includes('√'),
+      `${at(g14, 'AG13')}·${at(g14, 'AK13')}`)
+
+    /* 🚨 음성 — 축이 다르거나 근거 없는 칸은 비어 있다 */
+    check('근무인원 4칸은 비어 있다(1.1은 상시/거주/최대 축이다)',
+      at(g14, 'R10') === '' && at(g14, 'AB10') === '' && at(g14, 'AL10') === '' && at(g14, 'AV10') === '',
+      `R10=${JSON.stringify(at(g14, 'R10'))}`)
+    check('보조자 3행은 비어 있다', at(g14, 'J14') === '' && at(g14, 'J16') === '')
+    /* ⚠ `.trim()`으로 묻는다 — 이 칸들은 템플릿이 **공백 한 칸을 라벨로** 이고 있다.
+     *   손대지 않았다는 뜻이므로 빈 칸이 맞다(원본과 같은지도 함께 확인한다). */
+    check('팀별 인원 칸은 비어 있다(2.1·1.9와 같은 결정)',
+      ['AD18', 'AO18', 'AY18', 'AD20', 'AO20'].every(c => at(g14, c).trim() === ''),
+      ['AD18', 'AO18', 'AY18', 'AD20', 'AO20'].map(c => `${c}=${JSON.stringify(at(g14, c))}`).join(' '))
+    check('표본 문장은 안 건드렸다(자유 문장까지 예외를 넓히지 않았다)',
+      at(g14, 'J28') === labelAt(REC14_SHEET, 'J28'), at(g14, 'J28').slice(0, 12))
+  }
+}
+
 console.log(`\n=== pass ${pass} / fail ${fail} ===`)
 process.exit(fail ? 1 : 0)

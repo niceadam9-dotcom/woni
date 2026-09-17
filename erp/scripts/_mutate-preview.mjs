@@ -69,6 +69,17 @@ const MUTANTS = [
   ['M15 팀 이름 꼬리를 안 뗀다 → [15] 「비상연락반이 제 줄에」가 빨강이어야',
     VALUES, `const teamStem = (s: string | undefined) => txt(s).replace(/[팀반]$/, '')`,
     `const teamStem = (s: string | undefined) => txt(s)`, 1],
+  /* 🚨 M16 — 각괄호 상자의 **폭**. `[  ]`를 `[√]`로 줄이면 뒤 자구가 밀린다(칸이 좁다). */
+  ['M16 각괄호 폭을 줄인다 → [16] 「폭이 유지된다」가 빨강이어야',
+    VALUES, "return tpl.replace(/\\[(\\s+)\\]/, (_m, sp: string) => `[√${sp.slice(1)}]`)",
+    "return tpl.replace(/\\[\\s+\\]/, '[√]')", 1],
+  /* 🚨 M17 — 이 양식의 표시는 `■`가 아니라 `√`다(시트가 스스로 적어 놓았다). */
+  ['M17 각괄호에 ■를 찍는다 → [16] 「■를 쓰지 않았다」가 빨강이어야',
+    VALUES, '`[√${sp.slice(1)}]`', '`[■${sp.slice(1)}]`', 1],
+  /* 🎯 M18 — 2.14가 제 값을 만들면(선임일자 표기를 달리) 1.7.1과 갈라진다. */
+  ['M18 2.14만 선임일자 표기를 달리한다 → [16] 항등이 빨강이어야',
+    VALUES, `  v.set('rec14_mgr_date', planDate(d.managerSelectedAt))`,
+    `  v.set('rec14_mgr_date', txt(d.managerSelectedAt))`, 1],
 ]
 
 /** 🚨 파일의 줄끝에 맞춰 needle을 바꾼다.

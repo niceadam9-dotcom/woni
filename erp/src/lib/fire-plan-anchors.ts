@@ -877,6 +877,45 @@ const BRIG9_SEEDS: Seed[] = [
     }))).flat(),
 ]
 
+/* ─────────── 서식 2.14 교육·훈련 결과기록부 앞쪽 (2026-09-17) ───────────
+ *  별지 제13호서식이라 **상자가 `[  ]`**다(표시는 `√`). `isBoxLabelAnchor`가 `□`만 보므로
+ *  이 시트는 manifest 집계에서 **상자 0**으로 잡혔다 — 여덟째 갈래 `isBracketBoxAnchor`를 세웠다.
+ *
+ *  ⭐ 이 시트는 1.1 · 1.7.1 · 2.2의 사실을 **다시 인쇄한다**. 전부 같은 원천·같은 표기를 쓴다:
+ *    등급 ← `d.grade`(1.1 T9·2.1 등급상자) · 관리자 성명/연락처 ← 1.1 AW6/AW7 ·
+ *    선임일자 ← 1.7.1 AE4(`planDate` 공유) · 대장 성명/연락처 ← `brigadeHeads`(2.2·1.9).
+ *
+ *  ⚠ 안 채우는 칸과 이유:
+ *   · 근무인원 4칸(평일·휴일 × 주간·야간) — 1.1은 `상시/거주/최대` 축이다. **다른 축**이라
+ *     3.3의 인원 3칸과 같은 사유로 비운다.
+ *   · 보조자 3행(14~16행) — 1.7.1도 같은 이유로 4행만 쓴다(보조자 축이 얇다).
+ *   · 보유자격 · 비고 · 초기대응체계 조직구성/총원 · 교육결과 참석/미참석 — ERP에 축이 없다.
+ *   · 팀별 인원 5칸(부대장·통보연락·초기소화·피난유도·비상연락) — 2.1·1.9와 **같은 결정**.
+ *   · 주요내용·보완사항·조치사항 — 템플릿에 **표본 문장**이 박혀 있다(자리표시칸의 친척인데
+ *     자구가 시각 꼴이 아니라 자유 문장이라 `isPlaceholderLabelAnchor`가 안 문다). 덮으려면
+ *     예외를 자유 문장까지 넓혀야 하는데, 그러면 **표본의 답이 그 뒤에 숨는다**. 안 건드린다.
+ */
+export const REC14_SHEET = FP_SHEET.F2_14
+
+/** 등급 각괄호 상자 — [셀, 자구]. 2.1 `BRIG1_GRADE_CELLS`와 같은 사실을 다른 양식으로 찍는다 */
+export const REC14_GRADE_CELLS: ReadonlyArray<readonly [string, string]> = [
+  ['R11', '특급'], ['AB11', '1급'], ['AL11', '2급'], ['AV11', '3급'],
+]
+
+const REC14_SEEDS: Seed[] = [
+  ...REC14_GRADE_CELLS.map(([cell, g]) => ({ field: `rec14_grade_${g}`, sheet: REC14_SHEET, cell, labelCell: cell })),
+  // 소방안전관리자 첫 행(13행) — 성명·선임일자·연락처, 자격구분은 「주」
+  { field: 'rec14_mgr_name', sheet: REC14_SHEET, cell: 'J13', labelCell: 'J12' },
+  { field: 'rec14_mgr_date', sheet: REC14_SHEET, cell: 'R13', labelCell: 'R12' },
+  { field: 'rec14_mgr_phone', sheet: REC14_SHEET, cell: 'AS13', labelCell: 'AS12' },
+  { field: 'rec14_mgr_main', sheet: REC14_SHEET, cell: 'AG13', labelCell: 'AG13' },
+  { field: 'rec14_mgr_sub', sheet: REC14_SHEET, cell: 'AK13', labelCell: 'AK13' },
+  // 자위소방대 — 총원·대장 성명·대장 연락처
+  { field: 'rec14_brig_total', sheet: REC14_SHEET, cell: 'J18', labelCell: 'J17' },
+  { field: 'rec14_brig_lead', sheet: REC14_SHEET, cell: 'R18', labelCell: 'R17' },
+  { field: 'rec14_brig_phone', sheet: REC14_SHEET, cell: 'R20', labelCell: 'R19' },
+]
+
 const BRIG1_SEEDS: Seed[] = [
   { field: 'brig1_name', sheet: BRIG1_SHEET, cell: 'M5', labelCell: 'A5' },
   { field: 'brig1_address', sheet: BRIG1_SHEET, cell: 'M6', labelCell: 'A6' },
@@ -960,7 +999,7 @@ function assemble(seeds: Seed[]): Anchor[] {
   })
 }
 
-export const FIRE_PLAN_ANCHORS: Anchor[] = assemble([...FIXED_SEEDS, ...ZONE_SEEDS, ...BRIG_SEEDS, ...FORM14_SEEDS, ...FIREHIST_SEEDS, ...HAZARD_SEEDS, ...MU_SEEDS, ...TRAIN_SEEDS, ...EVAC1_SEEDS, ...BRIG1_SEEDS, ...FIREWORK_SEEDS, ...CONSTRUCTION_SEEDS, ...EVAC3_SEEDS, ...BRIG9_SEEDS])
+export const FIRE_PLAN_ANCHORS: Anchor[] = assemble([...FIXED_SEEDS, ...ZONE_SEEDS, ...BRIG_SEEDS, ...FORM14_SEEDS, ...FIREHIST_SEEDS, ...HAZARD_SEEDS, ...MU_SEEDS, ...TRAIN_SEEDS, ...EVAC1_SEEDS, ...BRIG1_SEEDS, ...FIREWORK_SEEDS, ...CONSTRUCTION_SEEDS, ...EVAC3_SEEDS, ...BRIG9_SEEDS, ...REC14_SEEDS])
 
 /* ══════════════════════ §사진상자 (2026-09-14) ══════════════════════
  *
@@ -1021,6 +1060,22 @@ export function imageBoxDescr(b: FirePlanImageBox): string {
 export function isBoxLabelAnchor(a: { sheet: string; cell: string }): boolean {
   const lbl = sheetManifest(a.sheet).labels[a.cell]
   return !!lbl && /[□☐]/.test(lbl)
+}
+
+/**
+ * **각괄호 상자칸인가**(2026-09-17, 2.14 결과기록부) — 상자가 `□`가 아니라 `[  ]`인 갈래.
+ *
+ * 별지 제13호서식 계열은 상자를 **글리프가 아니라 각괄호**로 그리고, 표시도 `■`가 아니라
+ * `√`다(시트 스스로 그렇게 적어 놓았다 — `※ [ ]에는 해당되는 곳에 √표를 합니다`).
+ * 그래서 `isBoxLabelAnchor`가 이 칸들을 **한 개도 못 본다** — 실제로 2.14의 등급 4칸과
+ * 자격구분 2칸은 manifest 상자 집계에서 `상자 0`으로 잡혔다.
+ *
+ * 🚨 규칙을 좁게 잡는다: **각괄호 안이 공백뿐**이어야 한다. `[√]`·`[1]`은 통과하지 못하므로
+ *   표본의 답이 이 예외 뒤에 숨지 못한다(단위칸이 숫자를 거르는 것과 같은 수법).
+ */
+export function isBracketBoxAnchor(a: { sheet: string; cell: string }): boolean {
+  const lbl = sheetManifest(a.sheet).labels[a.cell]
+  return !!lbl && /\[\s+\]/.test(lbl) && !/\[[^\]\s]/.test(lbl)
 }
 
 /**

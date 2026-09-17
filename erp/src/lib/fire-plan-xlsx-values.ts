@@ -31,6 +31,7 @@ import {
   CONSTRUCTION_ROWS, CONSTRUCTION_COLS,
   EVAC3_ROWS,
   BRIG9_SHEET, BRIG9_RUNNING_CELL, BRIG9_TOTAL_CELL, BRIG9_TEAM_CELLS, BRIG9_EMER_ROWS, BRIG9_FIELD_ROWS,
+  REC14_SHEET, REC14_GRADE_CELLS,
 } from '@/lib/fire-plan-anchors'
 import { boxGlyphAt, labelAt, tokenTemplateAt } from '@/lib/fire-plan-xlsx-manifest'
 import { purposeCover, purposeShort } from '@/lib/purpose-label'
@@ -136,6 +137,25 @@ export function multiBoxCell(sheet: string, cell: string, on: readonly boolean[]
     throw new Error(`fire-plan-xlsx-values: ${sheet}!${cell} 상자 ${n}개인데 ${on.length}개를 줬다 — 좌표가 밀렸거나 목록이 낡았다`)
   }
   return stampBoxes(sheet, cell, i => !!on[i])
+}
+
+/**
+ * **각괄호 상자칸** — 상자가 `□`가 아니라 `[  ]`인 갈래(2.14 결과기록부 등 별지 제13호 계열).
+ *
+ * `boxLabelCell`과 형제인데 **글리프도 표시도 다르다**: 상자는 각괄호이고 체크는 `■`가 아니라
+ * `√`다. 시트가 스스로 그렇게 적어 놓았다 — `※ [ ]에는 해당되는 곳에 √표를 합니다`.
+ * 손으로 `'[√]특급'`을 만들지 않는 이유는 형제들과 같다: 양식이 개정되면 코드가 옛 자구를 든다.
+ *
+ * ⚠ 각괄호 **안쪽만** 갈고 폭은 유지한다(`[  ]` → `[√ ]`) — 칸 폭이 좁아 글자가 밀리면
+ *   뒤 자구가 다음 줄로 넘어간다. 🚨 각괄호가 없으면 throw(좌표가 밀렸는데 조용히 통과 금지).
+ */
+export function bracketBoxCell(sheet: string, cell: string, on: boolean): string {
+  const tpl = labelAt(sheet, cell)
+  if (!/\[\s+\]/.test(tpl)) {
+    throw new Error(`fire-plan-xlsx-values: ${sheet}!${cell} 에 빈 각괄호가 없다 — 각괄호 상자칸이 아니다`)
+  }
+  if (!on) return tpl
+  return tpl.replace(/\[(\s+)\]/, (_m, sp: string) => `[√${sp.slice(1)}]`)
 }
 
 /** 유·무가 한 칸인 칸(`□유 □무`). `null`(미입력)이면 **둘 다** 비운다 — 미입력과 '무'는 다르다 */
@@ -670,6 +690,26 @@ export function buildFirePlanValues(d: FirePlanGenData): Map<string, CellValue> 
   put9('brig9_dep', deputy)
   BRIG9_EMER_ROWS.forEach((_, i) => put9(`brig9_emer${i}`, b9emer[i]))
   for (let i = 0; i < BRIG9_FIELD_ROWS; i++) put9(`brig9_fld${i}`, b9field[i])
+
+  /* ── 서식 2.14 교육·훈련 결과기록부 앞쪽 (2026-09-17) ───────────────────────
+   *
+   *  ⭐ 1.1 · 1.7.1 · 2.2의 사실을 **다시 인쇄하는 시트**다. 전부 같은 원천·같은 표기를 쓴다
+   *    (등급·관리자 성명·연락처·선임일자·대장). 여기서 값을 새로 만들면 D-7 갈라짐이다.
+   *  ⭐ 상자가 `[  ]`라 `bracketBoxCell`을 쓴다 — 표시도 `■`가 아니라 `√`(양식이 그렇게 적었다).
+   *  ⚠ 안 채우는 칸은 앵커 선언부에 전부 적었다(근무인원 축 불일치·보조자·표본 문장 등).
+   */
+  for (const [cell, g] of REC14_GRADE_CELLS) {
+    v.set(`rec14_grade_${g}`, bracketBoxCell(REC14_SHEET, cell, txt(d.grade) === g))
+  }
+  v.set('rec14_mgr_name', txt(d.managerName))
+  v.set('rec14_mgr_date', planDate(d.managerSelectedAt))   // 1.7.1과 **같은 표기**
+  v.set('rec14_mgr_phone', txt(d.managerPhone))
+  // 13행은 양식이 「소방안전관리자」 블록의 첫 줄로 그려 둔 자리다 — 보조자가 아니다
+  v.set('rec14_mgr_main', bracketBoxCell(REC14_SHEET, 'AG13', !!txt(d.managerName)))
+  v.set('rec14_mgr_sub', bracketBoxCell(REC14_SHEET, 'AK13', false))
+  v.set('rec14_brig_total', txt(String(brig.length || '')))
+  v.set('rec14_brig_lead', txt(lead?.name))
+  v.set('rec14_brig_phone', formatTel(txt(lead?.phone)))
 
   for (let i = 0; i < BRIG_ROWS; i++) {
     const b = fieldTeam[i]
