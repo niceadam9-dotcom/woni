@@ -44,6 +44,7 @@ import {
   ETC61_SHEET,
   HAZ61_ROWS, HAZ61_COLS, HAZ12_SHEET, HAZ12_ROWS, HAZ12_COLS,
   VAL12_ROWS, VAL12_COLS,
+  EVDET32_ROWS, EVDET32_COLS,
 } from '@/lib/fire-plan-anchors'
 import { boxGlyphAt, labelAt, tokenTemplateAt } from '@/lib/fire-plan-xlsx-manifest'
 import { purposeCover, purposeShort } from '@/lib/purpose-label'
@@ -883,6 +884,15 @@ export function buildFirePlanValues(d: FirePlanGenData): Map<string, CellValue> 
     for (const [, key] of VAL12_COLS) v.set(`val12_${i}_${key}`, txt(valuables12[i]?.[key]))
   })
 
+  /* ── 서식 3.2 피난시설 세부현황 (2026-09-18) ────────────────────────────────
+   *  🚨 사각지대 ①류 셋째 — PDF는 `evacDetail`을 인쇄 중, 엑셀만 공란이었다.
+   *  ⚠ `status`는 양식에 열이 없어 버리되 센다. 시설구분 상자는 추측 금지로 안 켠다.
+   */
+  const evDetail = (d.forms?.evacDetail ?? []) as Array<Record<string, string>>
+  for (let i = 0; i < EVDET32_ROWS; i++) {
+    for (const [, key] of EVDET32_COLS) v.set(`evdet32_${i}_${key}`, txt(evDetail[i]?.[key]))
+  }
+
   /* ── 1.9 피난약자 블록 — **3.5의 축약본** ──
    *  같은 워크북 안에서 3.5는 인쇄하는데 1.9만 비면 그게 D-7 갈라짐이다. 상자 판정도 표 값도
    *  위와 **같은 것을 나눠 쓴다**(`vulCount` · `vulPlans` · `splitAreaDongFloor`). */
@@ -968,6 +978,15 @@ export function vulnerableAreaUnsplit(d: FirePlanGenData): number {
   return (d.forms?.vulnerable?.plans ?? [])
     .slice(0, VUL_PLAN_ROWS)
     .filter((p: { area?: string }) => splitAreaDongFloor(p?.area) === null).length
+}
+
+/** 3.2가 못 담은 행 수 + 갈 곳 없는 `상태` 값 수 — PDF는 상태를 인쇄하는데 양식엔 열이 없다 */
+export function evacDetailOverflow(d: FirePlanGenData): number {
+  return Math.max(0, ((d.forms?.evacDetail ?? []) as unknown[]).length - EVDET32_ROWS)
+}
+export function evacDetailStatusUnmapped(d: FirePlanGenData): number {
+  return ((d.forms?.evacDetail ?? []) as Array<{ status?: string }>)
+    .slice(0, EVDET32_ROWS).filter(r => txt(r?.status)).length
 }
 
 /** 비상반출물품(2.12)이 못 담은 행 수 — 양식 3행 */

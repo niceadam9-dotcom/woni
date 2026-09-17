@@ -53,6 +53,7 @@ export const FP_SHEET = {
   F3_7: '3.7 피난기구·유도장비 현황',
   F1_6_1: '1.6.1 기타시설 일반현황',
   F2_12: '2.12 방호안전팀',
+  F3_2: '3.2 피난시설 세부현황',
   F2_14: '2.14 교육·훈련 결과기록부',
   F2_14_BACK: '2.14 결과기록부 뒷쪽',
   // 제3장(2026-09-09 B-15) — 3.1은 용도 칸만 배선한다(나머지는 별건)
@@ -1310,6 +1311,31 @@ const VAL12_SEEDS: Seed[] = VAL12_ROWS.flatMap((row, i) =>
     field: `val12_${i}_${key}`, sheet: HAZ12_SHEET, cell: `${col}${row}`, labelCell,
   })))
 
+/* ─────────── 서식 3.2 피난시설 세부현황 (2026-09-18) ───────────
+ *  🚨 **사각지대 ①류 셋째** — PDF는 `evacDetail`(시설·위치·상태)을 서식 3.2 표로 인쇄
+ *    중인데 엑셀은 앵커 0이었다(마커에 EVDET 추가).
+ *  ⭐ 예시 행(3행: 3층~5층·완강기·각 세대 베란다·각 1개)은 **행째 남긴다** — `evacDetail`엔
+ *    층별·개수 축이 없어 세부명칭만 갈면 층별·개수 예시가 다른 시설과 짝지어 남는
+ *    **부분 덮임 거짓 쌍**이 된다(3.7 완강기 블록과 같은 판정). 데이터는 4행부터.
+ *  ⚠ `status`(상태)는 양식에 열이 없다 — 버리되 센다(1.13 facility·company와 같은 무늬).
+ *  ⚠ 시설구분 상자(피난시설/피난구조설비/방화시설)는 안 켠다 — 시설 이름으로 분류를
+ *    추측하지 않는다(「모르면 안 켠다」).
+ */
+export const EVDET32_SHEET = FP_SHEET.F3_2
+
+/** 데이터 행 — 시트 끝(15행)까지, 예시 행(3행)을 뺀 4~15행. 시트 행 수에서 파생 */
+export const EVDET32_FIRST_ROW = 4
+export const EVDET32_ROWS = sheetManifest(EVDET32_SHEET).rows - EVDET32_FIRST_ROW + 1
+export const EVDET32_COLS: ReadonlyArray<readonly [string, string, string]> = [
+  ['AF', 'facility', 'AF2'], // 세부명칭
+  ['AQ', 'location', 'AQ2'], // 위치
+]
+
+const EVDET32_SEEDS: Seed[] = Array.from({ length: EVDET32_ROWS }, (_, i) =>
+  EVDET32_COLS.map(([col, key, labelCell]) => ({
+    field: `evdet32_${i}_${key}`, sheet: EVDET32_SHEET, cell: `${col}${EVDET32_FIRST_ROW + i}`, labelCell,
+  }))).flat()
+
 const BRIG1_SEEDS: Seed[] = [
   { field: 'brig1_name', sheet: BRIG1_SHEET, cell: 'M5', labelCell: 'A5' },
   { field: 'brig1_address', sheet: BRIG1_SHEET, cell: 'M6', labelCell: 'A6' },
@@ -1393,7 +1419,7 @@ function assemble(seeds: Seed[]): Anchor[] {
   })
 }
 
-export const FIRE_PLAN_ANCHORS: Anchor[] = assemble([...FIXED_SEEDS, ...ZONE_SEEDS, ...BRIG_SEEDS, ...FORM14_SEEDS, ...FIREHIST_SEEDS, ...HAZARD_SEEDS, ...MU_SEEDS, ...TRAIN_SEEDS, ...EVAC1_SEEDS, ...BRIG1_SEEDS, ...FIREWORK_SEEDS, ...CONSTRUCTION_SEEDS, ...EVAC3_SEEDS, ...BRIG9_SEEDS, ...REC14_SEEDS, ...ATT14_SEEDS, ...VUL_SEEDS, ...VUL9_SEEDS, ...EVAC34_SEEDS, ...VUL36_SEEDS, ...ORG23_SEEDS, ...TENANT_SEEDS, ...RESP13_SEEDS, ...EQUIP37_SEEDS, ...ETC61_SEEDS, ...HAZ_SEEDS, ...VAL12_SEEDS])
+export const FIRE_PLAN_ANCHORS: Anchor[] = assemble([...FIXED_SEEDS, ...ZONE_SEEDS, ...BRIG_SEEDS, ...FORM14_SEEDS, ...FIREHIST_SEEDS, ...HAZARD_SEEDS, ...MU_SEEDS, ...TRAIN_SEEDS, ...EVAC1_SEEDS, ...BRIG1_SEEDS, ...FIREWORK_SEEDS, ...CONSTRUCTION_SEEDS, ...EVAC3_SEEDS, ...BRIG9_SEEDS, ...REC14_SEEDS, ...ATT14_SEEDS, ...VUL_SEEDS, ...VUL9_SEEDS, ...EVAC34_SEEDS, ...VUL36_SEEDS, ...ORG23_SEEDS, ...TENANT_SEEDS, ...RESP13_SEEDS, ...EQUIP37_SEEDS, ...ETC61_SEEDS, ...HAZ_SEEDS, ...VAL12_SEEDS, ...EVDET32_SEEDS])
 
 /* ══════════════════════ §사진상자 (2026-09-14) ══════════════════════
  *
@@ -1514,6 +1540,11 @@ export const FIRE_PLAN_SAMPLE_CELLS: ReadonlyArray<readonly [string, string, str
   [FP_SHEET.F1_6_1, 'AA9', '주방,보일러'],
   [FP_SHEET.F1_6_1, 'AI9', '/'],
   [FP_SHEET.F1_6_1, 'AZ9', '주방, 보일러'],
+  /* 3.2 예시 행(3행) — 층별·개수 축이 없어 **행째** 남긴다(부분 덮임 거짓 쌍 방지) */
+  [FP_SHEET.F3_2, 'M3', '3층~5층'],
+  [FP_SHEET.F3_2, 'AF3', '완강기'],
+  [FP_SHEET.F3_2, 'AQ3', '각 세대 베란다'],
+  [FP_SHEET.F3_2, 'BA3', '각 1개'],
 ]
 
 const SAMPLE_KEYS = new Set(FIRE_PLAN_SAMPLE_CELLS.map(([s, c]) => `${s}!${c}`))

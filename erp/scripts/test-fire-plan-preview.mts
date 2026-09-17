@@ -1524,5 +1524,52 @@ console.log('\n[29] 2.12 비상반출물품')
   }
 }
 
+/* ══════════════════════ [30] 3.2 피난시설 세부 — 사각 ①류 셋째 ══════════════════════
+ *  ⭐ 예시 행(3행)은 **행째** 남는다 — 층별·개수 축이 없어 부분 덮임이 거짓 쌍이 된다.
+ *  ⚠ 상태는 양식에 열이 없어 세어진다 · 시설구분 상자는 추측 금지로 안 켠다. */
+console.log('\n[30] 3.2 피난시설 세부 — 예시 행은 행째, 상자는 안 켠다')
+{
+  const { validateAnchors } = await import('../src/lib/xlsx-anchors.ts')
+  const { toInjectTargets } = await import('../src/lib/xlsx-workbook.ts')
+  const { FIRE_PLAN_ANCHORS, EVDET32_SHEET, EVDET32_ROWS, EVDET32_FIRST_ROW } =
+    await import('../src/lib/fire-plan-anchors.ts')
+  const { buildFirePlanValues, evacDetailOverflow, evacDetailStatusUnmapped } =
+    await import('../src/lib/fire-plan-xlsx-values.ts')
+  const { labelAt } = await import('../src/lib/fire-plan-xlsx-manifest.ts')
+
+  const evacDetail = [
+    { facility: '옥내 계단', location: '중앙 코어', status: '양호' },
+    { facility: '방화문', location: '각 층 계단실', status: '' },
+    ...Array.from({ length: EVDET32_ROWS - 1 }, (_, i) => ({ facility: `시설${i}`, location: `${i}층`, status: '' })),
+  ]
+  const fx = { buildingName: 'X', facilities: [], brigade: [], zones: [], hazards: [],
+    forms: { evacDetail } } as never
+
+  const vc = validateAnchors(bytes, FIRE_PLAN_ANCHORS)
+  if (vc.ok) {
+    const { targets } = toInjectTargets(buildFirePlanValues(fx), vc.anchors)
+    const out = await injectWorkbook(bytes, targets)
+    const gv = await readSheetGrid(await JSZip.loadAsync(out.bytes), EVDET32_SHEET)
+    const at = (r: string) => gv.cells.find(x => x.ref === r)?.text ?? ''
+    const R0 = EVDET32_FIRST_ROW
+
+    check('데이터 행 수가 파생된다(12행)', EVDET32_ROWS === 12, `${EVDET32_ROWS}행`)
+    check('1행이 4행(예시 다음)에 착지', at(`AF${R0}`) === '옥내 계단' && at(`AQ${R0}`) === '중앙 코어',
+      `${at(`AF${R0}`)}/${at(`AQ${R0}`)}`)
+    check('마지막 행(15)도 착지', at(`AF${R0 + 11}`) === `시설9`, at(`AF${R0 + 11}`))
+    /* 🎯 예시 행이 행째 남는다 */
+    check('예시 행(3행)이 온전하다', at('M3') === '3층~5층' && at('AF3') === '완강기'
+      && at('AQ3') === '각 세대 베란다' && at('BA3') === '각 1개',
+      `${at('M3')}/${at('AF3')}/${at('BA3')}`)
+    /* 🚨 음성 — 시설구분 상자는 어느 행도 안 켠다(추측 금지) */
+    check('시설구분 상자는 전부 미체크', Array.from({ length: EVDET32_ROWS }, (_, i) =>
+      at(`T${R0 + i}`)).every(x => !x.includes('■')), at(`T${R0}`).slice(0, 12))
+    check('동별·층별·개수는 비어 있다', [`E${R0}`, `M${R0}`, `BA${R0}`].every(c => at(c).trim() === ''))
+    check('넘친 행을 센다', evacDetailOverflow(fx) === 1, `${evacDetailOverflow(fx)}건`)
+    check('갈 곳 없는 상태를 센다', evacDetailStatusUnmapped(fx) === 1, `${evacDetailStatusUnmapped(fx)}건`)
+    check('머리글이 온전하다', at('AF2') === labelAt(EVDET32_SHEET, 'AF2'), at('AF2'))
+  }
+}
+
 console.log(`\n=== pass ${pass} / fail ${fail} ===`)
 process.exit(fail ? 1 : 0)

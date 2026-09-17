@@ -161,6 +161,9 @@ const MUTANTS = [
   ['M39 반출물품을 위험물 행에 얹는다 → [29] 「두 표 분리」가 빨강이어야',
     ANCHORS, `export const VAL12_ROWS: readonly number[] = [15, 16, 17]`,
     `export const VAL12_ROWS: readonly number[] = [11, 12, 13]`, 1],
+  /* 🚨 M40 — 3.2 예시 행을 첫 데이터 행으로 쓰면 층별·개수 예시가 남아 거짓 쌍이 된다. */
+  ['M40 3.2 예시 행부터 채운다 → [30] 「예시 행이 온전하다」가 빨강이어야',
+    ANCHORS, `export const EVDET32_FIRST_ROW = 4`, `export const EVDET32_FIRST_ROW = 3`, 1],
 ]
 
 /** 🚨 파일의 줄끝에 맞춰 needle을 바꾼다.
