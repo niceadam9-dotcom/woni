@@ -377,5 +377,58 @@ console.log('\n[9] 1.11.1 연간계획 — 교육 / 훈련')
   }
 }
 
+/* ══════════════════════ [10] 3.1 피난시설 — 1.1·1.5와 **같은 사실**을 찍는가 ══════════════════════
+ *  🚨 이 시트의 값은 전부 다른 시트에도 있다(계단=1.1, 승강기=1.1, 기타시설=1.5).
+ *    **두 시트가 같은 사실을 다르게 찍으면 그게 D-7 갈라짐**이다 — 그래서 원천이 아니라
+ *    **결과를 맞대어** 본다. 그리고 근거 없는 상자는 **안 켜져야** 한다(음성).
+ *  🚨 픽스처는 켜짐과 꺼짐을 **둘 다** 담는다 — 전부 켜면 「늘 켜는 구현」이, 전부 비우면
+ *    「늘 끄는 구현」이 초록으로 통과한다. */
+console.log('\n[10] 3.1 피난시설 — 1.1·1.5와 같은 사실')
+{
+  const { validateAnchors } = await import('../src/lib/xlsx-anchors.ts')
+  const { toInjectTargets } = await import('../src/lib/xlsx-workbook.ts')
+  const { FIRE_PLAN_ANCHORS, EVAC1_SHEET, EVAC1_ELEVATOR_CELL, FP_SHEET } = await import('../src/lib/fire-plan-anchors.ts')
+  const { buildFirePlanValues } = await import('../src/lib/fire-plan-xlsx-values.ts')
+
+  const fx = {
+    buildingName: 'X', facilities: [], brigade: [], zones: [], hazards: [],
+    stairCounts: { direct: '2', special: '', escape: '', outdoor: '1' },
+    elevators: { passenger: '2', emergency: '', evac: '1' },
+    forms: { evacFire: { etc: ['대피공간', '옥상광장'] } },
+  } as never
+
+  const vc = validateAnchors(bytes, FIRE_PLAN_ANCHORS)
+  if (vc.ok) {
+    const { targets } = toInjectTargets(buildFirePlanValues(fx), vc.anchors)
+    const out = await injectWorkbook(bytes, targets)
+    const zz = await JSZip.loadAsync(out.bytes)
+    const g31 = await readSheetGrid(zz, EVAC1_SHEET)
+    const g11 = await readSheetGrid(zz, FP_SHEET.F1_1)
+    const a31 = (r: string) => g31.cells.find(x => x.ref === r)?.text ?? ''
+    const a11 = (r: string) => g11.cells.find(x => x.ref === r)?.text ?? ''
+
+    check('3.1 계단: 직통·옥외만 켜진다',
+      a31('Q8').includes('■') && a31('AM9').includes('■')
+      && !a31('AM8').includes('■') && !a31('Q9').includes('■'),
+      `Q8=${a31('Q8')} AM8=${a31('AM8')}`)
+    // 🚨 **1.1과 같은 사실인가** — 두 시트가 갈라지면 여기서 잡힌다
+    check('3.1 계단 == 1.1 계단(직통)', a31('Q8').includes('■') === a11('AJ15').includes('■'),
+      `3.1 Q8=${a31('Q8')} / 1.1 AJ15=${a11('AJ15')}`)
+    const ev = a31(EVAC1_ELEVATOR_CELL)
+    const marks = [...ev.matchAll(/[■□☐]/g)].map(m => m[0])
+    check('3.1 승강기 한 칸에 상자 셋(승용■ 비상용☐ 피난용■)',
+      marks.length === 3 && marks[0] === '■' && marks[1] !== '■' && marks[2] === '■', ev)
+    check('3.1 승강기 == 1.1 승강기(비상용 꺼짐)',
+      (marks[1] === '■') === a11('AB12').includes('■'), `3.1=${marks[1]} / 1.1 AB12=${a11('AB12')}`)
+    check('3.1 기타시설: 대피공간만(옥상광장은 양식에 칸이 없다)',
+      a31('Q10').includes('■') && !a31('AM10').includes('■') && !a31('AM11').includes('■'),
+      `Q10=${a31('Q10')} AM10=${a31('AM10')}`)
+    // 🚨 음성 — 근거 없는 상자는 **안 켜진다**
+    check('근거 없는 상자는 안 켜진다(피난기구·인명구조기구·유도등)',
+      !a31('Q13').includes('■') && !a31('Q16').includes('■') && !a31('Q19').includes('■'),
+      `Q13=${a31('Q13')} Q16=${a31('Q16')} Q19=${a31('Q19')}`)
+  }
+}
+
 console.log(`\n=== pass ${pass} / fail ${fail} ===`)
 process.exit(fail ? 1 : 0)

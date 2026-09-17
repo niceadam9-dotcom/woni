@@ -585,6 +585,47 @@ export const TRAIN_TARGETS: ReadonlyArray<readonly [string, string, string]> = [
   ['brigade', 'I5', 'AA5'],   // □ 자위소방대 및 초기대응체계 … 명
 ]
 
+/* ══════════════════════ 서식 3.1 피난시설 일반현황 (2026-09-17) ══════════════════════
+ *
+ *  🚨 **이 시트의 상자 31칸은 축이 다 다르다.** 상자 수로 뭉뚱그려 배선하면 근거 없는 체크가
+ *    섞인다. **근거가 확실한 셋만** 세운다 — 나머지는 아래에 이유를 적고 비워 둔다.
+ *
+ *  ✅ 세우는 것 — 전부 **1.1·1.5가 이미 쓰는 그 원천**이다(사본 금지):
+ *    · 계단 4종(8~9행) ← `stairChecks`(1.1 15~16행과 **같은 술어**)
+ *    · 기타 피난시설(10~11행) ← `evacFire.etc`(PDF `etcEvacKinds`와 같은 어휘)
+ *    · 승강기(21행, 한 칸에 상자 셋) ← `d.elevators`(1.1 12행과 같은 원천)
+ *
+ *  ⚠ **안 세우는 것과 이유**(없어서가 아니라 채울 근거가 없어서다):
+ *    · 화재경보 방식·경보수단(5~6행) — 전층/우선 경보는 ERP에 축이 없다. 경보수단 셋은
+ *      1.4 설비 40종과 **입도가 다르다**(거기선 「자동화재탐지설비 및 시각경보기」가 한 항목).
+ *    · 피난기구 6·인명구조기구 4(13~17행) — 같은 입도 문제다. 1.4는 「피난기구」가 한 항목이라
+ *      완강기·미끄럼대를 가를 근거가 없다.
+ *    · 유도등 2선식/3선식(19행) — ERP에 그 구분이 없다.
+ *    · 방화시설(20행) — `evacFire.fireDoor`는 유·무뿐이고 양식은 방화문/셔터/스크린 셋이다.
+ *    · 인증 대체시설·기타(11~12행) — ERP 어휘에 없다.
+ *  🚨 ERP의 `옥상광장`은 **양식에 칸이 없다** — 버리되 세어서 고지에 싣는다(1.2.2 `창고`와 같은 축).
+ */
+export const EVAC1_SHEET = FP_SHEET.F3_1
+
+/** 계단 4종 — [셀, `StairKind`]. 양식 배치는 직통·특별피난 / 피난·옥외 */
+export const EVAC1_STAIR_CELLS: ReadonlyArray<readonly [string, string]> = [
+  ['Q8', 'direct'], ['AM8', 'special'], ['Q9', 'escape'], ['AM9', 'outdoor'],
+]
+
+/** 기타 피난시설 — [셀, `evacFire.etc`의 자구]. ERP 어휘 4개 중 **3개만** 양식에 칸이 있다 */
+export const EVAC1_ETC_CELLS: ReadonlyArray<readonly [string, string]> = [
+  ['Q10', '대피공간'], ['AM10', '피난안전구역'], ['AM11', '경량칸막이'],
+]
+
+/** 승강기 — 한 칸에 상자 셋(`☐ 승용 ☐ 비상용 ☐ 피난용`) */
+export const EVAC1_ELEVATOR_CELL = 'Q21'
+
+const EVAC1_SEEDS: Seed[] = [
+  ...EVAC1_STAIR_CELLS.map(([cell, k]) => ({ field: `evac1_stair_${k}`, sheet: EVAC1_SHEET, cell, labelCell: cell })),
+  ...EVAC1_ETC_CELLS.map(([cell, k]) => ({ field: `evac1_etc_${k}`, sheet: EVAC1_SHEET, cell, labelCell: cell })),
+  { field: 'evac1_elevators', sheet: EVAC1_SHEET, cell: EVAC1_ELEVATOR_CELL, labelCell: EVAC1_ELEVATOR_CELL },
+]
+
 const TRAIN_SEEDS: Seed[] = [
   ...TRAIN_ROWS.flatMap(([row, key]) =>
     TRAIN_MONTH_COLS.map((col, m) => ({
@@ -649,7 +690,7 @@ function assemble(seeds: Seed[]): Anchor[] {
   })
 }
 
-export const FIRE_PLAN_ANCHORS: Anchor[] = assemble([...FIXED_SEEDS, ...ZONE_SEEDS, ...BRIG_SEEDS, ...FORM14_SEEDS, ...FIREHIST_SEEDS, ...HAZARD_SEEDS, ...MU_SEEDS, ...TRAIN_SEEDS])
+export const FIRE_PLAN_ANCHORS: Anchor[] = assemble([...FIXED_SEEDS, ...ZONE_SEEDS, ...BRIG_SEEDS, ...FORM14_SEEDS, ...FIREHIST_SEEDS, ...HAZARD_SEEDS, ...MU_SEEDS, ...TRAIN_SEEDS, ...EVAC1_SEEDS])
 
 /* ══════════════════════ §사진상자 (2026-09-14) ══════════════════════
  *

@@ -25,6 +25,7 @@ import {
   FP_SHEET, ZONE_ROWS, ZONE_SHEET, FIREHIST_ROWS, HAZARD_SHEET, HAZARD_PLACE_ROWS, HAZARD_BOXES,
   MU_SHEET, MU_VALUE_CELLS, MU_HOURS_CELLS, MU_USER_BOXES,
   TRAIN_SHEET, TRAIN_ROWS, TRAIN_MONTH_COLS, TRAIN_TARGETS,
+  EVAC1_SHEET, EVAC1_STAIR_CELLS, EVAC1_ETC_CELLS, EVAC1_ELEVATOR_CELL,
 } from '@/lib/fire-plan-anchors'
 import { boxGlyphAt, labelAt, tokenTemplateAt } from '@/lib/fire-plan-xlsx-manifest'
 import { purposeCover, purposeShort } from '@/lib/purpose-label'
@@ -115,6 +116,21 @@ export function unitCell(sheet: string, cell: string, value: string | number | n
   const bare = unit.trim()
   const core = bare && v.endsWith(bare) ? v.slice(0, v.length - bare.length).trim() : v
   return core ? `${core}${unit}` : unit
+}
+
+/**
+ * **다중상자칸** — 한 칸에 상자가 여럿인 칸(`☐ 승용 ☐ 비상용 ☐ 피난용`, 3.1 승강기).
+ *
+ * `boxLabelCell`은 첫 상자만 갈지만 여기는 **n번째**를 각각 정한다. `yesNoCell`의 일반형이다.
+ * ⚠ 상자 수와 `on` 길이가 다르면 조용히 어긋난다 — 그래서 **개수를 맞추라고 throw** 한다.
+ */
+export function multiBoxCell(sheet: string, cell: string, on: readonly boolean[]): string {
+  const tpl = labelAt(sheet, cell)
+  const n = (tpl.match(/[□☐]/g) ?? []).length
+  if (n !== on.length) {
+    throw new Error(`fire-plan-xlsx-values: ${sheet}!${cell} 상자 ${n}개인데 ${on.length}개를 줬다 — 좌표가 밀렸거나 목록이 낡았다`)
+  }
+  return stampBoxes(sheet, cell, i => !!on[i])
 }
 
 /** 유·무가 한 칸인 칸(`□유 □무`). `null`(미입력)이면 **둘 다** 비운다 — 미입력과 '무'는 다르다 */
@@ -409,6 +425,28 @@ export function buildFirePlanValues(d: FirePlanGenData): Map<string, CellValue> 
    *  ⚠ PDF는 빈 행을 3줄까지 `pad`로 채워 표 모양을 만들지만 **엑셀은 그러지 않는다** —
    *    양식이 이미 15행을 그려 두었고, 빈 칸은 빈 칸으로 남는 것이 맞다(없는 사실을 지어내지 않는다).
    */
+  /* ── 서식 3.1 피난시설 일반현황 (2026-09-17) ────────────────────────────────
+   *
+   *  ⭐ **1.1·1.5가 이미 쓰는 그 원천을 그대로 쓴다**(사본 금지) — 계단은 `stairChecks`,
+   *    승강기는 `d.elevators`, 기타 피난시설은 `evacFire.etc`. 같은 사실을 두 시트가
+   *    다르게 인쇄하면 그게 D-7 갈라짐이다.
+   *  ⚠ 근거가 없는 상자(화재경보 방식·피난기구·인명구조기구·유도등 선식·방화시설)는
+   *    **안 건드린다** — 사유는 앵커 선언부에 적었다.
+   */
+  const ef1 = d.forms?.evacFire
+  // ⭐ 1.1 15~16행과 **같은 호출**이다(`d.stairCounts`) — 두 시트가 같은 사실을 다르게 찍으면 D-7 갈라짐이다
+  const st1 = stairChecks(d.stairCounts ?? {})
+  for (const [cell, kind] of EVAC1_STAIR_CELLS) {
+    v.set(`evac1_stair_${kind}`, boxLabelCell(EVAC1_SHEET, cell, !!st1[kind as keyof typeof st1]))
+  }
+  for (const [cell, kind] of EVAC1_ETC_CELLS) {
+    v.set(`evac1_etc_${kind}`, boxLabelCell(EVAC1_SHEET, cell, !!ef1?.etc?.includes(kind)))
+  }
+  // 한 칸에 상자 셋 — 순서는 양식 그대로(승용·비상용·피난용)
+  v.set('evac1_elevators', multiBoxCell(EVAC1_SHEET, EVAC1_ELEVATOR_CELL, [
+    !!txt(d.elevators?.passenger), !!txt(d.elevators?.emergency), !!txt(d.elevators?.evac),
+  ]))
+
   /* ── 서식 1.11.1 소방훈련·교육 연간계획 (2026-09-17) ─────────────────────────
    *
    *  🚨 상자 72칸이 통째로 비어 있던 시트다. 양식 행이 PDF 표와 한 줄씩 대응하므로
