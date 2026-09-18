@@ -49,6 +49,7 @@ import {
   CARD24_SHEET, CARD24_CELLS,
   EVAC210_SHEET, EVAC210_ROUTE_CELLS,
   EXT29_SHEET, HAZ29_ROWS,
+  CONTACT26_SHEET, ALERT28_SHEET, RESCUE211_SHEET,
 } from '@/lib/fire-plan-anchors'
 import { boxGlyphAt, labelAt, tokenTemplateAt } from '@/lib/fire-plan-xlsx-manifest'
 import { purposeCover, purposeShort } from '@/lib/purpose-label'
@@ -827,6 +828,18 @@ export function buildFirePlanValues(d: FirePlanGenData): Map<string, CellValue> 
     v.set(`haz29_${i}_place`, txt(hz[i]?.place))
     v.set(`haz29_${i}_location`, txt(hz[i]?.location))
   })
+
+  /* ── 2.6·2.8 설비 파생 상자 + 2장 팀별 대상명 (2026-09-18) ─────────────────
+   *  비상방송설비·자동화재속보설비는 설비가 자동으로 수행하는 전파라 설비 존재 = 가용
+   *  (facSet — 1.4·2.10과 같은 집합). 대상명 넷은 1.4·2.13과 같은 접두라벨칸이다. */
+  v.set('contact26_name', prefixCell(CONTACT26_SHEET, 'A2', d.buildingName))
+  v.set('contact26_broadcast', boxLabelCell(CONTACT26_SHEET, 'Q10', facSet.has('비상방송설비')))
+  v.set('contact26_autodial', boxLabelCell(CONTACT26_SHEET, 'Q13', facSet.has('자동화재속보설비')))
+  v.set('alert28_broadcast', boxLabelCell(ALERT28_SHEET, 'K6', facSet.has('비상방송설비')))
+  v.set('alert28_autodial', boxLabelCell(ALERT28_SHEET, 'K8', facSet.has('자동화재속보설비')))
+  v.set('ext29_name', prefixCell(EXT29_SHEET, 'A2', d.buildingName))
+  v.set('evac210_name', prefixCell(EVAC210_SHEET, 'A2', d.buildingName))
+  v.set('rescue211_name', prefixCell(RESCUE211_SHEET, 'A2', d.buildingName))
 
   /* ── 서식 1.9.3 입주사 현황 (2026-09-17) ──────────────────────────────────
    *  🚨 ④ 첫 사례 — `forms.tenants` 축을 이 커밋에서 신설했다(화면·PDF·엑셀 동시).

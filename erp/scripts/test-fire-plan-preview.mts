@@ -1772,5 +1772,57 @@ console.log('\n[34] 2.9 초기소화팀 — 예시문칸 3 + 취약장소 6칸')
   }
 }
 
+/* ══════════════════════ [35] 2.6·2.8 설비 파생 상자 + 팀별 대상명 ══════════════════════
+ *  비상방송설비·자동화재속보설비는 설비가 자동으로 수행하는 전파(건물 내 방송·소방서 자동
+ *  통보)라 설비 존재 = 그 방법의 가용 — 1.4·2.10과 같은 집합(d.facilities)으로 켠다.
+ *  운영 방식 상자(유선·SMS 등)와 비상상황 종류 상자는 ERP가 모르므로 안 켠다. */
+console.log('\n[35] 2.6·2.8 설비 파생 상자 4 + 대상명 4')
+{
+  const { validateAnchors } = await import('../src/lib/xlsx-anchors.ts')
+  const { toInjectTargets } = await import('../src/lib/xlsx-workbook.ts')
+  const { FIRE_PLAN_ANCHORS, CONTACT26_SHEET, ALERT28_SHEET, EXT29_SHEET, EVAC210_SHEET, RESCUE211_SHEET } =
+    await import('../src/lib/fire-plan-anchors.ts')
+  const { buildFirePlanValues } = await import('../src/lib/fire-plan-xlsx-values.ts')
+  const { labelAt } = await import('../src/lib/fire-plan-xlsx-manifest.ts')
+
+  const vc = validateAnchors(bytes, FIRE_PLAN_ANCHORS)
+  if (vc.ok) {
+    const render = async (facilities: string[]) => {
+      const fx = { buildingName: '가온빌딩', facilities, brigade: [], zones: [], hazards: [], forms: {} } as never
+      const out = await injectWorkbook(bytes, toInjectTargets(buildFirePlanValues(fx), vc.anchors).targets)
+      const zip3 = await JSZip.loadAsync(out.bytes)
+      const g26 = await readSheetGrid(zip3, CONTACT26_SHEET)
+      const g28 = await readSheetGrid(zip3, ALERT28_SHEET)
+      return { at26: (r: string) => g26.cells.find(x => x.ref === r)?.text ?? '',
+        at28: (r: string) => g28.cells.find(x => x.ref === r)?.text ?? '', zip3 }
+    }
+    const on = await render(['비상방송설비', '자동화재속보설비'])
+    check('설비가 있으면 네 상자가 켜진다(2.6 Q10·Q13 + 2.8 K6·K8)',
+      on.at26('Q10').includes('■') && on.at26('Q13').includes('■')
+      && on.at28('K6').includes('■') && on.at28('K8').includes('■'),
+      `${on.at26('Q10').slice(0, 2)}/${on.at28('K8').slice(0, 2)}`)
+    check('대상명이 접두라벨 뒤에 붙는다(2.6·2.11)',
+      on.at26('A2').includes('가온빌딩') && (await (async () => {
+        const g11 = await readSheetGrid(on.zip3, RESCUE211_SHEET)
+        const g29 = await readSheetGrid(on.zip3, EXT29_SHEET)
+        const g10 = await readSheetGrid(on.zip3, EVAC210_SHEET)
+        return [g11, g29, g10].every(g => (g.cells.find(x => x.ref === 'A2')?.text ?? '').includes('가온빌딩'))
+      })()), on.at26('A2'))
+    /* 🚨 음성 — 설비가 없으면 하나도 안 켠다(반쪽 켜짐도 잡는다) */
+    const off = await render([])
+    check('설비가 없으면 네 상자 전부 미체크',
+      off.at26('Q10') === labelAt(CONTACT26_SHEET, 'Q10') && off.at26('Q13') === labelAt(CONTACT26_SHEET, 'Q13')
+      && off.at28('K6') === labelAt(ALERT28_SHEET, 'K6') && off.at28('K8') === labelAt(ALERT28_SHEET, 'K8'))
+    /* 🚨 음성 — 운영 방식·비상상황 종류·수기작성 표엔 앵커가 없다 */
+    const noAnchor = (sheet: string, cells: string[]) =>
+      cells.every(c => !FIRE_PLAN_ANCHORS.some(a => a.sheet === sheet && a.cell === c))
+    check('운영 방식 상자(유선·SMS·모바일·App·기타)는 앵커가 없다',
+      noAnchor(CONTACT26_SHEET, ['Q5', 'Q6', 'Q7', 'Q8', 'Q9', 'Q12', 'Q15']))
+    check('비상상황 종류·SMS·안내문구·비상연락망은 앵커가 없다',
+      noAnchor(ALERT28_SHEET, ['K3', 'S3', 'AB3', 'AK3', 'AW3', 'K4', 'K10', 'K5', 'K7', 'K9'])
+      && noAnchor(CONTACT26_SHEET, ['A19', 'L19', 'X19', 'J24', 'J25']))
+  }
+}
+
 console.log(`\n=== pass ${pass} / fail ${fail} ===`)
 process.exit(fail ? 1 : 0)

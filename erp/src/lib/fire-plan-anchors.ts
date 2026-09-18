@@ -56,8 +56,11 @@ export const FP_SHEET = {
   F3_2: '3.2 피난시설 세부현황',
   REV: '개정이력',
   F2_4: '2.4 개별임무카드',
+  F2_6: '2.6 비상연락팀(지휘반)',
+  F2_8: '2.8 비상상황별 연락방법',
   F2_9: '2.9 초기소화팀(진압반)',
   F2_10: '2.10 피난유도팀',
+  F2_11: '2.11 응급구조팀',
   F2_14: '2.14 교육·훈련 결과기록부',
   F2_14_BACK: '2.14 결과기록부 뒷쪽',
   // 제3장(2026-09-09 B-15) — 3.1은 용도 칸만 배선한다(나머지는 별건)
@@ -1441,6 +1444,34 @@ const EXT29_SEEDS: Seed[] = [
   ]),
 ]
 
+/* ─────────── 2.6·2.8 설비 파생 상자 + 2장 팀별 대상명 (2026-09-18) ───────────
+ *  ⭐ 비상방송설비·자동화재속보설비 상자는 **설비가 자동으로 수행하는 전파 기능**이다
+ *    (건물 내 방송·소방서 자동 통보) — 사람의 운영 방식(유선·SMS·모바일 등)과 달리 설비
+ *    존재 = 그 방법의 가용이라 1.4와 같은 집합(d.facilities)으로 켠다(2.10 AU6과 같은 판정).
+ *  ⚠ 2.6의 상자 병합이 블록 경계에 걸쳐 있다(Q10=10~11행·Q13=13~14행) — 시각적으로
+ *    비상방송은 자위소방대+근무자, 자동화재속보는 거주자+관계기관 행에 걸치는데, 두 설비
+ *    모두 대상을 가리지 않는 자동 전파라 소속 모호가 판정을 바꾸지 않는다.
+ *  ⚠ 안 켜는 것: 유선·SMS·모바일·App·기타(운영 방식 — ERP가 모른다) · 2.8 비상상황 종류
+ *    5상자(상정 여부를 ERP가 모른다) · 2.6 연락내용·비상연락망(수기작성 명시)·절차 2칸
+ *    (안내문구 축 없음) · 2.8 안내문구 3칸(축 없음).
+ *  ⭐ 대상명 4칸은 1.4·2.13과 같은 접두라벨칸(`■ 대상명 : ` 뒤에 값) — 2.11은 이 칸뿐이라
+ *    적색(슬롯·상자 0)엔 남지만 대상명은 채워진다.
+ */
+export const CONTACT26_SHEET = FP_SHEET.F2_6
+export const ALERT28_SHEET = FP_SHEET.F2_8
+export const RESCUE211_SHEET = FP_SHEET.F2_11
+
+const TEAM_MISC_SEEDS: Seed[] = [
+  { field: 'contact26_name', sheet: CONTACT26_SHEET, cell: 'A2', labelCell: 'A2' },
+  { field: 'contact26_broadcast', sheet: CONTACT26_SHEET, cell: 'Q10', labelCell: 'Q10' },
+  { field: 'contact26_autodial', sheet: CONTACT26_SHEET, cell: 'Q13', labelCell: 'Q13' },
+  { field: 'alert28_broadcast', sheet: ALERT28_SHEET, cell: 'K6', labelCell: 'K6' },
+  { field: 'alert28_autodial', sheet: ALERT28_SHEET, cell: 'K8', labelCell: 'K8' },
+  { field: 'ext29_name', sheet: EXT29_SHEET, cell: 'A2', labelCell: 'A2' },
+  { field: 'evac210_name', sheet: EVAC210_SHEET, cell: 'A2', labelCell: 'A2' },
+  { field: 'rescue211_name', sheet: RESCUE211_SHEET, cell: 'A2', labelCell: 'A2' },
+]
+
 const BRIG1_SEEDS: Seed[] = [
   { field: 'brig1_name', sheet: BRIG1_SHEET, cell: 'M5', labelCell: 'A5' },
   { field: 'brig1_address', sheet: BRIG1_SHEET, cell: 'M6', labelCell: 'A6' },
@@ -1524,7 +1555,7 @@ function assemble(seeds: Seed[]): Anchor[] {
   })
 }
 
-export const FIRE_PLAN_ANCHORS: Anchor[] = assemble([...FIXED_SEEDS, ...ZONE_SEEDS, ...BRIG_SEEDS, ...FORM14_SEEDS, ...FIREHIST_SEEDS, ...HAZARD_SEEDS, ...MU_SEEDS, ...TRAIN_SEEDS, ...EVAC1_SEEDS, ...BRIG1_SEEDS, ...FIREWORK_SEEDS, ...CONSTRUCTION_SEEDS, ...EVAC3_SEEDS, ...BRIG9_SEEDS, ...REC14_SEEDS, ...ATT14_SEEDS, ...VUL_SEEDS, ...VUL9_SEEDS, ...EVAC34_SEEDS, ...VUL36_SEEDS, ...ORG23_SEEDS, ...TENANT_SEEDS, ...RESP13_SEEDS, ...EQUIP37_SEEDS, ...ETC61_SEEDS, ...HAZ_SEEDS, ...VAL12_SEEDS, ...EVDET32_SEEDS, ...REV_SEEDS, ...CARD24_SEEDS, ...EVAC210_SEEDS, ...EXT29_SEEDS])
+export const FIRE_PLAN_ANCHORS: Anchor[] = assemble([...FIXED_SEEDS, ...ZONE_SEEDS, ...BRIG_SEEDS, ...FORM14_SEEDS, ...FIREHIST_SEEDS, ...HAZARD_SEEDS, ...MU_SEEDS, ...TRAIN_SEEDS, ...EVAC1_SEEDS, ...BRIG1_SEEDS, ...FIREWORK_SEEDS, ...CONSTRUCTION_SEEDS, ...EVAC3_SEEDS, ...BRIG9_SEEDS, ...REC14_SEEDS, ...ATT14_SEEDS, ...VUL_SEEDS, ...VUL9_SEEDS, ...EVAC34_SEEDS, ...VUL36_SEEDS, ...ORG23_SEEDS, ...TENANT_SEEDS, ...RESP13_SEEDS, ...EQUIP37_SEEDS, ...ETC61_SEEDS, ...HAZ_SEEDS, ...VAL12_SEEDS, ...EVDET32_SEEDS, ...REV_SEEDS, ...CARD24_SEEDS, ...EVAC210_SEEDS, ...EXT29_SEEDS, ...TEAM_MISC_SEEDS])
 
 /* ══════════════════════ §사진상자 (2026-09-14) ══════════════════════
  *

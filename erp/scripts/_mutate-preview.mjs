@@ -188,6 +188,10 @@ const MUTANTS = [
   ['M46 2.9 가스 조치 원천을 간다 → [34] 덮기 단언이 빨강이어야',
     VALUES, "  v.set('ext29_gas', placeholderCell(EXT29_SHEET, 'AC9', teams29.protect))",
     "  v.set('ext29_gas', placeholderCell(EXT29_SHEET, 'AC9', teams29.extinguish))", 1],
+  /* 🚨 M47 — 2.8 자동화재속보설비를 항상 켜면 없는 설비를 단언한다. */
+  ['M47 2.8 자동화재속보 상자를 항상 켠다 → [35] 「전부 미체크」가 빨강이어야',
+    VALUES, "  v.set('alert28_autodial', boxLabelCell(ALERT28_SHEET, 'K8', facSet.has('자동화재속보설비')))",
+    "  v.set('alert28_autodial', boxLabelCell(ALERT28_SHEET, 'K8', true))", 1],
 ]
 
 /** 🚨 파일의 줄끝에 맞춰 needle을 바꾼다.
