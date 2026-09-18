@@ -56,6 +56,7 @@ import {
   CMD25_SHEET, CMD25_KITCHEN_BOXES, CMD25_PLACE_CELL,
   PROMO2_SHEET, PROMO2_METHOD_CELLS,
   EVACMAP15_SHEET, EVACMAP15_ZONE_CELLS,
+  MGR171_COLS, MGR171_ROWS, MGR171_ROW0_SKIP,
 } from '@/lib/fire-plan-anchors'
 import { boxGlyphAt, labelAt, tokenTemplateAt } from '@/lib/fire-plan-xlsx-manifest'
 import { purposeCover, purposeShort } from '@/lib/purpose-label'
@@ -698,6 +699,19 @@ export function buildFirePlanValues(d: FirePlanGenData): Map<string, CellValue> 
    *  예시문칸이라 값이 없으면 법정 예시(`포스터, 표어`)가 남는다.
    *  ⚠ 「일시 및 장소」는 **장소 축이 없어** 비운다 — 한 칸이 두 뜻을 담는데 한 뜻만 넣으면
    *    머리글이 거짓말이 된다(1.12.1 「연락처에 안전조치를 넣지 않는다」와 같은 판정). */
+  /* ── 서식 1.7.1 선임현황 표 (2026-09-18) — **사각 ①류 일곱째**.
+   *  PDF 서식 1.7 표가 쓰는 `forms.managers`(조립기가 만든 `managerRows`) 그대로다 —
+   *  두 산출물이 같은 배열을 나눠 쓰므로 갈라질 수 없다.
+   *  ⚠ 첫 행의 구분·담당업무는 양식이 인쇄했고 성명·선임일자는 다른 필드가 이미 물었다
+   *    (앵커가 없으므로 값도 만들지 않는다 — `missingValueFields`가 남는 필드를 잡는다). */
+  const mgrRows171 = (d.forms?.managers ?? []) as Array<Record<string, string>>
+  for (let i = 0; i < MGR171_ROWS; i++) {
+    for (const [col, key] of MGR171_COLS) {
+      if (i === 0 && MGR171_ROW0_SKIP.has(col)) continue
+      v.set(`mgr171_${i}_${key}`, txt(mgrRows171[i]?.[key]))
+    }
+  }
+
   /* ── 서식 1.5.2 구역 2칸 (2026-09-18) — 평면도와 **같은 배열·같은 index**(evacMaps).
    *  사진은 이미 앉는데 그 사진이 어느 구역인지 비어 있던 자리다. */
   const evMaps15 = (d.forms?.evacMaps ?? []) as Array<Record<string, string>>
@@ -1209,6 +1223,11 @@ export function evac210RouteOverflow(d: FirePlanGenData): number {
 /** 2.9 취약장소 표(3행)가 못 담은 장소 수 — 1.2.2(고정 3개소 매칭)와 축이 같고 그릇이 다르다 */
 export function haz29Overflow(d: FirePlanGenData): number {
   return Math.max(0, (d.hazards ?? []).length - HAZ29_ROWS.length)
+}
+
+/** 1.7.1 선임현황 표(16행)가 못 담은 선임자 수 — PDF 표는 행이 늘지만 양식은 고정이다 */
+export function mgr171Overflow(d: FirePlanGenData): number {
+  return Math.max(0, ((d.forms?.managers ?? []) as unknown[]).length - MGR171_ROWS)
 }
 
 /** 1.15 화재발생개요가 못 담은 화재 건 수 — 단일 사건 서식이라 최신 1건만 싣는다 */

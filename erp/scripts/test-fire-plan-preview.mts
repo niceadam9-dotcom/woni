@@ -2168,5 +2168,50 @@ console.log('\n[42] 1.5.2 구역 2칸')
   }
 }
 
+/* ══════════════════════ [43] 1.7.1 선임현황 표 — 사각 ①류 일곱째 ══════════════════════
+ *  PDF 서식 1.7 표가 쓰는 `forms.managers`(조립기의 `managerRows`) 그대로다.
+ *  첫 행의 구분·담당업무는 양식이 인쇄했고 성명·선임일자는 다른 필드가 이미 물었다. */
+console.log('\n[43] 1.7.1 선임현황 16행 × 6열')
+{
+  const { validateAnchors } = await import('../src/lib/xlsx-anchors.ts')
+  const { toInjectTargets } = await import('../src/lib/xlsx-workbook.ts')
+  const { FIRE_PLAN_ANCHORS, MGR171_SHEET, MGR171_FIRST_ROW, MGR171_ROWS } =
+    await import('../src/lib/fire-plan-anchors.ts')
+  const { buildFirePlanValues, mgr171Overflow } = await import('../src/lib/fire-plan-xlsx-values.ts')
+  const { labelAt } = await import('../src/lib/fire-plan-xlsx-manifest.ts')
+
+  const managers = [
+    { role: '소방안전관리자', affiliation: '가온빌딩', name: '김관리', selectedAt: '2025-03-01', eduAt: '2025-04-10', duty: '소방안전관리 업무 총괄' },
+    { role: '보조자', affiliation: '관리사무소', name: '박보조', selectedAt: '2025-05-02', eduAt: '2025-06-11', duty: '야간 순찰' },
+    { role: '보조자', affiliation: '시설팀', name: '이보조', selectedAt: '2025-07-03', eduAt: '', duty: '설비 점검' },
+  ]
+  const fx = { buildingName: '가온빌딩', facilities: [], brigade: [], zones: [], hazards: [],
+    forms: { managers } } as never
+
+  const vc = validateAnchors(bytes, FIRE_PLAN_ANCHORS)
+  if (vc.ok) {
+    const out = await injectWorkbook(bytes, toInjectTargets(buildFirePlanValues(fx), vc.anchors).targets)
+    const gr = await readSheetGrid(await JSZip.loadAsync(out.bytes), MGR171_SHEET)
+    const at = (r: string) => gr.cells.find(x => x.ref === r)?.text ?? ''
+    const R0 = MGR171_FIRST_ROW
+
+    check('첫 행은 소속·실무교육만 새로 채운다(성명·선임일자는 기존 필드가 문다)',
+      at(`M${R0}`) === '가온빌딩' && at(`AM${R0}`) === '2025-04-10', `${at(`M${R0}`)}/${at(`AM${R0}`)}`)
+    check('첫 행의 구분·담당업무는 양식 그대로',
+      at(`A${R0}`) === labelAt(MGR171_SHEET, `A${R0}`) && at(`AU${R0}`) === labelAt(MGR171_SHEET, `AU${R0}`))
+    check('둘째 행(보조자)이 6열 전부 착지한다',
+      at(`A${R0 + 1}`) === '보조자' && at(`M${R0 + 1}`) === '관리사무소' && at(`V${R0 + 1}`) === '박보조'
+      && at(`AE${R0 + 1}`) === '2025-05-02' && at(`AM${R0 + 1}`) === '2025-06-11' && at(`AU${R0 + 1}`) === '야간 순찰',
+      `${at(`A${R0 + 1}`)}/${at(`V${R0 + 1}`)}/${at(`AU${R0 + 1}`)}`)
+    check('셋째 행도 착지하고 빈 값은 빈 칸(실무교육 미수료)',
+      at(`V${R0 + 2}`) === '이보조' && at(`AM${R0 + 2}`).trim() === '')
+    check('넷째 행부터는 비어 있다', [`A${R0 + 3}`, `V${R0 + 3}`, `AU${R0 + 3}`].every(c => at(c).trim() === ''))
+    check('마지막 행(19)도 앵커가 있다(16행 예산)',
+      FIRE_PLAN_ANCHORS.some(a => a.sheet === MGR171_SHEET && a.cell === `V${R0 + MGR171_ROWS - 1}`))
+    check('넘친 선임자를 센다', mgr171Overflow({ forms: { managers: Array(18).fill({}) } } as never) === 2
+      && mgr171Overflow(fx) === 0)
+  }
+}
+
 console.log(`\n=== pass ${pass} / fail ${fail} ===`)
 process.exit(fail ? 1 : 0)

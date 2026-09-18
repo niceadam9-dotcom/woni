@@ -1573,6 +1573,40 @@ const PROMO_SEEDS: Seed[] = PROMO_ROWS.flatMap(({ key, row }) =>
  *  ⚠ 비우는 것: 피해복구계획 빈 행(J4·Z4·J5·Z5·J10·Z10·AS10)·예방대책(J18)·피해상황
  *    수치 4칸과 상자 4 — 축 없음(사망·부상·피해액·피해면적을 ERP가 모른다).
  */
+/* ═══════════ 서식 1.7.1 소방안전관리(보조)자 선임현황 (2026-09-18) ═══════════
+ *
+ *  🚨 **사각 ①류 일곱째** — PDF(서식 1.7 표)가 `f.managers`를 6열로 이미 인쇄 중인데
+ *    엑셀은 **93슬롯 중 2칸**(성명·선임일자)만 배선돼 있었다. `managerRows`는 조립기가
+ *    이미 만든다(주 선임자 1행 파생 + 1.7의 보조자 행들).
+ *
+ *  ⭐ 첫 행(4행)은 양식이 구분·담당업무를 인쇄해 두었고(`소방안전관리자`·`소방안전관리자의
+ *    업무`) 성명·선임일자는 **이미 다른 필드가 물고 있다**(`manager_name`·
+ *    `manager_selected_date` — 1.1과 공유). 한 칸에 앵커는 하나이므로 그 넷은 건드리지 않고
+ *    **나머지 열만** 더한다.
+ *  ⚠ 16행 예산(4~19행) — 넘치면 라우트가 고지한다(`mgr171Overflow`).
+ */
+export const MGR171_SHEET = FP_SHEET.F1_7_1
+export const MGR171_FIRST_ROW = 4
+export const MGR171_ROWS = 16
+/** [엑셀 열, `ManagerRow` 키, 머리글 셀] */
+export const MGR171_COLS: ReadonlyArray<readonly [string, string, string]> = [
+  ['A', 'role', 'A3'],          // 구분
+  ['M', 'affiliation', 'M3'],   // 소속
+  ['V', 'name', 'V3'],          // 선임자 성명
+  ['AE', 'selectedAt', 'AE3'],  // 선임일자
+  ['AM', 'eduAt', 'AM3'],       // 실무교육 수료일자
+  ['AU', 'duty', 'AU3'],        // 담당업무
+]
+/** 첫 행에서 **건너뛰는** 열 — 양식이 인쇄했거나(A·AU) 다른 필드가 이미 물었다(V·AE) */
+export const MGR171_ROW0_SKIP: ReadonlySet<string> = new Set(['A', 'V', 'AE', 'AU'])
+
+const MGR171_SEEDS: Seed[] = Array.from({ length: MGR171_ROWS }, (_, i) =>
+  MGR171_COLS.filter(([col]) => !(i === 0 && MGR171_ROW0_SKIP.has(col)))
+    .map(([col, key, labelCell]) => ({
+      field: `mgr171_${i}_${key}`, sheet: MGR171_SHEET,
+      cell: `${col}${MGR171_FIRST_ROW + i}`, labelCell,
+    }))).flat()
+
 /* ─────────── 서식 1.5.2 방화·제연구획 현황도 — 구역 2칸 (2026-09-18) ───────────
  *  평면도는 이미 이미지 상자(`img_evacmap_*`)가 받고 있었는데 **그 평면도가 어느 구역인지**는
  *  비어 있었다 — 사진만 나오고 이름이 없는 갈라짐이다.
@@ -1760,7 +1794,7 @@ function assemble(seeds: Seed[]): Anchor[] {
   })
 }
 
-export const FIRE_PLAN_ANCHORS: Anchor[] = assemble([...FIXED_SEEDS, ...ZONE_SEEDS, ...BRIG_SEEDS, ...FORM14_SEEDS, ...FIREHIST_SEEDS, ...HAZARD_SEEDS, ...MU_SEEDS, ...TRAIN_SEEDS, ...EVAC1_SEEDS, ...BRIG1_SEEDS, ...FIREWORK_SEEDS, ...CONSTRUCTION_SEEDS, ...EVAC3_SEEDS, ...BRIG9_SEEDS, ...REC14_SEEDS, ...ATT14_SEEDS, ...VUL_SEEDS, ...VUL9_SEEDS, ...EVAC34_SEEDS, ...VUL36_SEEDS, ...ORG23_SEEDS, ...TENANT_SEEDS, ...RESP13_SEEDS, ...EQUIP37_SEEDS, ...ETC61_SEEDS, ...HAZ_SEEDS, ...VAL12_SEEDS, ...EVDET32_SEEDS, ...REV_SEEDS, ...CARD24_SEEDS, ...EVAC210_SEEDS, ...EXT29_SEEDS, ...TEAM_MISC_SEEDS, ...PROMO_SEEDS, ...FIRE115_SEEDS, ...REC1114_SEEDS, ...TRAIN2_SEEDS, ...CMD25_SEEDS, ...PROMO2_SEEDS, ...EVACMAP15_SEEDS])
+export const FIRE_PLAN_ANCHORS: Anchor[] = assemble([...FIXED_SEEDS, ...ZONE_SEEDS, ...BRIG_SEEDS, ...FORM14_SEEDS, ...FIREHIST_SEEDS, ...HAZARD_SEEDS, ...MU_SEEDS, ...TRAIN_SEEDS, ...EVAC1_SEEDS, ...BRIG1_SEEDS, ...FIREWORK_SEEDS, ...CONSTRUCTION_SEEDS, ...EVAC3_SEEDS, ...BRIG9_SEEDS, ...REC14_SEEDS, ...ATT14_SEEDS, ...VUL_SEEDS, ...VUL9_SEEDS, ...EVAC34_SEEDS, ...VUL36_SEEDS, ...ORG23_SEEDS, ...TENANT_SEEDS, ...RESP13_SEEDS, ...EQUIP37_SEEDS, ...ETC61_SEEDS, ...HAZ_SEEDS, ...VAL12_SEEDS, ...EVDET32_SEEDS, ...REV_SEEDS, ...CARD24_SEEDS, ...EVAC210_SEEDS, ...EXT29_SEEDS, ...TEAM_MISC_SEEDS, ...PROMO_SEEDS, ...FIRE115_SEEDS, ...REC1114_SEEDS, ...TRAIN2_SEEDS, ...CMD25_SEEDS, ...PROMO2_SEEDS, ...EVACMAP15_SEEDS, ...MGR171_SEEDS])
 
 /* ══════════════════════ §사진상자 (2026-09-14) ══════════════════════
  *

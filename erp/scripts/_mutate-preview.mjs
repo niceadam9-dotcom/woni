@@ -227,6 +227,17 @@ const MUTANTS = [
   ['M56 2.5가 장소 매칭 없이 hz[0]을 쓴다 → [40] 1.2.2 항등이 빨강이어야',
     VALUES, '  const cmd25Haz = hz.find(h => txt(h.place) === cmd25Place)',
     '  const cmd25Haz = hz[0]', 1],
+  /* 🎯 M59 — 1.7.1이 PDF와 다른 배열을 물면 두 산출물의 선임현황이 갈라진다. */
+  ['M59 1.7.1이 managers 대신 brigade를 문다 → [43] 착지 단언이 빨강이어야',
+    VALUES, "  const mgrRows171 = (d.forms?.managers ?? []) as Array<Record<string, string>>",
+    '  const mgrRows171 = (d.brigade ?? []) as unknown as Array<Record<string, string>>', 1],
+  /* 🚨 M60 — 첫 행 건너뛰기는 **앵커 쪽이 진짜 계약**이다(한 칸에 앵커 하나).
+   *  ⚠ 처음엔 값 쪽(`VALUES`의 `continue`)을 지웠는데 **살아남았다 — 동등 변이였다**:
+   *    값 맵에 여분 필드가 생겨도 앵커가 없으면 `toInjectTargets`가 찾지 않아 아무 일도
+   *    안 일어난다. 잡히는 자리는 앵커 생성 쪽이다(거기선 V4·AE4에 앵커가 둘이 된다). */
+  ['M60 1.7.1 앵커의 첫 행 건너뛰기를 없앤다 → 한 칸에 앵커 둘이라 적재가 죽어야',
+    ANCHORS, '  MGR171_COLS.filter(([col]) => !(i === 0 && MGR171_ROW0_SKIP.has(col)))',
+    '  MGR171_COLS.filter(() => true)', 1],
   /* 🚨 M58 — 1.5.2 구역이 평면도와 다른 index를 물면 사진과 이름이 짝을 잃는다. */
   ['M58 1.5.2 구역을 한 칸 민다 → [42] 착지 단언이 빨강이어야',
     VALUES, '  EVACMAP15_ZONE_CELLS.forEach(([, ], i) => v.set(`evacmap15_zone_${i}`, txt(evMaps15[i]?.floor)))',

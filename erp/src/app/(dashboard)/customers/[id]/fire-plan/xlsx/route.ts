@@ -6,7 +6,7 @@ import { assembleFirePlan } from '@/lib/fire-plan-generate'
 import { firePlanTemplate } from '@/lib/fire-plan-template-cache'
 import { toInjectTargets } from '@/lib/xlsx-workbook'
 import { injectWorkbook } from '@/lib/xlsx-inject'
-import { brigadeRowOverflow, buildFirePlanValues, attendanceOverflow, constructionRowOverflow, constructionUnmapped, equipRowOverflow, evac3RowOverflow, evacDetailOverflow, evacDetailStatusUnmapped, hazmatItemOverflow, evacRouteOverflow, evac210RouteOverflow, fire115Overflow, fireworkRowOverflow, haz29Overflow, hazardUnmatched, missingValueFields, revisionRowOverflow, tenantRowOverflow, valuableRowOverflow, vulnerableAreaUnsplit, vulnerableMethodsUnmapped, vulnerablePlanOverflow, zoneRowOverflow } from '@/lib/fire-plan-xlsx-values'
+import { brigadeRowOverflow, buildFirePlanValues, attendanceOverflow, constructionRowOverflow, constructionUnmapped, equipRowOverflow, evac3RowOverflow, evacDetailOverflow, evacDetailStatusUnmapped, hazmatItemOverflow, evacRouteOverflow, evac210RouteOverflow, fire115Overflow, fireworkRowOverflow, haz29Overflow, hazardUnmatched, mgr171Overflow, missingValueFields, revisionRowOverflow, tenantRowOverflow, valuableRowOverflow, vulnerableAreaUnsplit, vulnerableMethodsUnmapped, vulnerablePlanOverflow, zoneRowOverflow } from '@/lib/fire-plan-xlsx-values'
 import { FIRE_PLAN_MANIFEST } from '@/lib/fire-plan-xlsx-manifest'
 import { embedFirePlanImages, planFirePlanImages } from '@/lib/fire-plan-xlsx-images'
 import { applyFirePlanCheckboxes } from '@/lib/fire-plan-checkbox-controls'
@@ -148,6 +148,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
           ...(evac210RouteOverflow(data) ? [`피난유도팀(2.10) 피난경로 ${evac210RouteOverflow(data)}건 미표기(양식 세 줄)`] : []),
           ...(haz29Overflow(data) ? [`초기소화팀(2.9) 화재취약장소 ${haz29Overflow(data)}건 미표기(양식 3행)`] : []),
           ...(fire115Overflow(data) ? [`피해 복구(1.15) 화재발생개요 — 화재 ${fire115Overflow(data)}건은 미표기(단일 사건 서식, 최신 1건만)`] : []),
+          ...(mgr171Overflow(data) ? [`선임현황(1.7.1) ${mgr171Overflow(data)}명 미표기(양식 16행)`] : []),
           ...(vulnerableMethodsUnmapped(data).length ? [`피난약자 방법 ${vulnerableMethodsUnmapped(data).join('·')} 미표기(양식 4종 밖)`] : []),
           ...(vulnerablePlanOverflow(data) ? [`피난약자 피난계획 ${vulnerablePlanOverflow(data)}건 미표기(양식 고정 행 상한)`] : []),
           // 🚨 넘침과 다른 축 — 양식은 「구역」을 **동·층 두 칸**으로 나눠 그리는데 ERP는 한 칸이다.
