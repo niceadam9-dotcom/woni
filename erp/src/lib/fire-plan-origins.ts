@@ -55,6 +55,8 @@ const OVERRIDES: ReadonlyArray<readonly [RegExp, string, string, string?]> = [
   [/^rec14_mgr/, '소방안전관리자(1.7)', '1.7'],
   // 1.11.1 대상자 중 자위소방대 인원은 편성표 행 수 파생 — 차분 검사가 잡았다(1.11엔 입력칸이 없다)
   [/^train_[tn]_brigade$/, 'brigade 행 수(2장 편성표)', 'ch2'],
+  // 1.15 화재발생개요는 1.10.4 화재이력의 최신 「화재」 건 — 입력은 1.10 카드에서
+  [/^fire115_(at|place|cause)$/, 'fireHistory(1.10.4)', '1.10', 'c-1.10.4'],
 ]
 
 /** 필드 하나의 입력처 — 못 찾으면 null(검사가 전수 가드로 잡는다) */

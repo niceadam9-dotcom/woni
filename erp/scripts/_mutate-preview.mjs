@@ -207,6 +207,10 @@ const MUTANTS = [
   /* 🚨 M51 — 방법 행을 하나 밀면 적재 대조가 모듈 로드에서 던져야 한다(목록 사본 감시). */
   ['M51 1.14.1 첫 행을 7로 민다 → 적재 대조 throw로 검사 전체가 죽어야',
     ANCHORS, 'export const PROMO_FIRST_ROW = 6', 'export const PROMO_FIRST_ROW = 7', 1],
+  /* 🚨 M52 — 1.15가 비화재보까지 실으면 「화재발생개요」에 거짓 사건이 인쇄된다. */
+  ['M52 1.15 화재 필터를 없앤다 → [37] 착지 단언(최신=비화재보가 아닌 화재)이 빨강이어야',
+    VALUES, "  const fires115 = hist.filter(h => txt(h?.kind) === '화재')",
+    '  const fires115 = hist', 1],
 ]
 
 /** 🚨 파일의 줄끝에 맞춰 needle을 바꾼다.

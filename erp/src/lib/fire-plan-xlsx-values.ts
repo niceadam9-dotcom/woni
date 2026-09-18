@@ -669,6 +669,16 @@ export function buildFirePlanValues(d: FirePlanGenData): Map<string, CellValue> 
     v.set(`firehist_${i}_action`, txt(h?.action))
   }
 
+  /* ── 서식 1.15 화재발생개요 (2026-09-18) — 1.10.4와 같은 원천의 「화재」 건 중 최신 1건.
+   *  발화열원·발화요인 세분 축이 없어 cause는 발화개요(Z15) 한 칸에 전문으로 싣는다.
+   *  가스안전공사 번호는 PDF 「비상연락처」와 같은 전국 대표번호 — blanks [8]이 항등을 감시한다. */
+  const fires115 = hist.filter(h => txt(h?.kind) === '화재')
+  const latest115 = [...fires115].sort((a, b) => txt(b?.at).localeCompare(txt(a?.at)))[0]
+  v.set('fire115_at', txt(latest115?.at))
+  v.set('fire115_place', txt(latest115?.place))
+  v.set('fire115_cause', txt(latest115?.cause))
+  v.set('fire115_gas_tel', '1544-4500')
+
   /* ── 서식 2.2 자위소방대 편성표 (2단계 · Q-1 자동 채움) ────────────────────────
    *  `d.brigade`는 `fire_brigade_members`를 sort_order 순으로 담은 것이고, 양식은 그 대원을
    *  **지휘통제팀(대장·부대장)** 과 **현장대응팀**으로 가른다.
@@ -1137,6 +1147,12 @@ export function evac210RouteOverflow(d: FirePlanGenData): number {
 /** 2.9 취약장소 표(3행)가 못 담은 장소 수 — 1.2.2(고정 3개소 매칭)와 축이 같고 그릇이 다르다 */
 export function haz29Overflow(d: FirePlanGenData): number {
   return Math.max(0, (d.hazards ?? []).length - HAZ29_ROWS.length)
+}
+
+/** 1.15 화재발생개요가 못 담은 화재 건 수 — 단일 사건 서식이라 최신 1건만 싣는다 */
+export function fire115Overflow(d: FirePlanGenData): number {
+  const fires = (d.forms?.fireHistory ?? []).filter(h => txt(h?.kind) === '화재')
+  return Math.max(0, fires.length - 1)
 }
 
 /** 공사·정비 기록(1.13)이 못 담은 행 수 — 화기취급과 같은 축 */

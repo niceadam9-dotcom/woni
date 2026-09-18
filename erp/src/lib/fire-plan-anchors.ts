@@ -41,6 +41,7 @@ export const FP_SHEET = {
   F1_11_1: '1.11.1 소방훈련·교육 연간계획',
   F1_12_1: '1.12.1 화기취급작업 현황',
   F1_14_1: '1.14.1 화재예방 및 홍보 계획',
+  F1_15: '1.15 피해 복구',
   F1_13: '1.13 소방시설 공사·정비 기록',
   F3_3: '3.3 피난인원현황',
   F1_9: '1.9 자위소방대 현황',
@@ -1556,6 +1557,27 @@ const PROMO_SEEDS: Seed[] = PROMO_ROWS.flatMap(({ key, row }) =>
     labelCell: `${col}${row}`,   // 상자칸 — 자기 칸이 라벨이다(1.11.1과 같은 규약)
   })))
 
+/* ─────────── 서식 1.15 피해 복구 — 화재발생개요 (2026-09-18, 보류 재검토) ───────────
+ *  「화재발생시 작성」 사후 보고 지면 — ERP `forms.fireHistory`(1.10.4와 같은 원천)의
+ *  「화재」 건 중 최신 1건을 얹는다. 여러 건이면 라우트가 고지한다(fire115Overflow).
+ *  ⭐ 발화개요(Z15)에 cause 전문을 싣는다 — 발화열원·발화요인(Z13·Z14)은 세분 축이 없어
+ *    비운다(한 값을 쪼개는 게 아니라 세분 칸을 안 채우는 것 — 독립 칸이라 전무 원칙 무관).
+ *  ⭐ 가스안전공사 연락처(Z6)는 PDF 「비상연락처」와 같은 전국 대표번호(1544-4500) —
+ *    두 산출물이 같은 번호를 인쇄한다(blanks [8]이 항등 감시). 승강기(Z8)는 축 없음.
+ *  ⚠ Z15는 자구가 공백 한 칸이라 슬롯 분모 밖이다 — 슬롯 밖 앵커 수 단언이 1→2가 된다
+ *    (표지 제목 + 이 칸 — test-fire-plan-blanks [1]에 사유를 적었다).
+ *  ⚠ 비우는 것: 피해복구계획 빈 행(J4·Z4·J5·Z5·J10·Z10·AS10)·예방대책(J18)·피해상황
+ *    수치 4칸과 상자 4 — 축 없음(사망·부상·피해액·피해면적을 ERP가 모른다).
+ */
+export const FIRE115_SHEET = FP_SHEET.F1_15
+
+const FIRE115_SEEDS: Seed[] = [
+  { field: 'fire115_at', sheet: FIRE115_SHEET, cell: 'R11', labelCell: 'J11' },
+  { field: 'fire115_place', sheet: FIRE115_SHEET, cell: 'R12', labelCell: 'J12' },
+  { field: 'fire115_cause', sheet: FIRE115_SHEET, cell: 'Z15', labelCell: 'R15' },
+  { field: 'fire115_gas_tel', sheet: FIRE115_SHEET, cell: 'Z6', labelCell: 'J6' },
+]
+
 const MU_SEEDS: Seed[] = [
   ...MU_VALUE_CELLS.map(([k, cell, labelCell]) => ({ field: `mu_${k}`, sheet: MU_SHEET, cell, labelCell })),
   // 상자·자리표시는 **자기 칸이 라벨**이다(그 칸의 자구를 우리가 읽어 조립한다)
@@ -1606,7 +1628,7 @@ function assemble(seeds: Seed[]): Anchor[] {
   })
 }
 
-export const FIRE_PLAN_ANCHORS: Anchor[] = assemble([...FIXED_SEEDS, ...ZONE_SEEDS, ...BRIG_SEEDS, ...FORM14_SEEDS, ...FIREHIST_SEEDS, ...HAZARD_SEEDS, ...MU_SEEDS, ...TRAIN_SEEDS, ...EVAC1_SEEDS, ...BRIG1_SEEDS, ...FIREWORK_SEEDS, ...CONSTRUCTION_SEEDS, ...EVAC3_SEEDS, ...BRIG9_SEEDS, ...REC14_SEEDS, ...ATT14_SEEDS, ...VUL_SEEDS, ...VUL9_SEEDS, ...EVAC34_SEEDS, ...VUL36_SEEDS, ...ORG23_SEEDS, ...TENANT_SEEDS, ...RESP13_SEEDS, ...EQUIP37_SEEDS, ...ETC61_SEEDS, ...HAZ_SEEDS, ...VAL12_SEEDS, ...EVDET32_SEEDS, ...REV_SEEDS, ...CARD24_SEEDS, ...EVAC210_SEEDS, ...EXT29_SEEDS, ...TEAM_MISC_SEEDS, ...PROMO_SEEDS])
+export const FIRE_PLAN_ANCHORS: Anchor[] = assemble([...FIXED_SEEDS, ...ZONE_SEEDS, ...BRIG_SEEDS, ...FORM14_SEEDS, ...FIREHIST_SEEDS, ...HAZARD_SEEDS, ...MU_SEEDS, ...TRAIN_SEEDS, ...EVAC1_SEEDS, ...BRIG1_SEEDS, ...FIREWORK_SEEDS, ...CONSTRUCTION_SEEDS, ...EVAC3_SEEDS, ...BRIG9_SEEDS, ...REC14_SEEDS, ...ATT14_SEEDS, ...VUL_SEEDS, ...VUL9_SEEDS, ...EVAC34_SEEDS, ...VUL36_SEEDS, ...ORG23_SEEDS, ...TENANT_SEEDS, ...RESP13_SEEDS, ...EQUIP37_SEEDS, ...ETC61_SEEDS, ...HAZ_SEEDS, ...VAL12_SEEDS, ...EVDET32_SEEDS, ...REV_SEEDS, ...CARD24_SEEDS, ...EVAC210_SEEDS, ...EXT29_SEEDS, ...TEAM_MISC_SEEDS, ...PROMO_SEEDS, ...FIRE115_SEEDS])
 
 /* ══════════════════════ §사진상자 (2026-09-14) ══════════════════════
  *

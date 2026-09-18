@@ -1875,5 +1875,52 @@ console.log('\n[36] 1.14.1 월 격자 120상자')
   }
 }
 
+/* ══════════════════════ [37] 1.15 화재발생개요 — 최신 「화재」 1건 ══════════════════════
+ *  1.10.4와 같은 원천(forms.fireHistory)의 화재 건 중 최신 1건. 비화재보는 걸러진다.
+ *  발화열원·발화요인(Z13·Z14)은 세분 축이 없어 비운다 — cause는 발화개요(Z15) 전문. */
+console.log('\n[37] 1.15 화재발생개요 4칸')
+{
+  const { validateAnchors } = await import('../src/lib/xlsx-anchors.ts')
+  const { toInjectTargets } = await import('../src/lib/xlsx-workbook.ts')
+  const { FIRE_PLAN_ANCHORS, FIRE115_SHEET } = await import('../src/lib/fire-plan-anchors.ts')
+  const { buildFirePlanValues, fire115Overflow } = await import('../src/lib/fire-plan-xlsx-values.ts')
+  const { labelAt } = await import('../src/lib/fire-plan-xlsx-manifest.ts')
+
+  const fireHistory = [
+    { kind: '화재', at: '2025-03-01', place: '지하 기계실', cause: '노후 배선 단락', action: '차단기 교체' },
+    { kind: '비화재보', at: '2026-05-05', place: '2층 복도', cause: '조리 연기', action: '환기' },
+    { kind: '화재', at: '2026-01-15', place: '옥상 창고', cause: '담뱃불 추정', action: '소화기 진압' },
+  ]
+  const fx = { buildingName: 'X', facilities: [], brigade: [], zones: [], hazards: [],
+    forms: { fireHistory } } as never
+
+  const vc = validateAnchors(bytes, FIRE_PLAN_ANCHORS)
+  if (vc.ok) {
+    const out = await injectWorkbook(bytes, toInjectTargets(buildFirePlanValues(fx), vc.anchors).targets)
+    const gr = await readSheetGrid(await JSZip.loadAsync(out.bytes), FIRE115_SHEET)
+    const at = (r: string) => gr.cells.find(x => x.ref === r)?.text ?? ''
+
+    check('최신 「화재」 건이 착지한다(비화재보가 더 최근이어도 걸러진다)',
+      at('R11') === '2026-01-15' && at('R12') === '옥상 창고' && at('Z15') === '담뱃불 추정',
+      `${at('R11')}/${at('R12')}/${at('Z15')}`)
+    check('가스안전공사 번호가 실린다', at('Z6') === '1544-4500', at('Z6'))
+    check('넘친 화재를 센다(단일 사건 서식)', fire115Overflow(fx) === 1
+      && fire115Overflow({ forms: { fireHistory: [] } } as never) === 0)
+    /* 🚨 음성 — 화재 이력이 없으면 개요는 빈 채로(지어내지 않는다) */
+    const out0 = await injectWorkbook(bytes, toInjectTargets(
+      buildFirePlanValues({ buildingName: 'X', facilities: [], brigade: [], zones: [], hazards: [], forms: {} } as never),
+      vc.anchors).targets)
+    const g0 = await readSheetGrid(await JSZip.loadAsync(out0.bytes), FIRE115_SHEET)
+    const at0 = (r: string) => g0.cells.find(x => x.ref === r)?.text ?? ''
+    check('화재 이력이 없으면 개요는 빈 채로', at0('R11').trim() === '' && at0('R12').trim() === ''
+      && at0('Z15').trim() === '')
+    /* 🚨 음성 — 세분 축 없는 칸·축 없는 칸은 앵커를 두지 않는다 */
+    const noAnchor = (cell: string) => !FIRE_PLAN_ANCHORS.some(a => a.sheet === FIRE115_SHEET && a.cell === cell)
+    check('발화열원·발화요인·승강기 연락처·예방대책·피해상황은 앵커가 없다',
+      ['Z13', 'Z14', 'Z8', 'J18', 'AI16', 'AZ16', 'Z16', 'AR16'].every(noAnchor))
+    check('개요 라벨 자구가 온전하다', labelAt(FIRE115_SHEET, 'J11').includes('일') && at('J13') === labelAt(FIRE115_SHEET, 'J13'))
+  }
+}
+
 console.log(`\n=== pass ${pass} / fail ${fail} ===`)
 process.exit(fail ? 1 : 0)

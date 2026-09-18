@@ -49,6 +49,8 @@ const CASES: ReadonlyArray<readonly [string, Record<string, unknown>, string[]]>
   ['promoPlan(홍보 계획)', { forms: { promoPlan: { poster: [3] } } }, ['1.12']],
   ['brigadeTeams(팀별 문구)', { forms: { brigadeTeams: { extinguish: 'E문구', protect: 'P문구' } } }, ['ch2']],
   ['층수 원시값', { floorsAbove: 30, floorsBelow: 1 }, ['1.1']],
+  // 1.15 개요가 1.10.4 이력과 함께 바뀐다 — 둘 다 1.10 선언이어야(fire115 override)
+  ['fireHistory(화재이력)', { forms: { fireHistory: [{ kind: '화재', at: '2026-01-01', place: 'P', cause: 'C', action: 'A' }] } }, ['1.10']],
 ]
 for (const [name, over, forms] of CASES) {
   const changed = changedFields(over)
