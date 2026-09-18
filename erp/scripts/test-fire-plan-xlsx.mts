@@ -237,8 +237,9 @@ console.log('\n[3] 백지 불변식 — 템플릿에 표본의 답이 남아 있
   // 2026-09-18(4): 1.14.1 월 격자 120(방법 10 × 12월, ④ promoPlan)으로 249→369.
   //   보관방법 상자 4(16~17행)·※ 안내(AE3)는 축이 없어 안 센다.
   // 2026-09-18(5): 1.11.2 대상 3 + 실습 3 + 이론 2 + 형태 2 = 10으로 369→379
-  check('상자칸 예외 수가 그대로(… + 1.14.1 120 + 1.11.2 10)',
-    boxLabel.length === 379, `${boxLabel.length}칸`)
+  // 2026-09-18(6): 2.5 주방 블록 위험요인 6으로 379→385(보일러 실외기 블록은 다른 장소라 제외)
+  check('상자칸 예외 수가 그대로(… + 1.11.2 10 + 2.5 6)',
+    boxLabel.length === 385, `${boxLabel.length}칸`)
   check('상자칸은 템플릿에서 전부 미체크', boxLabel.every(a => !/■/.test(cellText(a))),
     boxLabel.filter(a => /■/.test(cellText(a))).map(a => a.cell).join(','))
   const unitCells = FIRE_PLAN_ANCHORS.filter(a => isUnitLabelAnchor(a) && !isSampleTextAnchor(a))

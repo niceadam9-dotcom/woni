@@ -223,6 +223,10 @@ const MUTANTS = [
   ['M55 1.11.2가 details[1]을 싣는다 → [39] 착지 단언이 빨강이어야',
     VALUES, '  const det2 = ((tr1?.details ?? []) as Array<Record<string, string>>)[0]',
     '  const det2 = ((tr1?.details ?? []) as Array<Record<string, string>>)[1]', 1],
+  /* 🎯 M56 — 2.5가 장소를 안 가리고 첫 취약장소를 쓰면 1.2.2와 갈라진다(전기실 요인이 주방에). */
+  ['M56 2.5가 장소 매칭 없이 hz[0]을 쓴다 → [40] 1.2.2 항등이 빨강이어야',
+    VALUES, '  const cmd25Haz = hz.find(h => txt(h.place) === cmd25Place)',
+    '  const cmd25Haz = hz[0]', 1],
 ]
 
 /** 🚨 파일의 줄끝에 맞춰 needle을 바꾼다.

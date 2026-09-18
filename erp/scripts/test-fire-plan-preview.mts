@@ -2022,5 +2022,63 @@ console.log('\n[39] 1.11.2 세부계획 — 슬롯 3 + 예시문 3 + 상자 10')
   }
 }
 
+/* ══════════════════════ [40] 2.5 주방 블록 — 1.2.2와 같은 축 ══════════════════════
+ *  기각 사유가 절반만 참이었다: `주방`은 1.2.2 고정 3개소에 그대로 있고 위험요인 어휘도
+ *  글자까지 같다. 핵심 단언은 개수가 아니라 **두 시트 항등**이다. */
+console.log('\n[40] 2.5 지휘통제팀 주방 블록 6상자')
+{
+  const { validateAnchors } = await import('../src/lib/xlsx-anchors.ts')
+  const { toInjectTargets } = await import('../src/lib/xlsx-workbook.ts')
+  const { FIRE_PLAN_ANCHORS, CMD25_SHEET, CMD25_KITCHEN_BOXES, CMD25_PLACE_CELL, HAZARD_SHEET, HAZARD_PLACE_ROWS, HAZARD_BOXES } =
+    await import('../src/lib/fire-plan-anchors.ts')
+  const { buildFirePlanValues } = await import('../src/lib/fire-plan-xlsx-values.ts')
+  const { labelAt } = await import('../src/lib/fire-plan-xlsx-manifest.ts')
+
+  const place = labelAt(CMD25_SHEET, CMD25_PLACE_CELL).trim()
+  check('2.5 주방 블록의 장소가 1.2.2 고정 3개소에 있다(사본 아닌 라벨 대조)',
+    HAZARD_PLACE_ROWS.some(r => labelAt(HAZARD_SHEET, `A${r}`).trim() === place), place)
+
+  /* 🚨 주방을 **첫 행에 두지 않는다** — 변이 M56(장소 매칭을 없애고 hz[0]을 쓴다)이 첫
+   *  실행에서 살아남았다. 픽스처가 그 변이를 태우지 못하면 「장소로 찾는다」가 증명되지 않는다. */
+  const hazards = [{ place: '전기실', location: '1층', factors: ['화학적 요인'] },
+    { place, location: '지하 1층', factors: ['전기적 요인', '부주의'] }]
+  const fx = { buildingName: 'X', facilities: [], brigade: [], zones: [], hazards, forms: {} } as never
+
+  const vc = validateAnchors(bytes, FIRE_PLAN_ANCHORS)
+  if (vc.ok) {
+    const out = await injectWorkbook(bytes, toInjectTargets(buildFirePlanValues(fx), vc.anchors).targets)
+    const zip4 = await JSZip.loadAsync(out.bytes)
+    const g25 = await readSheetGrid(zip4, CMD25_SHEET)
+    const at25 = (r: string) => g25.cells.find(x => x.ref === r)?.text ?? ''
+    const g22 = await readSheetGrid(zip4, HAZARD_SHEET)
+    const at22 = (r: string) => g22.cells.find(x => x.ref === r)?.text ?? ''
+
+    check('주방의 요인 2개만 켜진다(전기적·부주의)',
+      at25('L5').includes('■') && at25('L13').includes('■')
+      && !at25('L6').includes('■') && !at25('L8').includes('■') && !at25('L11').includes('■'))
+    /* 🎯 1.2.2와 항등 — 같은 장소·같은 요인이면 두 시트가 같은 상태여야 한다 */
+    const hazRow = HAZARD_PLACE_ROWS.find(r => labelAt(HAZARD_SHEET, `A${r}`).trim() === place)!
+    const parity = CMD25_KITCHEN_BOXES.every(([cell, factor]) => {
+      const box = HAZARD_BOXES.find(([, , f]) => f === factor)!
+      return at25(cell).includes('■') === at22(`${box[0]}${hazRow + box[1]}`).includes('■')
+    })
+    check('1.2.2와 6칸 항등(같은 장소·같은 요인)', parity)
+    /* 🚨 음성 — 보일러 실외기 블록은 다른 장소다(이름이 다른 것을 같다고 보지 않는다) */
+    const noAnchor = (cell: string) => !FIRE_PLAN_ANCHORS.some(a => a.sheet === CMD25_SHEET && a.cell === cell)
+    check('보일러 실외기 블록·팀 우선순위·인명피해 장소는 앵커가 없다',
+      ['L16', 'L18', 'L20', 'Z5', 'Z7', 'Z14', 'L30', 'A30', 'AO30', 'L41'].every(noAnchor))
+    check('보일러 실외기 블록은 미체크로 남는다',
+      ['L16', 'L18', 'L20', 'L22'].every(c => at25(c) === labelAt(CMD25_SHEET, c)))
+    /* 🚨 음성 — 해당 장소가 없으면 하나도 안 켠다 */
+    const out0 = await injectWorkbook(bytes, toInjectTargets(
+      buildFirePlanValues({ buildingName: 'X', facilities: [], brigade: [], zones: [], hazards: [], forms: {} } as never),
+      vc.anchors).targets)
+    const g0 = await readSheetGrid(await JSZip.loadAsync(out0.bytes), CMD25_SHEET)
+    const at0 = (r: string) => g0.cells.find(x => x.ref === r)?.text ?? ''
+    check('취약장소가 없으면 6칸 전부 미체크',
+      CMD25_KITCHEN_BOXES.every(([cell]) => at0(cell) === labelAt(CMD25_SHEET, cell)))
+  }
+}
+
 console.log(`\n=== pass ${pass} / fail ${fail} ===`)
 process.exit(fail ? 1 : 0)

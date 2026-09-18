@@ -61,6 +61,7 @@ export const FP_SHEET = {
   F3_2: '3.2 피난시설 세부현황',
   REV: '개정이력',
   F2_4: '2.4 개별임무카드',
+  F2_5: '2.5 지휘통제팀',
   F2_6: '2.6 비상연락팀(지휘반)',
   F2_8: '2.8 비상상황별 연락방법',
   F2_9: '2.9 초기소화팀(진압반)',
@@ -1631,6 +1632,36 @@ export const TRAIN2_FORM_BOXES: ReadonlyArray<readonly [string, string]> = [
   ['I12', '자체'], ['V12', '합동'],
 ]
 
+/* ─────────── 서식 2.5 지휘통제팀 — 주방 블록 위험요인 (2026-09-18) ───────────
+ *  기각 사유(「장소 집합이 1.2.2와 다르다」)가 **절반만 참**이었다 — `주방`은 1.2.2의
+ *  고정 3개소에 그대로 있고, 위험요인 어휘도 **글자까지 같다**(전기적 요인·기계적 요인·
+ *  화학적 요인·가스누출(폭발)·자연재해·부주의). 그 블록만 1.2.2와 같은 축으로 켠다.
+ *
+ *  ⭐ 장소 이름을 손으로 적지 않는다 — **A5 라벨이 곧 장소**다(1.2.2가 A열 라벨로 매칭하는
+ *    것과 같은 규약). 양식이 개정돼 장소가 바뀌면 매칭도 함께 옮겨진다.
+ *  ⚠ 블록 2(16~27행)는 `보일러 실외기`라 1.2.2의 `보일러실`과 **다른 장소**다 — 이름이
+ *    다른 것을 같다고 보면 없는 사실을 단언하게 되므로 비운다.
+ *  ⚠ 팀 우선순위 상자 20(Z열)은 「이 장소 화재에 이 팀이 대응하는가」인데 ERP엔 그 축이
+ *    없다(팀 편성 유무는 다른 뜻이다) · 인명피해 우려장소 2블록(28~50행)·고려사항·
+ *    기타 상자도 축 없음.
+ */
+export const CMD25_SHEET = FP_SHEET.F2_5
+/** 주방 블록 위험요인 — [셀, `HAZARD_BOXES`와 같은 자구]. 행 간격이 불규칙해 직접 적는다 */
+export const CMD25_KITCHEN_BOXES: ReadonlyArray<readonly [string, string]> = [
+  ['L5', '전기적 요인'], ['L6', '기계적 요인'], ['L8', '화학적 요인'],
+  ['L10', '가스누출(폭발)'], ['L11', '자연재해'], ['L13', '부주의'],
+]
+/** 주방 블록의 장소 라벨 칸 — 값 계산이 이 칸에서 장소 이름을 읽는다(사본 금지) */
+export const CMD25_PLACE_CELL = 'A5'
+
+const CMD25_SEEDS: Seed[] = CMD25_KITCHEN_BOXES.map(([cell, factor]) => {
+  const lbl = labelAt(CMD25_SHEET, cell)
+  if (!bareLabel(lbl).includes(bareLabel(factor))) {
+    throw new Error(`fire-plan-anchors: 2.5!${cell} 자구가 '${lbl.trim()}' 인데 요인은 '${factor}' — 좌표가 밀렸다`)
+  }
+  return { field: `cmd25_${cell}`, sheet: CMD25_SHEET, cell, labelCell: cell }
+})
+
 const TRAIN2_SEEDS: Seed[] = [
   { field: 'train2_at', sheet: TRAIN2_SHEET, cell: 'I5', labelCell: 'A5' },
   { field: 'train2_place', sheet: TRAIN2_SHEET, cell: 'I6', labelCell: 'A6' },
@@ -1693,7 +1724,7 @@ function assemble(seeds: Seed[]): Anchor[] {
   })
 }
 
-export const FIRE_PLAN_ANCHORS: Anchor[] = assemble([...FIXED_SEEDS, ...ZONE_SEEDS, ...BRIG_SEEDS, ...FORM14_SEEDS, ...FIREHIST_SEEDS, ...HAZARD_SEEDS, ...MU_SEEDS, ...TRAIN_SEEDS, ...EVAC1_SEEDS, ...BRIG1_SEEDS, ...FIREWORK_SEEDS, ...CONSTRUCTION_SEEDS, ...EVAC3_SEEDS, ...BRIG9_SEEDS, ...REC14_SEEDS, ...ATT14_SEEDS, ...VUL_SEEDS, ...VUL9_SEEDS, ...EVAC34_SEEDS, ...VUL36_SEEDS, ...ORG23_SEEDS, ...TENANT_SEEDS, ...RESP13_SEEDS, ...EQUIP37_SEEDS, ...ETC61_SEEDS, ...HAZ_SEEDS, ...VAL12_SEEDS, ...EVDET32_SEEDS, ...REV_SEEDS, ...CARD24_SEEDS, ...EVAC210_SEEDS, ...EXT29_SEEDS, ...TEAM_MISC_SEEDS, ...PROMO_SEEDS, ...FIRE115_SEEDS, ...REC1114_SEEDS, ...TRAIN2_SEEDS])
+export const FIRE_PLAN_ANCHORS: Anchor[] = assemble([...FIXED_SEEDS, ...ZONE_SEEDS, ...BRIG_SEEDS, ...FORM14_SEEDS, ...FIREHIST_SEEDS, ...HAZARD_SEEDS, ...MU_SEEDS, ...TRAIN_SEEDS, ...EVAC1_SEEDS, ...BRIG1_SEEDS, ...FIREWORK_SEEDS, ...CONSTRUCTION_SEEDS, ...EVAC3_SEEDS, ...BRIG9_SEEDS, ...REC14_SEEDS, ...ATT14_SEEDS, ...VUL_SEEDS, ...VUL9_SEEDS, ...EVAC34_SEEDS, ...VUL36_SEEDS, ...ORG23_SEEDS, ...TENANT_SEEDS, ...RESP13_SEEDS, ...EQUIP37_SEEDS, ...ETC61_SEEDS, ...HAZ_SEEDS, ...VAL12_SEEDS, ...EVDET32_SEEDS, ...REV_SEEDS, ...CARD24_SEEDS, ...EVAC210_SEEDS, ...EXT29_SEEDS, ...TEAM_MISC_SEEDS, ...PROMO_SEEDS, ...FIRE115_SEEDS, ...REC1114_SEEDS, ...TRAIN2_SEEDS, ...CMD25_SEEDS])
 
 /* ══════════════════════ §사진상자 (2026-09-14) ══════════════════════
  *

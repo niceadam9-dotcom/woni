@@ -53,6 +53,7 @@ import {
   PROMO_SHEET, PROMO_ROWS, PROMO_MONTH_COLS,
   REC1114_SHEET,
   TRAIN2_SHEET, TRAIN2_TARGET_BOXES, TRAIN2_PRACTICE_BOXES, TRAIN2_THEORY_BOXES, TRAIN2_FORM_BOXES,
+  CMD25_SHEET, CMD25_KITCHEN_BOXES, CMD25_PLACE_CELL,
 } from '@/lib/fire-plan-anchors'
 import { boxGlyphAt, labelAt, tokenTemplateAt } from '@/lib/fire-plan-xlsx-manifest'
 import { purposeCover, purposeShort } from '@/lib/purpose-label'
@@ -690,6 +691,15 @@ export function buildFirePlanValues(d: FirePlanGenData): Map<string, CellValue> 
   v.set('rec1114_attendees', unitCell(REC1114_SHEET, 'AI5', txt(latestEdu?.attendees)))
   v.set('rec1114_content', placeholderCell(REC1114_SHEET, 'I6', latestEdu?.content))
   v.set('rec1114_evaluation', placeholderCell(REC1114_SHEET, 'I7', latestEdu?.evaluation))
+
+  /* ── 서식 2.5 지휘통제팀 주방 블록 (2026-09-18) — 1.2.2와 **같은 축**(hz).
+   *  장소 이름은 양식 A5 라벨에서 읽는다(사본 금지 — 1.2.2도 A열 라벨로 매칭한다).
+   *  `보일러 실외기` 블록은 1.2.2의 `보일러실`과 **다른 장소**라 안 켠다. */
+  const cmd25Place = labelAt(CMD25_SHEET, CMD25_PLACE_CELL).trim()
+  const cmd25Haz = hz.find(h => txt(h.place) === cmd25Place)
+  for (const [cell, factor] of CMD25_KITCHEN_BOXES) {
+    v.set(`cmd25_${cell}`, boxLabelCell(CMD25_SHEET, cell, !!cmd25Haz?.factors?.includes(factor)))
+  }
 
   /* ── 서식 1.11.2 소방훈련·교육 세부계획 (2026-09-18) — details[0](제1차) + scenario.
    *  종류·형태 상자는 **구조화 축으로만** 켠다(구 자유 텍스트 kind·form은 어휘를 모른다).
