@@ -215,6 +215,14 @@ const MUTANTS = [
   ['M53 1.11.4 교육 필터를 없앤다 → [38] 착지 단언이 빨강이어야',
     VALUES, "  const eduRecs = ((tr1?.records ?? []) as Array<Record<string, string>>).filter(r => txt(r?.kind) === '교육')",
     "  const eduRecs = ((tr1?.records ?? []) as Array<Record<string, string>>)", 1],
+  /* 🚨 M54 — 1.11.2 대상 상자를 「포함」이 아니라 「일치」로 보면 복합 대상이 하나도 안 켜진다. */
+  ['M54 1.11.2 대상 판정을 정확 일치로 → [39] 대상 상자 단언이 빨강이어야',
+    VALUES, "    v.set(`train2_box_${cell}_${stem}`, boxLabelCell(TRAIN2_SHEET, cell, txt(det2?.target).includes(stem)))",
+    "    v.set(`train2_box_${cell}_${stem}`, boxLabelCell(TRAIN2_SHEET, cell, txt(det2?.target) === stem))", 1],
+  /* 🚨 M55 — 1.11.2가 2차 행을 실으면 「제1차」 지면에 다른 회차가 인쇄된다. */
+  ['M55 1.11.2가 details[1]을 싣는다 → [39] 착지 단언이 빨강이어야',
+    VALUES, '  const det2 = ((tr1?.details ?? []) as Array<Record<string, string>>)[0]',
+    '  const det2 = ((tr1?.details ?? []) as Array<Record<string, string>>)[1]', 1],
 ]
 
 /** 🚨 파일의 줄끝에 맞춰 needle을 바꾼다.

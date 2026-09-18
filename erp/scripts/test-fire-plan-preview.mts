@@ -1963,5 +1963,64 @@ console.log('\n[38] 1.11.4 뒷쪽 소방교육 결과 4칸')
   }
 }
 
+/* ══════════════════════ [39] 1.11.2 세부계획 — 사각 ①류 여섯째 ══════════════════════
+ *  training.details[0](제1차) + scenario. 종류·형태 상자는 구조화 축으로만 켠다. */
+console.log('\n[39] 1.11.2 세부계획 — 슬롯 3 + 예시문 3 + 상자 10')
+{
+  const { validateAnchors } = await import('../src/lib/xlsx-anchors.ts')
+  const { toInjectTargets } = await import('../src/lib/xlsx-workbook.ts')
+  const { FIRE_PLAN_ANCHORS, TRAIN2_SHEET } = await import('../src/lib/fire-plan-anchors.ts')
+  const { buildFirePlanValues } = await import('../src/lib/fire-plan-xlsx-values.ts')
+  const { labelAt } = await import('../src/lib/fire-plan-xlsx-manifest.ts')
+
+  const details = [
+    { name: '2026 상반기 합동훈련', at: '2026-05-20 14:00', place: '지하 주차장', target: '자위소방대 및 근무자',
+      kindPractice: '부분', kindTheory: '강의', formType: '합동', formPartner: '양평소방서',
+      materials: '소화기 10본·모의 연기', plan: '피난 유도 후 초기 진압' },
+    { name: '2차(안 실린다)', at: '2026-11-01', place: 'X', target: '거주자', kindPractice: '종합', formType: '자체' },
+  ]
+  const fx = { buildingName: 'X', facilities: [], brigade: [], zones: [], hazards: [],
+    forms: { training: { details, scenario: '2층 주방 발화 가정', eduMonths: [], drillMonths: [], records: [] } } } as never
+
+  const vc = validateAnchors(bytes, FIRE_PLAN_ANCHORS)
+  if (vc.ok) {
+    const out = await injectWorkbook(bytes, toInjectTargets(buildFirePlanValues(fx), vc.anchors).targets)
+    const gr = await readSheetGrid(await JSZip.loadAsync(out.bytes), TRAIN2_SHEET)
+    const at = (r: string) => gr.cells.find(x => x.ref === r)?.text ?? ''
+
+    check('제1차 일시·장소·시나리오가 착지한다(2차는 안 실린다)',
+      at('I5') === '2026-05-20 14:00' && at('I6') === '지하 주차장' && at('I13') === '2층 주방 발화 가정',
+      `${at('I5')}/${at('I6')}/${at('I13')}`)
+    check('예시문칸 3이 덮인다(명칭·교보재·계획)',
+      at('I4') === '2026 상반기 합동훈련' && at('I14') === '소화기 10본·모의 연기'
+      && at('I15') === '피난 유도 후 초기 진압', `${at('I4')}/${at('I14')}`)
+    /* 대상 — 자유 텍스트에 어간이 있으면 켠다(거주자는 없다) */
+    check('대상 상자: 자위소방대·근무자 켜지고 거주자는 꺼짐',
+      at('I7').includes('■') && at('V7').includes('■') && !at('AI7').includes('■'),
+      `${at('I7').slice(0, 2)}/${at('V7').slice(0, 2)}/${at('AI7').slice(0, 2)}`)
+    check('종류 상자: 부분(실습)·강의(이론)만 켜짐',
+      at('AE8').includes('■') && at('R9').includes('■')
+      && !at('R8').includes('■') && !at('AU8').includes('■') && !at('AE9').includes('■'))
+    check('형태 상자: 합동만 켜짐', at('V12').includes('■') && !at('I12').includes('■'))
+
+    /* 🚨 음성 — details가 없으면 예시가 남고 상자는 전부 꺼진다(지어내지 않는다) */
+    const out0 = await injectWorkbook(bytes, toInjectTargets(
+      buildFirePlanValues({ buildingName: 'X', facilities: [], brigade: [], zones: [], hazards: [], forms: {} } as never),
+      vc.anchors).targets)
+    const g0 = await readSheetGrid(await JSZip.loadAsync(out0.bytes), TRAIN2_SHEET)
+    const at0 = (r: string) => g0.cells.find(x => x.ref === r)?.text ?? ''
+    check('계획이 없으면 예시가 남고 일시·장소는 빈 칸',
+      at0('I4') === labelAt(TRAIN2_SHEET, 'I4') && at0('I15') === labelAt(TRAIN2_SHEET, 'I15')
+      && at0('I5').trim() === '' && at0('I6').trim() === '')
+    check('계획이 없으면 상자 10 전부 미체크',
+      ['I7', 'V7', 'AI7', 'R8', 'AE8', 'AU8', 'R9', 'AE9', 'I12', 'V12']
+        .every(c => at0(c) === labelAt(TRAIN2_SHEET, c)))
+    /* 🚨 음성 — 축 없는 칸엔 앵커를 두지 않는다 */
+    const noAnchor = (cell: string) => !FIRE_PLAN_ANCHORS.some(a => a.sheet === TRAIN2_SHEET && a.cell === cell)
+    check('주관부서·참여대상·교육계획·평가·여백칸은 앵커가 없다',
+      ['I10', 'I11', 'I16', 'R17', 'AV7', 'AU9', 'AV12'].every(noAnchor))
+  }
+}
+
 console.log(`\n=== pass ${pass} / fail ${fail} ===`)
 process.exit(fail ? 1 : 0)

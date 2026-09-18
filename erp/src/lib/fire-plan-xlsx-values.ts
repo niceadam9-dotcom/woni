@@ -52,6 +52,7 @@ import {
   CONTACT26_SHEET, ALERT28_SHEET, RESCUE211_SHEET,
   PROMO_SHEET, PROMO_ROWS, PROMO_MONTH_COLS,
   REC1114_SHEET,
+  TRAIN2_SHEET, TRAIN2_TARGET_BOXES, TRAIN2_PRACTICE_BOXES, TRAIN2_THEORY_BOXES, TRAIN2_FORM_BOXES,
 } from '@/lib/fire-plan-anchors'
 import { boxGlyphAt, labelAt, tokenTemplateAt } from '@/lib/fire-plan-xlsx-manifest'
 import { purposeCover, purposeShort } from '@/lib/purpose-label'
@@ -689,6 +690,29 @@ export function buildFirePlanValues(d: FirePlanGenData): Map<string, CellValue> 
   v.set('rec1114_attendees', unitCell(REC1114_SHEET, 'AI5', txt(latestEdu?.attendees)))
   v.set('rec1114_content', placeholderCell(REC1114_SHEET, 'I6', latestEdu?.content))
   v.set('rec1114_evaluation', placeholderCell(REC1114_SHEET, 'I7', latestEdu?.evaluation))
+
+  /* ── 서식 1.11.2 소방훈련·교육 세부계획 (2026-09-18) — details[0](제1차) + scenario.
+   *  종류·형태 상자는 **구조화 축으로만** 켠다(구 자유 텍스트 kind·form은 어휘를 모른다).
+   *  대상 상자는 자유 텍스트 target이 그 어간을 품을 때만 켠다. */
+  const det2 = ((tr1?.details ?? []) as Array<Record<string, string>>)[0]
+  v.set('train2_at', txt(det2?.at))
+  v.set('train2_place', txt(det2?.place))
+  v.set('train2_scenario', txt(tr1?.scenario))
+  v.set('train2_name', placeholderCell(TRAIN2_SHEET, 'I4', det2?.name))
+  v.set('train2_materials', placeholderCell(TRAIN2_SHEET, 'I14', det2?.materials))
+  v.set('train2_plan', placeholderCell(TRAIN2_SHEET, 'I15', det2?.plan))
+  for (const [cell, stem] of TRAIN2_TARGET_BOXES) {
+    v.set(`train2_box_${cell}_${stem}`, boxLabelCell(TRAIN2_SHEET, cell, txt(det2?.target).includes(stem)))
+  }
+  for (const [cell, want] of TRAIN2_PRACTICE_BOXES) {
+    v.set(`train2_box_${cell}_${want}`, boxLabelCell(TRAIN2_SHEET, cell, txt(det2?.kindPractice) === want))
+  }
+  for (const [cell, want] of TRAIN2_THEORY_BOXES) {
+    v.set(`train2_box_${cell}_${want}`, boxLabelCell(TRAIN2_SHEET, cell, txt(det2?.kindTheory) === want))
+  }
+  for (const [cell, want] of TRAIN2_FORM_BOXES) {
+    v.set(`train2_box_${cell}_${want}`, boxLabelCell(TRAIN2_SHEET, cell, txt(det2?.formType) === want))
+  }
 
   /* ── 서식 2.2 자위소방대 편성표 (2단계 · Q-1 자동 채움) ────────────────────────
    *  `d.brigade`는 `fire_brigade_members`를 sort_order 순으로 담은 것이고, 양식은 그 대원을

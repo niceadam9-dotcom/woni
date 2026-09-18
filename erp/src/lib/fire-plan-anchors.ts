@@ -45,6 +45,7 @@ export const FP_SHEET = {
   F1_13: '1.13 소방시설 공사·정비 기록',
   F3_3: '3.3 피난인원현황',
   F1_9: '1.9 자위소방대 현황',
+  F1_11_2: '1.11.2 소방훈련·교육 세부계획',
   // ⚠ manifest에 `1.11.4`로 시작하는 시트가 **둘**이다(앞쪽·뒷쪽) — 용도 칸은 앞쪽에만 있다
   F1_11_4: '1.11.4 훈련·교육 결과기록부',
   F1_11_4_BACK: '1.11.4 결과기록부 뒷쪽',
@@ -1596,6 +1597,52 @@ const REC1114_SEEDS: Seed[] = [
   { field: 'rec1114_evaluation', sheet: REC1114_SHEET, cell: 'I7', labelCell: 'I7' },
 ]
 
+/* ─────────── 서식 1.11.2 소방훈련·교육 세부계획 (2026-09-18) ───────────
+ *  사각 ①류 **여섯째** — 「회차 세부 축 없음」으로 기각했었는데 `training.details`
+ *  (명칭·일시·장소·대상·실습종류·이론종류·형태·참여기관·교보재·계획)가 1.11 입력 화면에
+ *  있고 PDF `detailRows`가 이미 인쇄 중이었다. **오늘 세 번째로 낡은 기각 사유다.**
+ *
+ *  ⭐ 양식은 **한 회차 지면**(A3 `[  년 제  차]`)이라 `details[0]`(제1차)을 싣는다 —
+ *    1.15·1.11.4가 「최신」인 것과 근거가 다르다(저긴 사후 기록, 여긴 차수별 계획).
+ *  ⭐ 시나리오(I13)는 `training.scenario` — 1.11.3에선 「한 칸 ↔ 5열 표」라 배선 불가였는데
+ *    여긴 **한 칸**이라 그대로 실린다(2.13과 같은 「같은 값, 다른 그릇」).
+ *  ⭐ 종류·형태 상자는 구조화 축(`kindPractice`·`kindTheory`·`formType`)으로만 켠다 —
+ *    구 자유 텍스트(`kind`·`form`)는 어휘를 모르므로 안 켠다(모르면 안 켠다).
+ *  ⚠ 대상 상자 3은 자유 텍스트 `target`에 그 어간이 **들어 있을 때만** 켠다.
+ *  ⚠ 비우는 것: 주관부서(I10)·참여대상(I11 — 양식이 예시 인쇄)·교육계획(I16 — details에
+ *    대응 축 없음, plan 하나뿐)·평가일시(R17)·평가자·행 끝 여백칸(AV7·AU9·AV12) — 축 없음.
+ */
+export const TRAIN2_SHEET = FP_SHEET.F1_11_2
+
+/** 대상 상자 — [셀, 어간]. 자유 텍스트 `target`이 그 어간을 품으면 켠다 */
+export const TRAIN2_TARGET_BOXES: ReadonlyArray<readonly [string, string]> = [
+  ['I7', '자위소방대'], ['V7', '근무자'], ['AI7', '거주자'],
+]
+/** 실습 종류 상자 — [셀, `kindPractice` 값] */
+export const TRAIN2_PRACTICE_BOXES: ReadonlyArray<readonly [string, string]> = [
+  ['R8', '기본'], ['AE8', '부분'], ['AU8', '종합'],
+]
+/** 이론 종류 상자 — [셀, `kindTheory` 값] */
+export const TRAIN2_THEORY_BOXES: ReadonlyArray<readonly [string, string]> = [
+  ['R9', '강의'], ['AE9', '세미나'],
+]
+/** 훈련 형태 상자 — [셀, `formType` 값] */
+export const TRAIN2_FORM_BOXES: ReadonlyArray<readonly [string, string]> = [
+  ['I12', '자체'], ['V12', '합동'],
+]
+
+const TRAIN2_SEEDS: Seed[] = [
+  { field: 'train2_at', sheet: TRAIN2_SHEET, cell: 'I5', labelCell: 'A5' },
+  { field: 'train2_place', sheet: TRAIN2_SHEET, cell: 'I6', labelCell: 'A6' },
+  { field: 'train2_scenario', sheet: TRAIN2_SHEET, cell: 'I13', labelCell: 'A13' },
+  // 법정 예시문칸 — 값이 있으면 덮고, 없으면 예시가 남는다
+  { field: 'train2_name', sheet: TRAIN2_SHEET, cell: 'I4', labelCell: 'I4' },
+  { field: 'train2_materials', sheet: TRAIN2_SHEET, cell: 'I14', labelCell: 'I14' },
+  { field: 'train2_plan', sheet: TRAIN2_SHEET, cell: 'I15', labelCell: 'I15' },
+  ...[...TRAIN2_TARGET_BOXES, ...TRAIN2_PRACTICE_BOXES, ...TRAIN2_THEORY_BOXES, ...TRAIN2_FORM_BOXES]
+    .map(([cell, key]) => ({ field: `train2_box_${cell}_${key}`, sheet: TRAIN2_SHEET, cell, labelCell: cell })),
+]
+
 const MU_SEEDS: Seed[] = [
   ...MU_VALUE_CELLS.map(([k, cell, labelCell]) => ({ field: `mu_${k}`, sheet: MU_SHEET, cell, labelCell })),
   // 상자·자리표시는 **자기 칸이 라벨**이다(그 칸의 자구를 우리가 읽어 조립한다)
@@ -1646,7 +1693,7 @@ function assemble(seeds: Seed[]): Anchor[] {
   })
 }
 
-export const FIRE_PLAN_ANCHORS: Anchor[] = assemble([...FIXED_SEEDS, ...ZONE_SEEDS, ...BRIG_SEEDS, ...FORM14_SEEDS, ...FIREHIST_SEEDS, ...HAZARD_SEEDS, ...MU_SEEDS, ...TRAIN_SEEDS, ...EVAC1_SEEDS, ...BRIG1_SEEDS, ...FIREWORK_SEEDS, ...CONSTRUCTION_SEEDS, ...EVAC3_SEEDS, ...BRIG9_SEEDS, ...REC14_SEEDS, ...ATT14_SEEDS, ...VUL_SEEDS, ...VUL9_SEEDS, ...EVAC34_SEEDS, ...VUL36_SEEDS, ...ORG23_SEEDS, ...TENANT_SEEDS, ...RESP13_SEEDS, ...EQUIP37_SEEDS, ...ETC61_SEEDS, ...HAZ_SEEDS, ...VAL12_SEEDS, ...EVDET32_SEEDS, ...REV_SEEDS, ...CARD24_SEEDS, ...EVAC210_SEEDS, ...EXT29_SEEDS, ...TEAM_MISC_SEEDS, ...PROMO_SEEDS, ...FIRE115_SEEDS, ...REC1114_SEEDS])
+export const FIRE_PLAN_ANCHORS: Anchor[] = assemble([...FIXED_SEEDS, ...ZONE_SEEDS, ...BRIG_SEEDS, ...FORM14_SEEDS, ...FIREHIST_SEEDS, ...HAZARD_SEEDS, ...MU_SEEDS, ...TRAIN_SEEDS, ...EVAC1_SEEDS, ...BRIG1_SEEDS, ...FIREWORK_SEEDS, ...CONSTRUCTION_SEEDS, ...EVAC3_SEEDS, ...BRIG9_SEEDS, ...REC14_SEEDS, ...ATT14_SEEDS, ...VUL_SEEDS, ...VUL9_SEEDS, ...EVAC34_SEEDS, ...VUL36_SEEDS, ...ORG23_SEEDS, ...TENANT_SEEDS, ...RESP13_SEEDS, ...EQUIP37_SEEDS, ...ETC61_SEEDS, ...HAZ_SEEDS, ...VAL12_SEEDS, ...EVDET32_SEEDS, ...REV_SEEDS, ...CARD24_SEEDS, ...EVAC210_SEEDS, ...EXT29_SEEDS, ...TEAM_MISC_SEEDS, ...PROMO_SEEDS, ...FIRE115_SEEDS, ...REC1114_SEEDS, ...TRAIN2_SEEDS])
 
 /* ══════════════════════ §사진상자 (2026-09-14) ══════════════════════
  *
@@ -1781,6 +1828,10 @@ export const FIRE_PLAN_SAMPLE_CELLS: ReadonlyArray<readonly [string, string, str
   /* 1.11.4 뒷쪽 교육내용·성과 — training.records(내용·평가)가 있으면 덮는다 */
   [FP_SHEET.F1_11_4_BACK, 'I6', '소화기 사용법 및 사용시 문제점 설명\n화재신고 방법 설명\n연기의 독성에 대한 설명(연기 흡입시 위험성 설명)'],
   [FP_SHEET.F1_11_4_BACK, 'I7', '소화기 사용에 대한 적응성 향상'],
+  /* 1.11.2 명칭·교보재·훈련계획 — training.details[0]이 있으면 덮는다 */
+  [FP_SHEET.F1_11_2, 'I4', '       자체 소방훈련 '],
+  [FP_SHEET.F1_11_2, 'I14', '승진소방이엔지 교육자료, 소화기, 확성기'],
+  [FP_SHEET.F1_11_2, 'I15', '2층 화재 초기에 1층 출입문으로 대피 및 피난 늦은 자는 옥상으로 대피 \n및 각 세대 베란다로 이동하여 완강기 사용법 숙지'],
 ]
 
 const SAMPLE_KEYS = new Set(FIRE_PLAN_SAMPLE_CELLS.map(([s, c]) => `${s}!${c}`))

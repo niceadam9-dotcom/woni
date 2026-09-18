@@ -152,8 +152,9 @@ console.log('\n[3] 백지 불변식 — 템플릿에 표본의 답이 남아 있
   const sampleCells = FIRE_PLAN_ANCHORS.filter(isSampleTextAnchor)
   // 2026-09-18: 2.9 초기소화·가스 조치 3칸 추가로 13→16 — PDF 초기대응 개요 폴백과 같은 자구
   // 2026-09-18(2): 1.11.4 뒷쪽 교육내용·성과 2칸으로 16→18 — training.records가 덮는다
-  check('법정예시문칸 예외 수가 그대로(3.4 4 + 3.6 4 + 1.6.1 5 + 2.9 3 + 1.11.4 2)', sampleCells.length === 18,
-    sampleCells.map(a => `${a.sheet}!${a.cell}`).join(' · '))
+  // 2026-09-18(3): 1.11.2 명칭·교보재·훈련계획 3칸으로 18→21 — training.details[0]이 덮는다
+  check('법정예시문칸 예외 수가 그대로(3.4 4 + 3.6 4 + 1.6.1 5 + 2.9 3 + 1.11.4 2 + 1.11.2 3)',
+    sampleCells.length === 21, sampleCells.map(a => `${a.sheet}!${a.cell}`).join(' · '))
   // ① 선언한 자구가 템플릿과 **글자까지** 같은가 — 다르면 표본의 답이 바뀐 것이다.
   //   ⚠ `cellText`가 아니라 `labelAt`으로 묻는다 — 저쪽은 공백을 깎아 `'1층 주차장 '`의
   //     꼬리 공백을 못 본다. 핀은 **바이트 그대로**여야 제 구실을 한다.
@@ -235,8 +236,9 @@ console.log('\n[3] 백지 불변식 — 템플릿에 표본의 답이 남아 있
   //   시설별은 1.6.1과 같은 축. 기타(O11)는 축이 없어 안 센다.
   // 2026-09-18(4): 1.14.1 월 격자 120(방법 10 × 12월, ④ promoPlan)으로 249→369.
   //   보관방법 상자 4(16~17행)·※ 안내(AE3)는 축이 없어 안 센다.
-  check('상자칸 예외 수가 그대로(… + 2.9 6 + 1.14.1 120)',
-    boxLabel.length === 369, `${boxLabel.length}칸`)
+  // 2026-09-18(5): 1.11.2 대상 3 + 실습 3 + 이론 2 + 형태 2 = 10으로 369→379
+  check('상자칸 예외 수가 그대로(… + 1.14.1 120 + 1.11.2 10)',
+    boxLabel.length === 379, `${boxLabel.length}칸`)
   check('상자칸은 템플릿에서 전부 미체크', boxLabel.every(a => !/■/.test(cellText(a))),
     boxLabel.filter(a => /■/.test(cellText(a))).map(a => a.cell).join(','))
   const unitCells = FIRE_PLAN_ANCHORS.filter(a => isUnitLabelAnchor(a) && !isSampleTextAnchor(a))
