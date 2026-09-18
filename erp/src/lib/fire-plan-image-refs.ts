@@ -52,6 +52,8 @@ export type ImageRefInput = {
     evacPlan?: { mapImage?: string | null } | null
     /** 1.11.4 뒷쪽 훈련·교육 사진 (2026-09-18) — 1.11 카드가 소유·저장한다 */
     training?: { photos?: Array<{ path?: string | null; kind?: string; caption?: string }> | null } | null
+    /** 1.14.2 홍보 결과 증빙 사진 (2026-09-18) — 1.12~1.15 카드가 소유·저장한다 */
+    promoPhotos?: Array<{ path?: string | null; caption?: string }> | null
   }
   /** 삽입 사진 — 경로가 있는 것만 (호출부가 이미 걸러 온다) */
   photos: Array<ImageRef>
@@ -86,6 +88,10 @@ export function firePlanImageCandidates({ slotAssets, sections, photos }: ImageR
     if (p?.path && (p.kind === 'train' || p.kind === 'edu')) {
       refs.push({ path: p.path, kind: p.kind, caption: p.caption ?? '', priority: PRIORITY_FORM })
     }
+  }
+  /* 1.14.2 홍보 결과 증빙 2장 — 종류가 하나뿐이라 `kind`를 저장하지 않고 여기서 붙인다 */
+  for (const p of s.promoPhotos ?? []) {
+    if (p?.path) refs.push({ path: p.path, kind: 'promo', caption: p.caption ?? '', priority: PRIORITY_FORM })
   }
   for (const p of photos) refs.push({ ...p, priority: PRIORITY_PHOTO })
 

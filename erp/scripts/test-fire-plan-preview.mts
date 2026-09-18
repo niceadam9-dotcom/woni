@@ -2080,5 +2080,48 @@ console.log('\n[40] 2.5 지휘통제팀 주방 블록 6상자')
   }
 }
 
+/* ══════════════════════ [41] 1.14.2 홍보 결과 — 방법 2칸(예시문칸) ══════════════════════
+ *  사진 2칸은 이미지 상자(`test-fire-plan-images`)가 맡고, 여기선 값 축만 본다.
+ *  ⚠ 「일시 및 장소」는 장소 축이 없어 비운다 — 한 칸 두 뜻에 한 뜻만 넣지 않는다. */
+console.log('\n[41] 1.14.2 홍보 결과 방법 2칸')
+{
+  const { validateAnchors } = await import('../src/lib/xlsx-anchors.ts')
+  const { toInjectTargets } = await import('../src/lib/xlsx-workbook.ts')
+  const { FIRE_PLAN_ANCHORS, PROMO2_SHEET, PROMO2_METHOD_CELLS } = await import('../src/lib/fire-plan-anchors.ts')
+  const { buildFirePlanValues } = await import('../src/lib/fire-plan-xlsx-values.ts')
+  const { labelAt } = await import('../src/lib/fire-plan-xlsx-manifest.ts')
+
+  const promoLog = [
+    { date: '2026-03-02', method: '게시판 안내문 부착', content: 'C1', target: '입주민' },
+    { date: '2026-07-11', method: '엘리베이터 영상 송출', content: 'C2', target: '방문객' },
+    { date: '2026-09-01', method: '셋째는 안 실린다', content: 'C3', target: 'X' },
+  ]
+  const fx = { buildingName: 'X', facilities: [], brigade: [], zones: [], hazards: [],
+    forms: { promoLog } } as never
+
+  const vc = validateAnchors(bytes, FIRE_PLAN_ANCHORS)
+  if (vc.ok) {
+    const out = await injectWorkbook(bytes, toInjectTargets(buildFirePlanValues(fx), vc.anchors).targets)
+    const gr = await readSheetGrid(await JSZip.loadAsync(out.bytes), PROMO2_SHEET)
+    const at = (r: string) => gr.cells.find(x => x.ref === r)?.text ?? ''
+
+    check('앞 두 건의 방법이 블록 2벌에 착지한다(셋째는 안 실린다)',
+      at('P2') === '게시판 안내문 부착' && at('P4') === '엘리베이터 영상 송출',
+      `${at('P2')} / ${at('P4')}`)
+    /* 🚨 음성 — 기록이 없으면 법정 예시가 남는다 */
+    const out0 = await injectWorkbook(bytes, toInjectTargets(
+      buildFirePlanValues({ buildingName: 'X', facilities: [], brigade: [], zones: [], hazards: [], forms: {} } as never),
+      vc.anchors).targets)
+    const g0 = await readSheetGrid(await JSZip.loadAsync(out0.bytes), PROMO2_SHEET)
+    const at0 = (r: string) => g0.cells.find(x => x.ref === r)?.text ?? ''
+    check('기록이 없으면 두 칸 모두 법정 예시 그대로',
+      PROMO2_METHOD_CELLS.every(c => at0(c) === labelAt(PROMO2_SHEET, c)))
+    /* 🚨 음성 — 「일시 및 장소」엔 앵커를 두지 않는다(장소 축이 없다) */
+    const noAnchor = (cell: string) => !FIRE_PLAN_ANCHORS.some(a => a.sheet === PROMO2_SHEET && a.cell === cell)
+    check('일시 및 장소 칸은 앵커가 없고 예시가 남는다',
+      ['AT2', 'AT4'].every(c => noAnchor(c) && at(c) === labelAt(PROMO2_SHEET, c)))
+  }
+}
+
 console.log(`\n=== pass ${pass} / fail ${fail} ===`)
 process.exit(fail ? 1 : 0)

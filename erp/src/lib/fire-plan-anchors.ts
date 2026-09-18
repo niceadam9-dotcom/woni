@@ -41,6 +41,7 @@ export const FP_SHEET = {
   F1_11_1: '1.11.1 소방훈련·교육 연간계획',
   F1_12_1: '1.12.1 화기취급작업 현황',
   F1_14_1: '1.14.1 화재예방 및 홍보 계획',
+  F1_14_2: '1.14.2 화재예방 및 홍보 결과',
   F1_15: '1.15 피해 복구',
   F1_13: '1.13 소방시설 공사·정비 기록',
   F3_3: '3.3 피난인원현황',
@@ -1572,6 +1573,21 @@ const PROMO_SEEDS: Seed[] = PROMO_ROWS.flatMap(({ key, row }) =>
  *  ⚠ 비우는 것: 피해복구계획 빈 행(J4·Z4·J5·Z5·J10·Z10·AS10)·예방대책(J18)·피해상황
  *    수치 4칸과 상자 4 — 축 없음(사망·부상·피해액·피해면적을 ERP가 모른다).
  */
+/* ─────────── 서식 1.14.2 홍보 결과 — 방법 2칸 (2026-09-18) ───────────
+ *  블록 2벌의 「화재예방 및 홍보방법」 칸(P2·P4)에 `promoLog`의 앞 두 건을 싣는다 —
+ *  법정 예시문(`포스터, 표어`)이 인쇄돼 있어 **예시문칸 갈래**로 덮는다.
+ *  ⚠ 「일시 및 장소」(AT2·AT4)는 비운다 — `promoLog`엔 `date`뿐이고 **장소 축이 없다**.
+ *    한 칸이 두 뜻(일시+장소)을 담는데 한 뜻만 넣으면 머리글이 거짓말이 된다(1.12.1 전례).
+ *  ⚠ 사진 2칸은 이미지 상자(`img_promo_*`)가 맡는다 — 값 축이 아니다.
+ */
+export const PROMO2_SHEET = FP_SHEET.F1_14_2
+/** 블록 2벌의 방법 칸 — `promoLog[i].method`가 덮는다 */
+export const PROMO2_METHOD_CELLS = ['P2', 'P4'] as const
+
+const PROMO2_SEEDS: Seed[] = PROMO2_METHOD_CELLS.map((cell, i) => ({
+  field: `promo2_method_${i}`, sheet: PROMO2_SHEET, cell, labelCell: cell,
+}))
+
 export const FIRE115_SHEET = FP_SHEET.F1_15
 
 const FIRE115_SEEDS: Seed[] = [
@@ -1724,7 +1740,7 @@ function assemble(seeds: Seed[]): Anchor[] {
   })
 }
 
-export const FIRE_PLAN_ANCHORS: Anchor[] = assemble([...FIXED_SEEDS, ...ZONE_SEEDS, ...BRIG_SEEDS, ...FORM14_SEEDS, ...FIREHIST_SEEDS, ...HAZARD_SEEDS, ...MU_SEEDS, ...TRAIN_SEEDS, ...EVAC1_SEEDS, ...BRIG1_SEEDS, ...FIREWORK_SEEDS, ...CONSTRUCTION_SEEDS, ...EVAC3_SEEDS, ...BRIG9_SEEDS, ...REC14_SEEDS, ...ATT14_SEEDS, ...VUL_SEEDS, ...VUL9_SEEDS, ...EVAC34_SEEDS, ...VUL36_SEEDS, ...ORG23_SEEDS, ...TENANT_SEEDS, ...RESP13_SEEDS, ...EQUIP37_SEEDS, ...ETC61_SEEDS, ...HAZ_SEEDS, ...VAL12_SEEDS, ...EVDET32_SEEDS, ...REV_SEEDS, ...CARD24_SEEDS, ...EVAC210_SEEDS, ...EXT29_SEEDS, ...TEAM_MISC_SEEDS, ...PROMO_SEEDS, ...FIRE115_SEEDS, ...REC1114_SEEDS, ...TRAIN2_SEEDS, ...CMD25_SEEDS])
+export const FIRE_PLAN_ANCHORS: Anchor[] = assemble([...FIXED_SEEDS, ...ZONE_SEEDS, ...BRIG_SEEDS, ...FORM14_SEEDS, ...FIREHIST_SEEDS, ...HAZARD_SEEDS, ...MU_SEEDS, ...TRAIN_SEEDS, ...EVAC1_SEEDS, ...BRIG1_SEEDS, ...FIREWORK_SEEDS, ...CONSTRUCTION_SEEDS, ...EVAC3_SEEDS, ...BRIG9_SEEDS, ...REC14_SEEDS, ...ATT14_SEEDS, ...VUL_SEEDS, ...VUL9_SEEDS, ...EVAC34_SEEDS, ...VUL36_SEEDS, ...ORG23_SEEDS, ...TENANT_SEEDS, ...RESP13_SEEDS, ...EQUIP37_SEEDS, ...ETC61_SEEDS, ...HAZ_SEEDS, ...VAL12_SEEDS, ...EVDET32_SEEDS, ...REV_SEEDS, ...CARD24_SEEDS, ...EVAC210_SEEDS, ...EXT29_SEEDS, ...TEAM_MISC_SEEDS, ...PROMO_SEEDS, ...FIRE115_SEEDS, ...REC1114_SEEDS, ...TRAIN2_SEEDS, ...CMD25_SEEDS, ...PROMO2_SEEDS])
 
 /* ══════════════════════ §사진상자 (2026-09-14) ══════════════════════
  *
@@ -1748,8 +1764,8 @@ export type FirePlanImageBox = Seed & {
   /** `assembleFirePlan()`이 붙이는 이미지 종류 — **우선순위 순서**다.
    *  앞의 것이 있으면 뒤의 것은 이 상자에 못 앉고 **고지로 나간다**(조용히 버리지 않는다).
    *  대부분 한 종류뿐이고, 두 개인 곳은 1.3 「건축물 위치」뿐이다(표지 사진 > 위치도 약도). */
-  // 2026-09-18: `train`·`edu` 추가 — 1.11.4 뒷쪽 훈련·교육 사진(축 `training.photos`)
-  kinds: readonly ('cover' | 'map' | 'route' | 'entry' | 'evacmap' | 'train' | 'edu')[]
+  // 2026-09-18: `train`·`edu`(1.11.4 뒷쪽 `training.photos`)·`promo`(1.14.2 `promoPhotos`) 추가
+  kinds: readonly ('cover' | 'map' | 'route' | 'entry' | 'evacmap' | 'train' | 'edu' | 'promo')[]
   /** 같은 kind가 여러 장일 때 몇 번째를 이 상자에 넣는가(0부터) */
   index: number
   /** 그림이 앉으면 **그 칸의 글자를 비운다** — `[해당 층 평면도]` 같은 '여기 붙이시오' 안내다.
@@ -1775,6 +1791,11 @@ export const FIRE_PLAN_IMAGE_BOXES: FirePlanImageBox[] = [
   { field: 'img_train_2', kinds: ['train'], index: 1, sheet: FP_SHEET.F1_11_4_BACK, cell: 'AB11', labelCell: 'A10' },
   { field: 'img_edu_1',   kinds: ['edu'],   index: 0, sheet: FP_SHEET.F1_11_4_BACK, cell: 'A13',  labelCell: 'A10' },
   { field: 'img_edu_2',   kinds: ['edu'],   index: 1, sheet: FP_SHEET.F1_11_4_BACK, cell: 'AB13', labelCell: 'A10' },
+  /* 1.14.2 홍보 결과 증빙 사진 2칸 (2026-09-18) — 축은 `promoPhotos`(1.12~1.15 카드 소유).
+   *  블록 2벌(2~3행·4~5행)이고 3·5행이 사진 자리(263pt 전폭 병합)다.
+   *  ⚠ 두 칸이 모두 빈 칸이라 라벨칸은 **유일 제목칸 A1**에 물린다(1.5.2·1.11.4와 같은 규약). */
+  { field: 'img_promo_1', kinds: ['promo'], index: 0, sheet: FP_SHEET.F1_14_2, cell: 'A3', labelCell: 'A1' },
+  { field: 'img_promo_2', kinds: ['promo'], index: 1, sheet: FP_SHEET.F1_14_2, cell: 'A5', labelCell: 'A1' },
 ]
 
 /** 사진 상자의 라벨 검증용 앵커 — 라우트가 `validateAnchors(bytes, FIRE_PLAN_IMAGE_ANCHORS)`로 쓴다 */
@@ -1869,6 +1890,9 @@ export const FIRE_PLAN_SAMPLE_CELLS: ReadonlyArray<readonly [string, string, str
   /* 1.11.4 뒷쪽 교육내용·성과 — training.records(내용·평가)가 있으면 덮는다 */
   [FP_SHEET.F1_11_4_BACK, 'I6', '소화기 사용법 및 사용시 문제점 설명\n화재신고 방법 설명\n연기의 독성에 대한 설명(연기 흡입시 위험성 설명)'],
   [FP_SHEET.F1_11_4_BACK, 'I7', '소화기 사용에 대한 적응성 향상'],
+  /* 1.14.2 홍보방법 2칸 — promoLog 앞 두 건이 있으면 덮는다(블록 2벌이 같은 자구다) */
+  [FP_SHEET.F1_14_2, 'P2', '포스터, 표어'],
+  [FP_SHEET.F1_14_2, 'P4', '포스터, 표어'],
   /* 1.11.2 명칭·교보재·훈련계획 — training.details[0]이 있으면 덮는다 */
   [FP_SHEET.F1_11_2, 'I4', '       자체 소방훈련 '],
   [FP_SHEET.F1_11_2, 'I14', '승진소방이엔지 교육자료, 소화기, 확성기'],

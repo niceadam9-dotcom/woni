@@ -54,6 +54,7 @@ const FORM_SECTION_KEYS = new Set([
   'dutyLog', // 1.10.2 업무수행 기록 (§12-1 결정: ERP 입력 관리)
   'fireworkLog', 'constructionLog', 'promoLog', 'recoveryLog', // 1.12~1.15 (§12-3 결정: v1 포함)
   'promoPlan', // 1.14.1 연간 계획(방법별 실시 월) — ④ 넷째 축 (2026-09-18)
+  'promoPhotos', // 1.14.2 결과 증빙 사진 2칸 (2026-09-18)
   'tenants', // 1.9.3 입주사 현황 — ④ 첫 입력 축 신설 (2026-09-17)
   'valuables', // 2.12 비상반출물품 — ④ 셋째 축 (2026-09-18)
   'reportCover', // 보고서 커버 — 생성 문서 마지막 페이지 업체명·연도 (2026-08-10)

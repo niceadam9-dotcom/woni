@@ -9,7 +9,11 @@ import { CardAnchorBar, useUnsavedWarning } from '@/components/ui/fields'
 import { DateInput } from '@/components/ui/date-input'
 import { LibraryTextButton, type AppliedMeta } from '@/components/customers/library-text-button'
 import { PLAN_TEXT_SECTIONS } from '@/lib/plan-text-sections'
+import { ImageSlot } from '@/components/customers/plan-form13'
 import { PROMO_METHODS, type PromoPlan } from '@/lib/promo-plan-methods'
+
+/** 1.14.2 결과 증빙 사진 한 칸 — 종류가 하나뿐이라 `kind`는 저장하지 않는다(수집이 붙인다) */
+export type PromoPhotoRow = { path: string | null; caption: string }
 
 /** 서식 1.12~1.15 기록부 4종 (소방계획서_4.md §3 — §12-3 결정 2026-07-23: v1 포함)
  *  1.12 화기취급 감독 · 1.13 소방시설 공사/정비 기록 · 1.14 화재예방 및 홍보 · 1.15 피해 복구
@@ -51,17 +55,22 @@ const CARDS: CardDef[] = [
   },
 ]
 
-export function PlanForm1215({ customerId, canManage, initial, initialPromoPlan }: {
+export function PlanForm1215({ customerId, canManage, initial, initialPromoPlan, initialPromoPhotos }: {
   customerId: string
   canManage: boolean
   initial: Record<string, LogRow[]>   // sections.fireworkLog / constructionLog / promoLog / recoveryLog
   /** 1.14.1 연간 계획(방법별 실시 월) — sections.promoPlan (2026-09-18 ④ 넷째 축) */
   initialPromoPlan?: PromoPlan
+  /** 1.14.2 결과 증빙 사진 2칸 — sections.promoPhotos (2026-09-18) */
+  initialPromoPhotos?: PromoPhotoRow[]
 }) {
   const router = useRouter()
   const [logs, setLogs] = useState<Record<string, LogRow[]>>(() =>
     Object.fromEntries(CARDS.map(c => [c.key, initial[c.key] ?? []])))
   const [promoPlan, setPromoPlan] = useState<PromoPlan>(() => initialPromoPlan ?? {})
+  /** 1.14.2 결과 증빙 사진 2칸 — 자리 수가 고정이라 항상 길이 2로 들고 있는다 */
+  const [promoPhotos, setPromoPhotos] = useState<PromoPhotoRow[]>(() =>
+    [0, 1].map(i => ({ path: initialPromoPhotos?.[i]?.path ?? null, caption: initialPromoPhotos?.[i]?.caption ?? '' })))
   const [dirty, setDirty] = useState(false)
   useUnsavedWarning(dirty, save) // §11-4 이탈 경고 + 이동 확인창 [저장하고 이동]
   const [msg, setMsg] = useState('')
@@ -99,6 +108,8 @@ export function PlanForm1215({ customerId, canManage, initial, initialPromoPlan 
           ])),
           // 1.14.1 연간 계획 — 빈 배열 키는 걷어 저장을 깨끗하게
           promoPlan: Object.fromEntries(Object.entries(promoPlan).filter(([, ms]) => (ms?.length ?? 0) > 0)),
+          // 1.14.2 증빙 사진 — 자리 순서가 곧 상자 index라 **빈 자리도 그대로** 보낸다
+          promoPhotos,
         }
         const res = await saveFirePlanSectionsAction(customerId, patch)
         if (res.error) { setMsg(`❌ ${res.error}`); resolve(false); return }
@@ -157,6 +168,26 @@ export function PlanForm1215({ customerId, canManage, initial, initialPromoPlan 
                     ))}
                   </div>
                 ))}
+              </div>
+              {/* 1.14.2 홍보 결과 증빙 사진 2칸 (2026-09-18) — 엑셀 1.14.2에 인쇄된다 */}
+              <div className="mt-2.5 border-t border-brand-line-soft pt-2">
+                <p className="text-form-xs font-medium text-ink-sub mb-1.5">
+                  1.14.2 결과 증빙 사진 2장
+                  <span className="ml-1.5 font-normal text-ink-meta">(엑셀 1.14.2에 인쇄됩니다)</span>
+                </p>
+                <div className="grid grid-cols-2 gap-2">
+                  {[0, 1].map(i => (
+                    <ImageSlot key={i} customerId={customerId} canManage={canManage}
+                      path={promoPhotos[i]?.path ?? null} label={`홍보 증빙 ${i + 1}`}
+                      onChange={path => {
+                        setPromoPhotos(p => [0, 1].map(j => ({
+                          path: j === i ? path : (p[j]?.path ?? null),
+                          caption: p[j]?.caption ?? '',
+                        })))
+                        setDirty(true)
+                      }} />
+                  ))}
+                </div>
               </div>
             </div>
           )}

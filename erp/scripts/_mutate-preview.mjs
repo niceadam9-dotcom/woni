@@ -227,6 +227,10 @@ const MUTANTS = [
   ['M56 2.5가 장소 매칭 없이 hz[0]을 쓴다 → [40] 1.2.2 항등이 빨강이어야',
     VALUES, '  const cmd25Haz = hz.find(h => txt(h.place) === cmd25Place)',
     '  const cmd25Haz = hz[0]', 1],
+  /* 🚨 M57 — 1.14.2가 두 블록에 같은 건을 실으면 결과 두 벌이 같은 홍보가 된다. */
+  ['M57 1.14.2 두 블록이 같은 promoLog 건을 쓴다 → [41] 착지 단언이 빨강이어야',
+    VALUES, '    v.set(`promo2_method_${i}`, placeholderCell(PROMO2_SHEET, cell, promoLog2[i]?.method))',
+    '    v.set(`promo2_method_${i}`, placeholderCell(PROMO2_SHEET, cell, promoLog2[0]?.method))', 1],
 ]
 
 /** 🚨 파일의 줄끝에 맞춰 needle을 바꾼다.

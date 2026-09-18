@@ -43,7 +43,8 @@ const wiredBoxes = all.reduce((n, r) => n + r.wiredBoxes, 0)
 //   이미지 상자를 세우자 그 칸들이 「값 슬롯」에서 **「사진 칸」으로 재분류**돼 1,812→1,808이
 //   됐다(슬롯 규칙의 `¬사진`). 배선이 준 게 아니라 **분류가 정직해진 것**이다: 그 칸은 값이
 //   아니라 그림이 앉는 자리다. 래칫은 양방향이므로 이 감소도 여기서 한 번 멈춰 세웠다.
-check('값 슬롯 1,808칸', slots === 1808, `${slots}칸`)
+//   같은 날 1.14.2 증빙 사진 2칸(A3·A5)이 더해져 1,808→1,806.
+check('값 슬롯 1,806칸', slots === 1806, `${slots}칸`)
 check('상자 658칸', boxes === 658, `${boxes}칸`)
 check('배선된 값 슬롯 ≥ 869', wired >= 869, `${wired}칸 (${(wired / slots * 100).toFixed(1)}%)`)
 check('배선된 상자 ≥ 385', wiredBoxes >= 385, `${wiredBoxes}칸 (${(wiredBoxes / boxes * 100).toFixed(1)}%)`)
@@ -162,7 +163,6 @@ const untouched = (r: (typeof all)[number]) =>
 const red = all.filter(untouched).map(r => r.sheet).sort()
 const RED_EXPECTED = [
   '1.11.3 소방훈련 시나리오',
-  '1.14.2 화재예방 및 홍보 결과',
   '1.3 건축물 위치·운영현황', '1.5.2 방화·제연구획 현황도',
   '2.11 응급구조팀',
   '2.3 임무',

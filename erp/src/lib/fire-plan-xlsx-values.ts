@@ -54,6 +54,7 @@ import {
   REC1114_SHEET,
   TRAIN2_SHEET, TRAIN2_TARGET_BOXES, TRAIN2_PRACTICE_BOXES, TRAIN2_THEORY_BOXES, TRAIN2_FORM_BOXES,
   CMD25_SHEET, CMD25_KITCHEN_BOXES, CMD25_PLACE_CELL,
+  PROMO2_SHEET, PROMO2_METHOD_CELLS,
 } from '@/lib/fire-plan-anchors'
 import { boxGlyphAt, labelAt, tokenTemplateAt } from '@/lib/fire-plan-xlsx-manifest'
 import { purposeCover, purposeShort } from '@/lib/purpose-label'
@@ -691,6 +692,15 @@ export function buildFirePlanValues(d: FirePlanGenData): Map<string, CellValue> 
   v.set('rec1114_attendees', unitCell(REC1114_SHEET, 'AI5', txt(latestEdu?.attendees)))
   v.set('rec1114_content', placeholderCell(REC1114_SHEET, 'I6', latestEdu?.content))
   v.set('rec1114_evaluation', placeholderCell(REC1114_SHEET, 'I7', latestEdu?.evaluation))
+
+  /* ── 서식 1.14.2 홍보 결과 방법 2칸 (2026-09-18) — `promoLog` 앞 두 건.
+   *  예시문칸이라 값이 없으면 법정 예시(`포스터, 표어`)가 남는다.
+   *  ⚠ 「일시 및 장소」는 **장소 축이 없어** 비운다 — 한 칸이 두 뜻을 담는데 한 뜻만 넣으면
+   *    머리글이 거짓말이 된다(1.12.1 「연락처에 안전조치를 넣지 않는다」와 같은 판정). */
+  const promoLog2 = (d.forms?.promoLog ?? []) as Array<Record<string, string>>
+  PROMO2_METHOD_CELLS.forEach((cell, i) => {
+    v.set(`promo2_method_${i}`, placeholderCell(PROMO2_SHEET, cell, promoLog2[i]?.method))
+  })
 
   /* ── 서식 2.5 지휘통제팀 주방 블록 (2026-09-18) — 1.2.2와 **같은 축**(hz).
    *  장소 이름은 양식 A5 라벨에서 읽는다(사본 금지 — 1.2.2도 A열 라벨로 매칭한다).
