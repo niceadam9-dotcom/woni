@@ -229,8 +229,10 @@ console.log('\n[3] 백지 불변식 — 템플릿에 표본의 답이 남아 있
   //     (수신기 설정·구성품 입도·1.4 묶음 입도 — 사유는 앵커 선언부).
   // 2026-09-18(2): 2.6 상자 2(Q10·Q13) + 2.8 상자 2(K6·K8)로 239→243 — 설비 자동 전파라
   //   설비 존재 = 가용(비상방송설비·자동화재속보설비, 1.4와 같은 집합).
-  check('상자칸 예외 수가 그대로(… + 2.10 4 + 2.6·2.8 4)',
-    boxLabel.length === 243, `${boxLabel.length}칸`)
+  // 2026-09-18(3): 2.9 층별·시설별 6(O5~O10)으로 243→249 — 층수는 구조화 원시값(파싱 아님)·
+  //   시설별은 1.6.1과 같은 축. 기타(O11)는 축이 없어 안 센다.
+  check('상자칸 예외 수가 그대로(… + 2.6·2.8 4 + 2.9 6)',
+    boxLabel.length === 249, `${boxLabel.length}칸`)
   check('상자칸은 템플릿에서 전부 미체크', boxLabel.every(a => !/■/.test(cellText(a))),
     boxLabel.filter(a => /■/.test(cellText(a))).map(a => a.cell).join(','))
   const unitCells = FIRE_PLAN_ANCHORS.filter(a => isUnitLabelAnchor(a) && !isSampleTextAnchor(a))

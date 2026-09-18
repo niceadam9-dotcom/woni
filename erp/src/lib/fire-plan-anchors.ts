@@ -1425,9 +1425,13 @@ const EVAC210_SEEDS: Seed[] = [
  *    같은 것을 인쇄한다(FIRE_PLAN_SAMPLE_CELLS 핀).
  *  ⭐ 취약장소 3행은 1.2.2와 같은 축(d.hazards) — 저긴 고정 3개소에 매칭이지만 여긴 자유
  *    기입 표라 목록 순서대로 싣는다(1.2.2가 버리는 고정 밖 장소도 여긴 실린다).
+ *  ⭐ 층별·시설별 상자 6은 파생 검증을 마쳤다(2026-09-18 둘째) — 층수는 표시 문자열
+ *    파싱이 **아니라** 구조화 원시값(buildings.floors_above·floors_below 정수 컬럼 →
+ *    d.floorsAbove·floorsBelow)이고, 시설별은 1.6.1과 같은 축(electric·gas 값 존재 ·
+ *    hazmat.items — none=true는 명시적 「무」). null·빈 값 = 미입력 = 안 켠다.
  *  ⚠ 비우는 것: AC5(고층)·AC8(전기)·AC11(기타) — 대응 문구 축 없음 · AC10(위험물 조치) —
  *    PDF에 대응 행이 없어 덮을 축 없음(예시 그대로) · 방법 열(AC13~15) — hazards에 방법
- *    서술 축 없음 · 층별·시설별 상자 7 — 층수 파싱·시설 유무 파생은 검증 전(모르면 안 켠다) ·
+ *    서술 축 없음 · O11 기타 상자 — 축 없음 ·
  *    절차 2칸(L23·L24) — 팀이 달라 evacFalseAlarm을 넣으면 오배선 · 장비 표 — 축 없음.
  */
 export const EXT29_SHEET = FP_SHEET.F2_9
@@ -1442,6 +1446,13 @@ const EXT29_SEEDS: Seed[] = [
     { field: `haz29_${i}_place`, sheet: EXT29_SHEET, cell: `O${row}`, labelCell: 'O12' },
     { field: `haz29_${i}_location`, sheet: EXT29_SHEET, cell: `V${row}`, labelCell: 'V12' },
   ]),
+  // 층별(원시 층수)·시설별(1.6.1 축) 상자 — 기타(O11)는 축이 없어 앵커를 두지 않는다
+  { field: 'ext29_box_high', sheet: EXT29_SHEET, cell: 'O5', labelCell: 'O5' },
+  { field: 'ext29_box_ground', sheet: EXT29_SHEET, cell: 'O6', labelCell: 'O6' },
+  { field: 'ext29_box_under', sheet: EXT29_SHEET, cell: 'O7', labelCell: 'O7' },
+  { field: 'ext29_box_electric', sheet: EXT29_SHEET, cell: 'O8', labelCell: 'O8' },
+  { field: 'ext29_box_gas', sheet: EXT29_SHEET, cell: 'O9', labelCell: 'O9' },
+  { field: 'ext29_box_hazmat', sheet: EXT29_SHEET, cell: 'O10', labelCell: 'O10' },
 ]
 
 /* ─────────── 2.6·2.8 설비 파생 상자 + 2장 팀별 대상명 (2026-09-18) ───────────

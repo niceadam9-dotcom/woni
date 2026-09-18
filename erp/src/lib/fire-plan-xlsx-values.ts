@@ -925,6 +925,19 @@ export function buildFirePlanValues(d: FirePlanGenData): Map<string, CellValue> 
     for (const [, key] of HAZ12_COLS) v.set(`haz12_${i}_${key}`, txt(hazItems[i]?.[key]))
   })
 
+  /* ── 2.9 층별·시설별 상자 (2026-09-18 둘째) ────────────────────────────────
+   *  층별은 표시 문자열(d.floors) 파싱이 아니라 **구조화 원시값**으로 판정한다 —
+   *  null = 미입력 = 안 켠다(지어내지 않는다). 시설별은 1.6.1과 같은 축(etc61·hazItems)
+   *  이라 여기(정의 뒤)에 둔다 — 2.9 블록에 두면 TDZ다. */
+  v.set('ext29_box_high', boxLabelCell(EXT29_SHEET, 'O5', (d.floorsAbove ?? 0) >= 30))
+  v.set('ext29_box_ground', boxLabelCell(EXT29_SHEET, 'O6', (d.floorsAbove ?? 0) >= 1))
+  v.set('ext29_box_under', boxLabelCell(EXT29_SHEET, 'O7', (d.floorsBelow ?? 0) >= 1))
+  v.set('ext29_box_electric', boxLabelCell(EXT29_SHEET, 'O8',
+    !!(txt(etc61?.electric?.kw) || txt(etc61?.electric?.kva) || txt(etc61?.electric?.location))))
+  v.set('ext29_box_gas', boxLabelCell(EXT29_SHEET, 'O9',
+    !!(txt(etc61?.gas?.kind) || txt(etc61?.gas?.location) || txt(etc61?.gas?.usage))))
+  v.set('ext29_box_hazmat', boxLabelCell(EXT29_SHEET, 'O10', hazItems.length > 0))
+
   // 비상반출물품 — ④ 셋째 축. locked 미입력('')이면 칸이 빈다
   const valuables12 = (d.forms?.valuables ?? []) as Array<Record<string, string>>
   VAL12_ROWS.forEach((_, i) => {

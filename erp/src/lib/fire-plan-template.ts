@@ -117,6 +117,10 @@ export type FirePlanGenData = {
   totalArea: string             // ㎡
   buildingArea: string
   floors: string                // 예: 지하1층 / 지상5층
+  // 2.9 층별 상자(지상·지하·고층) 판정용 원시값 — 표시 문자열(floors)을 파싱하지 않는다.
+  // null = 미입력(모름) — 어느 상자도 켜지 않는다.
+  floorsAbove: number | null
+  floorsBelow: number | null
   height: string
   structure: string
   roof: string

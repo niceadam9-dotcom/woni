@@ -243,6 +243,8 @@ export async function assembleFirePlan(
     totalArea: b?.total_area != null ? String(b.total_area) : '',
     buildingArea: b?.building_area != null ? String(b.building_area) : '',
     floors,
+    floorsAbove: b?.floors_above ?? null,
+    floorsBelow: b?.floors_below ?? null,
     height: b?.height != null && String(b.height).trim() !== '' ? String(b.height) : '',
     structure: b?.main_structure ?? '',
     roof: b?.roof_structure ?? '',

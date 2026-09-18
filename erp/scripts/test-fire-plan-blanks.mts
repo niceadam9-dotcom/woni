@@ -42,7 +42,7 @@ const wiredBoxes = all.reduce((n, r) => n + r.wiredBoxes, 0)
 check('값 슬롯 1,812칸', slots === 1812, `${slots}칸`)
 check('상자 658칸', boxes === 658, `${boxes}칸`)
 check('배선된 값 슬롯 ≥ 862', wired >= 862, `${wired}칸 (${(wired / slots * 100).toFixed(1)}%)`)
-check('배선된 상자 ≥ 243', wiredBoxes >= 243, `${wiredBoxes}칸 (${(wiredBoxes / boxes * 100).toFixed(1)}%)`)
+check('배선된 상자 ≥ 249', wiredBoxes >= 249, `${wiredBoxes}칸 (${(wiredBoxes / boxes * 100).toFixed(1)}%)`)
 // 🚨 **회계가 딱 맞아야 한다.** 앵커는 셋 중 하나에 앉는다 — 상자칸 · 라벨칸(단위·접두라벨 갈래) ·
 //   순수 빈칸. 합이 안 맞으면 분류 규칙 어딘가가 틀린 것이다(1칸이라도 반올림으로 넘기지 않는다).
 const box = FIRE_PLAN_ANCHORS.filter(a => sheetManifest(a.sheet).boxes[a.cell]).length

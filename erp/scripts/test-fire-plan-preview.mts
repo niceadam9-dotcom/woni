@@ -1739,8 +1739,11 @@ console.log('\n[34] 2.9 초기소화팀 — 예시문칸 3 + 취약장소 6칸')
 
   const vc = validateAnchors(bytes, FIRE_PLAN_ANCHORS)
   if (vc.ok) {
-    /* ① 값이 있으면 덮는다 */
-    const withTeams = { ...base, forms: { brigadeTeams: { extinguish: '옥내소화전 우선 사용', protect: '중간밸브 잠금 후 환기' } } } as never
+    /* ① 값이 있으면 덮는다 — 층수·1.6.1 축도 함께 실어 상자 6개의 켜짐을 본다 */
+    const withTeams = { ...base, floorsAbove: 30, floorsBelow: 1, forms: {
+      brigadeTeams: { extinguish: '옥내소화전 우선 사용', protect: '중간밸브 잠금 후 환기' },
+      etcFacility: { electric: { kw: '350' }, gas: { kind: 'LPG' }, hazmat: { none: false, items: [{ name: '유류' }] } },
+    } } as never
     const out1 = await injectWorkbook(bytes, toInjectTargets(buildFirePlanValues(withTeams), vc.anchors).targets)
     const g1 = await readSheetGrid(await JSZip.loadAsync(out1.bytes), EXT29_SHEET)
     const at1 = (r: string) => g1.cells.find(x => x.ref === r)?.text ?? ''
@@ -1761,11 +1764,19 @@ console.log('\n[34] 2.9 초기소화팀 — 예시문칸 3 + 취약장소 6칸')
     /* ⭐ 「남은 예시 = PDF 초기대응 개요 폴백」 항등은 blanks [8]에 있다 — 템플릿이
      *   server-only라 이 검사(비 react-server)에선 렌더할 수 없다. */
 
+    /* ⭐ 층별·시설별 상자 6 — 파생 검증 완료(2026-09-18 둘째). ①에서 전부 켜지고
+     *   ②(층수 null·etcFacility 없음)에선 전부 미체크여야 한다(모르면 안 켠다). */
+    check('층별·시설별 상자 6이 전부 켜진다(고층 30층 경계 포함)',
+      ['O5', 'O6', 'O7', 'O8', 'O9', 'O10'].every(c => at1(c).includes('■')),
+      ['O5', 'O6', 'O7', 'O8', 'O9', 'O10'].map(c => at1(c).slice(0, 2)).join(''))
+    check('층수 null·시설 미입력이면 상자 6 전부 미체크',
+      ['O5', 'O6', 'O7', 'O8', 'O9', 'O10'].every(c => at2(c) === labelAt(EXT29_SHEET, c)))
+
     /* 🚨 음성 — 축 없는 칸·검증 전 파생은 앵커를 두지 않는다 */
     const noAnchor = (cell: string) => !FIRE_PLAN_ANCHORS.some(a => a.sheet === EXT29_SHEET && a.cell === cell)
     check('고층·전기·기타 방법과 위험물 조치는 앵커가 없다', ['AC5', 'AC8', 'AC10', 'AC11'].every(noAnchor))
-    check('층별·시설별 상자와 절차·장비 표는 앵커가 없다',
-      ['O5', 'O6', 'O7', 'O8', 'O9', 'O10', 'O11', 'L23', 'L24', 'O18', 'AC13'].every(noAnchor))
+    check('기타 상자·절차·장비 표는 앵커가 없다',
+      ['O11', 'L23', 'L24', 'O18', 'AC13'].every(noAnchor))
     check('넘친 취약장소를 센다(3행 예산)', haz29Overflow({ hazards: [1, 2, 3, 4] } as never) === 1
       && haz29Overflow(base as never) === 0)
     check('취약장소 표 행이 파생 상수와 같다(13~15행)', HAZ29_ROWS.length === 3 && HAZ29_ROWS[0] === 13)

@@ -192,6 +192,14 @@ const MUTANTS = [
   ['M47 2.8 자동화재속보 상자를 항상 켠다 → [35] 「전부 미체크」가 빨강이어야',
     VALUES, "  v.set('alert28_autodial', boxLabelCell(ALERT28_SHEET, 'K8', facSet.has('자동화재속보설비')))",
     "  v.set('alert28_autodial', boxLabelCell(ALERT28_SHEET, 'K8', true))", 1],
+  /* 🚨 M48 — 2.9 지하층 상자를 항상 켜면 지하 없는 건물에 지하를 단언한다. */
+  ['M48 2.9 지하층 상자를 항상 켠다 → [34] 「전부 미체크」가 빨강이어야',
+    VALUES, "  v.set('ext29_box_under', boxLabelCell(EXT29_SHEET, 'O7', (d.floorsBelow ?? 0) >= 1))",
+    "  v.set('ext29_box_under', boxLabelCell(EXT29_SHEET, 'O7', true))", 1],
+  /* 🎯 M49 — 고층 경계(30층 이상)를 초과로 바꾸면 정확히 30층이 빠진다. */
+  ['M49 2.9 고층 경계 ≥30을 >30으로 → [34] 「전부 켜진다」(경계 픽스처 30층)가 빨강이어야',
+    VALUES, "  v.set('ext29_box_high', boxLabelCell(EXT29_SHEET, 'O5', (d.floorsAbove ?? 0) >= 30))",
+    "  v.set('ext29_box_high', boxLabelCell(EXT29_SHEET, 'O5', (d.floorsAbove ?? 0) > 30))", 1],
 ]
 
 /** 🚨 파일의 줄끝에 맞춰 needle을 바꾼다.
