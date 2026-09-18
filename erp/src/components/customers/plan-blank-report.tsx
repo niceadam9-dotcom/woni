@@ -15,6 +15,11 @@ import { useState, useTransition } from 'react'
 import { ChevronDown, ChevronRight, Loader2 } from 'lucide-react'
 import { firePlanBlanksAction } from '@/app/(dashboard)/customers/fire-plan-blank-actions'
 import type { SheetBlankReport, FormBlankSummary } from '@/lib/fire-plan-blanks'
+import { originOf } from '@/lib/fire-plan-origins'
+import { FIRE_PLAN_FORMS } from '@/lib/fire-plan-sections'
+
+/** form 키 → 사람이 읽는 절 이름 (목차 대장 재사용 — 사본 금지) */
+const FORM_LABEL = new Map<string, string>(FIRE_PLAN_FORMS.map(f => [f.key, f.label]))
 
 export function PlanBlankReport({ customerId, sheetNames, summary, canManage }: {
   customerId: string
@@ -85,16 +90,30 @@ export function PlanBlankReport({ customerId, sheetNames, summary, canManage }: 
                 ? <p className="pl-2 text-green-600">빈칸 없음</p>
                 : (
                   <ul className="pl-2 space-y-0.5">
-                    {r.blanks.slice(0, 20).map(b => (
-                      <li key={b.ref} className="flex items-center gap-1.5">
-                        <span className={`shrink-0 rounded px-1 text-form-2xs ${
-                          b.kind === 'unwired' ? 'bg-ink-meta/10 text-ink-meta' : 'bg-amber-100 text-amber-700'
-                        }`}>
-                          {b.kind === 'unwired' ? 'ERP 미배선' : '미입력'}
-                        </span>
-                        <span className="text-ink-meta">{b.near || b.ref}</span>
-                      </li>
-                    ))}
+                    {r.blanks.slice(0, 20).map(b => {
+                      /* 4단계 원격 편집 — 미입력 칸의 입력처가 **다른 절**이면 그리 보낸다
+                       * (3.3의 원천은 1.2 — 이 화면엔 그 입력칸이 없다). 같은 절이면 링크 소음이라 안 단다. */
+                      const origin = b.kind === 'empty' && b.field ? originOf(b.field, b.sheet) : null
+                      const here = originOf('', r.sheet)?.form
+                      const remote = origin && origin.form !== here ? origin : null
+                      return (
+                        <li key={b.ref} className="flex items-center gap-1.5">
+                          <span className={`shrink-0 rounded px-1 text-form-2xs ${
+                            b.kind === 'unwired' ? 'bg-ink-meta/10 text-ink-meta' : 'bg-amber-100 text-amber-700'
+                          }`}>
+                            {b.kind === 'unwired' ? 'ERP 미배선' : '미입력'}
+                          </span>
+                          <span className="text-ink-meta">{b.near || b.ref}</span>
+                          {remote && (
+                            <a data-testid="blank-origin-link"
+                              href={`?tab=plan&form=${remote.form}${remote.card ? `#${remote.card}` : ''}`}
+                              className="shrink-0 text-brand underline decoration-dotted underline-offset-2">
+                              입력: {FORM_LABEL.get(remote.form) ?? remote.form}
+                            </a>
+                          )}
+                        </li>
+                      )
+                    })}
                     {r.blanks.length > 20 && (
                       // 🚨 자른 사실을 **드러낸다**. 조용한 절단은 조용한 누락이다.
                       <li className="text-ink-meta">…외 {r.blanks.length - 20}칸</li>
