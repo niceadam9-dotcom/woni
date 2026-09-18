@@ -211,6 +211,10 @@ const MUTANTS = [
   ['M52 1.15 화재 필터를 없앤다 → [37] 착지 단언(최신=비화재보가 아닌 화재)이 빨강이어야',
     VALUES, "  const fires115 = hist.filter(h => txt(h?.kind) === '화재')",
     '  const fires115 = hist', 1],
+  /* 🚨 M53 — 1.11.4가 훈련까지 실으면 「소방교육 결과」에 훈련 건이 인쇄된다. */
+  ['M53 1.11.4 교육 필터를 없앤다 → [38] 착지 단언이 빨강이어야',
+    VALUES, "  const eduRecs = ((tr1?.records ?? []) as Array<Record<string, string>>).filter(r => txt(r?.kind) === '교육')",
+    "  const eduRecs = ((tr1?.records ?? []) as Array<Record<string, string>>)", 1],
 ]
 
 /** 🚨 파일의 줄끝에 맞춰 needle을 바꾼다.

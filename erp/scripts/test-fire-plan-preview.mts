@@ -1922,5 +1922,46 @@ console.log('\n[37] 1.15 화재발생개요 4칸')
   }
 }
 
+/* ══════════════════════ [38] 1.11.4 뒷쪽 — 소방교육 결과 (사각 ①류 다섯째) ══════════════════════
+ *  training.records(1.11 입력·PDF recordRows 인쇄)의 「교육」 건 중 최신 1건. */
+console.log('\n[38] 1.11.4 뒷쪽 소방교육 결과 4칸')
+{
+  const { validateAnchors } = await import('../src/lib/xlsx-anchors.ts')
+  const { toInjectTargets } = await import('../src/lib/xlsx-workbook.ts')
+  const { FIRE_PLAN_ANCHORS, REC1114_SHEET } = await import('../src/lib/fire-plan-anchors.ts')
+  const { buildFirePlanValues } = await import('../src/lib/fire-plan-xlsx-values.ts')
+  const { labelAt } = await import('../src/lib/fire-plan-xlsx-manifest.ts')
+
+  const records = [
+    { at: '2025-11-05', kind: '교육', attendees: '18', content: '옛 교육 내용', evaluation: '옛 성과' },
+    { at: '2026-06-10', kind: '훈련', attendees: '30', content: '훈련은 안 실린다', evaluation: '' },
+    { at: '2026-04-02', kind: '교육', attendees: '25', content: '심폐소생술 실습', evaluation: '전원 실습 완료' },
+  ]
+  const fx = { buildingName: 'X', facilities: [], brigade: [], zones: [], hazards: [],
+    forms: { training: { records, eduMonths: [], drillMonths: [] } } } as never
+
+  const vc = validateAnchors(bytes, FIRE_PLAN_ANCHORS)
+  if (vc.ok) {
+    const out = await injectWorkbook(bytes, toInjectTargets(buildFirePlanValues(fx), vc.anchors).targets)
+    const gr = await readSheetGrid(await JSZip.loadAsync(out.bytes), REC1114_SHEET)
+    const at = (r: string) => gr.cells.find(x => x.ref === r)?.text ?? ''
+
+    check('최신 「교육」 건이 착지한다(더 최근 훈련은 걸러진다)',
+      at('I3') === '2026-04-02' && at('AI5').startsWith('25') && at('I6') === '심폐소생술 실습'
+      && at('I7') === '전원 실습 완료', `${at('I3')}/${at('AI5')}/${at('I7')}`)
+    /* 🚨 음성 — 기록이 없으면 예시가 남고 일시·참석은 빈 채로 */
+    const out0 = await injectWorkbook(bytes, toInjectTargets(
+      buildFirePlanValues({ buildingName: 'X', facilities: [], brigade: [], zones: [], hazards: [], forms: {} } as never),
+      vc.anchors).targets)
+    const g0 = await readSheetGrid(await JSZip.loadAsync(out0.bytes), REC1114_SHEET)
+    const at0 = (r: string) => g0.cells.find(x => x.ref === r)?.text ?? ''
+    check('기록 없으면 일시 빈 칸·내용은 법정 예시 그대로',
+      at0('I3').trim() === '' && at0('I6') === labelAt(REC1114_SHEET, 'I6') && at0('I7') === labelAt(REC1114_SHEET, 'I7'))
+    const noAnchor = (cell: string) => !FIRE_PLAN_ANCHORS.some(a => a.sheet === REC1114_SHEET && a.cell === cell)
+    check('강사·대상·미참석·문제점·개선·사진은 앵커가 없다',
+      ['I5', 'V5', 'AV5', 'I8', 'I9', 'A11', 'A13', 'AB11', 'AB13'].every(noAnchor))
+  }
+}
+
 console.log(`\n=== pass ${pass} / fail ${fail} ===`)
 process.exit(fail ? 1 : 0)

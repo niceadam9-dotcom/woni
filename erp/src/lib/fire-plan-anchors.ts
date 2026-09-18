@@ -47,6 +47,7 @@ export const FP_SHEET = {
   F1_9: '1.9 자위소방대 현황',
   // ⚠ manifest에 `1.11.4`로 시작하는 시트가 **둘**이다(앞쪽·뒷쪽) — 용도 칸은 앞쪽에만 있다
   F1_11_4: '1.11.4 훈련·교육 결과기록부',
+  F1_11_4_BACK: '1.11.4 결과기록부 뒷쪽',
   // 제2장(2026-09-08 2단계)
   F2_1: '2.1 자위소방대 일반현황',
   F2_2: '2.2 자위소방대 편성표',
@@ -1578,6 +1579,23 @@ const FIRE115_SEEDS: Seed[] = [
   { field: 'fire115_gas_tel', sheet: FIRE115_SHEET, cell: 'Z6', labelCell: 'J6' },
 ]
 
+/* ─────────── 서식 1.11.4 결과기록부 뒷쪽 — 소방교육 결과 (2026-09-18) ───────────
+ *  사각 ①류 **다섯째** — `training.records`(실시일·종류·참석·내용·평가)가 입력 화면(1.11)과
+ *  함께 있고 PDF가 recordRows로 이미 인쇄 중인데 이 시트만 앵커 0이었다.
+ *  「교육」 건 중 최신 1건: 일시(I3)·참석 명수(AI5 단위칸)·교육내용(I6)·교육성과(I7 —
+ *  뒤 둘은 법정 예시문이 인쇄돼 있어 **예시문칸 갈래**로 덮는다).
+ *  ⚠ 비우는 것: 교육강사(I5)·참석대상(V5)·미참석(AV5) — records에 세분 축 없음 ·
+ *    문제점(I8)·개선계획(I9) — 축 없음(예시 그대로) · 사진 4칸(A11~AB13) — 축 없음.
+ */
+export const REC1114_SHEET = FP_SHEET.F1_11_4_BACK
+
+const REC1114_SEEDS: Seed[] = [
+  { field: 'rec1114_at', sheet: REC1114_SHEET, cell: 'I3', labelCell: 'A3' },
+  { field: 'rec1114_attendees', sheet: REC1114_SHEET, cell: 'AI5', labelCell: 'AI4' },
+  { field: 'rec1114_content', sheet: REC1114_SHEET, cell: 'I6', labelCell: 'I6' },
+  { field: 'rec1114_evaluation', sheet: REC1114_SHEET, cell: 'I7', labelCell: 'I7' },
+]
+
 const MU_SEEDS: Seed[] = [
   ...MU_VALUE_CELLS.map(([k, cell, labelCell]) => ({ field: `mu_${k}`, sheet: MU_SHEET, cell, labelCell })),
   // 상자·자리표시는 **자기 칸이 라벨**이다(그 칸의 자구를 우리가 읽어 조립한다)
@@ -1628,7 +1646,7 @@ function assemble(seeds: Seed[]): Anchor[] {
   })
 }
 
-export const FIRE_PLAN_ANCHORS: Anchor[] = assemble([...FIXED_SEEDS, ...ZONE_SEEDS, ...BRIG_SEEDS, ...FORM14_SEEDS, ...FIREHIST_SEEDS, ...HAZARD_SEEDS, ...MU_SEEDS, ...TRAIN_SEEDS, ...EVAC1_SEEDS, ...BRIG1_SEEDS, ...FIREWORK_SEEDS, ...CONSTRUCTION_SEEDS, ...EVAC3_SEEDS, ...BRIG9_SEEDS, ...REC14_SEEDS, ...ATT14_SEEDS, ...VUL_SEEDS, ...VUL9_SEEDS, ...EVAC34_SEEDS, ...VUL36_SEEDS, ...ORG23_SEEDS, ...TENANT_SEEDS, ...RESP13_SEEDS, ...EQUIP37_SEEDS, ...ETC61_SEEDS, ...HAZ_SEEDS, ...VAL12_SEEDS, ...EVDET32_SEEDS, ...REV_SEEDS, ...CARD24_SEEDS, ...EVAC210_SEEDS, ...EXT29_SEEDS, ...TEAM_MISC_SEEDS, ...PROMO_SEEDS, ...FIRE115_SEEDS])
+export const FIRE_PLAN_ANCHORS: Anchor[] = assemble([...FIXED_SEEDS, ...ZONE_SEEDS, ...BRIG_SEEDS, ...FORM14_SEEDS, ...FIREHIST_SEEDS, ...HAZARD_SEEDS, ...MU_SEEDS, ...TRAIN_SEEDS, ...EVAC1_SEEDS, ...BRIG1_SEEDS, ...FIREWORK_SEEDS, ...CONSTRUCTION_SEEDS, ...EVAC3_SEEDS, ...BRIG9_SEEDS, ...REC14_SEEDS, ...ATT14_SEEDS, ...VUL_SEEDS, ...VUL9_SEEDS, ...EVAC34_SEEDS, ...VUL36_SEEDS, ...ORG23_SEEDS, ...TENANT_SEEDS, ...RESP13_SEEDS, ...EQUIP37_SEEDS, ...ETC61_SEEDS, ...HAZ_SEEDS, ...VAL12_SEEDS, ...EVDET32_SEEDS, ...REV_SEEDS, ...CARD24_SEEDS, ...EVAC210_SEEDS, ...EXT29_SEEDS, ...TEAM_MISC_SEEDS, ...PROMO_SEEDS, ...FIRE115_SEEDS, ...REC1114_SEEDS])
 
 /* ══════════════════════ §사진상자 (2026-09-14) ══════════════════════
  *
@@ -1760,6 +1778,9 @@ export const FIRE_PLAN_SAMPLE_CELLS: ReadonlyArray<readonly [string, string, str
   [FP_SHEET.F2_9, 'AC6', '소화기를 이용하여 초기 진압 실시'],
   [FP_SHEET.F2_9, 'AC7', '소화기를 이용하여 초기 진압 실시'],
   [FP_SHEET.F2_9, 'AC9', '가스공급 밸브 차단'],
+  /* 1.11.4 뒷쪽 교육내용·성과 — training.records(내용·평가)가 있으면 덮는다 */
+  [FP_SHEET.F1_11_4_BACK, 'I6', '소화기 사용법 및 사용시 문제점 설명\n화재신고 방법 설명\n연기의 독성에 대한 설명(연기 흡입시 위험성 설명)'],
+  [FP_SHEET.F1_11_4_BACK, 'I7', '소화기 사용에 대한 적응성 향상'],
 ]
 
 const SAMPLE_KEYS = new Set(FIRE_PLAN_SAMPLE_CELLS.map(([s, c]) => `${s}!${c}`))

@@ -51,6 +51,7 @@ import {
   EXT29_SHEET, HAZ29_ROWS,
   CONTACT26_SHEET, ALERT28_SHEET, RESCUE211_SHEET,
   PROMO_SHEET, PROMO_ROWS, PROMO_MONTH_COLS,
+  REC1114_SHEET,
 } from '@/lib/fire-plan-anchors'
 import { boxGlyphAt, labelAt, tokenTemplateAt } from '@/lib/fire-plan-xlsx-manifest'
 import { purposeCover, purposeShort } from '@/lib/purpose-label'
@@ -678,6 +679,16 @@ export function buildFirePlanValues(d: FirePlanGenData): Map<string, CellValue> 
   v.set('fire115_place', txt(latest115?.place))
   v.set('fire115_cause', txt(latest115?.cause))
   v.set('fire115_gas_tel', '1544-4500')
+
+  /* ── 서식 1.11.4 뒷쪽 소방교육 결과 (2026-09-18) — training.records의 「교육」 건 중
+   *  최신 1건. PDF recordRows와 같은 원천이라 두 산출물이 갈라질 수 없다.
+   *  내용·성과는 예시문칸(값 없으면 법정 예시가 남는다). */
+  const eduRecs = ((tr1?.records ?? []) as Array<Record<string, string>>).filter(r => txt(r?.kind) === '교육')
+  const latestEdu = [...eduRecs].sort((a, b) => txt(b?.at).localeCompare(txt(a?.at)))[0]
+  v.set('rec1114_at', txt(latestEdu?.at))
+  v.set('rec1114_attendees', unitCell(REC1114_SHEET, 'AI5', txt(latestEdu?.attendees)))
+  v.set('rec1114_content', placeholderCell(REC1114_SHEET, 'I6', latestEdu?.content))
+  v.set('rec1114_evaluation', placeholderCell(REC1114_SHEET, 'I7', latestEdu?.evaluation))
 
   /* ── 서식 2.2 자위소방대 편성표 (2단계 · Q-1 자동 채움) ────────────────────────
    *  `d.brigade`는 `fire_brigade_members`를 sort_order 순으로 담은 것이고, 양식은 그 대원을
