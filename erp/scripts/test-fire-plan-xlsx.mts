@@ -374,6 +374,20 @@ console.log('\n[6] 행 삽입 안전성 — 반복 구간의 열별 스타일 �
   check('styles.xml 파싱이 비지 않았다(눈멂 가드)', borderDefs.length > 1 && xfBorderId.length > 1,
     `borders ${borderDefs.length} · cellXfs ${xfBorderId.length}`)
 
+  /* ── xf 인덱스 → 「테두리·채움」 서명(정렬 제외) ── 2026-09-18
+   *  🚨 1.2.1 구역 표의 예산을 8→14로 고치자 이 검사가 붉어졌다. 실측하니 차이는 **정렬뿐**
+   *    이었다(8~15행 `left` · 16~21행 `center`) — 테두리·채움은 완전히 같다. 앞 여덟 행에만
+   *    양식 제작 시 토큰이 박혀 그 셀들이 left로 만들어진 **제작 부산물**이지 다른 표가 아니다.
+   *  그래서 「정렬만 다른 것」은 **그 사실을 드러내며** 통과시킨다 — 조용히 넘기면 진짜 서식
+   *  결함이 그 뒤에 숨는다(마지막 줄 아래 테두리를 다루는 방식과 같은 규약). */
+  const xfFillId = [...(/<cellXfs[^>]*>([\s\S]*?)<\/cellXfs>/.exec(stylesXml)?.[1] ?? '')
+    .matchAll(/<xf\b[^>]*fillId="(\d+)"/g)].map(m => Number(m[1]))
+  const boxSansAlign = (s: string): string => {
+    const i = Number(s)
+    const b = borderDefs[xfBorderId[i] ?? -1]
+    return b === undefined ? `?${s}` : `${b}|fill=${xfFillId[i] ?? '?'}`
+  }
+
   const runs: { sheet: string; startRow: number; rows: number; why: string }[] = [
     { sheet: ZONE_SHEET, startRow: ZONE_FIRST_ROW, rows: ZONE_ROWS, why: '구역별 세부현황' },
   ]
@@ -395,11 +409,18 @@ console.log('\n[6] 행 삽입 안전성 — 반복 구간의 열별 스타일 �
     const lastRow = run.startRow + run.rows - 1
     const bad: string[] = []
     const closing: string[] = []
+    /** 테두리·채움은 같고 **정렬만** 다른 열 — 조용히 넘기지 않고 목록으로 드러낸다 */
+    const alignOnly: string[] = []
     for (const c of cols) {
       // ① 본문(마지막 줄 제외)은 **완전히** 같아야 한다 — 여기가 진짜 '행 삽입 안전성'이다
       const inner = new Set<string>()
       for (let r = run.startRow; r < lastRow; r++) inner.add(sm.get(`${c}${r}`) ?? '(없음)')
-      if (inner.size > 1) { bad.push(`${c}열 본문 ${[...inner].join('/')}`); continue }
+      if (inner.size > 1) {
+        // 정렬만 다른가 — 테두리·채움이 같으면 제작 부산물이다(위 주석). 드러내고 통과시킨다.
+        const sigs = new Set([...inner].map(boxSansAlign))
+        if (sigs.size === 1) { alignOnly.push(`${c}(${[...inner].join('/')})`); continue }
+        bad.push(`${c}열 본문 ${[...inner].join('/')}`); continue
+      }
 
       // ② 마지막 줄은 표를 닫는 줄이라 아래 테두리가 다를 수 있다. 다만 **아래 말고 다른 게
       //    다르면** 그건 닫는 줄이 아니라 서식 결함이다 — 정의를 꺼내 그 축만 빼고 비교한다.
@@ -412,6 +433,7 @@ console.log('\n[6] 행 삽입 안전성 — 반복 구간의 열별 스타일 �
     check(`${run.sheet} ${run.why} r${run.startRow}×${run.rows} 본문 열별 s= 동일`,
       bad.length === 0, bad.slice(0, 4).join(' · '))
     if (closing.length) console.log(`       (마지막 줄 ${closing.join(',')}열은 표를 닫는 아래 테두리만 다름 — 원본 그대로)`)
+    if (alignOnly.length) console.log(`       (정렬만 다른 열 ${alignOnly.join(' ')} — 테두리·채움 동일, 토큰 행의 제작 부산물)`)
   }
 }
 
@@ -504,7 +526,9 @@ console.log('\n[7] 값 맵 완결성 · 표기 규약')
   check('1.8 계약기간이 원문 물결표를 지킨다', String(values.get('agency_contract_period')).includes('~'),
     String(values.get('agency_contract_period')))
   check('구역 넘침을 센다', zoneRowOverflow(fixture) === 2, `${zoneRowOverflow(fixture)}`)
-  check(`구역 행 예산이 manifest에서 파생됐다`, ZONE_ROWS === 8, `${ZONE_ROWS}행`)
+  // 2026-09-18: 토큰 예산(8)은 **표의 절반**이었다 — 실제 표는 8~21행이고 A22 「※ 비고」가
+  //   끊는다(병합·행높이 동일 실측). 구역 9개 이상인 고객은 9번째부터 안 실리고 있었다.
+  check(`구역 행 예산이 양식에서 파생됐다(A22가 표를 끊는다)`, ZONE_ROWS === 14, `${ZONE_ROWS}행`)
   check('넘친 구역이 표에 새어 들어가지 않는다', !values.has(`zone_${ZONE_ROWS}_floor`))
 
   // 상자 글자 — 원본이 두 글자를 섞어 쓰므로 셀마다 다를 수 있다(F-6)

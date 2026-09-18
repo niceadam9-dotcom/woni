@@ -338,11 +338,17 @@ const BRIG_SEEDS: Seed[] = Array.from({ length: BRIG_ROWS }, (_, i) =>
  *  파일을 저장하지 않으므로 사용자가 엑셀에서 행을 끼워 넣어도 ERP가 되읽지 않는다 —
  *  고정 좌표는 **생성 시점에만** 유효하면 된다.
  *
- *  ⭐ 행 수를 손으로 `8`이라 적지 않는다. manifest의 토큰 씨앗에서 **센다**
- *  (`DEFECT_GROUP_ROWS`가 목록을 파생시키는 것과 같은 규약). 양식이 9행으로 늘면 여기도 는다.
+ *  ⭐ 행 수를 손으로 적지 않는다 — 양식에서 **센다**.
+ *
+ *  🚨 **2026-09-18 정정: 토큰 씨앗으로 세던 예산이 표의 절반이었다.**
+ *    `tokenRowBudget(…, 'zone')`은 **토큰이 박힌 행**만 세는데 양식 제작자가 8행에만 토큰을
+ *    넣어 두었다. 실제 표는 **8~21행(14행)**이고 그 여섯 행은 병합·행높이(34pt)까지
+ *    완전히 같다(실측 `_probe-121-rowspan`). 즉 **구역이 9개 이상인 고객은 9번째부터
+ *    엑셀에 실리지 않았다**(고지는 나갔지만 칸은 비어 있었다).
+ *    이제 **다음 A열 라벨(A22 「※ 비고」)이 표를 끊는다**는 원리로 센다 — 1.13에서
+ *    「양식이 스스로 답한다」로 배운 그 규약이다(labelBlockRows와 같은 사상).
  */
 export const ZONE_SHEET = FP_SHEET.F1_2_1
-export const ZONE_ROWS = tokenRowBudget(ZONE_SHEET, 'zone')
 
 /** 구역 표의 첫 데이터 행(1-based 엑셀 행) — manifest의 토큰 좌표에서 파생 */
 export const ZONE_FIRST_ROW = (() => {
@@ -350,6 +356,22 @@ export const ZONE_FIRST_ROW = (() => {
   const rows = cells.map(r => Number(/\d+$/.exec(r)?.[0] ?? 0)).filter(Boolean)
   if (!rows.length) throw new Error('fire-plan-anchors: 1.2.1 구역 토큰 칸이 없다 — 좌표를 파생할 수 없다')
   return Math.min(...rows)
+})()
+
+/** 구역 표의 행 수 — 첫 데이터 행부터 **다음 A열 라벨 직전**까지(그 라벨이 표를 끊는다) */
+export const ZONE_ROWS = (() => {
+  const man = sheetManifest(ZONE_SHEET)
+  const below = Object.keys(man.labels)
+    .map(k => /^A(\d+)$/.exec(k))
+    .filter((x): x is RegExpExecArray => !!x && Number(x[1]) > ZONE_FIRST_ROW)
+    .map(x => Number(x[1]))
+  const next = below.length ? Math.min(...below) : man.rows + 1
+  const n = next - ZONE_FIRST_ROW
+  // 🚨 토큰 예산(8)보다 작아지면 좌표가 밀린 것이다 — 조용히 줄면 구역이 사라진다
+  if (n < tokenRowBudget(ZONE_SHEET, 'zone')) {
+    throw new Error(`fire-plan-anchors: 1.2.1 구역 행 수가 ${n} — 토큰 예산보다 작다(좌표가 밀렸다)`)
+  }
+  return n
 })()
 
 /** 구역 표에서 배선된 열 — [엑셀 열, 필드 접미사, 열 머리 라벨 셀] */
