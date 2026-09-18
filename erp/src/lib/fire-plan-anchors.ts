@@ -1573,6 +1573,26 @@ const PROMO_SEEDS: Seed[] = PROMO_ROWS.flatMap(({ key, row }) =>
  *  ⚠ 비우는 것: 피해복구계획 빈 행(J4·Z4·J5·Z5·J10·Z10·AS10)·예방대책(J18)·피해상황
  *    수치 4칸과 상자 4 — 축 없음(사망·부상·피해액·피해면적을 ERP가 모른다).
  */
+/* ─────────── 서식 1.5.2 방화·제연구획 현황도 — 구역 2칸 (2026-09-18) ───────────
+ *  평면도는 이미 이미지 상자(`img_evacmap_*`)가 받고 있었는데 **그 평면도가 어느 구역인지**는
+ *  비어 있었다 — 사진만 나오고 이름이 없는 갈라짐이다.
+ *  ⭐ 값은 `evacMaps[i].floor`(화면 라벨이 「층 (예: 지상 1층)」) — 이미지 상자와 **같은 배열,
+ *    같은 index**라 사진과 이름이 어긋날 수 없다.
+ *  ⚠ `desc`(구획·제연 방식)는 양식에 칸이 없다 — 이미지 캡션으로만 쓰인다.
+ */
+export const EVACMAP15_SHEET = FP_SHEET.F1_5_2
+/** [구역 값칸, 그 블록의 머리 라벨] — 순서가 곧 `evacMaps` index다 */
+export const EVACMAP15_ZONE_CELLS: ReadonlyArray<readonly [string, string]> = [
+  ['AW3', 'AQ3'], ['AW5', 'AQ5'],
+]
+
+const EVACMAP15_SEEDS: Seed[] = [
+  { field: 'evacmap15_name', sheet: EVACMAP15_SHEET, cell: 'A2', labelCell: 'A2' },
+  ...EVACMAP15_ZONE_CELLS.map(([cell, labelCell], i) => ({
+    field: `evacmap15_zone_${i}`, sheet: EVACMAP15_SHEET, cell, labelCell,
+  })),
+]
+
 /* ─────────── 서식 1.14.2 홍보 결과 — 방법 2칸 (2026-09-18) ───────────
  *  블록 2벌의 「화재예방 및 홍보방법」 칸(P2·P4)에 `promoLog`의 앞 두 건을 싣는다 —
  *  법정 예시문(`포스터, 표어`)이 인쇄돼 있어 **예시문칸 갈래**로 덮는다.
@@ -1740,7 +1760,7 @@ function assemble(seeds: Seed[]): Anchor[] {
   })
 }
 
-export const FIRE_PLAN_ANCHORS: Anchor[] = assemble([...FIXED_SEEDS, ...ZONE_SEEDS, ...BRIG_SEEDS, ...FORM14_SEEDS, ...FIREHIST_SEEDS, ...HAZARD_SEEDS, ...MU_SEEDS, ...TRAIN_SEEDS, ...EVAC1_SEEDS, ...BRIG1_SEEDS, ...FIREWORK_SEEDS, ...CONSTRUCTION_SEEDS, ...EVAC3_SEEDS, ...BRIG9_SEEDS, ...REC14_SEEDS, ...ATT14_SEEDS, ...VUL_SEEDS, ...VUL9_SEEDS, ...EVAC34_SEEDS, ...VUL36_SEEDS, ...ORG23_SEEDS, ...TENANT_SEEDS, ...RESP13_SEEDS, ...EQUIP37_SEEDS, ...ETC61_SEEDS, ...HAZ_SEEDS, ...VAL12_SEEDS, ...EVDET32_SEEDS, ...REV_SEEDS, ...CARD24_SEEDS, ...EVAC210_SEEDS, ...EXT29_SEEDS, ...TEAM_MISC_SEEDS, ...PROMO_SEEDS, ...FIRE115_SEEDS, ...REC1114_SEEDS, ...TRAIN2_SEEDS, ...CMD25_SEEDS, ...PROMO2_SEEDS])
+export const FIRE_PLAN_ANCHORS: Anchor[] = assemble([...FIXED_SEEDS, ...ZONE_SEEDS, ...BRIG_SEEDS, ...FORM14_SEEDS, ...FIREHIST_SEEDS, ...HAZARD_SEEDS, ...MU_SEEDS, ...TRAIN_SEEDS, ...EVAC1_SEEDS, ...BRIG1_SEEDS, ...FIREWORK_SEEDS, ...CONSTRUCTION_SEEDS, ...EVAC3_SEEDS, ...BRIG9_SEEDS, ...REC14_SEEDS, ...ATT14_SEEDS, ...VUL_SEEDS, ...VUL9_SEEDS, ...EVAC34_SEEDS, ...VUL36_SEEDS, ...ORG23_SEEDS, ...TENANT_SEEDS, ...RESP13_SEEDS, ...EQUIP37_SEEDS, ...ETC61_SEEDS, ...HAZ_SEEDS, ...VAL12_SEEDS, ...EVDET32_SEEDS, ...REV_SEEDS, ...CARD24_SEEDS, ...EVAC210_SEEDS, ...EXT29_SEEDS, ...TEAM_MISC_SEEDS, ...PROMO_SEEDS, ...FIRE115_SEEDS, ...REC1114_SEEDS, ...TRAIN2_SEEDS, ...CMD25_SEEDS, ...PROMO2_SEEDS, ...EVACMAP15_SEEDS])
 
 /* ══════════════════════ §사진상자 (2026-09-14) ══════════════════════
  *

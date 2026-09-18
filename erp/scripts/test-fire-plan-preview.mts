@@ -2123,5 +2123,50 @@ console.log('\n[41] 1.14.2 홍보 결과 방법 2칸')
   }
 }
 
+/* ══════════════════════ [42] 1.5.2 구역 2칸 — 평면도와 같은 배열·같은 index ══════════════════════
+ *  사진은 이미 앉는데 **그 사진이 어느 구역인지**가 비어 있던 자리다.
+ *  핵심 단언은 값 자체가 아니라 **이미지 상자와 index가 같다**는 것이다(어긋나면 사진과
+ *  이름이 짝을 잃는다 — 「예시는 쌍으로 남거나 쌍으로 덮인다」와 같은 축). */
+console.log('\n[42] 1.5.2 구역 2칸')
+{
+  const { validateAnchors } = await import('../src/lib/xlsx-anchors.ts')
+  const { toInjectTargets } = await import('../src/lib/xlsx-workbook.ts')
+  const { FIRE_PLAN_ANCHORS, FIRE_PLAN_IMAGE_BOXES, EVACMAP15_SHEET, EVACMAP15_ZONE_CELLS } =
+    await import('../src/lib/fire-plan-anchors.ts')
+  const { buildFirePlanValues } = await import('../src/lib/fire-plan-xlsx-values.ts')
+
+  const evacMaps = [
+    { floor: '지상 1층', image: 'p/f1.png', desc: '방화셔터 2개소' },
+    { floor: '지하 1층', image: 'p/b1.png', desc: '제연 급기' },
+    { floor: '옥탑(안 실린다)', image: 'p/r.png', desc: '' },
+  ]
+  const fx = { buildingName: '가온빌딩', facilities: [], brigade: [], zones: [], hazards: [],
+    forms: { evacMaps } } as never
+
+  const vc = validateAnchors(bytes, FIRE_PLAN_ANCHORS)
+  if (vc.ok) {
+    const out = await injectWorkbook(bytes, toInjectTargets(buildFirePlanValues(fx), vc.anchors).targets)
+    const gr = await readSheetGrid(await JSZip.loadAsync(out.bytes), EVACMAP15_SHEET)
+    const at = (r: string) => gr.cells.find(x => x.ref === r)?.text ?? ''
+
+    check('구역 2칸이 앞 두 평면도의 층으로 채워진다(셋째는 안 실린다)',
+      at('AW3') === '지상 1층' && at('AW5') === '지하 1층', `${at('AW3')} / ${at('AW5')}`)
+    check('대상명이 접두라벨 뒤에 붙는다', at('A2').includes('가온빌딩'), at('A2'))
+    /* 🎯 사진과 이름이 같은 index를 본다 — 상자 index 0·1이 구역칸 0·1과 짝이어야 한다 */
+    const mapBoxes = FIRE_PLAN_IMAGE_BOXES.filter(b => b.sheet === EVACMAP15_SHEET)
+    check('평면도 상자와 구역칸이 같은 수·같은 index다',
+      mapBoxes.length === EVACMAP15_ZONE_CELLS.length
+      && mapBoxes.map(b => b.index).sort().join() === EVACMAP15_ZONE_CELLS.map((_, i) => i).join(),
+      `상자 ${mapBoxes.map(b => `${b.cell}#${b.index}`).join(' ')}`)
+    /* 🚨 음성 — 평면도가 없으면 구역칸도 빈다(이름만 남으면 「사진 없는 이름」이 된다) */
+    const out0 = await injectWorkbook(bytes, toInjectTargets(
+      buildFirePlanValues({ buildingName: 'X', facilities: [], brigade: [], zones: [], hazards: [], forms: {} } as never),
+      vc.anchors).targets)
+    const g0 = await readSheetGrid(await JSZip.loadAsync(out0.bytes), EVACMAP15_SHEET)
+    check('평면도가 없으면 구역칸도 빈다',
+      EVACMAP15_ZONE_CELLS.every(([c]) => (g0.cells.find(x => x.ref === c)?.text ?? '').trim() === ''))
+  }
+}
+
 console.log(`\n=== pass ${pass} / fail ${fail} ===`)
 process.exit(fail ? 1 : 0)

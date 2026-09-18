@@ -177,8 +177,8 @@ console.log('\n[3] 백지 불변식 — 템플릿에 표본의 답이 남아 있
   //   사용승인일이 통째로 공란이었다(PDF는 같은 값을 인쇄 중이었다 — D-7 갈라짐).
   const prefixCells = FIRE_PLAN_ANCHORS.filter(isPrefixLabelAnchor)
   // 2026-09-17(11): 2.13 대상명(A2)을 배선해 2→3
-  // 2026-09-18: 2.6·2.9·2.10·2.11 대상명 4칸으로 4→8
-  check('접두라벨칸 예외 수가 그대로(대상명 7 + 1.10.1 사용승인일 = 8칸)', prefixCells.length === 8,
+  // 2026-09-18: 2.6·2.9·2.10·2.11 대상명 4칸으로 4→8 · 1.5.2 대상명으로 8→9
+  check('접두라벨칸 예외 수가 그대로(대상명 8 + 1.10.1 사용승인일 = 9칸)', prefixCells.length === 9,
     prefixCells.map(a => `${a.sheet}!${a.cell}='${cellText(a)}'`).join(' · '))
   const ymCells = FIRE_PLAN_ANCHORS.filter(isYearMonthLabelAnchor)
   check('연월칸 예외 수가 그대로(1.10.1 점검시기 4칸)', ymCells.length === 4,

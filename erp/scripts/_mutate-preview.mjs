@@ -227,6 +227,10 @@ const MUTANTS = [
   ['M56 2.5가 장소 매칭 없이 hz[0]을 쓴다 → [40] 1.2.2 항등이 빨강이어야',
     VALUES, '  const cmd25Haz = hz.find(h => txt(h.place) === cmd25Place)',
     '  const cmd25Haz = hz[0]', 1],
+  /* 🚨 M58 — 1.5.2 구역이 평면도와 다른 index를 물면 사진과 이름이 짝을 잃는다. */
+  ['M58 1.5.2 구역을 한 칸 민다 → [42] 착지 단언이 빨강이어야',
+    VALUES, '  EVACMAP15_ZONE_CELLS.forEach(([, ], i) => v.set(`evacmap15_zone_${i}`, txt(evMaps15[i]?.floor)))',
+    '  EVACMAP15_ZONE_CELLS.forEach(([, ], i) => v.set(`evacmap15_zone_${i}`, txt(evMaps15[i + 1]?.floor)))', 1],
   /* 🚨 M57 — 1.14.2가 두 블록에 같은 건을 실으면 결과 두 벌이 같은 홍보가 된다. */
   ['M57 1.14.2 두 블록이 같은 promoLog 건을 쓴다 → [41] 착지 단언이 빨강이어야',
     VALUES, '    v.set(`promo2_method_${i}`, placeholderCell(PROMO2_SHEET, cell, promoLog2[i]?.method))',

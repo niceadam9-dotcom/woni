@@ -55,6 +55,7 @@ import {
   TRAIN2_SHEET, TRAIN2_TARGET_BOXES, TRAIN2_PRACTICE_BOXES, TRAIN2_THEORY_BOXES, TRAIN2_FORM_BOXES,
   CMD25_SHEET, CMD25_KITCHEN_BOXES, CMD25_PLACE_CELL,
   PROMO2_SHEET, PROMO2_METHOD_CELLS,
+  EVACMAP15_SHEET, EVACMAP15_ZONE_CELLS,
 } from '@/lib/fire-plan-anchors'
 import { boxGlyphAt, labelAt, tokenTemplateAt } from '@/lib/fire-plan-xlsx-manifest'
 import { purposeCover, purposeShort } from '@/lib/purpose-label'
@@ -697,6 +698,12 @@ export function buildFirePlanValues(d: FirePlanGenData): Map<string, CellValue> 
    *  예시문칸이라 값이 없으면 법정 예시(`포스터, 표어`)가 남는다.
    *  ⚠ 「일시 및 장소」는 **장소 축이 없어** 비운다 — 한 칸이 두 뜻을 담는데 한 뜻만 넣으면
    *    머리글이 거짓말이 된다(1.12.1 「연락처에 안전조치를 넣지 않는다」와 같은 판정). */
+  /* ── 서식 1.5.2 구역 2칸 (2026-09-18) — 평면도와 **같은 배열·같은 index**(evacMaps).
+   *  사진은 이미 앉는데 그 사진이 어느 구역인지 비어 있던 자리다. */
+  const evMaps15 = (d.forms?.evacMaps ?? []) as Array<Record<string, string>>
+  v.set('evacmap15_name', prefixCell(EVACMAP15_SHEET, 'A2', d.buildingName))
+  EVACMAP15_ZONE_CELLS.forEach(([, ], i) => v.set(`evacmap15_zone_${i}`, txt(evMaps15[i]?.floor)))
+
   const promoLog2 = (d.forms?.promoLog ?? []) as Array<Record<string, string>>
   PROMO2_METHOD_CELLS.forEach((cell, i) => {
     v.set(`promo2_method_${i}`, placeholderCell(PROMO2_SHEET, cell, promoLog2[i]?.method))
