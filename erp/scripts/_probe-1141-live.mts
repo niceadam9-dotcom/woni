@@ -24,7 +24,7 @@ const sectionsOf = async () => {
 
 try {
   const { data: cust } = await raw.from('customers').select('id, customer_name').eq('is_active', true).limit(1).single()
-  if (!cust) { console.error('🚨 스테이징에 고객이 없다'); process.exit(1) }
+  if (!cust) throw new Error('스테이징에 고객이 없다')
   customerId = cust.id as string
   console.log(`대상 고객: ${cust.customer_name} (${customerId})`)
   hadPlanBefore = (await sectionsOf()).promoPlan
@@ -53,12 +53,14 @@ try {
     await new Promise(r => setTimeout(r, 500))
   }
   console.log(`DB promoPlan.poster = ${JSON.stringify(saved)}`)
-  if (JSON.stringify(saved) !== '[3,7]') { console.error('🚨 저장이 DB에 닿지 않았다'); process.exit(1) }
+  /* 🚨 `process.exit` 금지 — finally(원상복구)를 건너뛰어 **실고객을 오염시킨다**.
+   *   2026-09-18 `_probe-today-live`가 정확히 그래서 감상골의 세 축을 남겼다. throw를 쓴다. */
+  if (JSON.stringify(saved) !== '[3,7]') throw new Error(`저장이 DB에 닿지 않았다: ${JSON.stringify(saved)}`)
 
   // ── ③ 엑셀 수신 — 받은 파일에서 1.14.1 상자를 되읽는다 ──
   const res = await page.request.get(`${BASE}/customers/${customerId}/fire-plan/xlsx`)
   console.log(`xlsx HTTP ${res.status()}`)
-  if (!res.ok()) { console.error('🚨', (await res.text()).slice(0, 200)); process.exit(1) }
+  if (!res.ok()) throw new Error(`xlsx ${res.status()}: ${(await res.text()).slice(0, 200)}`)
   const g = await readSheetGrid(await JSZip.loadAsync(new Uint8Array(await res.body())), PROMO_SHEET)
   const at = (r: string) => g.cells.find(x => x.ref === r)?.text ?? ''
   const poster = PROMO_ROWS.find(r => r.key === 'poster')!
