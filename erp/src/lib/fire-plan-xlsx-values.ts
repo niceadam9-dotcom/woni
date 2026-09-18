@@ -50,6 +50,7 @@ import {
   EVAC210_SHEET, EVAC210_ROUTE_CELLS,
   EXT29_SHEET, HAZ29_ROWS,
   CONTACT26_SHEET, ALERT28_SHEET, RESCUE211_SHEET,
+  PROMO_SHEET, PROMO_ROWS, PROMO_MONTH_COLS,
 } from '@/lib/fire-plan-anchors'
 import { boxGlyphAt, labelAt, tokenTemplateAt } from '@/lib/fire-plan-xlsx-manifest'
 import { purposeCover, purposeShort } from '@/lib/purpose-label'
@@ -581,6 +582,17 @@ export function buildFirePlanValues(d: FirePlanGenData): Map<string, CellValue> 
     v.set(`train_n_${key}`, /\S\s{2,}\S/.test(labelAt(TRAIN_SHEET, cntCell))
       ? wrappedUnitCell(TRAIN_SHEET, cntCell, trCount[key])
       : unitCell(TRAIN_SHEET, cntCell, trCount[key]))
+  }
+
+  /* ── 서식 1.14.1 화재예방·홍보 계획 (2026-09-18, ④ 넷째 축) ──────────────────
+   *  1.11.1과 같은 월 격자 — 축은 forms.promoPlan(방법별 실시 월). 미입력 방법은 전 월 ☐.
+   *  ⚠ 1.11.1과 달리 폴백이 없다 — trainingMonth 같은 구 자유 입력 축이 이 시트엔 없었다. */
+  const promo = (d.forms?.promoPlan ?? {}) as Partial<Record<string, number[]>>
+  for (const { key, row } of PROMO_ROWS) {
+    const months = promo[key] ?? []
+    PROMO_MONTH_COLS.forEach((col, m) => {
+      v.set(`promo_${key}_m${m + 1}`, boxLabelCell(PROMO_SHEET, `${col}${row}`, months.includes(m + 1)))
+    })
   }
 
   /* ── 서식 1.10.3 다중이용업소 관리현황 (2026-09-17) ──────────────────────────

@@ -396,6 +396,7 @@ export default async function CustomerDetailPage({
     photos?: Array<{ path: string | null; kind: string; caption: string }>
     dutyLog?: DutyLogRow[]
     fireworkLog?: LogRow[]; constructionLog?: LogRow[]; promoLog?: LogRow[]; recoveryLog?: LogRow[]
+    promoPlan?: Partial<Record<string, number[]>>  // 1.14.1 연간 계획 — ④ 넷째 축 (2026-09-18)
     tenants?: TenantRow[]
     valuables?: ValuableRow[]
     reportCover?: ReportCoverSection
@@ -824,7 +825,8 @@ export default async function CustomerDetailPage({
         initial={{
           fireworkLog: fpSections.fireworkLog ?? [], constructionLog: fpSections.constructionLog ?? [],
           promoLog: fpSections.promoLog ?? [], recoveryLog: fpSections.recoveryLog ?? [],
-        }} />}
+        }}
+        initialPromoPlan={fpSections.promoPlan ?? {}} />}
       ch2={<PlanCh2 customerId={customer.id} canManage={canManage}
         initialType={fpSections.brigadeGeneral?.type ?? ''} initialTeams={fpSections.brigadeTeams ?? {}}
         initialBrigade={planInfoInitial.brigade} initialValuables={fpSections.valuables ?? []} people={planPeople} />}

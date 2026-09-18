@@ -191,7 +191,8 @@ console.log('\n[3] 백지 불변식 — 템플릿에 표본의 답이 남아 있
   //   월 머리에 있고 칸 자신은 `□`뿐). 종전 `<= 3`은 그 모양을 예상하지 않은 느슨한 상한이었다 —
   //   **정확한 수**로 바꾼다(상한보다 강한 단언이다: 한 칸만 늘어도 붉어진다).
   //   내역: 표지 용도 1 + 1.11.1 교육 36 + 훈련 36 = 73.
-  check('빈 상자만 남은 앵커 수가 그대로(표지 1 + 1.11.1 월격자 72)', boxOnly.length === 73,
+  // 2026-09-18: 1.14.1 월 격자 120(방법 10 × 12월 — 같은 모양)으로 73→193.
+  check('빈 상자만 남은 앵커 수가 그대로(표지 1 + 1.11.1 72 + 1.14.1 120)', boxOnly.length === 193,
     `${boxOnly.length}칸`)
   const boxLabel = FIRE_PLAN_ANCHORS.filter(isBoxLabelAnchor)
   // 🚨 정체 판정 — 상한만 두면 예외가 **0개로 사라져도** 초록이다(1.5.1 3칸 + 1.1 21칸)
@@ -231,8 +232,10 @@ console.log('\n[3] 백지 불변식 — 템플릿에 표본의 답이 남아 있
   //   설비 존재 = 가용(비상방송설비·자동화재속보설비, 1.4와 같은 집합).
   // 2026-09-18(3): 2.9 층별·시설별 6(O5~O10)으로 243→249 — 층수는 구조화 원시값(파싱 아님)·
   //   시설별은 1.6.1과 같은 축. 기타(O11)는 축이 없어 안 센다.
-  check('상자칸 예외 수가 그대로(… + 2.6·2.8 4 + 2.9 6)',
-    boxLabel.length === 249, `${boxLabel.length}칸`)
+  // 2026-09-18(4): 1.14.1 월 격자 120(방법 10 × 12월, ④ promoPlan)으로 249→369.
+  //   보관방법 상자 4(16~17행)·※ 안내(AE3)는 축이 없어 안 센다.
+  check('상자칸 예외 수가 그대로(… + 2.9 6 + 1.14.1 120)',
+    boxLabel.length === 369, `${boxLabel.length}칸`)
   check('상자칸은 템플릿에서 전부 미체크', boxLabel.every(a => !/■/.test(cellText(a))),
     boxLabel.filter(a => /■/.test(cellText(a))).map(a => a.cell).join(','))
   const unitCells = FIRE_PLAN_ANCHORS.filter(a => isUnitLabelAnchor(a) && !isSampleTextAnchor(a))

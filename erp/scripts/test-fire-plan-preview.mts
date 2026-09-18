@@ -1835,5 +1835,45 @@ console.log('\n[35] 2.6·2.8 설비 파생 상자 4 + 대상명 4')
   }
 }
 
+/* ══════════════════════ [36] 1.14.1 화재예방·홍보 계획 — ④ 넷째 축 promoPlan ══════════════════════
+ *  방법 10종 × 12월 격자(1.11.1과 같은 무늬). 방법 목록은 화면과 한 벌(promo-plan-methods) —
+ *  라벨 사본은 anchors 적재 대조가 검증한다(어긋나면 이 검사 전체가 모듈 로드에서 죽는다). */
+console.log('\n[36] 1.14.1 월 격자 120상자')
+{
+  const { validateAnchors } = await import('../src/lib/xlsx-anchors.ts')
+  const { toInjectTargets } = await import('../src/lib/xlsx-workbook.ts')
+  const { FIRE_PLAN_ANCHORS, PROMO_SHEET, PROMO_ROWS, PROMO_MONTH_COLS } =
+    await import('../src/lib/fire-plan-anchors.ts')
+  const { buildFirePlanValues } = await import('../src/lib/fire-plan-xlsx-values.ts')
+  const { labelAt } = await import('../src/lib/fire-plan-xlsx-manifest.ts')
+
+  check('방법 10종이 6~15행에 순서대로 적재됐다(자구 대조는 적재 시 throw)',
+    PROMO_ROWS.length === 10 && PROMO_ROWS[0].row === 6 && PROMO_ROWS[9].row === 15
+    && PROMO_ROWS[9].key === 'etc')
+
+  const fx = { buildingName: 'X', facilities: [], brigade: [], zones: [], hazards: [],
+    forms: { promoPlan: { poster: [3, 7], etc: [12] } } } as never
+  const vc = validateAnchors(bytes, FIRE_PLAN_ANCHORS)
+  if (vc.ok) {
+    const out = await injectWorkbook(bytes, toInjectTargets(buildFirePlanValues(fx), vc.anchors).targets)
+    const gr = await readSheetGrid(await JSZip.loadAsync(out.bytes), PROMO_SHEET)
+    const at = (r: string) => gr.cells.find(x => x.ref === r)?.text ?? ''
+    const poster = PROMO_ROWS.find(r => r.key === 'poster')!
+    const etc = PROMO_ROWS.find(r => r.key === 'etc')!
+
+    check('입력한 월만 켜진다(포스터 3·7월)',
+      at(`${PROMO_MONTH_COLS[2]}${poster.row}`).includes('■') && at(`${PROMO_MONTH_COLS[6]}${poster.row}`).includes('■')
+      && !at(`${PROMO_MONTH_COLS[0]}${poster.row}`).includes('■') && !at(`${PROMO_MONTH_COLS[11]}${poster.row}`).includes('■'))
+    check('기타 행도 제 월에 켜진다(12월)', at(`${PROMO_MONTH_COLS[11]}${etc.row}`).includes('■'))
+    /* 🚨 음성 — 미입력 방법은 전 월 ☐(임의 월을 지어내지 않는다 — 1.11.1 M-7과 같은 계약) */
+    const video = PROMO_ROWS.find(r => r.key === 'video')!
+    check('미입력 방법은 전 월 미체크', PROMO_MONTH_COLS.every(col =>
+      at(`${col}${video.row}`) === labelAt(PROMO_SHEET, `${col}${video.row}`)))
+    /* 🚨 음성 — 보관방법·안내 상자는 축이 없어 앵커를 두지 않는다 */
+    const noAnchor = (cell: string) => !FIRE_PLAN_ANCHORS.some(a => a.sheet === PROMO_SHEET && a.cell === cell)
+    check('보관방법 상자 4 + ※ 안내는 앵커가 없다', ['R16', 'AO16', 'R17', 'AO17', 'AE3'].every(noAnchor))
+  }
+}
+
 console.log(`\n=== pass ${pass} / fail ${fail} ===`)
 process.exit(fail ? 1 : 0)

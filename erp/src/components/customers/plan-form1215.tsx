@@ -9,6 +9,7 @@ import { CardAnchorBar, useUnsavedWarning } from '@/components/ui/fields'
 import { DateInput } from '@/components/ui/date-input'
 import { LibraryTextButton, type AppliedMeta } from '@/components/customers/library-text-button'
 import { PLAN_TEXT_SECTIONS } from '@/lib/plan-text-sections'
+import { PROMO_METHODS, type PromoPlan } from '@/lib/promo-plan-methods'
 
 /** 서식 1.12~1.15 기록부 4종 (소방계획서_4.md §3 — §12-3 결정 2026-07-23: v1 포함)
  *  1.12 화기취급 감독 · 1.13 소방시설 공사/정비 기록 · 1.14 화재예방 및 홍보 · 1.15 피해 복구
@@ -50,14 +51,17 @@ const CARDS: CardDef[] = [
   },
 ]
 
-export function PlanForm1215({ customerId, canManage, initial }: {
+export function PlanForm1215({ customerId, canManage, initial, initialPromoPlan }: {
   customerId: string
   canManage: boolean
   initial: Record<string, LogRow[]>   // sections.fireworkLog / constructionLog / promoLog / recoveryLog
+  /** 1.14.1 연간 계획(방법별 실시 월) — sections.promoPlan (2026-09-18 ④ 넷째 축) */
+  initialPromoPlan?: PromoPlan
 }) {
   const router = useRouter()
   const [logs, setLogs] = useState<Record<string, LogRow[]>>(() =>
     Object.fromEntries(CARDS.map(c => [c.key, initial[c.key] ?? []])))
+  const [promoPlan, setPromoPlan] = useState<PromoPlan>(() => initialPromoPlan ?? {})
   const [dirty, setDirty] = useState(false)
   useUnsavedWarning(dirty, save) // §11-4 이탈 경고 + 이동 확인창 [저장하고 이동]
   const [msg, setMsg] = useState('')
@@ -77,13 +81,25 @@ export function PlanForm1215({ customerId, canManage, initial }: {
     setLogs(p => ({ ...p, [key]: p[key].filter((_, j) => j !== i) }))
     setDirty(true)
   }
+  /** 1.14.1 연간 계획 — 방법별 실시 월 토글(1.11.1 monthGrid와 같은 무늬) */
+  function togglePromoMonth(key: string, m: number) {
+    setPromoPlan(p => {
+      const cur = p[key] ?? []
+      return { ...p, [key]: cur.includes(m) ? cur.filter(x => x !== m) : [...cur, m].sort((a, b) => a - b) }
+    })
+    setDirty(true)
+  }
   /** 반환 Promise는 이동 확인창이 저장 완료를 기다리는 용도 (true=성공) */
   function save(): Promise<boolean> {
     return new Promise(resolve => {
       startTransition(async () => {
-        const patch = Object.fromEntries(CARDS.map(c => [
-          c.key, logs[c.key].filter(r => Object.values(r).some(v => v.trim())),
-        ]))
+        const patch = {
+          ...Object.fromEntries(CARDS.map(c => [
+            c.key, logs[c.key].filter(r => Object.values(r).some(v => v.trim())),
+          ])),
+          // 1.14.1 연간 계획 — 빈 배열 키는 걷어 저장을 깨끗하게
+          promoPlan: Object.fromEntries(Object.entries(promoPlan).filter(([, ms]) => (ms?.length ?? 0) > 0)),
+        }
         const res = await saveFirePlanSectionsAction(customerId, patch)
         if (res.error) { setMsg(`❌ ${res.error}`); resolve(false); return }
         setDirty(false)
@@ -124,6 +140,26 @@ export function PlanForm1215({ customerId, canManage, initial }: {
               </span>
             )}
           </div>
+          {/* 1.14.1 연간 계획 — 방법 10종 × 12월 격자 (엑셀 1.14.1 상자 120칸의 유일 입력면) */}
+          {card.key === 'promoLog' && (
+            <div className="mb-3 rounded-lg border border-brand-line-soft bg-surface p-2.5">
+              <p className="text-form-xs font-medium text-ink-sub mb-1.5">1.14.1 연간 계획 — 방법별 실시 월</p>
+              <div className="space-y-1">
+                {PROMO_METHODS.map(m => (
+                  <div key={m.key} className="flex items-center gap-1.5 flex-wrap">
+                    <span className="w-[13em] shrink-0 text-form-xs text-ink-sub">{m.label}</span>
+                    {Array.from({ length: 12 }, (_, i) => i + 1).map(mo => (
+                      <button key={mo} disabled={!canManage} onClick={() => togglePromoMonth(m.key, mo)}
+                        className={`h-form-6 w-7 rounded border text-form-xs ${(promoPlan[m.key] ?? []).includes(mo)
+                          ? 'border-brand bg-brand text-white' : 'border-brand-line text-ink-meta hover:bg-brand-tint'}`}>
+                        {mo}
+                      </button>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
           {logs[card.key].length === 0 && (
             <p className="text-form-xs text-ink-meta">기록이 없습니다 — 발생 시 행을 추가해 기록하세요 (2년 보관 대상).</p>
           )}

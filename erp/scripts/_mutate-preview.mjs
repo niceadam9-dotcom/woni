@@ -200,6 +200,13 @@ const MUTANTS = [
   ['M49 2.9 고층 경계 ≥30을 >30으로 → [34] 「전부 켜진다」(경계 픽스처 30층)가 빨강이어야',
     VALUES, "  v.set('ext29_box_high', boxLabelCell(EXT29_SHEET, 'O5', (d.floorsAbove ?? 0) >= 30))",
     "  v.set('ext29_box_high', boxLabelCell(EXT29_SHEET, 'O5', (d.floorsAbove ?? 0) > 30))", 1],
+  /* 🚨 M50 — 1.14.1 월을 하나 밀면 3월 입력이 4월 칸에 찍힌다. */
+  ['M50 1.14.1 월 판정을 하나 민다 → [36] 착지·미체크 단언이 빨강이어야',
+    VALUES, "      v.set(`promo_${key}_m${m + 1}`, boxLabelCell(PROMO_SHEET, `${col}${row}`, months.includes(m + 1)))",
+    "      v.set(`promo_${key}_m${m + 1}`, boxLabelCell(PROMO_SHEET, `${col}${row}`, months.includes(m)))", 1],
+  /* 🚨 M51 — 방법 행을 하나 밀면 적재 대조가 모듈 로드에서 던져야 한다(목록 사본 감시). */
+  ['M51 1.14.1 첫 행을 7로 민다 → 적재 대조 throw로 검사 전체가 죽어야',
+    ANCHORS, 'export const PROMO_FIRST_ROW = 6', 'export const PROMO_FIRST_ROW = 7', 1],
 ]
 
 /** 🚨 파일의 줄끝에 맞춰 needle을 바꾼다.

@@ -17,6 +17,7 @@ import type { Anchor } from '@/lib/xlsx-anchors'
 import { labelAt, labelBlockRows, numberedRowBudget, sheetManifest, tokenRowBudget } from '@/lib/fire-plan-xlsx-manifest'
 import { ALL_STANDARD_CODES } from '@/lib/facility-codes'
 import { LOCATION_BOX_KINDS } from '@/lib/fire-plan-image-kinds'
+import { PROMO_METHODS } from '@/lib/promo-plan-methods'
 
 /* ────────────────────────── 시트명 (manifest 키) ────────────────────────── */
 
@@ -39,6 +40,7 @@ export const FP_SHEET = {
   F1_10_4: '1.10.4 화재·비화재보 이력',
   F1_11_1: '1.11.1 소방훈련·교육 연간계획',
   F1_12_1: '1.12.1 화기취급작업 현황',
+  F1_14_1: '1.14.1 화재예방 및 홍보 계획',
   F1_13: '1.13 소방시설 공사·정비 기록',
   F3_3: '3.3 피난인원현황',
   F1_9: '1.9 자위소방대 현황',
@@ -607,6 +609,36 @@ export const TRAIN_TARGETS: ReadonlyArray<readonly [string, string, string]> = [
   ['resident', 'AH4', 'BB4'], // □ 거주자 … 약 명
   ['brigade', 'I5', 'AA5'],   // □ 자위소방대 및 초기대응체계 … 명
 ]
+
+/* ══════════════════════ 서식 1.14.1 화재예방·홍보 계획 (2026-09-18, ④ 넷째 축) ══════════════════════
+ *
+ *  방법 10종 × 12월 격자 120상자 — 1.11.1 연간계획과 같은 무늬다. 축은 `forms.promoPlan`
+ *  (방법별 실시 월 배열, 입력 화면은 1.14 카드의 월 격자 — plan-form1215).
+ *
+ *  ⭐ 방법 목록은 화면과 **한 벌**(`promo-plan-methods.ts` — 클라이언트로 가는 소모듈이라
+ *    manifest를 못 문다). 라벨 사본은 **여기 적재 대조가 검증한다** — A6~A15 자구와 어긋나면
+ *    throw(FORM14_ROWS와 같은 규약). `etc`는 양식이 빈 괄호(`기타(  )`)라 접두로 맞댄다.
+ *
+ *  ⚠ 비우는 것: 보관방법 상자 4(16~17행 — 보관 방식 축이 없다) · ※ 안내 상자(AE3).
+ *  ⚠ PDF에 1.14.1 지면은 없다(서식 1.14는 promoLog 로그 표만 인쇄) — 엑셀 전용 지면이라
+ *    역방향 D-7이 아니다(2.4 개별임무카드와 같은 판정).
+ */
+export const PROMO_SHEET = FP_SHEET.F1_14_1
+export const PROMO_FIRST_ROW = 6
+
+/** 월 12칸의 열 — 1.11.1과 격자꼴은 같지만 **열 좌표는 다르다**(실측 `_probe-1141-grid`) */
+export const PROMO_MONTH_COLS = ['R', 'V', 'Y', 'AC', 'AF', 'AJ', 'AN', 'AQ', 'AU', 'AX', 'BB', 'BE'] as const
+
+/** 방법 10종 ↔ 행 — 적재 시 양식 자구와 대조한다(목록 사본이 낡으면 여기서 터진다) */
+export const PROMO_ROWS: ReadonlyArray<{ key: string; label: string; row: number }> = PROMO_METHODS.map((m, i) => {
+  const row = PROMO_FIRST_ROW + i
+  const lbl = labelAt(FP_SHEET.F1_14_1, `A${row}`)
+  const ok = m.key === 'etc' ? bareLabel(lbl).startsWith('기타') : bareLabel(lbl) === bareLabel(m.label)
+  if (!ok) {
+    throw new Error(`fire-plan-anchors: 1.14.1!A${row} 자구가 '${lbl.trim()}' 인데 방법 목록은 '${m.label}' — 좌표가 밀렸거나 목록이 낡았다`)
+  }
+  return { key: m.key, label: m.label, row }
+})
 
 /* ══════════════════════ 서식 3.1 피난시설 일반현황 (2026-09-17) ══════════════════════
  *
@@ -1516,6 +1548,14 @@ const TRAIN_SEEDS: Seed[] = [
   ]),
 ]
 
+const PROMO_SEEDS: Seed[] = PROMO_ROWS.flatMap(({ key, row }) =>
+  PROMO_MONTH_COLS.map((col, m) => ({
+    field: `promo_${key}_m${m + 1}`,
+    sheet: PROMO_SHEET,
+    cell: `${col}${row}`,
+    labelCell: `${col}${row}`,   // 상자칸 — 자기 칸이 라벨이다(1.11.1과 같은 규약)
+  })))
+
 const MU_SEEDS: Seed[] = [
   ...MU_VALUE_CELLS.map(([k, cell, labelCell]) => ({ field: `mu_${k}`, sheet: MU_SHEET, cell, labelCell })),
   // 상자·자리표시는 **자기 칸이 라벨**이다(그 칸의 자구를 우리가 읽어 조립한다)
@@ -1566,7 +1606,7 @@ function assemble(seeds: Seed[]): Anchor[] {
   })
 }
 
-export const FIRE_PLAN_ANCHORS: Anchor[] = assemble([...FIXED_SEEDS, ...ZONE_SEEDS, ...BRIG_SEEDS, ...FORM14_SEEDS, ...FIREHIST_SEEDS, ...HAZARD_SEEDS, ...MU_SEEDS, ...TRAIN_SEEDS, ...EVAC1_SEEDS, ...BRIG1_SEEDS, ...FIREWORK_SEEDS, ...CONSTRUCTION_SEEDS, ...EVAC3_SEEDS, ...BRIG9_SEEDS, ...REC14_SEEDS, ...ATT14_SEEDS, ...VUL_SEEDS, ...VUL9_SEEDS, ...EVAC34_SEEDS, ...VUL36_SEEDS, ...ORG23_SEEDS, ...TENANT_SEEDS, ...RESP13_SEEDS, ...EQUIP37_SEEDS, ...ETC61_SEEDS, ...HAZ_SEEDS, ...VAL12_SEEDS, ...EVDET32_SEEDS, ...REV_SEEDS, ...CARD24_SEEDS, ...EVAC210_SEEDS, ...EXT29_SEEDS, ...TEAM_MISC_SEEDS])
+export const FIRE_PLAN_ANCHORS: Anchor[] = assemble([...FIXED_SEEDS, ...ZONE_SEEDS, ...BRIG_SEEDS, ...FORM14_SEEDS, ...FIREHIST_SEEDS, ...HAZARD_SEEDS, ...MU_SEEDS, ...TRAIN_SEEDS, ...EVAC1_SEEDS, ...BRIG1_SEEDS, ...FIREWORK_SEEDS, ...CONSTRUCTION_SEEDS, ...EVAC3_SEEDS, ...BRIG9_SEEDS, ...REC14_SEEDS, ...ATT14_SEEDS, ...VUL_SEEDS, ...VUL9_SEEDS, ...EVAC34_SEEDS, ...VUL36_SEEDS, ...ORG23_SEEDS, ...TENANT_SEEDS, ...RESP13_SEEDS, ...EQUIP37_SEEDS, ...ETC61_SEEDS, ...HAZ_SEEDS, ...VAL12_SEEDS, ...EVDET32_SEEDS, ...REV_SEEDS, ...CARD24_SEEDS, ...EVAC210_SEEDS, ...EXT29_SEEDS, ...TEAM_MISC_SEEDS, ...PROMO_SEEDS])
 
 /* ══════════════════════ §사진상자 (2026-09-14) ══════════════════════
  *

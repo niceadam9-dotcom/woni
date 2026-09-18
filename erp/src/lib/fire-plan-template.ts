@@ -83,6 +83,8 @@ export type FirePlanFormSections = {
   constructionLog?: LogRow[]
   promoLog?: LogRow[]
   recoveryLog?: LogRow[]
+  /** 1.14.1 연간 계획 — 방법별 실시 월(1~12). ④ 넷째 축 (2026-09-18, 엑셀 전용 지면) */
+  promoPlan?: Partial<Record<string, number[]>>
   reportCover?: { company?: string; year?: string; sub?: string }  // 보고서 커버 (마지막 페이지, 2026-08-10)
   /** M-18(소방계획서_15, 2026-08-11 보강 확정): 선임·자위대 비상연락체계 — 서식 2.2 편성표 아래 인쇄 */
   emergencyContact?: string
