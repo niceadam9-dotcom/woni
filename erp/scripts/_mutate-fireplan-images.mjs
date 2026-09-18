@@ -143,6 +143,27 @@ const MUTANTS = [
     to: '      const g = fit(img, 300, 200)',
     expect: '그림이 상자를 채운다',
   },
+  {
+    // 🚨 1.11.4 뒷쪽 네 칸은 **모두 빈 칸**이라 상자 자신을 라벨로 삼으면 자가치유가 엉뚱한
+    //   상자로 옮겨 붙는다(1.5.2가 같은 이유로 제목칸에 물렸다).
+    // ⚠ 상자 자신(A11)은 **빈 칸이라 `labelAt`이 모듈 로드에서 throw**한다 — 그건 검사가
+    //   아니라 적재가 막는 것이라 이 프로브로는 표현이 안 된다(「빨강인데 FAIL 0건」).
+    //   그래서 **라벨이 있는 이웃 칸**(A12 `소방훈련` 캡션)으로 옮긴다: 모듈은 살아서 뜨고,
+    //   「제목칸 하나」 단언이 그 이사를 잡아야 한다.
+    name: 'M13 훈련 사진 라벨칸을 이웃 캡션칸으로 옮긴다',
+    file: ANCH,
+    from: "{ field: 'img_train_1', kinds: ['train'], index: 0, sheet: FP_SHEET.F1_11_4_BACK, cell: 'A11',  labelCell: 'A10' }",
+    to: "{ field: 'img_train_1', kinds: ['train'], index: 0, sheet: FP_SHEET.F1_11_4_BACK, cell: 'A11',  labelCell: 'A12' }",
+    expect: '라벨칸이 제목칸 A10 하나다',
+  },
+  {
+    // 🚨 축의 kind 어휘가 상자와 어긋나면 사진이 **조용히 어디에도 안 앉는다**(에러도 없다).
+    name: 'M14 training.photos의 kind 걸러내기를 없앤다(타 종류가 섞인다)',
+    file: 'src/lib/fire-plan-image-refs.ts',
+    from: "    if (p?.path && (p.kind === 'train' || p.kind === 'edu')) {",
+    to: '    if (p?.path) {',
+    expect: '상자가 안 받는 종류는 후보에 아예 없다',
+  },
 ]
 
 const only = process.env.MUT

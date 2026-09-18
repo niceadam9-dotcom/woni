@@ -7,6 +7,7 @@ import { saveFirePlanSectionsAction } from '@/app/(dashboard)/customers/fire-pla
 import { stampPlanTextAppliedAction } from '@/app/(dashboard)/customers/plan-text-library-actions'
 import { NumStepper, useUnsavedWarning } from '@/components/ui/fields'
 import { LibraryTextButton, type AppliedMeta } from '@/components/customers/library-text-button'
+import { ImageSlot } from '@/components/customers/plan-form13'
 import { PLAN_TEXT_SECTIONS } from '@/lib/plan-text-sections'
 import { trainingDoneIn, trainingRecordYear } from '@/lib/training-records'
 
@@ -28,6 +29,13 @@ export type TrainingDetailRow = {
  *  1순위 축이다. 종전엔 자유 텍스트 `at`의 앞 4자리만 봐서 '25.6.10'·앞 공백이 조용히 탈락했고,
  *  계획서를 새 연도로 갱신하며 전년도 행을 지우면 판정 근거까지 함께 사라졌다. */
 export type TrainingRecordRow = { at: string; year?: string; kind: string; attendees: string; content: string; evaluation: string }
+/** 1.11.4 뒷쪽 「소방훈련·교육 관련사진」 4칸 (2026-09-18) — 엑셀 전용 지면이라 PDF엔 없다.
+ *  `kind`는 엑셀 상자가 요구하는 어휘 그대로다(`FIRE_PLAN_IMAGE_BOXES.kinds`). */
+export type TrainingPhotoRow = { path: string | null; kind: 'train' | 'edu'; caption: string }
+export const TRAINING_PHOTO_SLOTS: ReadonlyArray<{ kind: 'train' | 'edu'; label: string }> = [
+  { kind: 'train', label: '소방훈련 ①' }, { kind: 'train', label: '소방훈련 ②' },
+  { kind: 'edu', label: '소방교육 ①' }, { kind: 'edu', label: '소방교육 ②' },
+]
 export type TrainingSection = {
   headcount: { worker: string; resident: string; brigade: string }
   eduMonths: number[]
@@ -36,10 +44,11 @@ export type TrainingSection = {
   scenario: string
   scenarioType: string
   records: TrainingRecordRow[]
+  photos?: TrainingPhotoRow[]
 }
 export const EMPTY_TRAINING: TrainingSection = {
   headcount: { worker: '', resident: '', brigade: '' },
-  eduMonths: [], drillMonths: [], details: [], scenario: '', scenarioType: '', records: [],
+  eduMonths: [], drillMonths: [], details: [], scenario: '', scenarioType: '', records: [], photos: [],
 }
 
 const SCENARIO_PRESETS: Record<string, string> = {
@@ -311,6 +320,31 @@ export function PlanForm111({ customerId, canManage, initial, presetType }: {
             </div>
             )
           })}
+        </div>
+
+        {/* 1.11.4 뒷쪽 「소방훈련·교육 관련사진」 4칸 (2026-09-18) — 엑셀 전용 지면.
+            여기 올린 사진이 결과기록부 뒷쪽 사진 칸에 그대로 박힌다(PDF엔 그 지면이 없다). */}
+        <div className="mt-3 rounded-lg border border-brand-line-soft bg-surface p-2.5">
+          <p className="text-form-xs font-medium text-ink-sub mb-1.5">
+            결과기록부 뒷쪽 사진 — 소방훈련 2장 · 소방교육 2장
+            <span className="ml-1.5 font-normal text-ink-meta">(엑셀 1.11.4 뒷쪽에 인쇄됩니다)</span>
+          </p>
+          <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+            {TRAINING_PHOTO_SLOTS.map((slot, i) => (
+              <div key={i}>
+                <p className="text-form-2xs text-ink-meta mb-1">{slot.label}</p>
+                <ImageSlot customerId={customerId} canManage={canManage}
+                  path={t.photos?.[i]?.path ?? null} label={slot.label}
+                  onChange={path => patch({
+                    photos: TRAINING_PHOTO_SLOTS.map((s, j) => ({
+                      kind: s.kind,
+                      path: j === i ? path : (t.photos?.[j]?.path ?? null),
+                      caption: t.photos?.[j]?.caption ?? '',
+                    })),
+                  })} />
+              </div>
+            ))}
+          </div>
         </div>
       </div>
 

@@ -50,6 +50,8 @@ export type ImageRefInput = {
     fireAccess?: { routeImage?: string | null; entryImage?: string | null } | null
     evacMaps?: Array<{ image?: string | null; floor?: string; desc?: string }> | null
     evacPlan?: { mapImage?: string | null } | null
+    /** 1.11.4 뒷쪽 훈련·교육 사진 (2026-09-18) — 1.11 카드가 소유·저장한다 */
+    training?: { photos?: Array<{ path?: string | null; kind?: string; caption?: string }> | null } | null
   }
   /** 삽입 사진 — 경로가 있는 것만 (호출부가 이미 걸러 온다) */
   photos: Array<ImageRef>
@@ -77,6 +79,14 @@ export function firePlanImageCandidates({ slotAssets, sections, photos }: ImageR
     if (m.image) refs.push({ path: m.image, kind: 'evacmap', caption: [m.floor, m.desc].filter(Boolean).join(' — '), priority: PRIORITY_FORM })
   }
   if (s.evacPlan?.mapImage) refs.push({ path: s.evacPlan.mapImage, kind: 'evacuation', caption: '피난경로도', priority: PRIORITY_FORM })
+  /* 1.11.4 뒷쪽 훈련·교육 사진 (2026-09-18) — 서식 입력이라 `PRIORITY_FORM`이다.
+   * `kind`는 상자가 요구하는 어휘(`train`·`edu`)이고, 다른 상자는 이 종류를 안 받으므로
+   * 서열 경쟁이 없다(1.3·1.5.2 상자와 섞이지 않는다). 순서가 곧 index 0·1이다. */
+  for (const p of s.training?.photos ?? []) {
+    if (p?.path && (p.kind === 'train' || p.kind === 'edu')) {
+      refs.push({ path: p.path, kind: p.kind, caption: p.caption ?? '', priority: PRIORITY_FORM })
+    }
+  }
   for (const p of photos) refs.push({ ...p, priority: PRIORITY_PHOTO })
 
   // ③ **진입 경로도의 기본 바탕은 표지 건물 사진이다** (2026-09-14 사용자 확정).

@@ -444,5 +444,51 @@ console.log('\n[7] PDF 축 — 서식 1.3 「건축물 위치」에 무엇이 �
   check('PDF 앞표지의 표지 사진은 그대로다', coverPage.includes('img_0.png'))
 }
 
+/* ══════════════════════ [X] 1.11.4 뒷쪽 훈련·교육 사진 4칸 (2026-09-18) ══════════════════════
+ *  ④류 새 축 `training.photos` — 1.11 카드가 소유·저장하고 엑셀 전용 지면에 박힌다.
+ *  ⚠ PDF엔 이 지면이 없다(2.4·1.14.1과 같은 판정) — 역방향 D-7이 아님을 음성으로 못 박는다. */
+console.log('\n[X] 1.11.4 뒷쪽 훈련·교육 사진')
+{
+  const { firePlanImageCandidates } = await import('../src/lib/fire-plan-image-refs.ts')
+  const boxes = FIRE_PLAN_IMAGE_BOXES.filter(b => b.sheet === '1.11.4 결과기록부 뒷쪽')
+  check('상자 4칸이 등록됐다(훈련 2·교육 2)', boxes.length === 4,
+    boxes.map(b => `${b.cell}:${b.kinds.join('|')}`).join(' '))
+  check('훈련·교육이 각각 index 0·1을 가진다',
+    boxes.filter(b => b.kinds.includes('train')).map(b => b.index).sort().join() === '0,1'
+    && boxes.filter(b => b.kinds.includes('edu')).map(b => b.index).sort().join() === '0,1')
+  /* 🚨 라벨칸을 상자 자신으로 잡지 않는다 — 네 칸이 모두 빈 칸이라 자가치유가 엉뚱한
+   *   상자로 옮겨 붙는다(1.5.2 전례). 시트에서 유일한 제목칸 A10에 물려야 한다. */
+  check('라벨칸이 제목칸 A10 하나다', boxes.every(b => b.labelCell === 'A10'))
+
+  /* 축 → 후보 변환: kind 어휘가 상자와 맞고, 순서가 곧 index다 */
+  const cands = firePlanImageCandidates({
+    slotAssets: [], photos: [],
+    sections: { training: { photos: [
+      { path: 'p/train1.png', kind: 'train', caption: '' },
+      { path: 'p/train2.png', kind: 'train', caption: '' },
+      { path: 'p/edu1.png', kind: 'edu', caption: '' },
+      { path: null, kind: 'edu', caption: '' },          // 빈 슬롯은 버려진다
+      { path: 'p/x.png', kind: 'etc', caption: '' },      // 상자가 안 받는 종류는 안 들어온다
+    ] } },
+  })
+  const mine = cands.filter(c => c.kind === 'train' || c.kind === 'edu')
+  check('경로 있는 train·edu만 후보가 된다(빈 슬롯·타 종류 제외)', mine.length === 3,
+    mine.map(c => `${c.kind}:${c.path}`).join(' '))
+  check('순서가 보존된다(그게 곧 상자 index다)',
+    mine[0].path === 'p/train1.png' && mine[1].path === 'p/train2.png' && mine[2].path === 'p/edu1.png')
+  /* 🚨 이 단언은 처음에 `c.path === 'p/x.png' && c.kind !== 'etc'`로 썼다가 **변이 M14를
+   *   놓쳤다** — kind가 `etc`인 채 들어오면 뒤 조건이 false라 some이 false가 되어 통과했다.
+   *   물어야 할 것은 「그 종류로 들어왔는가」가 아니라 **「아예 안 들어왔는가」**다. */
+  check('음성 — 상자가 안 받는 종류는 후보에 아예 없다', !cands.some(c => c.path === 'p/x.png'))
+
+  /* 🚨 음성 — PDF엔 이 지면이 없다(엑셀 전용). 있으면 D-7이 생긴 것이다. */
+  const html = buildFirePlanHtml({
+    year: 2026, buildingName: 'X', address: '어딘가', purpose: '공동주택',
+    facilities: [], brigade: [], zones: [], hazards: [], evacRoutes: [], trainingMonth: null,
+    forms: { training: { photos: [{ path: 'p/train1.png', kind: 'train', caption: '' }], eduMonths: [], drillMonths: [] } },
+  } as never, [])
+  check('PDF엔 「소방훈련·교육 관련사진」 지면이 없다(엑셀 전용)', !html.includes('소방훈련·교육 관련사진'))
+}
+
 console.log(`\n결과: ${pass} pass / ${fail} fail`)
 process.exit(fail ? 1 : 0)

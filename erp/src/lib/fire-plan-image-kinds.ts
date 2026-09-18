@@ -24,6 +24,9 @@ const KIND_LABEL: Record<string, string> = {
   evacuation: '피난안내도',
   building: '건물 전경',
   etc: '그 밖의 사진',
+  // 1.11.4 뒷쪽 「소방훈련·교육 관련사진」 4칸 (2026-09-18) — 축은 `training.photos`
+  train: '소방훈련 사진',
+  edu: '소방교육 사진',
 }
 export const imageKindLabel = (kind: string): string => KIND_LABEL[kind] ?? kind
 

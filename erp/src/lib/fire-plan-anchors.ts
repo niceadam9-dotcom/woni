@@ -1748,7 +1748,8 @@ export type FirePlanImageBox = Seed & {
   /** `assembleFirePlan()`이 붙이는 이미지 종류 — **우선순위 순서**다.
    *  앞의 것이 있으면 뒤의 것은 이 상자에 못 앉고 **고지로 나간다**(조용히 버리지 않는다).
    *  대부분 한 종류뿐이고, 두 개인 곳은 1.3 「건축물 위치」뿐이다(표지 사진 > 위치도 약도). */
-  kinds: readonly ('cover' | 'map' | 'route' | 'entry' | 'evacmap')[]
+  // 2026-09-18: `train`·`edu` 추가 — 1.11.4 뒷쪽 훈련·교육 사진(축 `training.photos`)
+  kinds: readonly ('cover' | 'map' | 'route' | 'entry' | 'evacmap' | 'train' | 'edu')[]
   /** 같은 kind가 여러 장일 때 몇 번째를 이 상자에 넣는가(0부터) */
   index: number
   /** 그림이 앉으면 **그 칸의 글자를 비운다** — `[해당 층 평면도]` 같은 '여기 붙이시오' 안내다.
@@ -1765,6 +1766,15 @@ export const FIRE_PLAN_IMAGE_BOXES: FirePlanImageBox[] = [
   { field: 'img_entry',        kinds: ['entry'], index: 0, sheet: FP_SHEET.F1_3_ROUTE, cell: 'A4', labelCell: 'A3' },
   { field: 'img_evacmap_1', kinds: ['evacmap'], index: 0, sheet: FP_SHEET.F1_5_2, cell: 'A4', labelCell: 'A1', clearPlaceholder: true },
   { field: 'img_evacmap_2', kinds: ['evacmap'], index: 1, sheet: FP_SHEET.F1_5_2, cell: 'A6', labelCell: 'A1', clearPlaceholder: true },
+  /* 1.11.4 뒷쪽 「소방훈련·교육 관련사진」 4칸 (2026-09-18) — 축은 `training.photos`(1.11 카드 소유).
+   *  11행이 소방훈련 2장·13행이 소방교육 2장이고, 12·14행은 그 **캡션 라벨**이다(양식이 인쇄).
+   *  ⚠ 라벨칸을 상자 자신으로 잡지 않는다 — 네 칸이 모두 빈 칸이라 자가치유가 엉뚱한 상자로
+   *    옮겨 붙을 수 있다(1.5.2 전례). 시트에서 유일한 제목칸 `A10`에 물린다.
+   *  ⚠ PDF엔 이 지면이 없다 — 엑셀 전용이라 역방향 D-7이 아니다(2.4·1.14.1과 같은 판정). */
+  { field: 'img_train_1', kinds: ['train'], index: 0, sheet: FP_SHEET.F1_11_4_BACK, cell: 'A11',  labelCell: 'A10' },
+  { field: 'img_train_2', kinds: ['train'], index: 1, sheet: FP_SHEET.F1_11_4_BACK, cell: 'AB11', labelCell: 'A10' },
+  { field: 'img_edu_1',   kinds: ['edu'],   index: 0, sheet: FP_SHEET.F1_11_4_BACK, cell: 'A13',  labelCell: 'A10' },
+  { field: 'img_edu_2',   kinds: ['edu'],   index: 1, sheet: FP_SHEET.F1_11_4_BACK, cell: 'AB13', labelCell: 'A10' },
 ]
 
 /** 사진 상자의 라벨 검증용 앵커 — 라우트가 `validateAnchors(bytes, FIRE_PLAN_IMAGE_ANCHORS)`로 쓴다 */
