@@ -55,11 +55,11 @@ const MUTANTS = [
     expect: '별지 10호 보고일',
   },
   {
-    name: 'M6 조립본이 7행 일수를 다시 비운다 — 엑셀 21칸과 갈라진다',
+    name: 'M6 조립본이 결과참조 행의 일수까지 비운다 — 엑셀 21칸과 갈라진다',
     file: ASSEMBLE, suite: 'rows',
-    from: '      days: d.actionPeriod ? String(d.actionPeriod.days) : \'\',',
+    from: '      days: (!folds || hasDefect) && d.actionPeriod ? String(d.actionPeriod.days) : \'\',',
     to: '      days: \'\',',
-    expect: 'days가 7행 전부에 실린다',
+    expect: 'days도 같은 조건',
   },
   {
     name: 'M7 덧칠이 7행 일수를 다시 비운다 — 수기 보정 회차만 다른 표',
@@ -81,6 +81,28 @@ const MUTANTS = [
     from: "        missing.push('총 이행기간 미입력 — 법정 기본 10일(수리·정비)로 인쇄됩니다. ④ 제출 단계의 「별지 10호 — 총 이행기간」에서 확정하세요')",
     to: '        void legal',
     expect: '고지에 남긴다',
+  },
+  // ── 2026-09-20 ⑤판(이상없음·해당없음 기간 제외) — 세 표면이 따로 되돌아갈 수 있다 ──
+  {
+    name: 'M10 조립본이 ④판(7행 전부)으로 되돌아간다 — 문구 행에 기간이 선다',
+    file: ASSEMBLE, suite: 'rows',
+    from: '      period: !folds || hasDefect ? period : \'\',',
+    to: '      period,',
+    expect: 'period는 불량 있는 구분에만',
+  },
+  {
+    name: 'M11 덧칠이 isNote 제외를 다시 잃는다 — 수기 보정 회차만 ④판',
+    file: ACTIONS, suite: 'rows',
+    from: '      data.planRows = data.planRows.map(r => (r.isNote ? r : { ...r, period: total, days }))',
+    to: '      data.planRows = data.planRows.map(r => ({ ...r, period: total, days }))',
+    expect: '덧칠이 isNote 줄을 건드리지 않는다',
+  },
+  {
+    name: 'M12 엑셀 21칸이 ok/na 구분에도 다시 찍는다 — PDF와 갈라진다',
+    file: 'src/lib/xlsx-workbook.ts', suite: 'period',
+    from: '    const noteRow = !!f && f.kind !== \'rows\' && f.kind !== \'refer\'',
+    to: '    const noteRow = false',
+    expect: '이상없음(ok)·해당없음(na) 구분의 3칸은 전부 공란',
   },
 ]
 

@@ -900,22 +900,28 @@ export function buildWorkbookValues(src: WorkbookSource): Map<string, CellValue>
   //   ⚠ 이건 D-7(두 산출물이 갈라지지 않는다)의 **의도된 예외**다. 갈라진 것을 발견하고
   //     "PDF에 맞춰 통일하자"며 손대면 사용자 결정을 되돌리는 것이 된다. 정말 통일하려면
   //     **엑셀 서식의 셀 타입부터** 바꿔야 하고 그건 별건이다.
-  /* 🚨 2026-09-11 사용자 확정("엑셀도 동일합니다") — **21칸 전부 총 이행기간**.
-     PDF 10호 7행과 같은 규칙이다: 불량 유무와 무관하게 7행 모두 같은 기간.
-     ⭐ 위 🚨🚨 블록의 「PDF는 결과참조, 엑셀만 날짜 — 통일하지 말 것」은 **폐기됐다**.
-       그 예외는 PDF가 문자열(「결과참조」)이라 날짜 셀(serial)에 못 담기던 데서 나왔는데,
-       PDF가 다시 기간으로 돌아오면서 셀 타입 충돌 자체가 사라졌다. 이제 갈라진 곳이 없다.
+  // fold 판정 한 벌 — 아래 21칸(일자)·현5 8쪽·계획서 사항 칸이 **같은 판정**을 나눠 쓴다.
+  // 두 번 계산하면 판정이 갈라질 길이 생긴다(D-7). 41: applicableGroups 미공급이면 null(=모름).
+  const defectFolds = p.applicableGroups
+    ? foldDefectGroups(p.defectRows ?? [], p.applicableGroups) : null
+  /* 🚨 2026-09-20 사용자 지시(「엑셀에서 별지 10~11 이상없음·해당없음 이행기간이 찍히지 않게」) —
+     **이상없음(ok)·해당없음(na) 구분의 3칸은 공란**, 기간은 불량 있는 구분(rows·refer)에만.
+     09-11 확정(「엑셀도 동일합니다」 — 21칸 전부)을 사용자가 본인 결정으로 갱신했다.
+     PDF 10호 7행(annexPlanRows)·덧칠(report9-actions)과 **같은 축**이다(D-7).
      🗒 이 자리의 변천: 09-02 불량 있는 구분만 → 09-07 그룹별 기간 → 09-10 PDF만 결과참조
-       (의도된 예외) → 09-11 양쪽 다 총 이행기간.
+       (의도된 예외) → 09-11 양쪽 다 총 이행기간(21칸 전부) → 09-20 이상없음·해당없음 제외.
+     ⚠ 판정은 `defectFolds`(8쪽·PDF와 같은 foldDefectGroups) — 미공급(대장 공란)이면 ok/na를
+       구별할 근거가 없어 종전대로 7행 전부 싣는다(annexPlanRows의 !folds 폴백과 같은 축).
      ⚠ `actionGroupPeriods`는 계속 조립본에 실려 온다 — 여기서 값으로 쓰지 않을 뿐이다.
-       그룹별로 되돌리려면 이 루프만 되돌리면 된다.
      ⚠ 기간이 없으면 종전대로 공백 1칸 — 빈 셀은 표시 서식에 따라 0으로 읽힌다(assist E열 규약).
        **없는 기간을 지어내지는 않는다.** */
-  for (const { row } of PLAN_DATE_ROWS) {
+  for (const { group, row } of PLAN_DATE_ROWS) {
+    const f = defectFolds?.get(group)
+    const noteRow = !!f && f.kind !== 'rows' && f.kind !== 'refer'
     entries.push(
-      [`planStart${row}`, ap ? isoToSerial(ap.startISO) : ' '],
-      [`planEnd${row}`, ap ? isoToSerial(ap.endISO) : ' '],
-      [`planDays${row}`, ap ? ap.days : ' '],
+      [`planStart${row}`, !noteRow && ap ? isoToSerial(ap.startISO) : ' '],
+      [`planEnd${row}`, !noteRow && ap ? isoToSerial(ap.endISO) : ' '],
+      [`planDays${row}`, !noteRow && ap ? ap.days : ' '],
     )
   }
   // ── 완료보고서(별지 11호) 「이행완료 사항」 8칸 — 내용 4행 + 일자 4행 (2026-09-08, 43 S3) ──
@@ -962,8 +968,7 @@ export function buildWorkbookValues(src: WorkbookSource): Map<string, CellValue>
   //   2026-09-11부터 계획서 쪽은 「결과참조」로 접히므로(아래 planContent 블록) 그 전파를 끊었다.
   //   **여기(8쪽)는 불량 내용을 그대로 유지한다** — 「결과참조」가 가리키는 그 결과가 여기 남아
   //   있어야 말이 되기 때문이다(사용자 결정).
-  const defectFolds = p.applicableGroups
-    ? foldDefectGroups(p.defectRows ?? [], p.applicableGroups) : null
+  //   ⚠ `defectFolds`는 위(계획서 21칸 앞)에서 한 번 계산했다 — 여기서 다시 만들지 말 것.
   for (const { group, row } of DEFECT_GROUP_ROWS) {
     const f = defectFolds?.get(group)
     if (f && f.kind !== 'rows') {

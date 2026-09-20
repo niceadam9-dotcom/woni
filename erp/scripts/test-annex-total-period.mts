@@ -145,11 +145,9 @@ ok(num(vMan, `planStart${row0}`) === num(vMan, 'actionStartSerial'),
   `계획 있는 행(r${row0})의 일자 = 총 이행기간 (7행이 하나의 기간을 공유한다)`)
 ok(num(vMan, `planDays${row0}`) === MANUAL.days, `계획 있는 행의 일수 = ${MANUAL.days}`)
 ok(num(vMan, `planStart${row0}`) !== num(vAuto, `planStart${row0}`), '🎯 계획서 일자도 수기값을 따른다')
-/* 🚨 2026-09-11 **계약 교체**(지우지 않고 반대로 세운다) — 사용자: "엑셀도 동일합니다".
- *   종전 계약: 「계획 없는 6개 구분은 공란 그대로」. 이제 PDF 10호 7행과 같이 **불량 유무와
- *   무관하게 21칸 전부 총 이행기간**이다.
- *   ⭐ 이로써 2026-09-10의 **의도된 D-7 예외가 해소**됐다 — 그때는 PDF가 「결과참조」(문자열)인데
- *     이 21칸은 날짜 셀(serial)이라 문자열을 못 받아 둘이 갈라져 있었다. 이제 양쪽 다 기간이다. */
+/* 🚨 이 픽스처(R9_BLANK)는 **applicableGroups 미공급**이다 — 2026-09-20 이후 이 단언들이 재는
+ *   것은 「미공급이면 ok/na를 구별할 근거가 없어 종전(09-11 「엑셀도 동일합니다」)대로 7행 전부」
+ *   라는 **폴백 축**이다. fold가 있는 회차의 새 규칙(이상없음·해당없음 공란)은 아래 D-2가 잰다. */
 const otherRows = PLAN_DATE_ROWS.filter(r => r.group !== GROUP)
 ok(otherRows.length === 6, `분모 확인: 계획 없는 그룹 ${otherRows.length}개`)
 ok(otherRows.every(r => num(vMan, `planStart${r.row}`) === num(vMan, 'actionStartSerial')
@@ -162,6 +160,40 @@ ok(otherRows.every(r => num(vMan, `planDays${r.row}`) === MANUAL.days),
 const vNoPlan = mk(null)
 ok(PLAN_DATE_ROWS.every(r => vNoPlan.get(`planStart${r.row}`) === ' '),
   '🎯 (대조군) 이행기간이 없으면 21칸 전부 공란')
+/* 🚨 2026-09-20 계약 추가(⑤판) — 사용자 지시 「엑셀에서 별지 10~11 이상없음·해당없음 이행기간이
+ *   찍히지 않게」. applicableGroups가 오면 fold로 ok/na를 아는 회차다: 그 구분의 3칸은 공란,
+ *   기간은 불량 있는 구분에만. ⚠ 위 D절(미공급 → 7행 전부)은 **그대로 산다** — 대장이 공란이라
+ *   ok/na를 구별할 근거가 없으면 좁히지 않는다(annexPlanRows의 !folds 폴백과 같은 축). */
+console.log('  · D-2. 이상없음·해당없음 행 공란 (2026-09-20)')
+{
+  const vFold = buildWorkbookValues({
+    official: {
+      company: { name: 'X', address: 'X', phone: 'X', fax: 'X' },
+      docNo: '승 진 2609-1', sendDate: 'X', recipient: 'X', reference: 'X', sender: 'X',
+      senderSign: { name: 'X', title: 'X', rep: 'X' }, year: 2026, typeLabel: 'X',
+    },
+    delegation: {
+      typeLabel: 'X', owner: { name: 'X', position: 'X', phone: 'X', birth: 'X' },
+      agent: { name: 'X', position: 'X', phone: 'X', birth: 'X' },
+      periodLabel: 'X', daysLabel: '1일', submitDate: 'X', station: 'X',
+    },
+    customerAddress: 'X', startISO: '2026-09-06', endISO: '2026-09-06', useApprovalISO: null,
+    installedCodes: [], evacTypes: [], building: null,
+    report9: {
+      ...R9_BLANK,
+      defectRows: [{ group: GROUP, code: 'A-1', content: '소화기 불량' }],
+      // GROUP=불량(rows) · 둘째 구분=대상인데 불량 0건(ok) · 나머지 5개=미대상(na)
+      applicableGroups: [GROUP, PLAN_DATE_ROWS[1].group],
+      actionPeriod: AUTO,
+    } as never,
+  })
+  ok(typeof vFold.get(`planStart${row0}`) === 'number' && num(vFold, `planDays${row0}`) === AUTO.days,
+    '🎯 불량 있는 구분(결과참조 행)은 종전대로 총 이행기간·일수')
+  const foldOthers = PLAN_DATE_ROWS.slice(1)
+  ok(foldOthers.every(r => vFold.get(`planStart${r.row}`) === ' '
+    && vFold.get(`planEnd${r.row}`) === ' ' && vFold.get(`planDays${r.row}`) === ' '),
+    '🎯 이상없음(ok)·해당없음(na) 구분의 3칸은 전부 공란 — 기간이 찍히지 않는다')
+}
 
 console.log('  · 미공급 하위 호환')
 const vNone = mk(null)

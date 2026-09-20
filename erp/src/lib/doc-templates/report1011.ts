@@ -156,11 +156,11 @@ function planTable(rows: AnnexPlanRow[], summary: AnnexRow | undefined, extraRow
     body.push(`<tr>
     <td class="grp-label">${esc(r.group)}</td>
     <td class="grp-body">: ${esc(r.content).replace(/\n/g, '<br>')}&nbsp;</td>
-    ${/* 🚨 2026-09-11 — **기간이 있으면 자동 문구 줄에도 찍는다**(7행 전부, 사용자 확정).
-        종전엔 `isNote`가 먼저 와서 이상없음·해당없음 행을 무조건 `—`로 덮었다.
-        ⚠ 순서가 규약이다: period → isNote → 자리표. `isNote`는 이제 **기간이 없을 때만**
-          쓰인다 — 그때 「해당없음」 옆에 `~(총  일)`이 서면 미대상 설비에 기간을 적으라는 말이
-          되는 Q-5 b안 그 자리로 되돌아간다. 그 구간은 그대로 지킨다. */''}
+    ${/* 순서 규약: period → isNote(`—`) → 자리표. 렌더는 실린 값을 찍을 뿐 — 어느 행에 기간이
+        실리는가는 **생산자**(annexPlanRows·report9-actions 덧칠)가 정한다.
+        🗒 2026-09-20 사용자 지시로 생산자가 이상없음·해당없음 행의 기간을 비우므로 그 행은
+          isNote 폴백 `—`로 온다(Q-5 b안 — 미대상 설비에 `~(총  일)` 자리표를 세우지 않는다).
+          09-11의 「7행 전부」 판에서는 이 자리에 기간이 실려 왔었다 — 렌더는 그때도 지금도 같다. */''}
     <td class="row-period">${r.period
       // ⚠ `(총 N 일)` 꼬리는 **총 일수가 있을 때만**. 값이 없으면 괄호가 허공에 뜬다(E10-8).
       ? `${esc(r.period)}${daysText(r.days) ? `<span class="row-days">(총 ${esc(daysText(r.days))} 일)</span>` : ''}`
