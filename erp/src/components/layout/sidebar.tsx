@@ -57,8 +57,9 @@ export const NAV_GROUPS: NavGroup[] = [
       // '점검확정' 메뉴 소멸 (2026-09-12 사용자 결정) — 점검계획일=점검확정일로 확정 절차 자체가 폐지.
       // 계획은 고객 등록·크론(generate-yearly-plans)이 전건 확정 상태로 생성하고, 날짜 이동·시작은
       // 점검 달력이, 담당 변경은 고객관리가 담당한다. /inspection-plans는 점검 달력으로 리다이렉트
-      { label: '점검 달력',        href: '/inspections/calendar',       icon: CalendarDays,   roles: ['employee', 'manager', 'admin'] },
+      // 순서 변경 (2026-09-20 사용자 지시): 고객 관리 → 점검 업무 → 점검 달력
       { label: '점검 업무',        href: '/inspections',                icon: Flame,          roles: ['employee', 'manager', 'admin'] },
+      { label: '점검 달력',        href: '/inspections/calendar',       icon: CalendarDays,   roles: ['employee', 'manager', 'admin'] },
       // 접수 업무 — 점검 흐름 한가운데(종전 점검현황 앞)에서 일상 블록 끝으로 이동 (R8-6)
       { label: '문의요청',         href: '/inquiries',                  icon: MessageCircle,  roles: ['employee', 'manager', 'admin'] },
       // '보고서' 메뉴 소멸 (소방계획서_8 Phase B H-6d·D-8) — 고객별 문서·별지는 고객관리>소방계획서 트리,
