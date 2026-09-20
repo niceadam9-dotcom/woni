@@ -89,7 +89,20 @@ export default async function CustomersPage({
         <div className="flex items-center gap-3">
           <Users className="size-6 text-brand" />
           <div>
-            <h1 className="text-xl font-bold text-ink">고객 관리</h1>
+            {/* 고객 등록 — 제목 바로 옆 (2026-09-20 사용자 확정: 데스크탑에서 사이드바 [고객 관리]를
+                누른 직후 마우스가 화면 왼쪽에 있어, 검색줄 맨 오른쪽(2026-08-05 자리)보다 동선이 짧다) */}
+            <div className="flex items-center gap-3">
+              <h1 className="text-xl font-bold text-ink">고객 관리</h1>
+              {canCreate && (
+                <Link
+                  href="/customers/new"
+                  className="inline-flex items-center gap-1.5 h-8 px-3.5 rounded-lg bg-brand hover:bg-brand-strong text-white text-sm font-medium transition-colors"
+                >
+                  <Plus className="size-4" />
+                  고객 등록
+                </Link>
+              )}
+            </div>
             <p className="text-sm text-ink-sub mt-0.5">소방 점검 계약 고객을 관리합니다 — 행을 클릭하면 상세로 이동</p>
           </div>
         </div>
@@ -149,16 +162,8 @@ export default async function CustomersPage({
           {fullCols ? '기본 컬럼' : '전체 컬럼'}
         </Link>
         <span className="text-xs text-ink-sub ml-auto">총 {totalCount}개사</span>
-        {/* 고객 등록 — 검색줄 맨 오른쪽 배치 + 브랜드 보라 강조 (2026-08-05 사용자 확정: 우측 상단 구석 → 작업 영역 가까이) */}
-        {canCreate && (
-          <Link
-            href="/customers/new"
-            className="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg bg-brand hover:bg-brand-strong text-white text-sm font-medium transition-colors"
-          >
-            <Plus className="size-4" />
-            고객 등록
-          </Link>
-        )}
+        {/* 고객 등록 버튼은 제목 옆으로 이사 (2026-09-20) — 검색줄 자리(2026-08-05)는 폐지.
+            두 곳에 두지 않는다: 같은 링크가 두 개면 눈이 두 번 확인해야 한다. */}
       </form>
 
       {/* 목록 테이블 — 기본 6컬럼 (§6-B-A) */}
