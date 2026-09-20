@@ -189,6 +189,8 @@ export function BuildingListPanel({ customerId, customerName, customerAddress, b
   const [sameAsCustomer, setSameAsCustomer] = useState(initialEditing === 'new' && !!customerAddress)
   const [ledgerNote, setLedgerNote] = useState('')
   const [error, setError] = useState('')
+  // 저장 완료 표식 — 저장해도 폼이 안 접히므로(2026-09-20) 이 문구가 유일한 「저장됨」 피드백
+  const [saved, setSaved] = useState(false)
   const [isPending, startTransition] = useTransition()
   // 주소 중복 안내 팝업 — 다른 고객의 고객/건물과 주소가 겹칠 때만 (같은 고객의 다른 동은 정상)
   const [dupInfo, setDupInfo] = useState<{ customer?: AddressDuplicateCustomer; building?: AddressDuplicateBuilding } | null>(null)
@@ -291,7 +293,7 @@ export function BuildingListPanel({ customerId, customerName, customerAddress, b
     const f = toForm(b)
     setForm(f); setEditing(b.id); setSameAsCustomer(false)
     openBcodeRef.current = b.bcode ?? ''
-    setLedgerNote(''); setError(''); syncUrl(b.id)
+    setLedgerNote(''); setError(''); setSaved(false); syncUrl(b.id)
     // 건축허가일이 필수가 되면서(2026-09-05) 기존 건물 대다수가 공란 — 대장에서 빈 칸만 자동 보충해
     // 저장 차단에 걸리기 전에 채워준다(등록 폼 openNew와 같은 동작, 수기 값은 덮지 않음)
     if (canManage && !f.permit_date && b.bcode && b.address_jibun) fetchLedger(b.bcode, b.address_jibun, f)
@@ -303,7 +305,7 @@ export function BuildingListPanel({ customerId, customerName, customerAddress, b
     const f = newForm()
     setForm(f); setEditing('new'); setSameAsCustomer(!!customerAddress)
     openBcodeRef.current = f.bcode
-    setLedgerNote(''); setError(''); syncUrl('new')
+    setLedgerNote(''); setError(''); setSaved(false); syncUrl('new')
     if (f.bcode && f.address_jibun) fetchLedger(f.bcode, f.address_jibun, f)
   }
   /* 닫기 = **완전히 접는다**(2026-09-09). 종전엔 여기서 다시 '건물 등록' 폼을 열었는데,
@@ -311,13 +313,14 @@ export function BuildingListPanel({ customerId, customerName, customerAddress, b
   function close() {
     setForm(newForm()); setEditing(null); setSameAsCustomer(false)
     openBcodeRef.current = ''
-    setLedgerNote(''); setError('')
+    setLedgerNote(''); setError(''); setSaved(false)
     tabs?.setTabDirty('buildings', false)
     syncUrl(null)
   }
 
   const setField = <K extends keyof FormState>(k: K, v: FormState[K]) => {
     tabs?.setTabDirty('buildings', true)
+    setSaved(false)
     setForm(p => ({ ...p, [k]: v }))
   }
 
@@ -443,6 +446,7 @@ export function BuildingListPanel({ customerId, customerName, customerAddress, b
 
   function doSave() {
     startTransition(async () => {
+      setSaved(false)
       const common = {
         building_name: form.building_name.trim(),
         zipcode: form.zipcode || undefined,
@@ -484,10 +488,16 @@ export function BuildingListPanel({ customerId, customerName, customerAddress, b
         ramp_count: int(form.ramp_count),
         evac_elevator_count: int(form.evac_elevator_count),
       }
-      const res = editing === 'new'
-        ? await createBuildingAction({ customer_id: customerId, ...common })
-        : await updateBuildingAction({ id: editing!, is_active: form.is_active, ...common })
-      if (res.error) { setError(res.error); return }
+      /* 신규·수정의 반환형이 다르다(신규만 buildingId) — 합쳐 받으면 buildingId 접근이 좁혀지지 않는다 */
+      let savedId: string | null = editing !== 'new' ? editing : null
+      if (editing === 'new') {
+        const res = await createBuildingAction({ customer_id: customerId, ...common })
+        if (res.error) { setError(res.error); return }
+        savedId = res.buildingId ?? null
+      } else {
+        const res = await updateBuildingAction({ id: editing!, is_active: form.is_active, ...common })
+        if (res.error) { setError(res.error); return }
+      }
       // 주소(bcode) 확정 시 소방계획서용 대장 확장 필드 반영 — 소방계획서 탭 버튼 클릭 불필요.
       // '전 필드'(대장이 정답, 2026-08-06 사용자 확정)는 **이 편집에서 주소가 새로 확정된 경우에만** —
       // 같은 주소 재저장까지 'all'로 돌리면 방금 저장한 수기 구조·주차장 값이 대장 값으로 되돌아간다(2026-09-05).
@@ -495,7 +505,23 @@ export function BuildingListPanel({ customerId, customerName, customerAddress, b
         const mode = form.bcode !== openBcodeRef.current ? 'all' as const : 'empty' as const
         try { await autoApplyLedgerEmptyAction(customerId, { mode }) } catch { /* best-effort */ }
       }
-      close()
+      /* 저장해도 폼을 접지 않는다 (2026-09-20 사용자 요청 — 종전엔 close()로 접혀 이어서
+       * 고치려면 [보기·수정]을 다시 눌러야 했다). 접힘이 곧 「저장됨」 피드백이었으므로
+       * 대신 saved 문구가 그 역할을 맡는다.
+       * ⚠ 신규 등록을 'new'인 채 열어 두면 다음 [저장]이 **같은 동을 한 번 더 만든다**
+       *   (규현빌라 2중 등록 사고의 새 통로) — 방금 만든 동의 수정 폼으로 갈아탄다. */
+      if (savedId) {
+        setEditing(savedId)
+        // 이 편집에서 확정된 주소는 이제 「연 시점의 주소」다 — 같은 주소 재저장이
+        // mode:'all'로 돌아 방금 저장한 수기 값을 대장 값으로 되돌리지 않게 한다
+        openBcodeRef.current = form.bcode
+        tabs?.setTabDirty('buildings', false)
+        setSaved(true)
+        syncUrl(savedId)
+      } else {
+        // buildingId 없는 응답(구버전 폴백) — 신규 폼을 열어 두면 중복 등록 통로라 종전대로 접는다
+        close()
+      }
       router.refresh()
     })
   }
@@ -819,6 +845,9 @@ export function BuildingListPanel({ customerId, customerName, customerAddress, b
 
           {ledgerNote && <p className="text-form-xs text-brand">{ledgerNote}</p>}
           {error && <p className="text-form-xs text-red-500">{error}</p>}
+          {saved && !error && (
+            <p className="text-form-xs text-green-700" data-testid="building-saved-note">저장되었습니다.</p>
+          )}
 
           {canManage && (
             <div className="flex items-center gap-2">
