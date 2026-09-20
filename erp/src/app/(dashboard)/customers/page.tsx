@@ -79,7 +79,9 @@ export default async function CustomersPage({
   const isFiltered = !!(filter.q || filter.type || filter.active !== 'active' || filter.inc)
 
   // 계약일·사용승인일 포함 전 컬럼 상시 표시 — 컬럼 표시 토글 폐지 (2026-09-20 사용자 확정, 종전 §6-B-A 기본 숨김)
-  const headers = ['고객명', '점검유형', '계약일', '사용승인일', '점검일자', '담당직원', '상태', '문서', '']
+  // 마지막 열(탭 바로가기 + 소방계획서 엑셀·PDF)의 머리글 = 「소방계획서보고서」(2026-09-20 사용자 지시
+  // — 종전 빈 머리글은 버튼 「엑셀」이 무슨 문서인지 열 이름이 말해 주지 않았다)
+  const headers = ['고객명', '점검유형', '계약일', '사용승인일', '점검일자', '담당직원', '상태', '문서', '소방계획서보고서']
 
   return (
     <div className="space-y-6">

@@ -408,8 +408,9 @@ export default async function InspectionsPage({
             <table className="w-full text-sm">
               <thead className={STICKY_THEAD}>
                 <tr className="border-b border-line bg-paper">
-                  {/* 마지막 빈 머리글 = 문서 바로가기 열 (고객 목록의 액션 열과 같은 규약) */}
-                  {['고객명', '유형/차수', '시작일', '담당자', '진행 단계', '상태', ''].map((h, i) => (
+                  {/* 마지막 열(결과보고서 엑셀 바로가기)의 머리글 = 「보고서」(2026-09-20 사용자 지시 —
+                      종전 빈 머리글 규약을 버렸다: 고객 목록도 같은 날 「소방계획서보고서」로 이름을 얻었다) */}
+                  {['고객명', '유형/차수', '시작일', '담당자', '진행 단계', '상태', '보고서'].map((h, i) => (
                     <th key={h || `act-${i}`} className="text-left px-4 py-3 text-xs font-semibold text-ink-sub whitespace-nowrap">
                       {h}
                     </th>
