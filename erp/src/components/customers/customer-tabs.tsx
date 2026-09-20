@@ -107,7 +107,7 @@ export function CustomerTabs({ initialTab, tabs, panels, summary, banner, fullWi
     // ⚠ 핸들러 버스는 전역이라 다른 탭의 미저장도 함께 잡힌다(전 패널이 마운트 유지라 등록이 살아 있다) —
     //   과잉 확인이지만 [저장하고 이동]이 그쪽까지 저장하므로 안전한 방향의 오차다.
     if (dirtyRef.current.has(active)
-      || (['plan', 'facilities', 'annex'].includes(active) && collectPlanSaveHandlers().length > 0)) { nav.request(key); return }
+      || (['plan', 'facilities', 'reports', 'annex'].includes(active) && collectPlanSaveHandlers().length > 0)) { nav.request(key); return }
     applySwitchTab(key)
   }
   function applySwitchTab(key: string) {

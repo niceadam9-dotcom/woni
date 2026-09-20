@@ -30,7 +30,9 @@ type FirePlanFormGroup = '본문 1장' | '본문' | '조회'
  *  ⚠ `1.9` 키가 **없다**. 법정 서식엔 1.9가 있는데(자위소방대 현황·입주사 현황 두 장) 화면
  *    목차는 1.8 다음이 1.10이다. 그 두 장은 아래 대장에서 각자 데이터가 사는 노드로 보낸다. */
 export const FIRE_PLAN_FORMS = [
-  { key: '1.1', label: '1.1 일반현황', group: '본문 1장' },
+  // ⭐ 1.1도 [공통] 탭으로 이사했다(2026-09-20 사용자 확정 — 화재보험·구조·수신기위치 등이
+  //   별지 9호 1~2쪽에도 인쇄되는 공통 축). 1.4와 같은 규약: 대장에서 빼지 않는다.
+  { key: '1.1', label: '1.1 일반현황', group: '본문 1장', tab: 'facilities' },
   { key: '1.2', label: '1.2 세부현황', group: '본문 1장' },
   { key: '1.3', label: '1.3 위치·소방차진입', group: '본문 1장' },
   // ⭐ 1.4는 고객 상세 **최상위 [소방시설] 탭**으로 이사했다(2026-09-20 사용자 확정 — 소방계획서·
@@ -74,9 +76,10 @@ const MOVED_KEYS: ReadonlySet<string> = new Set(FIRE_PLAN_FORMS.filter(f => 'tab
 export const PLAN_TREE_FORMS: readonly FirePlanFormDef[] = FIRE_PLAN_FORMS.filter(f => !('tab' in f))
 export const PLAN_TREE_FORM_KEYS: readonly FirePlanFormKey[] = PLAN_TREE_FORMS.map(f => f.key)
 
-/** 노드 → 이사 간 최상위 탭 (이사하지 않았으면 undefined) — 카드 앵커 구제(`formOfCard`)가
- *  계획서 트리 이동 대신 **탭 이동**으로 이어야 할 때 그 목적지를 답한다 */
-export function tabOfForm(form: FirePlanFormKey): string | undefined {
+/** 노드 → 이사 간 최상위 탭 (이사하지 않았거나 모르는 키면 undefined) — 카드 앵커 구제(`formOfCard`)와
+ *  `[id]/page.tsx`의 구 딥링크 서버 변환이 쓴다. 인자를 string으로 받는 것은 의도 —
+ *  변환부는 URL에서 온 임의 문자열을 그대로 묻는다(모르는 키 = undefined = 변환 없음). */
+export function tabOfForm(form: string): string | undefined {
   const d = FIRE_PLAN_FORMS.find(f => f.key === form)
   return d && 'tab' in d ? d.tab : undefined
 }

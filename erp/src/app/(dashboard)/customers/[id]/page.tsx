@@ -16,11 +16,13 @@ import { FirePlanViewClient } from '@/components/customers/fire-plan-view'
 import { FirePlanXlsxButton } from '@/components/customers/fire-plan-xlsx-button'
 import { FirePlanInfoPanel } from '@/components/customers/fire-plan-info-panel'
 import { PlanTabView, type FormStatusMap } from '@/components/customers/plan-tab-view'
-import { sectionsOfForm, type FirePlanStatusKey } from '@/lib/fire-plan-sections'
+import { sectionsOfForm, tabOfForm, type FirePlanStatusKey } from '@/lib/fire-plan-sections'
 import { formBlankSummaries } from '@/lib/fire-plan-blanks'
 import { PlanBlankReport } from '@/components/customers/plan-blank-report'
 import { ETC_CODES, ETC_ITEMS_PLAN, ETC_ITEMS_REPORT } from '@/lib/facility-codes'
 import { EtcItemsPanel } from '@/components/customers/etc-items-panel'
+import { PlanAnnexStatusCard } from '@/components/customers/plan-annex-status-card'
+import { TabFormTree } from '@/components/customers/tab-form-tree'
 import type { RevisionYearGroup } from '@/app/(dashboard)/customers/fire-plan-revision-actions'
 import { CustomerAssetsClient } from '@/components/customers/customer-assets-client'
 import { PlanForm12, type ZoneRow, type HazardRow, type TenantRow } from '@/components/customers/plan-form12'
@@ -111,14 +113,19 @@ export default async function CustomerDetailPage({
   //   그대로 남아 있다. "이제 링크 다 바꿨으니 지워도 되겠지"로 제거하면 그 전부가 **조용히**
   //   소방계획서 탭으로 떨어진다(에러 없이 엉뚱한 화면). _probe-annex-tab.mts가 이 동작을 상시 단언한다.
   const wantAnnex = initialTab === 'annex' || (initialTab === 'plan' && initialForm === 'annex')
-  // ── 1.4 소방시설 → 최상위 [소방시설] 탭 승격 (2026-09-20 사용자 확정) — annex와 같은 규약으로
-  //   구 딥링크 ?tab=plan&form=1.4를 서버에서 새 탭으로 해석한다. ⚠ 이 줄도 **영구 존치**:
-  //   annex-compose-panel 구버전·사용자 북마크·프로브가 그 URL로 들어온다. ?from=report9&insp=는
+  // ── 이사 노드(1.1·1.4 → [공통] 탭)의 구 딥링크 — annex와 같은 규약으로 서버에서 새 탭으로 해석한다.
+  //   ⚠ 이 줄도 **영구 존치**: 구버전 링크·사용자 북마크·프로브가 그 URL로 들어온다. 목적지는 손목록이
+  //   아니라 **대장(tabOfForm)**이 답한다 — 다음 이사 때 여기를 고칠 일이 없다. ?from=report9&insp=는
   //   URL에 그대로 남아 PlanForm14의 설비 대장 자동 오픈(location.search 판독)이 계속 동작한다.
-  const wantFacilities = initialTab === 'facilities' || (initialTab === 'plan' && initialForm === '1.4')
+  const movedTab = initialTab === 'plan' && initialForm ? tabOfForm(initialForm) : undefined
+  const wantFacilities = initialTab === 'facilities' || movedTab === 'facilities'
   const resolvedTab = wantAnnex ? 'annex' : wantFacilities ? 'facilities' : (initialTab ?? 'info')
-  // PlanTabView의 VALID_SEL에 없는 form=(annex·1.4)을 그대로 넘기면 소방계획서 탭이 1.1로 떨어진다 — 명시 제거
-  const planInitialForm = initialForm === 'annex' || initialForm === '1.4' ? undefined : initialForm
+  // PlanTabView의 VALID_SEL에 없는 form=(annex·이사 노드)을 그대로 넘기면 소방계획서 탭이 랜딩으로 떨어진다 — 명시 제거
+  const planInitialForm = initialForm === 'annex' || movedTab ? undefined : initialForm
+  // 이사 노드 딥링크는 [공통] 탭 트리의 해당 노드를 미리 선택한다 (?tab=facilities&form=1.1 직행도 동일)
+  const facilitiesInitialForm = movedTab === 'facilities' ? initialForm
+    : initialTab === 'facilities' ? initialForm : undefined
+  const reportsInitialForm = initialTab === 'reports' ? initialForm : undefined
   const admin = createAdminClient()
 
   // ── 성능(2026-08-11): 원격 DB 왕복(~240ms)이 순차 10여 회 쌓여 페이지당 ~2.5초를 소모하던 것을
@@ -426,11 +433,10 @@ export default async function CustomerDetailPage({
   // 2회차부터 9ms다(실측). 상세 목록은 사용자가 펼칠 때만 서버 액션이 조립을 돈다.
   const blankSummary = await formBlankSummaries()
   const formStatus: Record<FirePlanStatusKey, FormStatusMap[string]> = {
-    '1.1': { done: readiness.done, total: readiness.total },
+    // '1.1'·'1.4'는 이 Record에 **없다** — [공통] 탭으로 승격돼(2026-09-20 3분리) 그 탭의 트리
+    // 완성도가 됐다(아래 facilitiesNodes). FirePlanStatusKey가 이사 노드를 빼므로 되살리면 tsc가 막는다.
     '1.2': !!((fpSections.zones?.length ?? 0) || (fpSections.hazards?.length ?? 0)),
     '1.3': !!(fpSections.location || fpSections.fireAccess),
-    // '1.4'는 이 Record에 **없다** — [소방시설] 탭으로 승격돼(2026-09-20) 그 탭의 warn이 됐다
-    // (아래 facilitiesDone). FirePlanStatusKey가 이사 노드를 빼므로 여기 되살리면 tsc가 막는다.
     '1.5': !!(fpSections.evacFire || (fpSections.evacMaps?.length ?? 0)),
     '1.6': !!fpSections.etcFacility,
     '1.7': !!((fpSections.managers?.length ?? 0) || repContact),
@@ -444,11 +450,11 @@ export default async function CustomerDetailPage({
     // 보고서 커버는 미입력이어도 자동값으로 항상 렌더되므로 완성도 판정에서 제외 — 입력 존재 표시만
     'cover': !!fpSections.reportCover,
   }
-  // §1-4: 목차 합산 = 소방계획서 탭 뱃지 (1.4 제외 — 분모가 13이다)
+  // §1-4: 목차 합산 = 소방계획서 탭 뱃지 (1.1·1.4 제외 — 분모 12)
   const formFilled = Object.values(formStatus)
     .filter(v => (typeof v === 'object' ? v.done >= v.total : v === true)).length
   const formTotal = Object.keys(formStatus).length
-  // [소방시설] 탭 상태 — 구 formStatus['1.4'] 술어 그대로(1.10.3 다중이용업소도 이 탭에 산다).
+  // [공통] 탭 상태 — 1.1은 필수 완성도 게이지(readiness), 1.4는 구 formStatus['1.4'] 술어 그대로.
   // 뱃지 = 설치 종수(1.4 화면의 '설치 N종'과 같은 축: 기타 7종 제외)
   const facilitiesDone = planInfoInitial.facilityCodes.length > 0 || !!fpSections.multiUse
   const installedTabCount = new Set(
@@ -463,19 +469,22 @@ export default async function CustomerDetailPage({
     { key: 'info', label: '기본정보', warn: !customer.plan_anchor_date || !customer.assigned_employee_id },
     { key: 'buildings', label: '건물·시설', warn: !obState.buildings },
     { key: 'contacts', label: '관계인', badge: `(${contacts.length})`, warn: !obState.contacts },
-    // ── 소방계획서 3분리 구간 (2026-09-20 사용자 확정): 순서도 사용자 지정 — 공통 → 보고서 → 소방계획서 ──
-    // 공통 탭(구 소방계획서 트리 1.4) — 1.4는 소방계획서·별지 4·9호·점검표가 모두 읽는 공통 축이라
-    // 여기 산다(42종 체크 + 설비 대장 + 다중이용업소 카드).
-    // ⭐ 확장 규칙(사용자 확정): 앞으로 공통으로 판정되는 서식은 이 탭에 추가한다.
-    { key: 'facilities', label: '공통', badge: installedTabCount > 0 ? `${installedTabCount}종` : undefined, warn: !facilitiesDone },
-    // 보고서(구 라벨 '별지서식', 2026-09-20 개명 — key 'annex'·딥링크·testid는 불변: 프로브 11종 의존).
+    // ── 소방계획서 3분리 구간 (2026-09-20 사용자 확정): 순서도 사용자 지정 — 공통 → 보고서 → 회차 → 소방계획서.
+    //    분리 이유(사용자): 소방계획서가 필요 없는 고객이 있다 — 공통·보고서만 채우면 별지 업무가 끝나야 한다. ──
+    // 공통 탭(구 소방계획서 트리 1.1·1.4) — 소방계획서·별지 9호(·4호·점검표)가 **양쪽에서 읽는** 입력.
+    // ⭐ 확장 규칙(사용자 확정): 앞으로 공통으로 판정되는 서식은 이 탭 트리에 노드로 추가한다.
+    { key: 'facilities', label: '공통', badge: installedTabCount > 0 ? `${installedTabCount}종` : undefined,
+      warn: !facilitiesDone || readiness.done < readiness.total },
+    // 보고서 — **별지에만** 실리는 입력(기타 점검대상·전년도 업무 실시사항). 2026-09-20 3분리로 신설.
+    { key: 'reports', label: '보고서' },
+    // 회차(구 별지서식 → 보고서 → 회차, 2026-09-20 재개명 — key 'annex'·?tab=annex·testid는 불변:
+    // 프로브 11종·달력·원장·작업대의 문서 현황 링크가 전부 이 키다. 회차별 별지 생성·문서 확인·점검표 진입).
     // 뱃지 없음(D34-3): 별지 화면의 '회차'는 inspection_plan_items ∪ inspections인데 이 페이지는
     // plan_items를 조회하지 않아, 뱃지 n/m과 실제 카드 수가 어긋난다.
-    // ⚠ Playwright는 has-text('보고서')가 소방계획서 트리 「보고서 커버」·이력 쪽 문구와 겹칠 수 있다 —
-    //   탭 선택은 role=tab 스코프로 잡을 것.
-    { key: 'annex', label: '보고서' },
-    // 일반관리도 소방계획서 대상 (소방계획서_6 W-14·D-6). 뱃지 = 목차 완성도 합산(§1-4)
-    { key: 'plan', label: '소방계획서', badge: `${formFilled}/${formTotal}`, warn: readiness.done < readiness.total },
+    { key: 'annex', label: '회차' },
+    // 일반관리도 소방계획서 대상 (소방계획서_6 W-14·D-6). 뱃지 = 목차 완성도 합산(§1-4).
+    // warn도 그 축 — 1.1 필수 완성도(readiness)는 공통 탭으로 이사했다.
+    { key: 'plan', label: '소방계획서', badge: `${formFilled}/${formTotal}`, warn: formFilled < formTotal },
     { key: 'billing', label: '청구·수금', warn: !billingProfileRes.data },
     { key: 'history', label: '이력', badge: lastInspectionDate ? lastInspectionDate.slice(5) : undefined },
   ]
@@ -704,7 +713,7 @@ export default async function CustomerDetailPage({
       {/* 소방시설 현황 패널은 [소방시설] 탭으로 이동 (구 소방계획서 1.4 — 2026-09-20 탭 승격, 건물목록은 잔류) */}
       <div className="rounded-xl border border-brand-line-soft bg-brand-tint px-4 py-3 text-form-sm text-ink-sub">
         {/* D-4(소방계획서_30): 같은 경로 ?tab= Link는 서버를 재렌더하지 않아 탭이 안 바뀐다 — <a> 전체 이동 */}
-        소방시설 현황 입력은 <a href={`/customers/${customer.id}?tab=facilities`} className="text-brand hover:underline">[공통] 탭(1.4 소방시설)</a>으로 이동했습니다.
+        소방시설 현황 입력은 <a href={`/customers/${customer.id}?tab=facilities&form=1.4`} className="text-brand hover:underline">[공통] 탭 &gt; 1.4 소방시설</a>으로 이동했습니다.
       </div>
     </>
   )
@@ -791,7 +800,6 @@ export default async function CustomerDetailPage({
       formStatus={formStatus}
       blankSummary={blankSummary}
       archive={<FirePlanViewClient customerId={customer.id} />}
-      form11={<FirePlanInfoPanel customerId={customer.id} initial={planInfoInitial} people={planPeople} />}
       form12={<PlanForm12 customerId={customer.id} canManage={canManage}
         initialZones={fpSections.zones ?? []} initialHazards={fpSections.hazards ?? []}
         initialTenants={fpSections.tenants ?? []}
@@ -882,25 +890,49 @@ export default async function CustomerDetailPage({
     />
   )
 
-  // 공통 탭 (2026-09-20 사용자 확정) — 종전에는 PlanTabView의 1.4 노드였다.
-  // 소방계획서·별지 4·9호·점검표가 모두 읽는 공통 축이라 계획서 트리가 아니라 최상위 탭이 소유한다.
-  // 42종 체크 + 설비 대장 + 다중이용업소 카드가 함께 왔고, 「기타」 7종만 보고서 탭·1.6으로 갈라졌다
-  // (showEtc=false — 저장 rows·서버 delete 범위도 함께 좁힌다). 카드 껍데기는 annexTab과 같은 복제본.
-  // ⭐ 확장 규칙(사용자 확정): 새로 공통으로 판정되는 서식은 이 탭에 **추가**한다 — 아래 안내줄이 그 계약.
+  // 공통 탭 (2026-09-20 사용자 확정 3분리) — 종전 PlanTabView의 1.1·1.4 노드가 여기 산다.
+  // 소방계획서와 별지 보고서 **양쪽**이 읽는 입력만 모은다(1.1: 별지 9호 1~2쪽 건축·보험·선임 /
+  // 1.4: 별지 4·9호 설비·세부현황·점검표 축). 「기타」 7종만 보고서 탭·1.6으로 갈라졌다
+  // (showEtc=false — 저장 rows·서버 delete 범위도 함께 좁힌다).
+  // 형식은 소방계획서와 같은 좌측 트리(TabFormTree — 사용자 확정 「이전 소방계획서 표시와 동일하게」).
+  // ⭐ 확장 규칙(사용자 확정): 새로 공통으로 판정되는 서식은 이 트리에 노드로 **추가**한다.
   const facilitiesTab = (
     <div className="bg-surface rounded-xl border border-line shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-5 space-y-4">
       <p className="text-form-xs text-ink-meta rounded-lg bg-brand-tint border border-brand-line-soft px-3 py-1.5">
-        공통 입력 — 여기 값은 소방계획서·별지 4호·9호·점검표가 함께 씁니다. 공통 서식이 늘면 이 탭에 추가됩니다.
+        공통 입력 — 여기 값은 소방계획서와 별지 보고서(4·9호)·점검표가 함께 씁니다. 공통 서식이 늘면 이 탭에 추가됩니다.
       </p>
-      <PlanForm14 customerId={customer.id} buildings={facilityBuildings} canManage={canManage}
-        canRegister={can(profile.role as UserRole, 'inspection_register')} specsByBuilding={specsByBuilding}
-        showMultiUse multiUse={fpSections.multiUse ?? null} showEtc={false} />
-      {/* 엑셀 빈칸 보고 — 계획서 트리에서는 plan-tab-view가 노드마다 달아 주지만 이 탭은 트리 밖이라 직접 단다 */}
-      {blankSummary['1.4'] && (
-        <PlanBlankReport customerId={customer.id}
-          sheetNames={sectionsOfForm('1.4').map(d => d.sheet)}
-          summary={blankSummary['1.4']} canManage={canManage} />
-      )}
+      <TabFormTree tabKey="facilities" groupLabel="📘 공통 입력" initialForm={facilitiesInitialForm}
+        nodes={[
+          { key: '1.1', label: '1.1 일반현황', status: { done: readiness.done, total: readiness.total },
+            usage: ['📘 소방계획서 1.1·표지', '⑨ 별지 9호 1~2쪽'] },
+          { key: '1.4', label: '1.4 소방시설', status: facilitiesDone,
+            usage: ['📘 소방계획서 1.4', '④ 별지 4호', '⑨ 별지 9호 3~7쪽', '점검표 대상 축'] },
+        ]}
+        panels={{
+          '1.1': (
+            <div className="space-y-4">
+              <FirePlanInfoPanel customerId={customer.id} initial={planInfoInitial} people={planPeople} />
+              {blankSummary['1.1'] && (
+                <PlanBlankReport customerId={customer.id}
+                  sheetNames={sectionsOfForm('1.1').map(d => d.sheet)}
+                  summary={blankSummary['1.1']} canManage={canManage} />
+              )}
+            </div>
+          ),
+          '1.4': (
+            <div className="space-y-4">
+              <PlanForm14 customerId={customer.id} buildings={facilityBuildings} canManage={canManage}
+                canRegister={can(profile.role as UserRole, 'inspection_register')} specsByBuilding={specsByBuilding}
+                showMultiUse multiUse={fpSections.multiUse ?? null} showEtc={false} />
+              {/* 엑셀 빈칸 보고 — 계획서 트리에서는 plan-tab-view가 노드마다 달아 주지만 이 탭은 직접 단다 */}
+              {blankSummary['1.4'] && (
+                <PlanBlankReport customerId={customer.id}
+                  sheetNames={sectionsOfForm('1.4').map(d => d.sheet)}
+                  summary={blankSummary['1.4']} canManage={canManage} />
+              )}
+            </div>
+          ),
+        }} />
     </div>
   )
 
@@ -914,7 +946,7 @@ export default async function CustomerDetailPage({
     : null
   const annexTab = (
     <div className="bg-surface rounded-xl border border-line shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-5">
-      {/* 소방계획서 엑셀 (소방계획서_47) — 별지서식 탭에서도 바로 받게 한다.
+      {/* 소방계획서 엑셀 (소방계획서_47) — 회차 탭에서도 바로 받게 한다.
           별지(9·10·11호)는 회차 문서이고 소방계획서는 고객 단위 문서라 성격이 다르지만,
           실무 동선이 이 탭에 머무르므로 계획서 탭까지 건너가지 않게 여기에도 둔다.
           로직은 계획서 탭과 **같은 한 벌**이다(fire-plan-xlsx-button.tsx) — 복제하지 않았다. */}
@@ -925,19 +957,38 @@ export default async function CustomerDetailPage({
           아래는 회차별 별지 서식 — 소방계획서는 고객 단위로 항상 현재 입력값에서 생성됩니다
         </span>
       </div>
-      {/* 기타 점검대상 3종(방화문·방화셔터/비상구·피난통로/방염) — 1.4 「기타」에서 분할 이사
-          (2026-09-20 사용자 확정). 자체점검 「기타사항」 시트가 덮는 항목들이라 보고서 탭이 소유한다.
-          저장 축은 건물별 fire_facilities 그대로(saveEtcFacilitiesAction 부분 저장). */}
-      <div className="mb-3">
-        <EtcItemsPanel customerId={customer.id} items={ETC_ITEMS_REPORT}
-          buildings={etcBuildingsOf(ETC_ITEMS_REPORT)} defaultBuildingId={etcDefaultBuildingId}
-          canManage={canManage} canRegister={can(profile.role as UserRole, 'inspection_register')}
-          linkFrom={`/customers/${customer.id}?tab=annex`}
-          title="기타 점검대상"
-          description="※ 해당하면 ☑ — 자체점검 「기타사항」 점검표의 대상 축이 됩니다 · 점검 결과(○·×·／)는 점검표에서 입력합니다" />
-      </div>
+      {/* 기타 점검대상 카드는 [보고서] 탭으로 이사(2026-09-20 3분리 — 회차 탭은 문서·생성·점검표 진입만) */}
       <PlanAnnexSection customerId={customer.id} initialData={annexInitial}
         canRegister={can(profile.role as UserRole, 'inspection_register')} />
+    </div>
+  )
+
+  // 보고서 탭 (2026-09-20 3분리 신설) — **별지에만** 실리는 입력의 자리. 트리 구조는 소방계획서와
+  // 동일 규약(TabFormTree). 사용자 확정: 별지 전용 입력이 늘면 이 트리에 노드를 추가한다.
+  const reportsTab = (
+    <div className="bg-surface rounded-xl border border-line shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-5 space-y-4">
+      <p className="text-form-xs text-ink-meta rounded-lg bg-brand-tint border border-brand-line-soft px-3 py-1.5">
+        별지 전용 입력 — 여기 값은 별지 보고서에만 실립니다(소방계획서에는 인쇄되지 않음) · 문서 생성·확인은 [회차] 탭에서 합니다.
+      </p>
+      <TabFormTree tabKey="reports" groupLabel="📑 별지 입력" initialForm={reportsInitialForm}
+        nodes={[
+          { key: 'etc', label: '기타 점검대상', usage: ['자체점검 「기타사항」 점검표', '외관점검표'] },
+          { key: 'duty', label: '전년도 업무 실시사항', usage: ['⑨ 별지 9호 2쪽', '갑지 「정보」 시트'] },
+        ]}
+        panels={{
+          /* 기타 점검대상 3종(방화문·방화셔터/비상구·피난통로/방염) — 1.4 「기타」에서 분할 이사.
+             자체점검 「기타사항」 시트가 덮는 항목들. 저장 축은 건물별 fire_facilities 그대로. */
+          etc: (
+            <EtcItemsPanel customerId={customer.id} items={ETC_ITEMS_REPORT}
+              buildings={etcBuildingsOf(ETC_ITEMS_REPORT)} defaultBuildingId={etcDefaultBuildingId}
+              canManage={canManage} canRegister={can(profile.role as UserRole, 'inspection_register')}
+              linkFrom={`/customers/${customer.id}?tab=reports&form=etc`}
+              title="기타 점검대상"
+              description="※ 해당하면 ☑ — 자체점검 「기타사항」 점검표의 대상 축이 됩니다 · 점검 결과(○·×·／)는 점검표에서 입력합니다" />
+          ),
+          /* 전년도 업무 실시사항 — 별지 9호 2쪽 확정 자리(구 소방계획서 1.10에서 이사) */
+          duty: <PlanAnnexStatusCard customerId={customer.id} canManage={canManage} />,
+        }} />
     </div>
   )
 
@@ -1109,8 +1160,8 @@ export default async function CustomerDetailPage({
           <h1 className="text-form-xl-title font-bold text-ink">{customer.customer_name}</h1>
           <CustomerPrevNext prevId={prevId} nextId={nextId} position={navPosition} />
         </div>
-        {/* 보고서 상시 버튼(2026-08-28 동선 검토, 소방계획서_34로 탭 승격 · 2026-09-20 라벨 개명) —
-            어느 탭에서든 보고서(구 별지서식) 탭으로. testid·?tab=annex는 불변(프로브 11종 의존).
+        {/* 회차 상시 버튼(2026-08-28 동선 검토, 소방계획서_34로 탭 승격 · 2026-09-20 3분리로 재개명) —
+            어느 탭에서든 회차(구 별지서식·보고서) 탭으로. testid·?tab=annex는 불변(프로브 11종 의존).
             ⚠ Link가 아니라 <a>다(전체 이동). 같은 경로에서 ?tab=만 바꾸는 soft navigation은
             URL만 바뀌고 **서버가 재렌더되지 않아** initialTab·initialForm이 옛 값 그대로다 —
             2026-08-28 실측: tab=buildings에서 눌러도 활성 탭이 건물·시설로 남았다(전체 로드는 정상).
@@ -1118,7 +1169,7 @@ export default async function CustomerDetailPage({
         <a href={`/customers/${customer.id}?tab=annex`}
           data-testid="header-plan-link"
           className="inline-flex items-center gap-1 text-form-sm font-medium px-2.5 py-1 rounded-lg border border-brand-line text-brand hover:bg-brand-tint shrink-0">
-          <FileText className="size-3.5" /> 보고서
+          <FileText className="size-3.5" /> 회차
         </a>
         <span className={`text-form-sm font-medium px-2.5 py-1 rounded-full ${TYPE_COLORS[customer.inspection_type]}`}>
           {inspectionTypeLabel(customer.inspection_type)}
@@ -1149,12 +1200,12 @@ export default async function CustomerDetailPage({
             complete={onboardingComplete(obState)}
           />
         ) : undefined}
-        panels={{ info: infoTab, buildings: buildingsTab, contacts: contactsTab, plan: planTab, facilities: facilitiesTab, annex: annexTab, billing: billingTab, history: historyTab }}
-        fullWidthKeys={['plan', 'facilities', 'annex']}
+        panels={{ info: infoTab, buildings: buildingsTab, contacts: contactsTab, plan: planTab, facilities: facilitiesTab, reports: reportsTab, annex: annexTab, billing: billingTab, history: historyTab }}
+        fullWidthKeys={['plan', 'facilities', 'reports', 'annex']}
         // 별지 패널은 마운트 즉시 회차 조회를 왕복한다(plan-annex-section의 reload) —
         // 이 셸은 패널을 전부 렌더하므로 지연 마운트가 없으면 기본정보 탭만 열어도 그 왕복이 돈다 (소방계획서_34 S2)
-        // 소방시설 패널도 같은 부류다 — PlanForm14가 마운트 즉시 getActiveSpecialInspectionAction을 왕복한다
-        lazyKeys={['annex', 'facilities']}
+        // 공통·보고서 패널도 같은 부류다 — PlanForm14·EtcItemsPanel·PlanAnnexStatusCard가 마운트 즉시 서버액션을 왕복한다
+        lazyKeys={['annex', 'facilities', 'reports']}
         summary={
           <CustomerSummaryPanel
             customerName={customer.customer_name}

@@ -23,20 +23,20 @@ function autoRows(annexNo: ComposeAnnexNo, customerId?: string, inspectionId?: s
   // D-17 9호發 진입 컨텍스트 — 설비 대장이 스플릿 ON·첫 빈칸 포커스·[9호로 돌아가기]를 켜는 신호
   // 1.4가 [소방시설] 탭으로 승격돼(2026-09-20) 목적지도 그 탭이다 — 구 ?tab=plan&form=1.4는 서버가 변환
   const ledger = customerId
-    ? `/customers/${customerId}?tab=facilities&from=report9${inspectionId ? `&insp=${inspectionId}` : ''}`
+    ? `/customers/${customerId}?tab=facilities&form=1.4&from=report9${inspectionId ? `&insp=${inspectionId}` : ''}`
     : undefined
-  // 소방계획서_44 — 2쪽 3행의 확정 자리(1.10 「전년도 업무 실시사항」)
+  // 소방계획서_44 — 2쪽 3행의 확정 자리. 2026-09-20 3분리로 [보고서] 탭 「전년도 업무 실시사항」 노드로 이사
   const duty = customerId
-    ? `/customers/${customerId}?tab=plan&form=1.10&from=report9${inspectionId ? `&insp=${inspectionId}` : ''}`
+    ? `/customers/${customerId}?tab=reports&form=duty&from=report9${inspectionId ? `&insp=${inspectionId}` : ''}`
     : undefined
   if (annexNo === 'report9') {
     return [
       { label: '1~2쪽 대상물·관계인·건축물·보험', source: '고객정보', href: cust },
       { label: '1·3쪽 점검기간·점검인력·점검결과', source: '점검 상세(이 화면 점검표·참여자)' },
-      { label: '4~7쪽 설비 세부현황', source: '설비 대장 (소방계획서 탭 1.4)', href: ledger },
+      { label: '4~7쪽 설비 세부현황', source: '설비 대장 (공통 탭 1.4)', href: ledger },
       { label: '8쪽 불량 세부', source: '불량내역 카드(이 화면 아래)' },
       // 소방계획서_44 — 종전엔 아래 ③계층 6칸이 이 3행의 확정 자리였다. 원천 옆(1.10)으로 옮겼다.
-      { label: '2쪽 소방계획서·자체점검·교육훈련(전년도)', source: '소방계획서 탭 1.10 전년도 업무 실시사항', href: duty },
+      { label: '2쪽 소방계획서·자체점검·교육훈련(전년도)', source: '보고서 탭 전년도 업무 실시사항', href: duty },
     ]
   }
   if (annexNo === 'report10') {

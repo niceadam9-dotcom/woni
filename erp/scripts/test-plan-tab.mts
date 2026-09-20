@@ -28,10 +28,10 @@ try {
   const page = l.page
   await login(page, EMAIL)
 
-  // ── 1) 기본 진입 = 1.1 일반현황 입력폼 (2026-08-06: ⚡ 빠른 입력 요약 페이지 폐기) ──
+  // ── 1) 기본 진입 = 1장 첫 트리 노드(1.2) — 1.1은 [공통] 탭으로 이사(2026-09-20 3분리) ──
   await page.goto(`${BASE}/customers/${customerId}?tab=plan`)
-  await page.waitForSelector('text=① 시설현황')
-  check('랜딩 — 1.1 일반현황 입력폼이 첫 화면', await page.isVisible('text=② 운영현황'))
+  await page.waitForSelector('text=1.2.1 구역별 세부현황')
+  check('랜딩 — 1.2 세부현황이 첫 화면(1.1은 공통 탭 이사)', await page.isVisible('text=1.2.2 화재취약장소'))
   check('랜딩 — 빠른 입력 노드 폐기', !(await page.isVisible('button:has-text("⚡ 빠른 입력")')))
   check('폐기 — 필수 완성도 카드 없음', !(await page.isVisible('text=필수 완성도')))
   check('폐기 — 필요 문서 칩 없음', !(await page.isVisible('text=필요 문서')))
@@ -59,7 +59,8 @@ try {
   check('폐지 — [개정 발행] 없음', !(await page.isVisible('button:has-text("개정 발행")')))
   check('폐지 — [연차] 없음', !(await page.isVisible('button:has-text("연차")')))
   check('폐지 — 제출 추적 없음', !(await page.isVisible('text=제출 추적')))
-  await page.goto(`${BASE}/customers/${customerId}?tab=plan`)
+  // 1.1은 [공통] 탭 트리 노드가 됐다(2026-09-20 3분리) — 아래 1.1 검사들은 그 자리에서 계속된다
+  await page.goto(`${BASE}/customers/${customerId}?tab=facilities&form=1.1`)
   await page.waitForSelector('text=① 시설현황')
 
   // ── 2) 송달 동의 — 1.1 ④ 섹션으로 흡수, 저장 버튼 통합(2026-08-06) ──
@@ -90,6 +91,9 @@ try {
   check('DB 송달 동의 저장 (통합 저장 경로)', cRow?.email_delivery_consent === true && cRow?.report_email === 'owner@example.com', JSON.stringify(cRow))
 
   // ── 4) 트리 — 조회·개정이력 노드 진입 (구 보관함·개정이력, 2026-09-02 개칭) ──
+  // 직전 1.1 블록은 [공통] 탭에서 돌았다(3분리) — 트리 검사는 소방계획서 탭으로 복귀 후
+  await page.goto(`${BASE}/customers/${customerId}?tab=plan`)
+  await page.waitForSelector('text=1.2.1 구역별 세부현황')
   await page.click('button:has-text("조회·개정이력")')
   await page.waitForSelector('text=개정이력')
   check('트리 — 조회·개정이력 노드 진입', await page.isVisible('text=개정이력'))
@@ -114,13 +118,17 @@ try {
     && await page.isVisible('text=조회·개정이력'))
   check('목차 트리 — 별지 노드는 탭으로 나가서 없다',
     (await page.locator('[data-plan-node="annex"]').count()) === 0)
-  await page.click('button:has-text("1.1 일반현황")')
-  await page.waitForSelector('text=계획서 정보')
-  check('목차 1.1 클릭 → 계획서 정보 패널', true)
-  check('URL 동기화 form=1.1', page.url().includes('form=1.1'))
-  await page.goto(`${BASE}/customers/${customerId}?tab=plan&sub=ch1`)
-  await page.waitForSelector('text=계획서 정보')
-  check('구 딥링크 sub=ch1 → 1.1 호환', true)
+  await page.click('button:has-text("1.2 세부현황")')
+  await page.waitForSelector('text=1.2.1 구역별 세부현황')
+  check('목차 1.2 클릭 → 세부현황 패널(1.1은 공통 탭 이사)', true)
+  check('URL 동기화 form=1.2', page.url().includes('form=1.2'))
+  // 직전 트리 클릭의 URL 동기화(replaceState)가 진행 중이면 goto가 ERR_ABORTED로 끊길 수 있다 — 1회 재시도
+  await page.goto(`${BASE}/customers/${customerId}?tab=plan&sub=ch1`).catch(async () => {
+    await page.waitForTimeout(500)
+    await page.goto(`${BASE}/customers/${customerId}?tab=plan&sub=ch1`)
+  })
+  await page.waitForSelector('text=1.2.1 구역별 세부현황')
+  check('구 딥링크 sub=ch1 → 1장 첫 노드(1.2) 호환', true)
   await page.goto(`${BASE}/customers/${customerId}?tab=plan&form=1.6`)
   await page.waitForSelector('text=가스 시설')
   check('딥링크 form=1.6 직행', true)
@@ -143,7 +151,7 @@ try {
 
   // ── P6-2 §3-1.1: 1.1 신규 필드 (계단·경사로·피난용승강기·대표자 구분·자격구분·교육이수일) ──
   // 계획서 정보 패널 = 요약/편집 토글·아코디언 폐기(소방계획서_10 §3-4) — 열자마자 편집 폼 바로 노출
-  await page.click('button:has-text("1.1 일반현황")')
+  await page.goto(`${BASE}/customers/${customerId}?tab=facilities&form=1.1`)
   await page.waitForSelector('button:has-text("추천값 채우기")')
   await page.waitForSelector('text=① 시설현황')
   check('1.1 섹션 카드 ①②③', await page.isVisible('text=② 운영현황') && await page.isVisible('text=③ 화재보험'))
@@ -192,6 +200,9 @@ try {
   check('1.1 — 관계인 탭 안내 링크 유지', await page.isVisible('a:has-text("관계인 탭")'))
 
   // ── 4.5) 서식 1.2·1.3 (P4-①) — 프리셋·저장·DB 반영 ──
+  // 직전 이관 회귀 블록은 [공통] 탭에서 끝났다(form=1.1 서버 변환) — plan 탭 복귀 후 트리 조작
+  await page.goto(`${BASE}/customers/${customerId}?tab=plan`)
+  await page.waitForSelector('text=1.2.1 구역별 세부현황')
   await page.click('button:has-text("1.2 세부현황")')
   await page.waitForSelector('text=1.2.2 화재취약장소')
   check('서식 1.2 — 구역별·화재취약 카드', await page.isVisible('text=1.2.1 구역별 세부현황'))
@@ -459,6 +470,8 @@ try {
   // 2026-09-20: 1.4가 최상위 [공통] 탭으로 승격(소방계획서 3분리) — 트리 노드 클릭 대신 탭으로 들어간다.
   // (트리에서의 부재는 _probe-annex-tab ③이 단언한다)
   await page.locator('[role=tab]').filter({ hasText: '공통' }).first().click()
+  // 공통 탭 트리 기본 노드는 1.1 — 1.4 노드를 눌러 들어간다(TabFormTree)
+  await page.locator('[role=tabpanel]:not([hidden]) [data-plan-node="1.4"]').first().click()
   await page.waitForSelector('text=서식 1.4 소방시설 현황')
   check('서식 1.4 — 양식 표 렌더', await page.isVisible('text=소화기구 및 자동소화장치'))
   // 소방계획서_9(a9e2df3): 설비를 체크할 때마다 '설비 대장' 우측 슬라이드 패널이 열리고,
@@ -566,9 +579,11 @@ try {
   // 필수 완성도 카드는 ⚡ 빠른 입력 페이지와 함께 폐기(d05b119) — 위 36행이 부재를 단언한다.
   // 동일 취급 판정은 '일반관리도 1.1 입력폼으로 똑같이 진입하는가'로 대체한다(2026-08-07 현행화).
   await page.goto(`${BASE}/customers/${generalId}?tab=plan`)
-  await page.waitForSelector('text=① 시설현황')
+  await page.waitForSelector('text=1.2.1 구역별 세부현황')
   check('일반관리 — 특례 배너 없음(작성 대상)', !(await page.isVisible('text=소방계획서 작성 대상이 아닙니다')))
-  check('일반관리 — 1.1 입력폼 동일 진입(특례 없음)', await page.isVisible('text=② 운영현황'))
+  await page.goto(`${BASE}/customers/${generalId}?tab=facilities&form=1.1`)
+  await page.waitForSelector('text=① 시설현황')
+  check('일반관리 — 1.1 입력폼 동일 진입(공통 탭·특례 없음)', await page.isVisible('text=② 운영현황'))
 } catch (e) {
   check('예외 없음', false, String(e))
 } finally {

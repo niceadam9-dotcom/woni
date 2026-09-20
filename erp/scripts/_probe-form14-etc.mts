@@ -70,16 +70,16 @@ try {
   await page.click('button[type=submit]')
   await page.waitForURL(x => !x.pathname.includes('/login'))
 
-  // ── ⓪ 음성 — [소방시설] 탭(구 1.4)에는 기타 블록이 없다 ────────────────────
-  await page.goto(`${BASE}/customers/${custId}?tab=facilities`)
+  // ── ⓪ 음성 — [공통] 탭 1.4 노드(구 1.4)에는 기타 블록이 없다 ────────────────
+  await page.goto(`${BASE}/customers/${custId}?tab=facilities&form=1.4`)
   await page.waitForSelector('text=서식 1.4 소방시설 현황')
-  check('[소방시설] 탭에 종전 기타 블록(form14-etc)이 없다',
+  check('[공통] 탭 1.4에 종전 기타 블록(form14-etc)이 없다',
     await page.locator('[data-testid="form14-etc"]').count() === 0)
-  check('[소방시설] 탭에 분할 카드(etc-items-panel)도 없다(42종·대장·다중이용업소만)',
+  check('[공통] 탭 1.4에 분할 카드(etc-items-panel)도 없다(42종·대장·다중이용업소만)',
     await page.locator('[data-testid="etc-items-panel"]').count() === 0)
 
-  // ── ① 보고서 탭 「기타 점검대상」 — 3종 실재·안내 ───────────────────────────
-  await page.goto(`${BASE}/customers/${custId}?tab=annex`)
+  // ── ① 보고서 탭 「기타 점검대상」 — 3종 실재·안내 (2026-09-20 3분리: reports 탭 트리 etc 노드) ──
+  await page.goto(`${BASE}/customers/${custId}?tab=reports&form=etc`)
   const block = page.locator('[data-testid="etc-items-panel"]')
   await block.waitFor({ timeout: 15_000 })
   check('보고서 탭에 「기타 점검대상」 카드가 있다', await block.isVisible())
@@ -104,7 +104,7 @@ try {
   check('체크하면 점검표 링크가 생긴다', !!href, href ?? '(없음)')
   check('딥링크 계약 — /sheet?facility=&from=',
     !!href && /\/inspections\/[0-9a-f-]+\/sheet\?facility=/.test(href) && href.includes('from='), href ?? '')
-  check('복귀(from)가 보고서 탭을 가리킨다', !!href && decodeURIComponent(href).includes('tab=annex'), href ?? '')
+  check('복귀(from)가 보고서 탭 기타 노드를 가리킨다', !!href && decodeURIComponent(href).includes('tab=reports'), href ?? '')
 
   // ── ④ 저장 → DB 영속 ───────────────────────────────────────────────────
   await page.locator('[data-testid="etc-items-save"]').click()
@@ -122,7 +122,7 @@ try {
 
   // ── ⑤ 🚨 race — [소방시설] 탭 저장이 방금 저장한 기타 행을 되살리거나 지우지 않는다 ──
   // scope 'standard'의 존재 이유. 42종 상태는 화면 로드값 그대로 두고(켰다 끄면 원상), dirty만 만든다.
-  await page.goto(`${BASE}/customers/${custId}?tab=facilities`)
+  await page.goto(`${BASE}/customers/${custId}?tab=facilities&form=1.4`)
   await page.waitForSelector('text=서식 1.4 소방시설 현황')
   const probe = page.locator('[data-testid="form14-check-이산화탄소소화설비"]')
   const before = await probe.getAttribute('aria-pressed')

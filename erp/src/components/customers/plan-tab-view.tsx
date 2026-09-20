@@ -47,7 +47,8 @@ const CHIP_TARGET: Record<string, 'buildings' | 'info' | 'form11' | 'ch2' | 'con
   '자위소방대': 'ch2', '송달 동의': 'consent',
 }
 const CHIP_TARGET_LABEL: Record<string, string> = {
-  buildings: '건물·시설 탭', info: '기본정보 탭', form11: '1장 > 1.1 일반현황', ch2: '2장 자위소방대', consent: '아래 송달 동의',
+  // 1.1은 [공통] 탭으로 이사했다(2026-09-20 3분리) — 칩도 그리로 보낸다. 송달 동의는 1.1 하단.
+  buildings: '건물·시설 탭', info: '기본정보 탭', form11: '공통 탭 > 1.1 일반현황', ch2: '2장 자위소방대', consent: '공통 탭 1.1 하단 송달 동의',
 }
 /** 11-5 필드 단위 포커스 — 기본정보·건물 탭 칩 라벨 → 편집 폼 입력 id (1.1 칩은 fire-plan-info-panel focusMissing에 위임).
  *  건물(bf-*) 칩은 소방계획서_9 B안으로 수기 입력칸이 생겨, 대장 조회 대신 해당 입력칸으로 이동한다. */
@@ -64,9 +65,11 @@ const CHIP_FIELD_ID: Record<string, string> = {
  *  목차가 종전엔 여기(`CH1_FORMS`)·바로 아래(`VALID_SEL`)·`[id]/page.tsx`(`formStatus` 키)
  *  **세 곳**에 각자 있었다. 셋이 갈라지면 딥링크가 조용히 엉뚱한 화면을 연다.
  *  ⚠ 여기 손목록을 되살리지 않는다 — 이제 50시트 대장과 1:1이 적재 시점에 검증된다.
- *  PLAN_TREE_*는 이사 노드(1.4 → 최상위 [소방시설] 탭, 2026-09-20)를 뺀 **화면 트리** 축이다 —
- *  구 딥링크 ?form=1.4는 page.tsx가 서버에서 그 탭으로 해석하므로 여기 올 일이 없다. */
+ *  PLAN_TREE_*는 이사 노드(1.1·1.4 → 최상위 [공통] 탭, 2026-09-20 3분리)를 뺀 **화면 트리** 축이다 —
+ *  구 딥링크 ?form=1.1·1.4는 page.tsx가 서버에서 그 탭으로 해석하므로 여기 올 일이 없다. */
 const CH1_FORMS = PLAN_TREE_FORMS.filter(f => f.group === '본문 1장')
+/** 랜딩 노드 — 1.1이 공통 탭으로 이사해 1장의 첫 노드(1.2)가 랜딩이다. 손글자 금지(트리 파생) */
+const LANDING = CH1_FORMS[0]?.key ?? 'ch2'
 
 /** 목차 완성도 — true=입력 있음(✓), false=비어 있음(○), {done,total}=게이지형(1.1) */
 export type FormStatusMap = Record<string, boolean | { done: number; total: number }>
@@ -74,7 +77,7 @@ export type FormStatusMap = Record<string, boolean | { done: number; total: numb
 export function PlanTabView({
   customerId, canManage, readiness, revisionYears, importCandidate, initialSection, initialForm, formStatus,
   blankSummary, archive,
-  form11, form12, form13, form15, form16, form17, form18, form110, form111, form1215, ch2, ch3, formCover,
+  form12, form13, form15, form16, form17, form18, form110, form111, form1215, ch2, ch3, formCover,
   ledgerAutoNeeded, textDefaultsNeeded,
 }: {
   customerId: string
@@ -91,12 +94,11 @@ export function PlanTabView({
   /** 노드별 엑셀 빈칸 정적 요약 — 고객 축이 없어 서버가 미리 센다(lib/fire-plan-blanks) */
   blankSummary?: Record<string, FormBlankSummary>
   archive: ReactNode
-  form11: ReactNode
+  // form11·form14 prop 폐지 — 1.1·1.4는 최상위 [공통] 탭으로 승격됐다(2026-09-20 사용자 확정 3분리).
+  // annex prop 폐지(아래)와 같은 이유로 여기 남겨두면 두 곳 마운트 = 조회 왕복 이중.
+  // 진입점은 customers/[id]/page.tsx의 facilitiesTab 한 곳.
   form12: ReactNode
   form13: ReactNode
-  // form14 prop 폐지 — 1.4 소방시설은 최상위 [소방시설] 탭으로 승격됐다(2026-09-20 사용자 확정).
-  // annex prop 폐지(아래)와 같은 이유로 여기 남겨두면 두 곳 마운트 = 회차·점검 조회 왕복 이중.
-  // 진입점은 customers/[id]/page.tsx의 facilitiesTab 한 곳.
   form15: ReactNode
   form16: ReactNode
   form17: ReactNode
@@ -112,16 +114,15 @@ export function PlanTabView({
 }) {
   const router = useRouter()
   const tabsShell = useCustomerTabs()   // 탭 셸 안에서만 non-null
-  // 기본 진입 = ⚡ 빠른 입력 노드(트리 최상단 랜딩). 토글 제거 — 서식 전체 트리로 통합 (2026-08-05).
   // 딥링크: form=(§1-3, 우선) 또는 sub=(구 형식 호환)
-  // 2026-08-06 사용자 확정: ⚡ 빠른 입력 페이지 폐기 — 탭 진입 = 1.1 일반현황 입력폼(첫 화면)
+  // 랜딩 = 1장 첫 트리 노드(LANDING=1.2) — 종전 랜딩 1.1은 [공통] 탭으로 이사했다(2026-09-20 3분리)
   const VALID_SEL = new Set<string>(PLAN_TREE_FORM_KEYS)
   // 2026-08-08: 지도·사진 노드를 폐지하고 슬롯 UI를 1.3 안으로 옮겼다 — 옛 딥링크(?form=assets)는 1.3으로 보낸다
   const norm = (key: string | undefined) => (key === 'assets' ? '1.3' : key)
   const initialSel = norm(initialForm) && VALID_SEL.has(norm(initialForm)!) ? norm(initialForm)!
-    : initialSection === 'ch1' ? '1.1'
+    : initialSection === 'ch1' ? LANDING
     : norm(initialSection) && VALID_SEL.has(norm(initialSection)!) ? norm(initialSection)!
-    : '1.1'
+    : LANDING
   const [sel, setSelState] = useState<string>(initialSel)
   // form= 딥링크가 마운트 후 서버 재렌더로 바뀐 경우(다른 탭의 ?tab=plan&form=x Link) 동기화 — state는 1회만 초기화되므로
   const prevFormRef = useRef(initialForm)
@@ -187,10 +188,10 @@ export function PlanTabView({
     if (!to) return
     const movedTab = tabOfForm(to)
     if (movedTab) {
-      if (tabsShell) tabsShell.goTab(movedTab)
-      else router.push(`/customers/${customerId}?tab=${movedTab}`)
-      // 탭 패널이 lazy 마운트라 카드가 아직 없다 — 잠깐 기다렸다 앵커로 스크롤(실패해도 무해)
-      setTimeout(() => document.getElementById(id)?.scrollIntoView({ block: 'start' }), 500)
+      // 이사 탭은 트리 구조(TabFormTree)라 **노드까지** 열어야 카드가 보인다 — goTab만으로는
+      // 기본 노드가 열려 카드가 hidden에 갇힌다. ?form=은 서버 재렌더가 있어야 트리에 닿으므로
+      // 전체 이동(<a> 규약과 동일, D-4). 해시는 그대로 실어 도착 후 브라우저 앵커 스크롤에 맡긴다.
+      window.location.assign(`/customers/${customerId}?tab=${movedTab}&form=${encodeURIComponent(to)}${window.location.hash}`)
       return
     }
     if (VALID_SEL.has(to) && to !== sel) applySelect(to)
@@ -264,10 +265,21 @@ export function PlanTabView({
     }
     setTimeout(tick, delay)
   }
+  /** 1.1이 [공통] 탭으로 이사(2026-09-20 3분리)한 뒤의 칩 목적지 — 탭 전환 + focus-missing 위임.
+   *  공통 패널은 lazy 마운트라 goTab 직후엔 리스너가 없을 수 있다 — 재시도 간격은 종전 그대로. */
+  function gotoForm11(label?: string) {
+    if (tabsShell) tabsShell.goTab('facilities')
+    else router.push(`/customers/${customerId}?tab=facilities&form=1.1`)
+    if (label) {
+      for (const ms of [300, 800, 1500]) {
+        setTimeout(() => window.dispatchEvent(new CustomEvent('erp:focus-missing', { detail: { label } })), ms)
+      }
+    }
+  }
   function gotoMissing(label: string) {
     const t = CHIP_TARGET[label]
     const fieldId = CHIP_FIELD_ID[label]
-    if (!t) { select('1.1'); return }
+    if (!t) { gotoForm11(label); return }
     if (t === 'buildings' || t === 'info') {
       if (tabsShell) tabsShell.goTab(t)
       else router.push(`/customers/${customerId}?tab=${t}`)
@@ -280,14 +292,15 @@ export function PlanTabView({
       }
       return
     }
-    // 송달 동의는 빠른 입력 폐기(2026-08-06)로 1.1 일반현황 하단으로 이전
-    if (t === 'consent') { select('1.1'); setTimeout(() => document.getElementById('consent-section')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 300); return }
-    select(t === 'ch2' ? 'ch2' : '1.1')
-    if (t === 'ch2') { focusField('c-2.2'); return }
-    // 1.1 칩 — 요약→편집 전환이 필요하므로 fire-plan-info-panel의 focusMissing에 위임 (마운트 대기 재시도)
-    for (const ms of [300, 800, 1500]) {
-      setTimeout(() => window.dispatchEvent(new CustomEvent('erp:focus-missing', { detail: { label } })), ms)
+    // 송달 동의는 1.1 하단(④ 섹션) — 1.1과 함께 공통 탭으로 갔다
+    if (t === 'consent') {
+      gotoForm11()
+      setTimeout(() => document.getElementById('consent-section')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 600)
+      return
     }
+    if (t === 'ch2') { select('ch2'); focusField('c-2.2'); return }
+    // 1.1 칩 — 요약→편집 전환이 필요하므로 fire-plan-info-panel의 focusMissing에 위임 (마운트 대기 재시도)
+    gotoForm11(label)
   }
 
   // §7-3b: 구 웹 생성분(.form.json) → 서식 저장소 최초 1회 가져오기
@@ -357,25 +370,20 @@ export function PlanTabView({
       {(() => {
         // 빠른 입력 페이지 폐기(2026-08-06 사용자 확정) — 온보딩 배너·필요문서 칩·필수완성도 카드·
         // 지도사진 링크·보관함 요약은 제거하고, 유일한 입력처였던 송달 동의와 1회성 임포트 배너만 1.1로 이관.
-        const oneOneExtras = (
-        <div className="space-y-4 mt-4">
-          {/* §7-3b: 최초 진입 1회 임포트 배너 — 서식 입력이 없고 구 생성 데이터가 있을 때 */}
-          {importCandidate && canManage && !importHidden && (
-            <div className="flex items-center gap-2 rounded-xl border border-brand-line bg-brand-tint px-4 py-2.5">
-              <Info className="size-4 text-brand shrink-0" />
-              <span className="text-form-sm text-ink-sub">
-                이전에 생성한 소방계획서의 수기 편집값(구역·취약장소·피난계획·개정이력)을 서식 입력으로 가져올 수 있습니다. (최초 1회)
-              </span>
-              <button onClick={importLegacy} disabled={isImportPending}
-                className="ml-auto inline-flex items-center gap-1 h-form-7 px-3 rounded-lg bg-brand hover:bg-brand-strong text-white text-form-xs font-medium shrink-0 disabled:opacity-50">
-                {isImportPending ? <Loader2 className="size-3 animate-spin" /> : <Download className="size-3" />} 가져오기
-              </button>
-              <button onClick={() => setImportHidden(true)} className="h-form-7 px-2 rounded-lg text-form-xs text-ink-meta hover:text-ink-sub shrink-0">닫기</button>
-            </div>
-          )}
-
-          {/* 송달 동의는 1.1 계획서 정보 폼 ④ 섹션으로 흡수 — 저장 버튼 1개로 통합(2026-08-06) */}
-        </div>
+        // §7-3b 임포트 배너 — 종전엔 1.1 아래(oneOneExtras)였는데 1.1이 공통 탭으로 이사해(2026-09-20)
+        // 트리 위 상단 배너로 승격한다. 어느 노드에서든 보인다 — 최초 1회성 안내라 노드 귀속이 아니다.
+        const importBanner = importCandidate && canManage && !importHidden && (
+          <div className="flex items-center gap-2 rounded-xl border border-brand-line bg-brand-tint px-4 py-2.5 mb-4">
+            <Info className="size-4 text-brand shrink-0" />
+            <span className="text-form-sm text-ink-sub">
+              이전에 생성한 소방계획서의 수기 편집값(구역·취약장소·피난계획·개정이력)을 서식 입력으로 가져올 수 있습니다. (최초 1회)
+            </span>
+            <button onClick={importLegacy} disabled={isImportPending}
+              className="ml-auto inline-flex items-center gap-1 h-form-7 px-3 rounded-lg bg-brand hover:bg-brand-strong text-white text-form-xs font-medium shrink-0 disabled:opacity-50">
+              {isImportPending ? <Loader2 className="size-3 animate-spin" /> : <Download className="size-3" />} 가져오기
+            </button>
+            <button onClick={() => setImportHidden(true)} className="h-form-7 px-2 rounded-lg text-form-xs text-ink-meta hover:text-ink-sub shrink-0">닫기</button>
+          </div>
         )
         // ── 서식 전체 트리 — §1 개정 구조: 좌측 목차 트리 + 서식 화면 (P6) ──
         // 목차 완성도 표시 (1-1·1-4): ✓=입력 있음 / ○=비어 있음 / n/m=게이지형(1.1)
@@ -419,11 +427,13 @@ export function PlanTabView({
             : `본문 ${f.label}`,
         }))
         return (
+        <>
+        {importBanner}
         <div className="flex gap-4 items-start">
           {nav.dialog}
           {/* 좌측 목차 트리 (데스크톱, 1-1) — 모바일은 아래 드롭다운 폴백(7-6) */}
           <aside className="hidden md:block w-48 shrink-0 rounded-xl border border-brand-line-soft bg-brand-tint p-2 space-y-0.5 sticky top-2">
-            {/* ⚡ 빠른 입력 노드 폐기(2026-08-06) — 랜딩은 1.1 일반현황, 송달 동의는 1.1 하단으로 이관 */}
+            {/* 1.1·1.4 노드는 [공통] 탭으로 이사(2026-09-20 3분리) — 랜딩은 1장 첫 노드(1.2) */}
             <div>
               <p className="px-2 py-1 text-form-2xs font-bold text-ink-soft flex items-center">📘 소방계획서 본문
                 <span className={`ml-auto ${ch1Filled >= CH1_FORMS.length ? 'text-green-600' : 'text-ink-meta'}`}>{ch1Filled}/{CH1_FORMS.length}</span>
@@ -475,10 +485,9 @@ export function PlanTabView({
       )}
 
       {/* ── 1장 서식 화면 (목차에서 직접 선택 — 1-2 섹션 카드는 각 서식 내부) ── */}
-      {sel === '1.1' && <>{form11}{oneOneExtras}</>}
+      {/* 1.1·1.4 렌더는 최상위 [공통] 탭으로 이관 (2026-09-20 3분리) — sel에 올 수 없다(PLAN_TREE_FORM_KEYS) */}
       {sel === '1.2' && form12}
       {sel === '1.3' && form13}
-      {/* 1.4 렌더는 최상위 [소방시설] 탭으로 이관 (2026-09-20) — sel에 '1.4'가 올 수 없다(PLAN_TREE_FORM_KEYS) */}
       {sel === '1.5' && form15}
       {sel === '1.6' && form16}
       {sel === '1.7' && form17}
@@ -512,6 +521,7 @@ export function PlanTabView({
       )}
           </div>
         </div>
+        </>
         )
       })()}
     </div>

@@ -502,9 +502,9 @@ export function InspectionTimelineClient({ inspectionId, canManage, canComplete,
         {/* 상호 진입점 역링크 — 보고서(구 별지서식) 탭으로 (소방계획서_8 Phase B → _34로 탭 승격 · 2026-09-20 개명) */}
         {customerId && (
           <NextLink href={`/customers/${customerId}?tab=annex`}
-            title="이 고객의 회차별 문서·별지 현황을 보고서 탭에서 봅니다"
+            title="이 고객의 회차별 문서·별지 현황을 회차 탭에서 봅니다"
             className="ml-auto inline-flex items-center gap-1 text-[11px] text-brand hover:underline shrink-0">
-            보고서 탭에서 보기 <ExternalLink className="size-3" />
+            회차 탭에서 보기 <ExternalLink className="size-3" />
           </NextLink>
         )}
         {isSpecialTimeline && (

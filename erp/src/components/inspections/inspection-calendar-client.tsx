@@ -2098,7 +2098,7 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
               </Link>
               <Link
                 href={`/customers/${selectedInspection.customer_id}?tab=annex`}
-                title="보고서 탭 · 회차별 별지 작성으로 바로가기"
+                title="회차 탭 · 회차별 별지 작성으로 바로가기"
                 data-testid="daypanel-plan-link"
                 className="text-xs text-brand hover:underline flex items-center gap-1"
               >

@@ -42,7 +42,7 @@ try {
   await login(page, EMAIL)
 
   // ── 1) 카드가 [소방시설] 탭(구 1.4)에 있다 · 42종 표 아래다 ────────────────
-  await page.goto(`${BASE}/customers/${customerId}?tab=facilities`)
+  await page.goto(`${BASE}/customers/${customerId}?tab=facilities&form=1.4`)
   await page.waitForSelector('text=서식 1.4 소방시설 현황')
   const muOn14 = await page.locator('[data-testid="form14-multi-use"]').count()
   check('S7-2 카드가 [소방시설] 탭(서식 1.4)에 렌더된다', muOn14 === 1, `(count=${muOn14})`)
@@ -88,7 +88,7 @@ try {
   check('S7-4 URL도 tab=facilities로 정정된다', urlFixed, `(url=${page.url()})`)
 
   // ── 4) 카드 자기 저장 왕복 ───────────────────────────────────────────
-  await page.goto(`${BASE}/customers/${customerId}?tab=facilities`)
+  await page.goto(`${BASE}/customers/${customerId}?tab=facilities&form=1.4`)
   await page.waitForSelector('[data-testid="form14-multi-use"]')
   const card = page.locator('[data-testid="form14-multi-use"]')
   await card.locator('button:has-text("해당없음")').click()          // 해당 토글 ON
@@ -122,7 +122,7 @@ try {
   // ── 6) 1.4 저장(건물별 설비)이 multiUse를 지우지 않는다 ──────────────────
   // 기타 블록이 이 탭에서 빠졌으므로(2026-09-20 분할) dirty는 42종 토글로 만든다 —
   // 켰다 꺼서 상태는 원상, dirty만 남긴다(설비 대장 패널은 체크 순간 열리므로 Esc로 닫는다)
-  await page.goto(`${BASE}/customers/${customerId}?tab=facilities`)
+  await page.goto(`${BASE}/customers/${customerId}?tab=facilities&form=1.4`)
   await page.waitForSelector('text=서식 1.4 소방시설 현황')
   await page.locator('[data-testid="form14-check-옥외소화전설비"]').click()
   await page.keyboard.press('Escape')
@@ -137,7 +137,7 @@ try {
     `(after=${JSON.stringify(afterForm14)})`)
 
   // ── 7) 새로고침 후에도 화면에 값이 살아 있다 ────────────────────────────
-  await page.goto(`${BASE}/customers/${customerId}?tab=facilities`)
+  await page.goto(`${BASE}/customers/${customerId}?tab=facilities&form=1.4`)
   await page.waitForSelector('[data-testid="form14-multi-use"]')
   check('S7-8 새로고침 뒤 카드가 저장값을 복원한다',
     (await page.locator('[data-testid="form14-multi-use"] input[placeholder="사업장명"]').inputValue()) === 'S7테스트업소')

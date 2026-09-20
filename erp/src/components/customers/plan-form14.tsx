@@ -267,7 +267,7 @@ export function PlanForm14({ customerId, buildings, canManage, canRegister = fal
   // 40 S2 — 점검표 직행 링크(?from=)의 복귀 경로. 기본은 [소방시설] 탭 정적 딥링크(2026-09-20
   // 1.4 탭 승격 — 구 ?tab=plan&form=1.4는 서버가 이 탭으로 해석한다). 다른 마운트(점검 귀속 화면)는
   // linkFrom으로 자기 URL을 준다.
-  const fromParam = encodeURIComponent(linkFrom ?? `/customers/${customerId}?tab=facilities`)
+  const fromParam = encodeURIComponent(linkFrom ?? `/customers/${customerId}?tab=facilities&form=1.4`)
 
   // 40 S5-1b — 점검표에서 넘어온 관련 설비 강조. 첫 매칭 행으로 1회만 스크롤(건물 전환 시 재스크롤 없음).
   const focusSet = useMemo(() => new Set(focusCodes ?? []), [focusCodes])

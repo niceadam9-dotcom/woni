@@ -115,9 +115,9 @@ export function FireSafetyManagerPanel({ customerId, contacts, canManage, initia
             상대 값을 덮어쓴다 — 선임일이 그렇게 지워졌다. 어디로 가면 되는지만 알려 준다. */}
         <div>
           <label className={labelCls}>소방안전관리등급 <span className="text-ink-meta">(대상물 급수 · 별표4)</span></label><br />
-          <Link href={`/customers/${customerId}?tab=plan&form=1.1`}
+          <Link href={`/customers/${customerId}?tab=facilities&form=1.1`}
             className="inline-flex items-center gap-1 h-form-8 px-2.5 mt-0.5 rounded-lg border border-brand-line text-form-sm text-brand hover:bg-brand-tint">
-            건물 속성이라 소방계획서 1.1에서 <ExternalLink className="size-2.5" />
+            건물 속성이라 공통 탭 1.1에서 <ExternalLink className="size-2.5" />
           </Link>
         </div>
 
