@@ -463,12 +463,10 @@ export default async function CustomerDetailPage({
     { key: 'info', label: '기본정보', warn: !customer.plan_anchor_date || !customer.assigned_employee_id },
     { key: 'buildings', label: '건물·시설', warn: !obState.buildings },
     { key: 'contacts', label: '관계인', badge: `(${contacts.length})`, warn: !obState.contacts },
-    // 일반관리도 소방계획서 대상 (소방계획서_6 W-14·D-6). 뱃지 = 목차 완성도 합산(§1-4)
-    { key: 'plan', label: '소방계획서', badge: `${formFilled}/${formTotal}`, warn: readiness.done < readiness.total },
-    // 공통 탭(구 소방계획서 트리 1.4) — 2026-09-20 사용자 확정: 소방계획서는 셋으로 갈린다
-    // 「공통(지금은 1.4 소방시설) / 보고서(별지 4~11호) / 소방계획서(계획서 전용)」.
-    // 1.4는 소방계획서·별지 4·9호·점검표가 모두 읽는 공통 축이라 여기 산다(42종 체크 + 설비 대장 +
-    // 다중이용업소 카드). ⭐ 확장 규칙(사용자 확정): 앞으로 공통으로 판정되는 서식은 이 탭에 추가한다.
+    // ── 소방계획서 3분리 구간 (2026-09-20 사용자 확정): 순서도 사용자 지정 — 공통 → 보고서 → 소방계획서 ──
+    // 공통 탭(구 소방계획서 트리 1.4) — 1.4는 소방계획서·별지 4·9호·점검표가 모두 읽는 공통 축이라
+    // 여기 산다(42종 체크 + 설비 대장 + 다중이용업소 카드).
+    // ⭐ 확장 규칙(사용자 확정): 앞으로 공통으로 판정되는 서식은 이 탭에 추가한다.
     { key: 'facilities', label: '공통', badge: installedTabCount > 0 ? `${installedTabCount}종` : undefined, warn: !facilitiesDone },
     // 보고서(구 라벨 '별지서식', 2026-09-20 개명 — key 'annex'·딥링크·testid는 불변: 프로브 11종 의존).
     // 뱃지 없음(D34-3): 별지 화면의 '회차'는 inspection_plan_items ∪ inspections인데 이 페이지는
@@ -476,6 +474,8 @@ export default async function CustomerDetailPage({
     // ⚠ Playwright는 has-text('보고서')가 소방계획서 트리 「보고서 커버」·이력 쪽 문구와 겹칠 수 있다 —
     //   탭 선택은 role=tab 스코프로 잡을 것.
     { key: 'annex', label: '보고서' },
+    // 일반관리도 소방계획서 대상 (소방계획서_6 W-14·D-6). 뱃지 = 목차 완성도 합산(§1-4)
+    { key: 'plan', label: '소방계획서', badge: `${formFilled}/${formTotal}`, warn: readiness.done < readiness.total },
     { key: 'billing', label: '청구·수금', warn: !billingProfileRes.data },
     { key: 'history', label: '이력', badge: lastInspectionDate ? lastInspectionDate.slice(5) : undefined },
   ]
