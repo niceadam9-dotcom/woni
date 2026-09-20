@@ -27,8 +27,8 @@ try {
   await login(page, EMAIL)
 
   // 고객 목록에서 그 고객 행의 **사용승인일 칸**을 직접 지목한다(셀 텍스트 추측 금지)
-  // ⚠ 사용승인일 열은 `cols=full`에서만 그려진다(page.tsx:240) — 기본 목록엔 아예 없다
-  await page.goto(`${BASE}/customers?q=${encodeURIComponent(c.customer_name)}&active=all&cols=full`)
+  // 사용승인일 열은 상시 표시된다 — 「기본/전체 컬럼」 토글 폐지(2026-09-20)로 `cols` 파라미터는 소멸
+  await page.goto(`${BASE}/customers?q=${encodeURIComponent(c.customer_name)}&active=all`)
   const row = page.locator('tr', { has: page.getByText(c.customer_name, { exact: false }) }).first()
   await row.waitFor({ timeout: 20_000 })
   const view = row.locator('[data-testid="inline-use_approval_date"]')

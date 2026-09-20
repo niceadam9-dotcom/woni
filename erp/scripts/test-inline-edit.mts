@@ -125,10 +125,10 @@ try {
   console.log('\n[2] 담당직원 드롭다운 (미배정 → 배정)')
   await page.goto(`${BASE}/customers?q=${encodeURIComponent('TEST-INLINE')}&active=all`)
   await row(page).waitFor()
-  // 컬럼은 고객명·점검유형·점검계획일·담당직원·상태·문서·(액션) — cols=full이 아니면 담당직원은 3번이다
-  // (customers/page.tsx:80-82). 종전 nth(6)은 컬럼이 더 많던 시절의 인덱스다.
-  await row(page).locator('td').nth(3).locator('[title="클릭하여 수정"]').click()
-  const empSel = row(page).locator('td').nth(3).locator('select')
+  // 컬럼은 고객명·점검유형·계약일·사용승인일·점검일자·담당직원·상태·문서·(액션) — 담당직원은 5번이다.
+  // 「기본/전체 컬럼」 토글 폐지(2026-09-20)로 계약일·사용승인일이 상시 표시된다 — 종전 nth(3)은 토글 시절 인덱스다.
+  await row(page).locator('td').nth(5).locator('[title="클릭하여 수정"]').click()
+  const empSel = row(page).locator('td').nth(5).locator('select')
   await empSel.waitFor()
   await empSel.selectOption(userId)
   await page.locator('h1').click()
@@ -140,9 +140,9 @@ try {
   // ── 3) 점검계획일 인라인 변경 (일반관리): 그 달 안에서 날짜만 따라간다 ──
   console.log('\n[3] 점검계획일 변경 (10일 → 5일, 계획 달은 유지)')
   lastAlert = ''
-  // 점검계획일은 2번 컬럼(위 주석 참조) — 종전 nth(5)는 옛 인덱스다
-  await row(page).locator('td').nth(2).locator('[title="클릭하여 수정"]').click()
-  const dateInput = row(page).locator('td').nth(2).locator('input[type=text]')
+  // 점검일자는 4번 컬럼(위 주석 참조) — 종전 nth(2)는 토글 시절 인덱스다
+  await row(page).locator('td').nth(4).locator('[title="클릭하여 수정"]').click()
+  const dateInput = row(page).locator('td').nth(4).locator('input[type=text]')
   await dateInput.waitFor()
   await dateInput.fill(ANCHOR1)
   await dateInput.press('Enter')

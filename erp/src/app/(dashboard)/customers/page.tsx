@@ -26,14 +26,13 @@ function typeAnnual(type: InspectionType, sub: '종합' | '작동' | null): stri
 export default async function CustomersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; type?: string; active?: string; inc?: string; cols?: string; page?: string; per_page?: string }>
+  searchParams: Promise<{ q?: string; type?: string; active?: string; inc?: string; page?: string; per_page?: string }>
 }) {
   const profile = await getProfile()
   if (!profile) redirect('/login')
 
   const params = await searchParams
   const filter = parseListFilter(params)
-  const fullCols = params.cols === 'full'
   const page = Math.max(1, parseInt(params.page ?? '1', 10))
   const pageSize = Math.max(0, parseInt(params.per_page ?? '50', 10))  // 0 = 전체
 
@@ -71,7 +70,7 @@ export default async function CustomersPage({
 
   function buildUrl(overrides: Record<string, string | undefined>) {
     const sp = new URLSearchParams()
-    const merged = { q: filter.q, type: filter.type, active: filter.active !== 'active' ? filter.active : '', inc: filter.inc, cols: fullCols ? 'full' : '', per_page: pageSize !== 50 ? String(pageSize) : '', ...overrides }
+    const merged = { q: filter.q, type: filter.type, active: filter.active !== 'active' ? filter.active : '', inc: filter.inc, per_page: pageSize !== 50 ? String(pageSize) : '', ...overrides }
     for (const [k, v] of Object.entries(merged)) if (v) sp.set(k, v)
     const qs = sp.toString()
     return `/customers${qs ? `?${qs}` : ''}`
@@ -79,9 +78,8 @@ export default async function CustomersPage({
 
   const isFiltered = !!(filter.q || filter.type || filter.active !== 'active' || filter.inc)
 
-  const baseHeaders = ['고객명', '점검유형']
-  const fullHeaders = fullCols ? ['계약일', '사용승인일'] : []
-  const headers = [...baseHeaders, ...fullHeaders, '점검일자', '담당직원', '상태', '문서', '']
+  // 계약일·사용승인일 포함 전 컬럼 상시 표시 — 컬럼 표시 토글 폐지 (2026-09-20 사용자 확정, 종전 §6-B-A 기본 숨김)
+  const headers = ['고객명', '점검유형', '계약일', '사용승인일', '점검일자', '담당직원', '상태', '문서', '']
 
   return (
     <div className="space-y-6">
@@ -145,7 +143,6 @@ export default async function CustomersPage({
           <option value="50">50건</option>
           <option value="0">전체</option>
         </select>
-        {fullCols && <input type="hidden" name="cols" value="full" />}
         <button type="submit"
           className="h-9 px-4 rounded-lg bg-[#202023] hover:bg-[#292d34] text-white text-sm font-medium transition-colors">
           검색
@@ -156,17 +153,12 @@ export default async function CustomersPage({
             초기화
           </Link>
         )}
-        {/* §6-B-A: 계약일·사용승인일은 기본 숨김 — 전체 컬럼 토글 */}
-        <Link href={buildUrl({ cols: fullCols ? '' : 'full' })}
-          className="h-9 px-3 rounded-lg border border-brand-line text-sm text-brand hover:bg-brand-tint transition-colors flex items-center">
-          {fullCols ? '기본 컬럼' : '전체 컬럼'}
-        </Link>
         <span className="text-xs text-ink-sub ml-auto">총 {totalCount}개사</span>
         {/* 고객 등록 버튼은 제목 옆으로 이사 (2026-09-20) — 검색줄 자리(2026-08-05)는 폐지.
             두 곳에 두지 않는다: 같은 링크가 두 개면 눈이 두 번 확인해야 한다. */}
       </form>
 
-      {/* 목록 테이블 — 기본 6컬럼 (§6-B-A) */}
+      {/* 목록 테이블 — 전 컬럼 상시 표시 */}
       <div className="bg-surface rounded-xl border border-line shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px,rgba(18,43,165,0.08)_0px_6px_6px_-3px,rgba(18,43,165,0.08)_0px_12px_12px_-6px] overflow-hidden">
         {customers.length === 0 ? (
           <div className="py-16 text-center text-sm text-ink-sub">
@@ -237,20 +229,16 @@ export default async function CustomersPage({
                           <span className="text-form-2xs text-ink-meta whitespace-nowrap">{typeAnnual(c.inspection_type, c.inspection_sub_type)}</span>
                         </div>
                       </td>
-                      {fullCols && (
-                        <td className="px-4 py-3 text-xs text-ink-strong">
-                          {canCreate ? (
-                            <InlineCustomerFieldClient customerId={c.id} field="contract_date" value={c.contract_date} />
-                          ) : (c.contract_date ?? '-')}
-                        </td>
-                      )}
-                      {fullCols && (
-                        <td className="px-4 py-3 text-xs text-ink-sub">
-                          {canCreate ? (
-                            <InlineCustomerFieldClient customerId={c.id} field="use_approval_date" value={c.use_approval_date} />
-                          ) : (c.use_approval_date ?? '-')}
-                        </td>
-                      )}
+                      <td className="px-4 py-3 text-xs text-ink-strong">
+                        {canCreate ? (
+                          <InlineCustomerFieldClient customerId={c.id} field="contract_date" value={c.contract_date} />
+                        ) : (c.contract_date ?? '-')}
+                      </td>
+                      <td className="px-4 py-3 text-xs text-ink-sub">
+                        {canCreate ? (
+                          <InlineCustomerFieldClient customerId={c.id} field="use_approval_date" value={c.use_approval_date} />
+                        ) : (c.use_approval_date ?? '-')}
+                      </td>
                       <td className="px-4 py-3 text-xs text-ink-sub">
                         {canCreate ? (
                           <InlineCustomerFieldClient customerId={c.id} field="plan_anchor_date" value={c.plan_anchor_date} emptyLabel="미입력" />
