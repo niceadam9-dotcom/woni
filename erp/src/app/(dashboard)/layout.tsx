@@ -23,8 +23,8 @@ import { activeStepsByInspection, isStepHidden, NA_DISPLAY_STEP_NUMS } from '@/l
  *
  *  ⚠ 이 조회는 `count:'exact', head:true`라 **행을 안 받는다**(모든 화면이 지나는 레이아웃이라
  *  성능이 값이다 — 종전 주석 참조). 그래서 전 단계를 행으로 받아 거르지 않고,
- *  **'감춰질 수 있는 단계'만**(④⑤⑥ — visibleStepNums는 ①~③만 공통 접두로 갖는다, 소방계획서_48)
- *  행으로 받아 빼야 할 건수를 센다. 자체점검 1건당 최대 3행이라 비용이 유계다. */
+ *  **'감춰질 수 있는 단계'만**(⑤⑥ — ④는 2026-09-20부터 항상 표시라 후보에서 빠졌다)
+ *  행으로 받아 빼야 할 건수를 센다. 자체점검 1건당 최대 2행이라 비용이 유계다. */
 async function getStepBadgeCounts(profileId: string, role: string) {
   const admin = createAdminClient()
   // F-14 잔여 축 — 둘 다 KST로 **함께** 옮긴다. 한쪽만 바꾸면 '오늘'과 'D+3'의 기준이
@@ -44,9 +44,9 @@ async function getStepBadgeCounts(profileId: string, role: string) {
     return q
   }
 
-  /** ④⑤⑥ 후보 행만 받아온다 — 같은 필터·같은 창(窓)이라야 뺀 수가 센 수와 짝이 맞는다.
-   *  소방계획서_48: 표시 축은 불량 0이면 ④도 감추므로 후보가 [5,6]에서 [4,5,6]으로 넓어졌다
-   *  (자체점검 1건당 최대 3행 — 여전히 유계). */
+  /** ⑤⑥ 후보 행만 받아온다 — 같은 필터·같은 창(窓)이라야 뺀 수가 센 수와 짝이 맞는다.
+   *  2026-09-20: ④가 항상 표시로 복귀해 후보가 [4,5,6]에서 [5,6]으로 도로 좁아졌다
+   *  (자체점검 1건당 최대 2행 — 여전히 유계). */
   function naCandidates() {
     let q = admin
       .from('inspection_steps')

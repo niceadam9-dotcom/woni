@@ -276,17 +276,15 @@ export function InspectionWorkbench({
   /** 사유로 완료된 단계 — 철회 버튼 노출 판정 (D1) */
   const forcedNums = new Set<number>(data.evidence?.forced ?? [])
 
-  /** 소방계획서_48 (2026-09-11 사용자 확정 「즉시 감춤으로 통일」) — 불량(✕ ∪ 불량내역) 0이면
-   *  ④⑤⑥을 **즉시** 그리지 않는다. 종전(09-10)의 두 게이트(① 완료 · 별지 9호 제출 후 접힘)는
-   *  폐지됐다 — 점검표를 아직 안 채운 새 회차도 3단계로 보이며, 달력·목록·사이드바·모바일과
+  /** 표시 축 — 불량(✕ ∪ 불량내역) 0이면 ⑤⑥을 그리지 않는다. 달력·목록·사이드바·모바일과
    *  같은 표시 축(visibleStepNums) 한 벌을 쓴다(화면마다 갈라지지 않게).
    *
-   *  🚨 ④를 의무 축(`activeStepNums`)에서 빼지 않는 이유. 그 함수는 완료 동기화
-   *    (`inspection-step-sync.ts` → `inspections.status='completed'`)와 마감 알림 크론의 분모이고,
-   *    **별지 9호 보고는 불량 유무와 무관한 법정 의무**다(시행규칙 제23조제2항 — 15일).
-   *    의무 축에서 지우면 ①②③만으로 completed가 DB에 굳는다. 여기서 사라지는 것은
-   *    **표시**뿐이고, 문서 생성·제출일 기록은 헤더의 [별지서식] 링크(고객 별지서식 탭)에 남는다.
-   *  ⚠ 분모도 **보이는 것**으로 센다 — 3개만 보이는데 4/4라고 말하면 화면과 숫자가 어긋난다. */
+   *  🚨 계약 연혁: 09-10 두 게이트(① 완료 · 별지 9호 제출 후 접힘) → 09-11 48차수가 ④⑤⑥
+   *    즉시 감춤으로 통일 → **2026-09-20 사용자 지시로 ④(소방서 제출)는 항상 표시로 복귀**.
+   *    별지 9호 보고는 불량 유무와 무관한 법정 의무라(시행규칙 제23조제2항 — 15일) 화면에서도
+   *    감추지 않는다. 의무 축(`activeStepNums` — 완료 동기화·마감 알림 크론의 분모)은 이 세 판
+   *    내내 무손상이다.
+   *  ⚠ 분모도 **보이는 것**으로 센다 — 4개가 보이는데 6/6이라 말하면 화면과 숫자가 어긋난다. */
   const visibleNums = visibleStepNums(isSpecial, needsRepairSteps)
   const visibleSteps: StepKey[] = data.steps.filter(k => visibleNums.includes(STEP_NUM[k] as StepNum))
   const prog = stepProgress(doneByNum, visibleSteps.map(k => STEP_NUM[k] as StepNum))
@@ -294,8 +292,8 @@ export function InspectionWorkbench({
   const progressPct = prog.pct
   const nextStep = visibleSteps.find(k => !done[k])
 
-  /** 딥링크 `?step=N`이 지정한 단계 — **보이는 단계일 때만** 인정한다. 불량 0건이면 ④⑤⑥이
-   *  감춰지므로(48차수), 그 칸을 억지로 펼치면 빈 화면이 뜬다. 그럴 땐 조용히 기본값으로 떨어진다. */
+  /** 딥링크 `?step=N`이 지정한 단계 — **보이는 단계일 때만** 인정한다. 불량 0건이면 ⑤⑥이
+   *  감춰지므로, 그 칸을 억지로 펼치면 빈 화면이 뜬다. 그럴 땐 조용히 기본값으로 떨어진다. */
   const linkedStep = initialStepNum
     ? visibleSteps.find(k => STEP_NUM[k] === initialStepNum)
     : undefined
@@ -607,7 +605,7 @@ export function InspectionWorkbench({
         <h2 className="text-sm font-semibold text-ink">점검 작업대</h2>
         {/* S7-1 4차 — 이 점검에 **보고 의무가 있는지**를 말하는 문장이다(장식이 아니다) */}
         <span className="text-form-xs text-ink-meta">
-          {isSpecial ? '자체점검 보고 절차 — ④⑤⑥은 점검표에 불량(✕)이 있을 때만 표시' : '정기·일반 — 점검표 작성·2년 보관만 (보고 의무 없음)'}
+          {isSpecial ? '자체점검 보고 절차 — ⑤⑥은 점검표에 불량(✕)이 있을 때만 표시' : '정기·일반 — 점검표 작성·2년 보관만 (보고 의무 없음)'}
         </span>
         {isSpecial && (
           <>
@@ -633,7 +631,7 @@ export function InspectionWorkbench({
       {/* 가로 스텝바 (R6-1) — 항상 보인다. 월간 건은 ① 하나(R6-11) */}
       <div className="flex items-stretch gap-1 overflow-x-auto rounded-xl border border-line bg-surface p-1.5 shrink-0" data-testid="workbench-stepbar">
         {/* 🎯 감춰진 단계는 **회색으로 남기지 않고 아예 그리지 않는다**(모바일 앱과 같은 방식).
-            소방계획서_48 — 불량 0이면 ④⑤⑥이 즉시 빠져 3단계만 그려진다(점검표 작성 전에도).
+            불량 0이면 ⑤⑥이 즉시 빠져 4단계만 그려진다(④는 법정 의무라 항상 표시 — 2026-09-20).
             ⚠ 지금 열려 있는 칸(`sel`)은 보이지 않는 단계여도 **남긴다**. 불량을 지워 ⑤가 방금
               감춰진 순간에 버튼만 사라지면, 본문은 그대로인데 어느 칸인지 알 수 없게 된다.
               그 전환기에는 아래 `na` 가지가 회색·disabled로 받아 준다. */}

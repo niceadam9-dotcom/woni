@@ -21,7 +21,7 @@ type Admin = ReturnType<typeof createAdminClient>
 export type ActiveSteps = {
   /** inspection_id → 유효 단계 번호 집합. **없는 키는 '모름'이지 '전부 비활성'이 아니다** */
   map: Map<string, Set<number>>
-  /** inspection_id → **표시** 단계 번호 집합(소방계획서_48 — 불량 0이면 ④도 즉시 감춤).
+  /** inspection_id → **표시** 단계 번호 집합(불량 0이면 ⑤⑥ 감춤 — ④는 2026-09-20부터 항상 표시).
    *  map(의무 축)의 부분집합이다. 완료 판정·크론은 이 축이 아니라 map을 본다. */
   visibleMap: Map<string, Set<number>>
   /** 조회가 불완전했는가 — 참이면 map은 전 단계를 활성으로 담고 있다 */
@@ -59,7 +59,7 @@ export async function activeStepsByInspection(
 
   const needsRepair = new Set([...defRes.rows, ...xRes.rows].map(r => r.inspection_id))
   for (const i of inspRes.rows) {
-    // 같은 재료를 두 축으로 투영한다 — 추가 질의 0회. 표시 축은 불량 0이면 ④까지 감춘다(48차수)
+    // 같은 재료를 두 축으로 투영한다 — 추가 질의 0회. 표시 축은 불량 0이면 ⑤⑥을 감춘다(④는 항상 표시)
     const isSpecial = isSelfInspection(i.plan_type)
     const needs = incomplete || needsRepair.has(i.id)
     map.set(i.id, new Set(activeStepNums(isSpecial, needs)))
@@ -97,5 +97,6 @@ export function isStepHidden(a: ActiveSteps, inspectionId: string, stepNum: numb
   return !isStepVisible(a, inspectionId, stepNum)
 }
 
-/** ④⑤⑥이 표시에서 감춰질 수 있다(visibleStepNums는 ①~③만 공통 접두). NA_CANDIDATE의 표시 축 짝. */
-export const NA_DISPLAY_STEP_NUMS = [4, 5, 6] as const
+/** ⑤⑥만 표시에서 감춰질 수 있다(2026-09-20 — ④는 항상 표시로 복귀, visibleStepNums 참조).
+ *  NA_CANDIDATE의 표시 축 짝 — 지금은 값이 같지만 축이 다르다(표시 vs 의무). 합치지 말 것. */
+export const NA_DISPLAY_STEP_NUMS = [5, 6] as const

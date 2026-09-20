@@ -262,10 +262,14 @@ lacks('「전체」가 range 단발로 되돌아가지 않았다', P.list, /cons
 // 들어가면 **법정 의무인 별지 9호를 건너뛴 채 `inspections.status='completed'`가 DB에 박힌다.**
 // 값의 옳음은 test-inspection-steps-sync가 본다. 여기서 고정하는 것은 **어느 자리가 어느 축을
 // 읽는가** 뿐이고, 특히 아래 「의무 축 회귀 가드」가 이 차수에서 가장 비싼 단언이다.
-console.log('\n— 표시 축 원천이 의무 축의 **파생**이다 (소방계획서_48)')
+// ⚠ 2026-09-20 사용자 지시 「④ 소방서 제출 기본 포함」: 표시 축의 ④ filter가 사라져
+//   지금은 의무 축을 **그대로 반환**한다(⑤⑥ 감춤은 의무 축이 이미 한다). 축의 자리와
+//   파생 관계는 그대로 고정한다 — 독립 리터럴이 되면 언젠가 의무 축과 갈라진다.
+console.log('\n— 표시 축 원천이 의무 축의 **파생**이다 (2026-09-20 — ④ 항상 표시)')
 has('표시 축 함수가 존재한다', P.status, /export function visibleStepNums/)
-inFn('그 함수가 activeStepNums를 **걸러서** 만든다 — 독립 리터럴이면 언젠가 의무 축과 갈라진다',
-  P.status, 'visibleStepNums', /return activeStepNums\(isSpecial, needsRepairSteps\)\.filter\(/)
+inFn('그 함수가 activeStepNums를 그대로 반환한다 — ④ filter가 되살아나면 여기가 알린다',
+  P.status, 'visibleStepNums', /return activeStepNums\(isSpecial, needsRepairSteps\)\r?\n/)
+notInFn('④를 거르는 filter가 남아 있지 않다', P.status, 'visibleStepNums', /\.filter\(/)
 notInFn('표시 축이 단계 목록을 직접 적어 두지 않는다', P.status, 'visibleStepNums', /\[1, 2, 3/)
 inFn('의무 축은 종전 그대로다 — ①~④ / ①~⑥ 두 갈래', P.status, 'activeStepNums',
   /needsRepairSteps \? \[1, 2, 3, 4, 5, 6\] : \[1, 2, 3, 4\]/)
@@ -310,15 +314,17 @@ for (const [name, path] of [
 ]) {
   lacks(`${name}에 옛 표시 경로(isStepActive)가 남아 있지 않다`, path, /isStepActive\(/)
 }
-has('사이드바 차감 질의가 표시 축 후보 상수를 쓴다 — ④⑤⑥',
+has('사이드바 차감 질의가 표시 축 후보 상수를 쓴다 — ⑤⑥',
   P.layout, /\.in\('step_num', \[\.\.\.NA_DISPLAY_STEP_NUMS\]\)/)
-has('그 상수가 ④⑤⑥이다', P.active, /NA_DISPLAY_STEP_NUMS = \[4, 5, 6\] as const/)
+has('그 상수가 ⑤⑥이다 (2026-09-20 — ④는 항상 표시라 후보에서 빠졌다)',
+  P.active, /NA_DISPLAY_STEP_NUMS = \[5, 6\] as const/)
 has('크론이 쓰는 의무 축 상수는 그대로 남아 있다', P.active, /NA_CANDIDATE_STEP_NUMS/)
 
 console.log('\n— 모바일 사본이 웹과 갈라지지 않는다 (45차수 R-8의 6번째 표면)')
 has('모바일도 표시 축 사본을 갖는다', P.mobileRule, /export function visibleStepNums/)
-inFn('모바일 사본도 **파생**이다 — 웹과 같은 형태', P.mobileRule, 'visibleStepNums',
-  /activeStepNums\(isSpecial, needsRepairSteps\)\.filter\(/)
+inFn('모바일 사본도 웹과 같은 형태다 — activeStepNums 그대로 반환(④ filter 없음)',
+  P.mobileRule, 'visibleStepNums', /return activeStepNums\(isSpecial, needsRepairSteps\)\r?\n/)
+notInFn('모바일 사본에 ④ filter가 남아 있지 않다', P.mobileRule, 'visibleStepNums', /\.filter\(/)
 has('모바일 화면이 렌더를 표시 축으로 거른다',
   P.mobileScreen, /const visibleNums = new Set<number>\(visibleStepNums\(/)
 

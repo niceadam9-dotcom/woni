@@ -33,11 +33,12 @@ export function activeStepNums(isSpecial: boolean, needsRepairSteps: boolean): S
   return needsRepairSteps ? [1, 2, 3, 4, 5, 6] : [1, 2, 3, 4]
 }
 
-/** 화면에 **그릴** 단계(표시 축) — 웹 `visibleStepNums`의 사본(소방계획서_48).
- *  불량 0이면 ④도 **즉시** 감춘다(2026-09-11 사용자 확정 「즉시 감춤으로 통일」).
+/** 화면에 **그릴** 단계(표시 축) — 웹 `visibleStepNums`의 사본.
+ *  2026-09-20 사용자 지시로 ④(별지 9호 소방서 제출)는 **항상 표시**로 복귀(법정 의무 —
+ *  종전 48차수의 「불량 0이면 ④ 즉시 감춤」을 뒤집었다). ⑤⑥ 감춤은 의무 축이 이미 하므로
+ *  현재 표시 축은 의무 축과 같다 — 축은 웹과 짝으로 남긴다(_probe-45-neighbors가 대조).
  *  ⚠ 완료 판정([완료] 버튼 → `inspections.status='completed'`)은 activeStepNums(의무 축)를
- *  그대로 쓴다 — 별지 9호(④)는 법정 의무라 표시가 줄어도 완료의 분모에서 빠지지 않는다.
- *  파생(filter)이라 visible ⊆ active가 구조로 보장된다 — 독립 리터럴로 바꾸지 말 것. */
+ *  그대로 쓴다. 독립 리터럴로 바꾸지 말 것. */
 export function visibleStepNums(isSpecial: boolean, needsRepairSteps: boolean): StepNum[] {
-  return activeStepNums(isSpecial, needsRepairSteps).filter(n => needsRepairSteps || n !== 4)
+  return activeStepNums(isSpecial, needsRepairSteps)
 }

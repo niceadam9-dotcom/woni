@@ -225,16 +225,20 @@ export function activeStepNums(isSpecial: boolean, needsRepairSteps: boolean): S
   return needsRepairSteps ? [1, 2, 3, 4, 5, 6] : [1, 2, 3, 4]
 }
 
-/** 화면에 **그릴** 단계 — activeStepNums와 갈라지는 유일한 지점은 ④다(소방계획서_48).
- *  불량 0건이면 ④를 **즉시** 감춘다 — 제출 여부·점검표 작성 완료를 묻지 않는다(2026-09-11 사용자 확정,
- *  「즉시 감춤으로 통일」 — 작업대의 종전 제출 후 접힘 정책을 이 축이 대체한다).
+/** 화면에 **그릴** 단계 (표시 축).
  *
- *  ⚠ 완료 판정·크론 알림에 쓰지 말 것. 별지 9호는 불량 유무와 무관한 법정 의무라(시행규칙 제23조제2항)
- *  의무 축(activeStepNums)에서 ④를 지우면 sync가 ①②③만으로 completed를 DB에 써 버리고
- *  법정 15일 보고 알림이 꺼진다. 표시가 줄어도 완료·알림의 분모는 activeStepNums다.
- *  파생(filter)으로 구현해 visible ⊆ active가 구조로 보장된다 — 독립 리터럴로 바꾸지 말 것. */
+ *  🚨 계약이 한 번 더 뒤집혔다(2026-09-20 사용자 지시 「④ 소방서 제출을 기본 포함」): 종전
+ *  48차수(2026-09-11 「즉시 감춤으로 통일」)는 불량 0건이면 ④까지 감췄는데, 별지 9호는 불량
+ *  유무와 무관한 법정 의무라(시행규칙 제23조제2항) 화면에서도 항상 보이도록 되돌렸다.
+ *  ⑤⑥(보수·별지 11호)은 여전히 불량(✕ ∪ 불량내역)이 있을 때만 나타난다 — 그 감춤은 의무 축
+ *  (activeStepNums)이 이미 하므로, 현재 표시 축은 의무 축과 **전 조합에서 같다**.
+ *
+ *  함수를 접지 않는 이유: 아홉 표면이 이 축을 읽고(_probe-45-neighbors 전수), 표시만 줄이는
+ *  다음 변경이 오면 여기가 다시 갈라지는 자리다. 파생이라 visible ⊆ active가 구조로 보장된다 —
+ *  독립 리터럴로 바꾸지 말 것.
+ *  ⚠ 완료 판정·크론 알림은 의무 축(activeStepNums)을 쓴다 — 여기에 바꿔 달지 말 것. */
 export function visibleStepNums(isSpecial: boolean, needsRepairSteps: boolean): StepNum[] {
-  return activeStepNums(isSpecial, needsRepairSteps).filter(n => needsRepairSteps || n !== 4)
+  return activeStepNums(isSpecial, needsRepairSteps)
 }
 
 /** ⑤⑥이 필요한가 = **점검표 모두 합격이 아닌가** (소방계획서_45 — 판정축 단일 원천).

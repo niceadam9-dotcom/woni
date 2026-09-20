@@ -74,43 +74,46 @@ console.log('— 1부 분모(F-6 교정)')
   ok('자체점검은 ① 완료 시 25%(분모 4)', q.pct === 25 && q.total === 4, JSON.stringify(q))
 }
 
-// 소방계획서_48 — **표시 축**(visibleStepNums)은 의무 축(activeStepNums)의 파생이다.
-// 불량 0건이면 화면에서 ④를 즉시 감추지만, 별지 9호는 법정 의무라 완료 판정·크론의 분모는
-// 여전히 activeStepNums다(§3). 위 「분모(F-6 교정)」 21단언이 무수정으로 통과하는 것이
-// **의무 축 무손상**의 증거이고, 아래는 갈라지는 유일한 지점이 ④뿐임을 고정한다.
-console.log('— 1부 표시 축 (소방계획서_48)')
+// **표시 축**(visibleStepNums)은 의무 축(activeStepNums)의 파생이다.
+// 🚨 이 블록은 계약이 두 번 뒤집힌 자리다: 48차수(09-11)는 불량 0이면 ④를 즉시 감췄는데,
+// **2026-09-20 사용자 지시 「④ 소방서 제출은 기본 포함」**으로 ④가 항상 표시로 복귀했다
+// (별지 9호는 법정 의무 — 시행규칙 제23조제2항). ⑤⑥ 감춤은 의무 축이 이미 하므로 지금
+// 표시 축은 의무 축과 **전 조합에서 같다**. 낡은 단언(「①~③」·「④가 사라진다」)은 지우지 않고
+// 새 계약으로 갈아끼운다 — 위 「분모(F-6 교정)」가 무수정 통과하는 것이 의무 축 무손상의 증거다.
+console.log('— 1부 표시 축 (2026-09-20 — ④ 항상 표시)')
 {
-  // ① 4조합 — 값을 그대로 박는다(파생을 지워 activeStepNums를 그대로 반환하면 여기서 깨진다)
-  ok('자체점검 불량 0건이면 화면은 ①~③ (④ 즉시 감춤)',
-    JSON.stringify(visibleStepNums(true, false)) === '[1,2,3]', JSON.stringify(visibleStepNums(true, false)))
-  ok('자체점검 불량 있으면 화면도 ①~⑥ (감추지 않는다)',
+  // ① 4조합 — 값을 그대로 박는다(어느 축이든 목록이 바뀌면 여기서 깨진다)
+  ok('자체점검 불량 0건이어도 화면은 ①~④ (④ 기본 포함 — 2026-09-20)',
+    JSON.stringify(visibleStepNums(true, false)) === '[1,2,3,4]', JSON.stringify(visibleStepNums(true, false)))
+  ok('자체점검 불량 있으면 화면은 ①~⑥',
     JSON.stringify(visibleStepNums(true, true)) === '[1,2,3,4,5,6]', JSON.stringify(visibleStepNums(true, true)))
   ok('월간 외관점검은 표시도 ① 하나', JSON.stringify(visibleStepNums(false, false)) === '[1]')
   ok('월간은 불량이 있어도 표시 ① 하나', JSON.stringify(visibleStepNums(false, true)) === '[1]')
 
-  // ② 양성·음성 짝 — 음성만 물으면 「④를 늘 지운다」는 변이가 초록으로 빠져나간다
-  ok('음성: 불량 0건이면 ④가 사라진다', visibleStepNums(true, false).includes(4) === false)
-  ok('양성: 불량이 있으면 ④가 남는다', visibleStepNums(true, true).includes(4) === true)
+  // ② 양성·음성 짝 — 한쪽만 물으면 「④를 늘 지운다」도 「⑤⑥을 늘 그린다」도 초록으로 빠져나간다
+  ok('양성: 불량 0건이어도 ④가 남는다', visibleStepNums(true, false).includes(4) === true)
+  ok('음성: 불량 0건이면 ⑤⑥은 안 그린다',
+    !visibleStepNums(true, false).includes(5) && !visibleStepNums(true, false).includes(6))
+  ok('양성: 불량이 있으면 ⑤⑥도 나타난다',
+    visibleStepNums(true, true).includes(5) && visibleStepNums(true, true).includes(6))
 
-  // ③ 전 조합 속성 단언 — visible ⊆ active (파생이 아닌 독립 리터럴로 바뀌면 언젠가 깨진다)
-  let subsetOk = true, diffs: string[] = []
+  // ③ 전 조합 속성 단언 — visible = active (표시 전용 감춤이 다시 생기면 여기가 알린다.
+  //    그때는 이 단언을 ⊆로 되돌리고 갈라지는 단계를 명시할 것 — 48차수 때의 형태)
+  let equalOk = true, diffs: string[] = []
   for (const isSpecial of [true, false]) {
     for (const needs of [true, false]) {
       const a = activeStepNums(isSpecial, needs), v = visibleStepNums(isSpecial, needs)
-      if (!v.every(n => a.includes(n))) subsetOk = false
+      if (JSON.stringify(a) !== JSON.stringify(v)) equalOk = false
       diffs.push(`${isSpecial}/${needs}:[${a.filter(n => !v.includes(n)).join(',')}]`)
     }
   }
-  ok('전 조합에서 visible ⊆ active', subsetOk, diffs.join(' '))
-  // 갈라지는 지점이 ④ 하나뿐 — ⑤나 ⑥까지 감추면(의무 축과 어긋나면) 여기서 깨진다
-  ok('active와 갈라지는 단계는 ④ 하나뿐',
-    diffs.join(' ') === 'true/true:[] true/false:[4] false/true:[] false/false:[]', diffs.join(' '))
+  ok('전 조합에서 visible = active (감춤은 ⑤⑥뿐이고 그건 의무 축이 한다)', equalOk, diffs.join(' '))
 
-  // ④ 진행률 분모가 3으로 줄어든다(화면 1/4 → 1/3)
+  // ④ 진행률 분모 — 불량 0건이면 화면도 1/4 (③②의 값 단언과 독립인 결과 축)
   const v = stepProgress(evidenceDone({ ...EV, responded: 5 }), visibleStepNums(true, false))
-  ok('불량 0건 자체점검의 표시 진행률은 1/3', v.done === 1 && v.total === 3, JSON.stringify(v))
+  ok('불량 0건 자체점검의 표시 진행률은 1/4', v.done === 1 && v.total === 4, JSON.stringify(v))
 
-  // ⑤ 의무 축은 같은 입력에서 여전히 ④를 포함한다 — 표시가 줄어도 sync의 분모는 안 줄어든다
+  // ⑤ 의무 축은 같은 입력에서 여전히 ④를 포함한다 — 완료 동기화·크론의 분모는 이 축이다
   ok('같은 입력에서 의무 축은 ④를 유지', activeStepNums(true, false).includes(4) === true)
 }
 
