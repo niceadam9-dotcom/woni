@@ -91,7 +91,7 @@ export type WorkbookSource = {
      *  미공급이면 8칸이 종전처럼 공란 — 대조군·하위 호환 보호. */
     done?: AnnexDone
     /** 별지 11호 보고일 ISO — `완료보고서!G25`의 원천이자 PDF 11호 `reportDate`와 **같은 값**(D-7).
-     *  규칙은 `annexReportDateISO()`(수기값 우선, 없으면 오늘 KST). 미공급이면 서식 수식을
+     *  규칙은 `annexReportDateISO()`(수기값 > ⑥ 소방서 제출 기록 > 오늘 KST). 미공급이면 서식 수식을
      *  건드리지 않은 종전 동작으로 남는다 — 대조군·하위 호환 보호. */
     reportDateISO?: string
     main: { name: string; grade: string; licenseNo: string } | null

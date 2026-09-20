@@ -117,7 +117,8 @@ export function InspectionWorkbench({
    *  제출은 거의 항상 「오늘 냈다」라서, 기본값 하나로 평시 조작이 버튼 한 번이 된다.
    *
    *  ⚠ 달력을 **없애지 않았다.** 이 날짜는 「실행했다」는 표시가 아니라 **법정 일자이자 기산점**이다:
-   *    · 별지 9호·10호에 인쇄된다 (`annexReportDateISO()` — 수기값 > ④ 제출일 > 오늘)
+   *    · 별지 9호·10호에 인쇄된다 (`annexReportDateISO()` — 수기값 > ④ 제출일 > 오늘.
+   *      ⑥ 제출일은 같은 규칙으로 별지 11호에 인쇄된다 — 2026-09-20 배선)
    *    · ⑤ 총 이행기간의 시작 기준이다 (`annex-fields.tsx` 기산 줄)
    *    · ⑥ 완료일이 그 기간 종료일에서 파생된다 (`lib/action-period-derive.ts`)
    *    즉 하루가 틀리면 **문서 3장의 날짜가 함께 밀린다.** 금요일에 내고 월요일에 입력하는 일이
@@ -1467,8 +1468,9 @@ function AnnexFields({ inspectionId, annexNo, canEdit, onSaved, compact, only, t
             <span className="block text-form-2xs font-medium text-ink-sub">{d.label}</span>
             <AnnexFieldInput def={shown} value={fields[d.key] ?? ''} rows={1}
               onChange={v => setFields(prev => ({ ...prev, [d.key]: v }))}
-              // 법정 기간 빠른 채움(총 이행기간+총 일수)은 짝으로만 뜻이 있어 한 번에 넣는다
-              baseDate={(fields.reportDate ?? '').trim() || todayKst()}
+              // 법정 기간 빠른 채움(총 이행기간+총 일수)은 짝으로만 뜻이 있어 한 번에 넣는다.
+              // 기산일 사슬은 인쇄 규칙과 같아야 한다: 수기 > ④ 제출 기록(auto.reportDate) > 오늘
+              baseDate={(fields.reportDate ?? '').trim() || (auto.reportDate ?? '').trim() || todayKst()}
               daysValue={fields.totalDays ?? ''}
               onPatch={patch => setFields(prev => ({ ...prev, ...patch }))} />
             {a && !(fields[d.key] ?? '').trim() && (

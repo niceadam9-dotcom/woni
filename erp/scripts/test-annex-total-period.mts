@@ -188,11 +188,15 @@ ok(resolves.length >= 1, `resolveActionPeriod 호출 ${resolves.length}건`)
 ok(resolves.every(a => a.includes(',')), '자동 폴백까지 넘긴다(인자 2개) — 하나만 넘기면 수기 없는 회차가 공란이 된다')
 /* 🎯 3순위 재료(2026-09-14) — **두 표면이 같은 것을 넘겨야** 한다. 기산일을 한쪽만 report11
    보고일로 잡으면 같은 회차의 PDF와 엑셀이 열흘 어긋난 기간을 인쇄한다(D-7).
-   ⚠ 인자 세 개를 세는 것으로는 부족하다 — **무엇을** 넘기는지를 본다. */
-const routeLegal = /resolveActionPeriod\(plan10Fields[\s\S]{0,240}?annexReportDateISO\(plan10Fields\)[\s\S]{0,120}?hasDefect/.test(routeSrc)
-ok(routeLegal, '🎯 엑셀 라우트가 법정 기본 재료를 **별지 10호 보고일**로 넘긴다')
-ok(!/resolveActionPeriod\(plan10Fields[\s\S]{0,240}?annexReportDateISO\(done11Fields\)/.test(routeSrc),
+   ⚠ 인자 세 개를 세는 것으로는 부족하다 — **무엇을** 넘기는지를 본다.
+   2026-09-20: 보고일 2순위(소방서 제출 기록)가 붙었다 — 10호 축은 ④(report9_submitted_at)다.
+   여기서 ⑥(report11_submitted_at)을 넘기면 축이 섞인다(아래 음성). */
+const routeLegal = /resolveActionPeriod\(plan10Fields[\s\S]{0,240}?annexReportDateISO\(plan10Fields,\s*row\.report9_submitted_at\)[\s\S]{0,120}?hasDefect/.test(routeSrc)
+ok(routeLegal, '🎯 엑셀 라우트가 법정 기본 재료를 **별지 10호 보고일**(수기+④ 제출 기록)로 넘긴다')
+ok(!/resolveActionPeriod\(plan10Fields[\s\S]{0,240}?annexReportDateISO\(done11Fields[,)]/.test(routeSrc),
   '(음성) 기산일을 11호 보고일로 잡지 않았다')
+ok(!/resolveActionPeriod\(plan10Fields[\s\S]{0,240}?annexReportDateISO\(plan10Fields,\s*row\.report11_submitted_at\)/.test(routeSrc),
+  '(음성) 기산일 2순위에 ⑥ 제출 기록을 섞지 않았다 — 10호 축은 ④다')
 // 그 결과가 실제로 값 빌더까지 가는가 — 계산해 놓고 안 넘기면 아무 일도 일어나지 않는다
 ok(/report9:\s*\{[^}]*actionPeriod/s.test(routeSrc), '🎯 계산한 기간을 buildWorkbookValues(report9)에 넘긴다')
 
@@ -254,9 +258,12 @@ const actResolves = [...actionsSrc.matchAll(/(?<!function\s)resolveActionPeriod\
 ok(actResolves.length >= 1, `🎯 PDF 11호 조립도 resolveActionPeriod를 부른다 (${actResolves.length}건)`)
 ok(actionsSrc.includes("loadAnnexInputs(admin, inspectionId, 'report10')"),
   "🎯 11호 분기가 report10 칸을 따로 읽는다 (그 분기의 fields는 report11이다)")
-// 🎯 PDF 10호도 같은 3순위 재료를 넘긴다 — 한쪽만 걸면 두 산출물이 다시 갈라진다
-ok(/resolveActionPeriod\(fields,\s*autoPeriod,[\s\S]{0,200}?annexReportDateISO\(fields\)[\s\S]{0,120}?hasDefect/.test(actionsSrc),
+// 🎯 PDF 10호도 같은 3순위 재료를 넘긴다 — 한쪽만 걸면 두 산출물이 다시 갈라진다.
+// 2026-09-20: 기산일에 2순위(제출 기록)가 붙었다 — 여기(10호 분기)의 submittedISO는 ④다
+ok(/resolveActionPeriod\(fields,\s*autoPeriod,[\s\S]{0,240}?annexReportDateISO\(fields,\s*submittedISO\)[\s\S]{0,120}?hasDefect/.test(actionsSrc),
   '🎯 PDF 10호도 법정 기본 재료를 넘긴다(엑셀과 같은 기산일·같은 조건)')
+ok(/submittedISO = kind === 'report10' \? inspSub\?\.report9_submitted_at : inspSub\?\.report11_submitted_at/.test(actionsSrc),
+  '🎯 제출 기록의 축이 문서를 따라간다 — 10호=④(9호와 한 봉투)·11호=⑥')
 // 지어낸 값을 조용히 인쇄하지 않는가 — 고지에 남기는지 소스로 확인
 ok(/법정 기본 10일/.test(actionsSrc), '🎯 법정 기본으로 인쇄될 때 고지에 남긴다(조용히 지어내지 않는다)')
 // 🚨 폐지된 입력을 가리키는 낡은 안내가 되살아나면 붉어진다 (2026-09-11 입력 열 제거)

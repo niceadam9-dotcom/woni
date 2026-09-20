@@ -306,7 +306,8 @@ export function AnnexComposePanel({ inspectionId, annexNo, customerId, from, onC
                         </label>
                         <AnnexFieldInput def={a ? { ...d, placeholder: a } : d} value={fields[d.key] ?? ''}
                           onChange={v => setField(d.key, v)} daysValue={fields.totalDays ?? ''}
-                          baseDate={(fields.reportDate ?? '').trim() || todayKst()} onPatch={patchFields} />
+                          // 기산일 사슬은 인쇄 규칙과 같아야 한다: 수기 > ④ 제출 기록(auto.reportDate) > 오늘
+                          baseDate={(fields.reportDate ?? '').trim() || (auto.reportDate ?? '').trim() || todayKst()} onPatch={patchFields} />
                         {a && !filled && (
                           <p className="text-form-2xs text-ink-soft mt-0.5">
                             <span className="inline-flex items-center rounded bg-brand-line-soft px-1 py-px text-form-3xs font-medium text-ink-sub mr-1">자동</span>

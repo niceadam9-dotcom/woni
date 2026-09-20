@@ -158,7 +158,7 @@ console.log('── D. 문구 상태(해당없음) ──')
 console.log('── E2. 보고일 G25 (43 S4 / D-4) ──')
 {
   // 서식은 `=개요!G10+5`(이행조치 종료일 + 5일)라는 근거 없는 추정이었다. PDF 11호는
-  // `annexReportDateISO()`(수기값 또는 오늘 KST)를 찍으므로 두 표면이 다른 날짜를 인쇄했다.
+  // `annexReportDateISO()`(수기값 > ⑥ 제출 기록 > 오늘 KST)를 찍으므로 두 표면이 다른 날짜를 인쇄했다.
   const g25 = ANCHORS.filter(a => a.sheet === '완료보고서' && a.cell === 'G25')
   check(`G25 앵커 = ${g25.length}개`, g25.length === 1, '개수 하한 선단언')
   check('G25 labelCell = A24(법정 문구 — 이 칸엔 인접 라벨이 없다)', g25[0]?.labelCell === 'A24')

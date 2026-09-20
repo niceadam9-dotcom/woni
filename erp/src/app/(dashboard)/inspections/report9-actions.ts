@@ -41,7 +41,7 @@ async function assembleAnnex1011(
   inspectionId: string,
   kind: 'report10' | 'report11',
 ): Promise<{ data: Annex1011Data; missing: string[] }> {
-  const [custRes, bldRes, contactsRes, defectsRes, formRes] = await Promise.all([
+  const [custRes, bldRes, contactsRes, defectsRes, formRes, inspRes] = await Promise.all([
     admin.from('customers').select('customer_name, address, fire_station, manager_contact_id').eq('id', customerId).single(),
     admin.from('buildings').select('purpose').eq('customer_id', customerId).eq('is_active', true)
       .order('created_at', { ascending: true }).limit(1),
@@ -51,6 +51,8 @@ async function assembleAnnex1011(
       .eq('inspection_id', inspectionId).order('created_at'),
     // B-1(소방계획서_19 K-1): 서식 1.7 선임현황 — 소방안전관리자 결정 원천
     admin.from('fire_plan_forms').select('sections').eq('customer_id', customerId).limit(1),
+    // 보고일 2순위(소방서 제출 기록, 2026-09-20) — 10호는 9호와 한 봉투(④), 11호는 ⑥의 기록을 본다
+    admin.from('inspections').select('report9_submitted_at, report11_submitted_at').eq('id', inspectionId).maybeSingle(),
   ])
   const cust = custRes.data as {
     customer_name: string; address: string | null; fire_station: string | null; manager_contact_id: string | null
@@ -71,6 +73,10 @@ async function assembleAnnex1011(
     action_end: string | null; action_taken: string | null; action_completed_at: string | null
   }
   const defects = (defectsRes.data ?? []) as DefectRow[]
+  /** 보고일 2순위 재료 — 축을 섞으면 안 된다: 10호에 ⑥ 기록(또는 그 반대)을 물리면
+   *  같은 봉투의 9호·10호가 다른 날짜를 인쇄한다(annexReportDateISO 주석의 축 정의가 정본). */
+  const inspSub = inspRes.data as { report9_submitted_at: string | null; report11_submitted_at: string | null } | null
+  const submittedISO = kind === 'report10' ? inspSub?.report9_submitted_at : inspSub?.report11_submitted_at
 
   const missing: string[] = []
   const data: Annex1011Data = {
@@ -181,8 +187,9 @@ async function assembleAnnex1011(
 
   // ③ 서식 고유 값 오버레이 (H-23, §4-A-0) — 작성 패널 저장분이 자동 계산값보다 우선
   const fields = await loadAnnexInputs(admin, inspectionId, kind)
-  // 수기 오버레이 포함한 최종 보고일 — 갑지 엑셀도 **같은 함수**를 부른다(43 S4)
-  data.reportDate = kdate(annexReportDateISO(fields))
+  // 수기 오버레이 포함한 최종 보고일 — 갑지 엑셀도 **같은 함수**를 부른다(43 S4).
+  // 2순위는 소방서 제출 기록(2026-09-20) — 제출을 기록한 회차는 다시 뽑아도 제출한 날이 인쇄된다.
+  data.reportDate = kdate(annexReportDateISO(fields, submittedISO))
   if (kind === 'report10') {
     // 작성 패널 daterange는 "YYYY-MM-DD ~ YYYY-MM-DD"로 저장 — 자동 산출과 같은 한국어 날짜로 변환 (과거 자유 텍스트는 그대로 통과)
     if (fstr(fields, 'totalPeriod')) data.totalPeriod = fstr(fields, 'totalPeriod').replace(/\d{4}-\d{2}-\d{2}/g, m => kdate(m))
@@ -196,7 +203,8 @@ async function assembleAnnex1011(
      *   `manualActionPeriod`가 못 읽는 값이라도 **사용자가 적은 것이 이긴다**. */
     if (!data.totalPeriod) {
       const legal = resolveActionPeriod(fields, autoPeriod, {
-        reportDateISO: annexReportDateISO(fields),
+        // 기산일도 인쇄되는 보고일과 **같은 값**이어야 한다(annex-total-period :67 — 두 폴백이 갈라지면 결함)
+        reportDateISO: annexReportDateISO(fields, submittedISO),
         hasDefect: hasDefectForLegalPeriod(legalDefectRows),
       })
       if (legal) {

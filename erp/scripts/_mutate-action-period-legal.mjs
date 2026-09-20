@@ -50,8 +50,8 @@ const MUTANTS = [
   {
     name: 'M5 엑셀만 기산일을 11호 보고일로 — 두 산출물이 열흘 어긋난다',
     file: ROUTE, suite: 'period',
-    from: '    reportDateISO: annexReportDateISO(plan10Fields),',
-    to: '    reportDateISO: annexReportDateISO(done11Fields),',
+    from: '    reportDateISO: annexReportDateISO(plan10Fields, row.report9_submitted_at),',
+    to: '    reportDateISO: annexReportDateISO(done11Fields, row.report11_submitted_at),',
     expect: '별지 10호 보고일',
   },
   {

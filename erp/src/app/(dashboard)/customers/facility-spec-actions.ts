@@ -265,12 +265,22 @@ export async function getAnnexInputsAction(
  *  (고객명을 고쳐도 공문 수신이 그대로인 사고). 화면은 이걸 placeholder로만 비추고,
  *  사용자가 직접 타이핑한 값만 annex_inputs에 남는다 — 그러면 종전대로 수동이 이긴다.
  *
- *  현재 공문(official)만 지원한다. 다른 서식은 자동값 조립부가 각기 달라 필요할 때 넓힌다. */
+ *  공문(official) 전 칸 + 별지 9·10·11호 보고일을 지원한다. 다른 서식은 자동값 조립부가 각기 달라 필요할 때 넓힌다. */
 export async function getAnnexAutoDefaultsAction(
   inspectionId: string,
   annexNo: string,
 ): Promise<{ defaults: Record<string, string>; error?: string }> {
   await requirePermission('inspection_register')
+  // 별지 9·10·11호 보고일 2순위 = 소방서 제출 기록(2026-09-20) — 9·10호는 ④, 11호는 ⑥의 기록.
+  // 인쇄 규칙(annexReportDateISO)과 같은 축이라, 빈 칸의 placeholder가 곧 실제로 인쇄될 날짜다.
+  if (annexNo === 'report9' || annexNo === 'report10' || annexNo === 'report11') {
+    const admin = createAdminClient()
+    const { data } = await admin.from('inspections')
+      .select('report9_submitted_at, report11_submitted_at').eq('id', inspectionId).maybeSingle()
+    const r = data as { report9_submitted_at: string | null; report11_submitted_at: string | null } | null
+    const sub = annexNo === 'report11' ? r?.report11_submitted_at : r?.report9_submitted_at
+    return { defaults: sub ? { reportDate: sub } : {} }
+  }
   if (annexNo !== 'official') return { defaults: {} }
   const admin = createAdminClient()
   try {

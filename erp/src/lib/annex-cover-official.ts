@@ -20,7 +20,7 @@ import type { OfficialData } from '@/lib/doc-templates/official'
 import type { DelegationData } from '@/lib/doc-templates/delegation'
 import { resolveFireSafetyManager, type ContactLite } from '@/lib/fire-safety-manager'
 // 날짜 한글 표기의 단일 원천 — 별지 9·10·11호와 갑지가 같은 함수를 써야 형식이 갈리지 않는다(2026-09-07)
-import { kdate } from '@/lib/report9-assemble'
+import { kdate, annexReportDateISO } from '@/lib/report9-assemble'
 import type { ManagerRow } from '@/components/customers/plan-form17'
 
 type Admin = ReturnType<typeof createAdminClient>
@@ -37,13 +37,15 @@ function ymLabel(iso: string | null | undefined): string {
 
 async function loadInspection(admin: Admin, inspectionId: string) {
   const { data } = await admin.from('inspections')
-    .select('id, customer_id, year, inspection_type, plan_type, is_initial, inspection_start_date, inspection_end_date, assigned_employee_id, customer:customers(customer_name)')
+    // report9_submitted_at — 위임장 일자가 별지 9호 보고일 축(수기 > ④ 제출 기록 > 오늘)을 따라가는 데 쓴다
+    .select('id, customer_id, year, inspection_type, plan_type, is_initial, inspection_start_date, inspection_end_date, assigned_employee_id, report9_submitted_at, customer:customers(customer_name)')
     .eq('id', inspectionId).single()
   return data as unknown as {
     id: string; customer_id: string; year: number
     inspection_type: string | null; plan_type: string | null; is_initial: boolean | null
     inspection_start_date: string | null; inspection_end_date: string | null
     assigned_employee_id: string | null
+    report9_submitted_at: string | null
     customer: { customer_name: string } | null
   } | null
 }
@@ -322,12 +324,11 @@ export async function assembleDelegation(
   // 같은 인쇄 번들에 별지 9호와 나란히 들어가는데, 종전엔 위임장만 점검일 축(종료일 → 시작일)이라
   // 두 문서의 날짜가 서로 달랐다. 게다가 inspection_end_date는 실측 2/188만 채워져 있어(2026-08-20)
   // 사실상 '점검 시작일'이 찍히고 있었다 — 의도(종료일)와도 어긋났다.
-  // 폴백: [입력] 수기 → 별지 9호 보고일(annex_inputs.report9.reportDate) → 오늘(KST).
-  // 마지막 단은 report9-actions의 기본 보고일과 같은 식이라 둘이 자동으로 같은 날짜가 된다.
+  // 폴백: [입력] 수기 → 별지 9호 보고일(`annexReportDateISO` — 수기 > ④ 제출 기록 > 오늘).
+  // 종전엔 이 사슬을 여기 손으로 다시 적어 두 번째 가지(④ 제출 기록, 2026-09-20)가 빠질 뻔했다 —
+  // 별지 9호와 같은 함수를 불러야 같은 봉투의 두 문서가 같은 날짜를 인쇄한다(D-7).
   const r9f = ((r9Res.data as { fields: Record<string, unknown> | null } | null)?.fields ?? {}) as Record<string, unknown>
-  const r9Date = String(r9f['reportDate'] ?? '').trim()
-  const kstToday = new Date(Date.now() + 9 * 3_600_000).toISOString().split('T')[0]
-  const [sy, sm, sdd] = (/^\d{4}-\d{2}-\d{2}$/.test(r9Date) ? r9Date : kstToday).split('-').map(Number)
+  const [sy, sm, sdd] = annexReportDateISO(r9f, insp.report9_submitted_at).split('-').map(Number)
   const data: DelegationData = {
     typeLabel: inspectionTypeLabel(insp.inspection_type, !!insp.is_initial, insp.plan_type),
     owner, agent, periodLabel, daysLabel,

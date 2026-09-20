@@ -85,17 +85,28 @@ export function todayKstISO(): string {
   return new Date(Date.now() + 9 * 3600_000).toISOString().split('T')[0]
 }
 
-/** 별지 10·11호 「보고일」 — **단일 원천**(소방계획서_43 S4 / Q-3 확정).
+/** 별지 9·10·11호 「보고일」 — **단일 원천**(소방계획서_43 S4 / Q-3 확정).
  *
- *  규칙은 하나다: 작성 패널 수기값(annex_inputs.reportDate)이 있으면 그것, 없으면 오늘(KST).
+ *  규칙은 하나다: ① 작성 패널 수기값(annex_inputs.reportDate) → ② 소방서 제출 기록
+ *  (`submittedISO` — 9·10호는 ④ `report9_submitted_at`, 11호는 ⑥ `report11_submitted_at`)
+ *  → ③ 오늘(KST).
+ *
+ *  ②는 2026-09-20 사용자 요구 — 「문서의 날짜를 소방서 제출일로 맞추고 싶다」. 제출을 기록한
+ *  회차의 문서를 나중에 다시 뽑아도 그날 날짜(오늘)가 아니라 **제출한 날**이 인쇄된다.
+ *  수기값이 여전히 1순위인 이유: 그 칸의 라벨이 「문서에 인쇄할 제출일」이다 — 사용자가 직접
+ *  적은 인쇄 지시를 기록이 덮으면 안 된다(0915 라벨 분리와 같은 축).
  *
  *  왜 함수로 빼는가 — 종전엔 이 규칙이 `report9-actions`에만 있었고 갑지 엑셀
  *  `완료보고서!G25`는 서식 수식 `=개요!G10+5`(= 이행조치 종료일 + 5일)를 썼다. 그래서 같은
  *  문서의 두 표면이 **다른 날짜**를 인쇄했다(43 D-4). 여기서 ISO를 주고 표면마다 자기 표기로
  *  바꾼다 — PDF는 `kdate()`, 엑셀은 `isoToSerial()`. 규칙을 양쪽에 적으면 또 갈라진다(D-7). */
-export function annexReportDateISO(fields: Record<string, unknown>): string {
+export function annexReportDateISO(fields: Record<string, unknown>, submittedISO?: string | null): string {
   const f = fstr(fields, 'reportDate')
-  return /^\d{4}-\d{2}-\d{2}$/.test(f) ? f : todayKstISO()
+  if (/^\d{4}-\d{2}-\d{2}$/.test(f)) return f
+  // DATE 컬럼이라 ISO가 정상이지만, 형식이 어긋난 값은 조용히 3순위로 — 깨진 날짜를 인쇄하지 않는다
+  const s = (submittedISO ?? '').trim()
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s
+  return todayKstISO()
 }
 
 /** 별지 9호 데이터 조립 — 워커 process_report9(fireplan-worker.py)와 동일 원본·규칙의 TS 이식 (H-5, 파리티 우선).
@@ -916,8 +927,9 @@ export async function assembleReport9(
 
   // ③ 서식 고유 값 오버레이 (H-23, §4-A-0) — 보고일 수기 지정·비고 (작성 패널 저장분)
   const annexFields = await loadAnnexInputs(admin, inspectionId, 'report9')
-  const fReportDate = fstr(annexFields, 'reportDate')
-  if (/^\d{4}-\d{2}-\d{2}$/.test(fReportDate)) data.reportDate = kdate(fReportDate)
+  // 보고일 = 수기 > ④ 소방서 제출 기록 > 오늘 — 규칙은 annexReportDateISO 단일 원천(2026-09-20).
+  // ⚠ 위 select의 report9_submitted_at이 여기의 두 번째 가지다 — select에서 빼면 조용히 오늘로 떨어진다.
+  data.reportDate = kdate(annexReportDateISO(annexFields, insp.report9_submitted_at))
   const fNote = fstr(annexFields, 'note')
   if (fNote) data.note = fNote
   // 2쪽 3행(소방계획서·자체점검·교육훈련)의 확정 — **소방계획서 서식 1.10이 정본**이다(소방계획서_44).

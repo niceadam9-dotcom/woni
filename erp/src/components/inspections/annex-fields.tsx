@@ -43,7 +43,7 @@ export const ANNEX_TITLES: Record<ComposeAnnexNo, { title: string; doc: string }
 /** ③ 서식 고유 값 폼 정의 — 별지 MD §3 계층 매핑 기준 (문서 레벨 값만, 불량별 값은 불량 카드가 원본) */
 export const FIELD_DEFS: Record<ComposeAnnexNo, FieldDef[]> = {
   report9: [
-    { key: 'reportDate', label: '보고일', type: 'date', hint: '미입력 시 생성일(오늘)로 출력' },
+    { key: 'reportDate', label: '보고일', type: 'date', hint: '미입력 시 ④ 소방서 제출 기록, 그것도 없으면 생성일(오늘)로 출력' },
     { key: 'note', label: '비고·보완 문구', type: 'textarea', hint: '1쪽 하단(유의사항 위)에 1줄 출력 — 없으면 미출력' },
     // ⚠ 2쪽 3행(소방계획서·자체점검(전년도)·교육훈련(전년도))의 6칸은 **여기 없다** —
     //   소방계획서_44로 소방계획서 서식 1.10 「전년도 업무 실시사항」으로 이관했다.
@@ -53,9 +53,9 @@ export const FIELD_DEFS: Record<ComposeAnnexNo, FieldDef[]> = {
     //   레거시 annex_inputs 값은 조립기가 폴백으로만 읽는다(lib/prev-year-duty.ts).
   ],
   report10: [
-    // 이 칸은 아래 총 이행기간의 **기산점**이다 — 비어 있으면 위젯이 오늘을 기산점으로 잡는다
+    // 이 칸은 아래 총 이행기간의 **기산점**이다 — 비어 있으면 위젯이 ④ 제출 기록(없으면 오늘)을 기산점으로 잡는다
     { key: 'reportDate', label: '문서에 인쇄할 제출일', type: 'date',
-      hint: '미입력 시 생성일(오늘)로 출력 — 이 날짜가 총 이행기간의 기산점입니다. ⚠ 이 칸은 ④를 닫지 않습니다 — 소방서에 낸 사실은 아래 [소방서 제출 기록]에 남깁니다' },
+      hint: '미입력 시 ④ 소방서 제출 기록(그것도 없으면 오늘)으로 출력 — 이 날짜가 총 이행기간의 기산점입니다. ⚠ 이 칸은 ④를 닫지 않습니다 — 소방서에 낸 사실은 아래 [소방서 제출 기록]에 남깁니다' },
     // 총일수·시작·종료가 한 위젯이다 — 셋은 따로 뜻이 없다(기간과 일수가 어긋난 채 저장되던 자리).
     // 총일수를 **맨 앞에** 두는 것은 실제 업무 순서다: 수리·정비냐 철거·교체냐를 먼저 정하면 기간이 정해진다.
     { key: 'totalPeriod', label: '총 이행기간 (수동 보정)', type: 'actionperiod', fullRow: true,
@@ -72,7 +72,7 @@ export const FIELD_DEFS: Record<ComposeAnnexNo, FieldDef[]> = {
        했는데 ⑥이 미완료」라고 물어 온 자리다(운영 실측: report11 문서값은 저장됐고
        `report11_submitted_at`은 null). 라벨이 **역할을 먼저 말하게** 한다. */
     { key: 'reportDate', label: '문서에 인쇄할 제출일', type: 'date',
-      hint: '미입력 시 생성일(오늘)로 출력 — ⚠ 이 칸은 ⑥를 닫지 않습니다. 소방서에 낸 사실은 아래 [소방서 제출 기록]에 남깁니다' },
+      hint: '미입력 시 ⑥ 소방서 제출 기록(그것도 없으면 오늘)으로 출력 — ⚠ 이 칸은 ⑥를 닫지 않습니다. 소방서에 낸 사실은 아래 [소방서 제출 기록]에 남깁니다' },
     { key: 'note', label: '완료 보고 문구', type: 'textarea', hint: '서명 블록 위에 1줄 출력 — 없으면 미출력' },
     { key: 'evidence', label: '증빙 목록 메모', type: 'textarea', hint: '내부 메모 — 전/후 사진·계약서 첨부는 제출 패키지에 자동 포함' },
   ],
@@ -120,8 +120,9 @@ export function AnnexFieldInput({ def, value, onChange, rows = 2, baseDate, onPa
   /** `actionperiod` 전용 — 짝으로 저장되는 총 일수(`totalDays`)의 현재 값.
    *  기간이 비어 있을 때 select가 무엇에 걸려 있는지 아는 유일한 단서다(구 데이터 호환). */
   daysValue?: string
-  /** 법정 기간 빠른 채움의 기산일(별지 10호 제출일). 문서가 제출일을 비우면 오늘로 인쇄하므로
-   *  호출부가 `fields.reportDate || todayKst()`를 넘긴다 — 화면과 인쇄물이 같은 날을 본다. */
+  /** 법정 기간 빠른 채움의 기산일(별지 10호 제출일). 인쇄 규칙(annexReportDateISO)이
+   *  수기 > ④ 제출 기록 > 오늘이므로 호출부가 `fields.reportDate || auto.reportDate || todayKst()`를
+   *  넘긴다 — 화면과 인쇄물이 같은 날을 본다. */
   baseDate?: string
   /** 한 번에 두 칸(총 이행기간·총 일수)을 함께 바꾼다. 없으면 빠른 채움을 그리지 않는다 —
    *  두 칸을 따로 누르게 하면 기간과 일수가 어긋난 채 저장된다. */

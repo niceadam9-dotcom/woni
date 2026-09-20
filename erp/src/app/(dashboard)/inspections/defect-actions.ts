@@ -44,7 +44,7 @@ async function loadActionPeriod(
   //   (annex-total-period.resolveActionPeriod 주석), 이 함수의 값은 아래 두 경로에서 **DB에 쓰인다**:
   //     · setDefectCompletionAction → `action_completed_at`에 period.endISO를 저장
   //     · completeAllDefectsAction  → 같은 값으로 전건 저장
-  //   게다가 그 기산일(`annexReportDateISO`)은 수기 보고일이 없으면 **오늘**로 폴백하므로,
+  //   게다가 그 기산일(`annexReportDateISO`)은 수기 보고일도 ④ 제출 기록도 없으면 **오늘**로 폴백하므로,
   //   기간이 매일 하루씩 움직인다(실측: 기간 없는 회차의 reportDate가 운영 1건·스테이징 5건 모두 없음).
   //   넘기면 **매일 달라지는 지어낸 날짜를 영구 저장**하게 된다.
   //

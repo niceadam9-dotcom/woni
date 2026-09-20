@@ -62,7 +62,7 @@ export function manualActionPeriod(fields: Record<string, unknown>): ActionPerio
 /** 3순위 「법정 기본」의 재료 — 기산일(보고일)과 「이 회차에 이행할 것이 있는가」. */
 export type LegalFallbackCtx = {
   /** 조문의 기산일 = 보고일(`annexReportDateISO`). 날짜꼴이 아니면 기본을 깔지 않는다.
-   *  ⚠ 운영 호출부 둘은 모두 `annexReportDateISO()`를 넘기고 그 함수는 **없으면 오늘**을 준다 —
+   *  ⚠ 운영 호출부 둘은 모두 `annexReportDateISO()`(수기 > ④ 제출 기록 > 오늘)를 넘기고 그 함수는 **없으면 오늘**을 준다 —
    *    즉 이 경계는 실제로는 안 걸린다(픽스처·구 호출부용 방어로만 남아 있다). 인쇄되는 보고일도
    *    같은 함수를 타므로 문서 안에서는 일관하다. **두 폴백이 갈라지면 그때가 결함**이다. */
   reportDateISO?: string | null

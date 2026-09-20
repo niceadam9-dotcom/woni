@@ -47,13 +47,15 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
 
   const admin = createAdminClient()
   const { data: insp } = await admin.from('inspections')
-    .select('id, customer_id, year, inspection_start_date, inspection_end_date, plan_type, inspection_type')
+    // 제출 기록 두 컬럼은 보고일 2순위(2026-09-20) — 빼면 저장은 멀쩡한데 보고일만 조용히 오늘로 떨어진다
+    .select('id, customer_id, year, inspection_start_date, inspection_end_date, plan_type, inspection_type, report9_submitted_at, report11_submitted_at')
     .eq('id', id).maybeSingle()
   if (!insp) return NextResponse.json({ error: '점검 건을 찾을 수 없습니다.' }, { status: 404 })
   const row = insp as {
     customer_id: string; year: number
     inspection_start_date: string | null; inspection_end_date: string | null
     plan_type: string | null; inspection_type: string | null
+    report9_submitted_at: string | null; report11_submitted_at: string | null
   }
   // 소재지·사용승인일은 조립 데이터에 없어 라우트가 직접 보탠다. 건축물 현황(S3-5 1차 확장)은
   // buildings 활성·최고참 1동 — report9-actions:225와 같은 축이라 별지 9호 PDF와 같은 동을 본다.
@@ -139,7 +141,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
 
   // 값의 원천은 PDF와 동일한 조립 함수 — annex_inputs 수동 오버레이까지 그대로 따라온다.
   // r9(별지 9호 조립, S7-0 추출본)는 점검 구분·점검자·동의·등급·교육이수일·점검인력 명단의 원천
-  // 별지 11호 보고일 — 작성 패널 수기값(annex_inputs.report11)이 있으면 그것, 없으면 오늘(KST).
+  // 별지 11호 보고일 — 수기값(annex_inputs.report11) > ⑥ 소방서 제출 기록 > 오늘(KST) (2026-09-20).
   // 판정은 `annexReportDateISO` 단일 원천이라 PDF 11호와 갈라질 수 없다(43 S4 / D-4 수리).
   const [official, delegation, r9, done11Fields, plan10Fields] = await Promise.all([
     assembleOfficial(admin, row.customer_id, id),
@@ -154,9 +156,9 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
    *   위 주석의 「annex_inputs 수동 오버레이까지 그대로 따라온다」는 그때까지 보고일에만 참이었다.
    * ⚠ 우선순위 규칙은 `resolveActionPeriod` 한 곳에 있다 — 여기 다시 적으면 또 갈라진다(D-7).
    * ⚠ 3순위 「법정 기본」의 재료를 넘긴다(2026-09-14) — **PDF 10호와 같은 재료라야** 한다.
-   *   기산일은 별지 10호의 보고일(`plan10Fields`)이다: 11호(완료보고) 보고일이 아니다. */
+   *   기산일은 별지 10호의 보고일(`plan10Fields` + ④ 제출 기록)이다: 11호(완료보고) 보고일이 아니다. */
   const actionPeriod = resolveActionPeriod(plan10Fields, r9.data.actionPeriod, {
-    reportDateISO: annexReportDateISO(plan10Fields),
+    reportDateISO: annexReportDateISO(plan10Fields, row.report9_submitted_at),
     hasDefect: hasDefectForLegalPeriod(r9.data.defectRows.length),
   })
 
@@ -165,7 +167,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
     delegation: delegation.data,
     report9: {
       ...r9.data,
-      reportDateISO: annexReportDateISO(done11Fields),
+      reportDateISO: annexReportDateISO(done11Fields, row.report11_submitted_at),
       actionPeriod,
       // 「이행완료 사항」 4행 일자 = 총 이행기간 종료일(2026-09-10 사용자 지시).
       // PDF 11호도 **같은 함수**를 탄다(report9-actions) — 한쪽만 걸면 다시 갈라진다.
