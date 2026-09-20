@@ -51,7 +51,7 @@ try {
     check('사용승인일 칩 → 기본정보 탭 전환 (칩 없음 — 스킵 아님 실패)', false)
   }
 
-  // 4) 다른 탭에서 전체 이동 <a> 케이스 — 건물 탭 안내 링크가 [소방시설] 탭으로 간다
+  // 4) 다른 탭에서 전체 이동 <a> 케이스 — 건물 탭 안내 링크가 [공통] 탭으로 간다
   //    (2026-09-20 탭 재편: 구 ?tab=plan&form=1.4 안내가 ?tab=facilities로 정본화 — 구 URL 변환은 _probe-annex-tab ②)
   await page.evaluate(() => { (window as unknown as { next?: { router?: unknown } }).next; history.scrollRestoration = 'auto' })
   await page.locator('[role=tab]:has-text("건물·시설")').click()
@@ -59,7 +59,7 @@ try {
   const link = page.locator('a[href*="tab=facilities"]').first()
   if (await link.count() > 0) {
     await link.click()
-    const facSel = await page.waitForSelector('[role=tab][aria-selected="true"]:has-text("소방시설")', { timeout: 15000 })
+    const facSel = await page.waitForSelector('[role=tab][aria-selected="true"]:has-text("공통")', { timeout: 15000 })
       .then(() => true).catch(() => false)
     const activeLabel = await page.locator('[role=tab][aria-selected="true"]').first().textContent()
     check('페이지 내 링크(?tab=facilities) → [소방시설] 탭 전환', facSel, `url=${page.url()} active=${activeLabel}`)

@@ -465,9 +465,11 @@ export default async function CustomerDetailPage({
     { key: 'contacts', label: '관계인', badge: `(${contacts.length})`, warn: !obState.contacts },
     // 일반관리도 소방계획서 대상 (소방계획서_6 W-14·D-6). 뱃지 = 목차 완성도 합산(§1-4)
     { key: 'plan', label: '소방계획서', badge: `${formFilled}/${formTotal}`, warn: readiness.done < readiness.total },
-    // 소방시설(구 소방계획서 트리 1.4) — 소방계획서·별지 4·9호·점검표가 모두 읽는 공통 축이라
-    // 최상위 탭으로 승격 (2026-09-20 사용자 확정). 42종 체크 + 설비 대장 + 다중이용업소 카드.
-    { key: 'facilities', label: '소방시설', badge: installedTabCount > 0 ? `${installedTabCount}종` : undefined, warn: !facilitiesDone },
+    // 공통 탭(구 소방계획서 트리 1.4) — 2026-09-20 사용자 확정: 소방계획서는 셋으로 갈린다
+    // 「공통(지금은 1.4 소방시설) / 보고서(별지 4~11호) / 소방계획서(계획서 전용)」.
+    // 1.4는 소방계획서·별지 4·9호·점검표가 모두 읽는 공통 축이라 여기 산다(42종 체크 + 설비 대장 +
+    // 다중이용업소 카드). ⭐ 확장 규칙(사용자 확정): 앞으로 공통으로 판정되는 서식은 이 탭에 추가한다.
+    { key: 'facilities', label: '공통', badge: installedTabCount > 0 ? `${installedTabCount}종` : undefined, warn: !facilitiesDone },
     // 보고서(구 라벨 '별지서식', 2026-09-20 개명 — key 'annex'·딥링크·testid는 불변: 프로브 11종 의존).
     // 뱃지 없음(D34-3): 별지 화면의 '회차'는 inspection_plan_items ∪ inspections인데 이 페이지는
     // plan_items를 조회하지 않아, 뱃지 n/m과 실제 카드 수가 어긋난다.
@@ -702,7 +704,7 @@ export default async function CustomerDetailPage({
       {/* 소방시설 현황 패널은 [소방시설] 탭으로 이동 (구 소방계획서 1.4 — 2026-09-20 탭 승격, 건물목록은 잔류) */}
       <div className="rounded-xl border border-brand-line-soft bg-brand-tint px-4 py-3 text-form-sm text-ink-sub">
         {/* D-4(소방계획서_30): 같은 경로 ?tab= Link는 서버를 재렌더하지 않아 탭이 안 바뀐다 — <a> 전체 이동 */}
-        소방시설 현황 입력은 <a href={`/customers/${customer.id}?tab=facilities`} className="text-brand hover:underline">[소방시설] 탭</a>으로 이동했습니다.
+        소방시설 현황 입력은 <a href={`/customers/${customer.id}?tab=facilities`} className="text-brand hover:underline">[공통] 탭(1.4 소방시설)</a>으로 이동했습니다.
       </div>
     </>
   )
@@ -880,12 +882,16 @@ export default async function CustomerDetailPage({
     />
   )
 
-  // 소방시설 탭 (2026-09-20 사용자 확정) — 종전에는 PlanTabView의 1.4 노드였다.
+  // 공통 탭 (2026-09-20 사용자 확정) — 종전에는 PlanTabView의 1.4 노드였다.
   // 소방계획서·별지 4·9호·점검표가 모두 읽는 공통 축이라 계획서 트리가 아니라 최상위 탭이 소유한다.
   // 42종 체크 + 설비 대장 + 다중이용업소 카드가 함께 왔고, 「기타」 7종만 보고서 탭·1.6으로 갈라졌다
   // (showEtc=false — 저장 rows·서버 delete 범위도 함께 좁힌다). 카드 껍데기는 annexTab과 같은 복제본.
+  // ⭐ 확장 규칙(사용자 확정): 새로 공통으로 판정되는 서식은 이 탭에 **추가**한다 — 아래 안내줄이 그 계약.
   const facilitiesTab = (
     <div className="bg-surface rounded-xl border border-line shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-5 space-y-4">
+      <p className="text-form-xs text-ink-meta rounded-lg bg-brand-tint border border-brand-line-soft px-3 py-1.5">
+        공통 입력 — 여기 값은 소방계획서·별지 4호·9호·점검표가 함께 씁니다. 공통 서식이 늘면 이 탭에 추가됩니다.
+      </p>
       <PlanForm14 customerId={customer.id} buildings={facilityBuildings} canManage={canManage}
         canRegister={can(profile.role as UserRole, 'inspection_register')} specsByBuilding={specsByBuilding}
         showMultiUse multiUse={fpSections.multiUse ?? null} showEtc={false} />

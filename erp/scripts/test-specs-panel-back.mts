@@ -82,8 +82,8 @@ try {
   // ══ ⓪ 전제 — 버튼이 실재하고 패널은 닫혀 있다 (여기가 무너지면 아래는 전부 공허하다) ══
   await goFresh()
   check('⓪ (전제) 1.4에 [설비 대장] 버튼이 있다', await openBtn().count() > 0)
-  // 2026-09-20 탭 재편 — 1.4는 최상위 [소방시설] 탭이 됐다(구 form=1.4 URL은 서버가 그 탭으로 변환)
-  check('⓪ (전제) 출발은 소방시설 탭', (await activeTab(page)).includes('소방시설'), await activeTab(page))
+  // 2026-09-20 탭 재편 — 1.4는 최상위 [공통] 탭이 됐다(구 form=1.4 URL은 서버가 그 탭으로 변환)
+  check('⓪ (전제) 출발은 공통 탭', (await activeTab(page)).includes('공통'), await activeTab(page))
   check('⓪ (전제) 패널은 닫힌 상태로 시작', !(await panelOpen(page)))
 
   // ══ ④ 대조군 먼저 — 패널을 안 연 같은 화면에서 뒤로가기는 **실제로 고객 목록으로 나간다** ══
@@ -114,7 +114,7 @@ try {
   const backLoc = await loc(page)
   check('① **뒤로가기해도 고객 상세에 남는다** — 종전엔 여기서 고객 목록으로 나갔다',
     backLoc.startsWith(`${LIST}/${custId}`), `도착=${backLoc}`)
-  check('① 소방시설 탭이 그대로 활성', (await activeTab(page)).includes('소방시설'), await activeTab(page))
+  check('① 공통 탭이 그대로 활성', (await activeTab(page)).includes('공통'), await activeTab(page))
 
   // ══ ③ X로 닫으면 히스토리에 찌꺼기가 **누적되지** 않는다 ═══════════════════
   //    되감지 않으면 여닫은 횟수만큼 뒤로가기를 눌러야 화면을 벗어난다.

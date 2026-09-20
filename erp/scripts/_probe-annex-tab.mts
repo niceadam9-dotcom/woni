@@ -1,12 +1,12 @@
 // 소방계획서_34 S7-3/S7-5 — 별지 서식 최상위 탭 승격 프로브 (2026-08-29)
-// 2026-09-20 탭 재편 반영: 라벨 「별지서식」→「보고서」, [소방시설] 탭(구 소방계획서 1.4)이
+// 2026-09-20 탭 재편 반영: 라벨 「별지서식」→「보고서」, [공통] 탭(구 소방계획서 1.4 — 소방계획서를 공통/보고서/소방계획서 셋으로 분리)이
 // 소방계획서와 보고서 사이에 끼었고, ?tab=plan&form=1.4 도 annex와 같은 규약으로 서버 변환된다.
 // ①③의 종전 단언(annex가 plan 바로 오른쪽 · form=1.4가 트리 1.4 선택)은 그 구계약이라
 // **반대 방향의 새 계약으로 갈아끼웠다**(지우지 않았다). ② 딥링크 변환 축은 문자 그대로 존치.
 //
 // 이 프로브가 붙들고 있는 것 4가지. 어느 하나도 기존 스위트가 보지 않는다:
-//   ① 탭이 실재하고 순서가 **소방계획서 → 소방시설 → 보고서**인가 (nth 기반 셀렉터의 축)
-//   ② 구 딥링크 ?tab=plan&form=annex → 보고서 탭 / ?tab=plan&form=1.4 → 소방시설 탭.
+//   ① 탭이 실재하고 순서가 **소방계획서 → 공통 → 보고서**인가 (nth 기반 셀렉터의 축)
+//   ② 구 딥링크 ?tab=plan&form=annex → 보고서 탭 / ?tab=plan&form=1.4 → 공통 탭.
 //      → page.tsx의 정규화 줄을 누가 지우면 **여기만** 빨강이 된다. 사용자 북마크와 프로브 11종의 생명줄.
 //   ③ 소방계획서 트리에 별지·1.4 노드가 되살아나지 않았는가 (되살아나면 조회 왕복이 이중으로 돈다)
 //   ④ **지연 마운트** — 기본정보 탭만 열었을 때 별지 회차 조회 서버액션이 돌지 않는가
@@ -52,14 +52,15 @@ try {
   await page.waitForSelector('h1', { timeout: 30000 })
   const labels = await tabLabels(page)
   const iPlan = labels.findIndex(t => t.includes('소방계획서'))
-  const iFac = labels.findIndex(t => t.startsWith('소방시설'))
+  // 라벨은 「공통」(2026-09-20 사용자 확정 — 소방계획서 3분리: 공통/보고서/소방계획서, 새 공통 서식은 이 탭에 추가)
+  const iFac = labels.findIndex(t => t.startsWith('공통'))
   const iAnnex = labels.findIndex(t => t.startsWith('보고서'))
   check('① [보고서] 탭 실재(구 별지서식 개명)', iAnnex >= 0, JSON.stringify(labels))
-  check('① [소방시설] 탭 실재(구 소방계획서 1.4)', iFac >= 0, JSON.stringify(labels))
-  check('① 순서: 소방계획서 → 소방시설 → 보고서', iPlan >= 0 && iFac === iPlan + 1 && iAnnex === iFac + 1,
+  check('① [공통] 탭 실재(1.4 소방시설이 산다)', iFac >= 0, JSON.stringify(labels))
+  check('① 순서: 소방계획서 → 공통 → 보고서', iPlan >= 0 && iFac === iPlan + 1 && iAnnex === iFac + 1,
     `plan=${iPlan} fac=${iFac} annex=${iAnnex}`)
   // 라벨 겹침 금지 — '소방계획서 별지' 류로 바꾸면 has-text("소방계획서")가 두 탭을 잡는다.
-  // '소방시설'도 같은 축: '소방계획서'와 서로 부분문자열이 아니어야 role=tab 셀렉터가 하나만 잡는다
+  // '공통'도 같은 축: '소방계획서'와 서로 부분문자열이 아니어야 role=tab 셀렉터가 하나만 잡는다
   check('① 라벨이 서로 부분문자열이 아니다(셀렉터 충돌 방지)',
     !labels[iAnnex]?.includes('소방계획서') && !labels[iFac]?.includes('소방계획서')
       && !labels[iPlan]?.includes(labels[iAnnex] ?? '보고서'), `${labels[iFac]} / ${labels[iAnnex]}`)
@@ -109,8 +110,8 @@ try {
   // form=1.4 변환 — annex와 같은 규약(2026-09-20 신설). 지우면 구 북마크가 조용히 1.1로 떨어진다
   await page.goto(`${BASE}/customers/${custId}?tab=plan&form=1.4`)
   await page.waitForSelector('h1', { timeout: 30000 })
-  check('② 구 딥링크 ?tab=plan&form=1.4 → [소방시설] 탭',
-    (await activeTab(page)).includes('소방시설'), await activeTab(page))
+  check('② 구 딥링크 ?tab=plan&form=1.4 → [공통] 탭',
+    (await activeTab(page)).includes('공통'), await activeTab(page))
   // 이 프로브 고객은 건물이 없다 — PlanForm14는 그때 42종 표 대신 건물 등록 안내를 그린다.
   // 어느 쪽이든 「1.4 본체가 마운트됐다」는 증거다(빈 패널·1.1 낙하가 아니라는 것이 이 단언의 뜻)
   check('② 그 화면에 1.4 본체가 실제로 떠 있다(42종 표 또는 무건물 안내)',

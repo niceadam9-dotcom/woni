@@ -456,9 +456,9 @@ try {
   // zones(1.2)·hazards(1.2)·evacPlan(3.4)·brigade(2장)가 저장돼 있으므로 웹 생성 기본값에 반영됨 — 코드 대조 + 저장 검증으로 충족
 
   // ── 4.7) 서식 1.4 양식 재현 (P4-②b) — 체크·하위 연동·저장·DB 반영 ──
-  // 2026-09-20: 1.4가 최상위 [소방시설] 탭으로 승격 — 트리 노드 클릭 대신 탭으로 들어간다.
+  // 2026-09-20: 1.4가 최상위 [공통] 탭으로 승격(소방계획서 3분리) — 트리 노드 클릭 대신 탭으로 들어간다.
   // (트리에서의 부재는 _probe-annex-tab ③이 단언한다)
-  await page.locator('[role=tab]').filter({ hasText: '소방시설' }).first().click()
+  await page.locator('[role=tab]').filter({ hasText: '공통' }).first().click()
   await page.waitForSelector('text=서식 1.4 소방시설 현황')
   check('서식 1.4 — 양식 표 렌더', await page.isVisible('text=소화기구 및 자동소화장치'))
   // 소방계획서_9(a9e2df3): 설비를 체크할 때마다 '설비 대장' 우측 슬라이드 패널이 열리고,
@@ -555,11 +555,11 @@ try {
     await page.locator('[data-testid="specs-footer-status"]').textContent()
       .then(t => (t ?? '').includes('모든 변경이 저장됐습니다')))
 
-  // 건물·시설 탭 — 패널 이동 안내 (2026-09-20 목적지가 [소방시설] 탭으로 바뀜)
+  // 건물·시설 탭 — 패널 이동 안내 (2026-09-20 목적지가 [공통] 탭으로 바뀜)
   await page.goto(`${BASE}/customers/${customerId}?tab=buildings`)
   await page.waitForSelector('text=소방시설 현황 입력은')
-  check('건물 탭 — 시설현황 이동 안내가 [소방시설] 탭을 가리킨다',
-    await page.isVisible('a:has-text("[소방시설] 탭")'))
+  check('건물 탭 — 시설현황 이동 안내가 [공통] 탭을 가리킨다',
+    await page.isVisible('a:has-text("[공통] 탭")'))
 
   // ── 5) 일반관리 고객 — 특례 제거(소방계획서_6 W-14·W-19): 소방안전관리와 동일 취급 ──
   // 구 배너('작성 대상이 아닙니다')는 32c2ace에서 설계상 제거 — 일반관리도 소방계획서·필수 완성도 대상
