@@ -39,12 +39,18 @@ try{
   check('예외 체크가 DB에 저장된다(plan_anchor_manual=true)',data?.plan_anchor_manual===true,String(data?.plan_anchor_manual))
   if(custId){
     await new Promise(r=>setTimeout(r,3000))
-    const {data:items}=await raw.from('inspection_plan_items').select('plan_type,scheduled_date').eq('customer_id',custId).neq('plan_type','monthly').order('scheduled_date')
+    const {data:items}=await raw.from('inspection_plan_items').select('plan_type,scheduled_date,inspection_id').eq('customer_id',custId).neq('plan_type','monthly').order('scheduled_date')
     console.log('생성된 자체점검:',(items??[]).map(i=>`${i.scheduled_date} ${i.plan_type}`).join(' | '))
-    // ⚠ 당월 항목이 이미 지났으면 생성기가 **오늘 이후 첫 영업일로 보정**한다
-    //   (inspection-plan-generator.ts:307 — 등록 직후부터 지연⚠로 뜨는 것 방지).
-    //   그래서 2026-09-11(과거)은 오늘로 당겨지는 게 정상이다. 기산 '일'이 11인지는
-    //   **보정 대상이 아닌 내년 항목**으로 판정한다(2026-09-14: 처음엔 이 규칙을 몰라 빨강이 났다).
+    // ⚠ 2026-09-20 계약 교체(하늘촌 신고): 과거·오늘 점검일자는 더 이상 「오늘 이후 첫 영업일」로
+    //   보정되지 않는다 — 점검 사실로 보고 **그 날짜 그대로** 1차를 즉시 시작한다
+    //   (applyPastAnchorInspection). 종전 주석 「과거는 오늘로 당겨지는 게 정상」은 그 반대 계약이었다.
+    check('1차 예정일이 입력한 과거 날짜 그대로다(09-11 — 영업일 보정 없음)',
+      (items??[]).some(i=>String(i.scheduled_date)==='2026-09-11'),(items??[]).map(i=>i.scheduled_date).join(','))
+    const {data:insp}=await raw.from('inspections').select('inspection_start_date,status').eq('customer_id',custId)
+    check('등록과 동시에 1차 점검이 시작된다(점검업무 표시 축)',
+      (insp??[]).length===1&&insp?.[0]?.status==='in_progress',JSON.stringify(insp))
+    check('시작일 = 입력한 점검일자',insp?.[0]?.inspection_start_date==='2026-09-11',String(insp?.[0]?.inspection_start_date))
+    // 기산 '일'이 11인지는 **내년 항목**으로 판정한다(2026-09-14: 처음엔 이 규칙을 몰라 빨강이 났다).
     const future=(items??[]).filter(i=>String(i.scheduled_date)>'2026-12-31')
     const day11=future.every(i=>{
       const d=Number(String(i.scheduled_date).slice(8,10))

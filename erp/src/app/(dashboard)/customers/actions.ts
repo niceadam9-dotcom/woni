@@ -8,6 +8,8 @@ import { customerNameDupKey } from '@/lib/customer-dup'
 import { fetchAllRows } from '@/lib/supabase/paginate'
 import { resolveFireStation } from '@/lib/fire-station'
 import { generateRollingPlanItems, loadAnchorDates, loadAnchorManualFlag, loadHolidaySet } from '@/lib/inspection-plan-generator'
+import { applyPastAnchorInspection } from '@/lib/inspection-start'
+import { todayKst } from '@/lib/kst-date'
 // `anchorChanged`는 이 파일의 지역 변수명과 겹쳐 별칭으로 들여온다(변수를 함수로 덮으면 조용히 항상-false가 된다)
 import { anchorChanged as anchorChangedFn } from '@/lib/plan-anchor'
 import { recalcIsInitialForCustomer } from '@/lib/inspection-initial'
@@ -416,6 +418,21 @@ async function _autoCreatePlanItemsForNewCustomer(
 
   // 롤링: 등록 즉시 올해+내년 생성 — 이후 연도는 매월 크론이 이어받는다
   await generateRollingPlanItems(admin, { id: customerId, ...info }, targetYear, createdBy)
+
+  // 🚨 과거·오늘 점검일자 = 점검 사실 (2026-09-20 사용자 확정 — 하늘촌 신고).
+  // 종전엔 생성기의 영업일 보정이 입력값을 덮고(09-18 → 09-21) 시작은 당일 크론에만 맡겨져,
+  // 사용자가 입력한 날짜가 달력에도 점검업무에도 없었다. 입력값 그대로 1차를 즉시 시작한다.
+  const applied = await applyPastAnchorInspection(admin, customerId, info.plan_anchor_date, createdBy)
+  if (applied.error) {
+    // 등록 자체는 성립했으므로 실패로 되돌리지 않는다 — 다만 조용히 삼키면 같은 신고가
+    // 재발하므로 서버 로그에 남긴다(이 경우 회차는 법정 자리로 남고 크론 창 안이면 자동 시작).
+    console.error('[신규등록] 과거 점검일자 즉시 시작 실패:', applied.error)
+  }
+  if (applied.applied) {
+    revalidatePath('/inspections')
+    revalidatePath('/inspections/calendar')
+    revalidatePath('/inspections/sms')
+  }
 }
 
 // (소방계획서_6 W-26) 일반관리 event 생성·동기화 헬퍼(_ensureMonthPlan·_createGeneralEventItem·
@@ -969,6 +986,10 @@ export type NewSchedulePreview = {
   anchorIsApproval: boolean
   /** 입력했지만 **쓰이지 않는** 점검일자. null이면 입력값이 실제로 쓰인다 */
   ignoredAnchorDate: string | null
+  /** 과거·오늘 점검일자 — 등록 즉시 이 날짜로 1차 자체점검이 시작된다(2026-09-20 사용자 확정).
+   *  이때 입력값은 「쓰이지 않는」 게 아니라 1차 점검일로 그대로 쓰이므로 ignoredAnchorDate와
+   *  동시에 설 수 없다(서버가 배타로 계산한다). */
+  pastAnchorStart: string | null
   rows: NewScheduleRow[]
   /** 최초점검 기한(사용승인일+60일) — 아직 안 지났을 때만 */
   initialDue: string | null
@@ -987,12 +1008,16 @@ export async function previewNewCustomerScheduleAction(input: {
     plan_anchor_manual: input.plan_anchor_manual,
   })
   const anchorIsApproval = anchor.source === 'approval'
+  // 과거·오늘 점검일자는 등록 즉시 1차 점검일로 **그대로 쓰인다**(applyPastAnchorInspection) —
+  // 이때 「안 쓰인다」 고지를 함께 띄우면 화면이 거짓말이 된다. 배타로 계산한다.
+  const pastAnchorStart = input.plan_anchor_date && input.plan_anchor_date <= todayKst()
+    ? input.plan_anchor_date : null
   // 「입력했는데 안 쓰인다」는 **기산점이 다른 날짜일 때만** 성립한다
-  const ignoredAnchorDate = (!anchorIsApproval || !input.plan_anchor_date) ? null
+  const ignoredAnchorDate = (pastAnchorStart || !anchorIsApproval || !input.plan_anchor_date) ? null
     : (input.plan_anchor_date !== anchor.date ? input.plan_anchor_date : null)
   const base: NewSchedulePreview = {
     anchorDate: anchor.date, anchorSource: anchorSourceLabel(anchor.source),
-    anchorIsApproval, ignoredAnchorDate, rows: [], initialDue: null,
+    anchorIsApproval, ignoredAnchorDate, pastAnchorStart, rows: [], initialDue: null,
   }
   if (!anchor.date) return { preview: base }
 
@@ -1013,6 +1038,12 @@ export async function previewNewCustomerScheduleAction(input: {
     }
   }
   rows.sort((a, b) => a.date < b.date ? -1 : 1)
+  // 과거·오늘 점검일자는 1차(가장 이른 회차)를 그 날짜로 즉시 시작한다 — 미리보기 행도 같은
+  // 날짜를 말해야 한다(applyPastAnchorInspection이 고르는 「planned가 가장 이른 미시작 회차」와
+  // 정렬 첫 행이 같은 대상이다). 법정 자리 안내는 shiftedFrom으로 남긴다.
+  if (pastAnchorStart && rows.length > 0 && rows[0].date !== pastAnchorStart) {
+    rows[0] = { ...rows[0], shiftedFrom: null, date: pastAnchorStart }
+  }
   // 최초점검 창은 **종합 대상 + 사용승인일이 있을 때만** 의미가 있다(planFrom과 같은 규칙)
   const today = new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10)
   let initialDue: string | null = null

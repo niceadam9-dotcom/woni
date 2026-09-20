@@ -43,7 +43,8 @@ export function NewSchedulePreviewBox({ preview, loading, anchorManual, onToggle
   }
 
   const ignored = preview.ignoredAnchorDate
-  const tone = ignored ? 'border-amber-300 bg-amber-50' : 'border-brand-line-soft bg-brand-tint'
+  const pastStart = preview.pastAnchorStart
+  const tone = (ignored || pastStart) ? 'border-amber-300 bg-amber-50' : 'border-brand-line-soft bg-brand-tint'
 
   return (
     <div data-testid="new-schedule-preview" className={`mt-2 rounded-lg border px-3 py-2.5 ${tone}`}>
@@ -82,10 +83,25 @@ export function NewSchedulePreviewBox({ preview, loading, anchorManual, onToggle
         </p>
       )}
 
+      {/* 과거·오늘 점검일자 = 점검 사실 — 등록 즉시 그 날짜로 1차가 시작된다(2026-09-20 사용자 확정).
+          이때는 「안 쓰입니다」 고지가 거짓이 되므로 서버가 ignored를 비워 보낸다(배타). */}
+      {pastStart && (
+        <p className="mt-2 pt-2 border-t border-amber-200 text-form-xs text-amber-900 flex items-start gap-1.5">
+          <AlertTriangle className="size-3.5 shrink-0 mt-px" />
+          <span data-testid="past-anchor-start-notice">
+            점검일자 <b>{ymdWithWeekday(pastStart)}</b>는 지난(또는 오늘) 날짜입니다 —
+            등록과 동시에 <b>이 날짜 그대로</b> 1차 점검이 시작되어 점검업무·점검달력에 실립니다.
+          </span>
+        </p>
+      )}
+
       {/* 입력값이 안 쓰이면 그 사실을 말한다 — 이게 이 상자의 핵심이다.
           ⚠ 체크를 켜면 `ignored`가 null이 되므로, **켜진 상태에서도 이 칸을 남겨야** 해제할 수 있다.
-            (처음엔 `ignored &&`로만 감싸 두었다가 체크하는 순간 스위치가 사라져 되돌릴 수 없었다) */}
-      {(ignored || anchorManual) && (
+            (처음엔 `ignored &&`로만 감싸 두었다가 체크하는 순간 스위치가 사라져 되돌릴 수 없었다)
+          ⚠ 과거 날짜(pastStart)에서도 남긴다 — 1차는 어차피 입력값으로 시작하지만, 이 체크는
+            **차기 회차의 기산 축**(사용승인일 vs 점검일자)을 정한다. pastStart가 ignored를 비우므로
+            여기서 빼면 과거 날짜를 넣는 순간 예외 스위치가 사라진다(E2E 예외저장이 실제로 죽었다). */}
+      {(ignored || anchorManual || (pastStart && preview.anchorIsApproval)) && (
         <div className="mt-2 pt-2 border-t border-amber-200">
           {ignored && (
             <p className="text-form-xs text-amber-900 flex items-start gap-1.5">

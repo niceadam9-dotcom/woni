@@ -314,6 +314,10 @@ export async function generateYearlyPlanItems(
 
     // 당월 항목의 예정일이 생성 시점에 이미 지났으면 오늘 이후 첫 영업일로 보정 —
     // 승인일의 '일'이 등록일보다 앞설 때 등록 직후부터 지연⚠로 뜨는 것 방지 (수정사항리스트 4-1)
+    // ⚠ 단, 신규 등록에서 **사용자가 과거·오늘 점검일자를 직접 입력**한 경우는 이 보정 위에
+    //   applyPastAnchorInspection(inspection-start.ts)이 1차 scheduled_date를 입력값 그대로 덮고
+    //   즉시 시작한다(2026-09-20 하늘촌 신고 — 입력한 09-18이 09-21로 밀려 「잘못 저장」으로 보였다).
+    //   이 보정 자체는 법정 축(승인일 '일')에서 유도된 날짜용으로 남는다 — 지우지도, 넓히지도 말 것.
     const kstTodayStr = toStr(new Date(kstNow.getUTCFullYear(), kstNow.getUTCMonth(), kstNow.getUTCDate()))
     if (year === curYear && month === curMonth && planned < kstTodayStr) {
       const d = new Date(kstNow.getUTCFullYear(), kstNow.getUTCMonth(), kstNow.getUTCDate())
