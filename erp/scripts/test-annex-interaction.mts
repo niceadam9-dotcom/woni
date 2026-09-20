@@ -80,7 +80,10 @@ try {
   // 진행 중 회차가 현재로 자동 선택돼 항상 펼쳐진다. 과거 회차는 화면에 없다(데이터는 유지 —
   // 이어받기 배너가 아래 3절에서 그 데이터를 읽는 것으로 생존을 증명한다).
   await page.goto(`${BASE}/customers/${customerId}?tab=plan&form=annex`)
-  await page.waitForSelector(`text=${CUR_YEAR}년 1차`)
+  // 회차 알약의 「N차」 표기는 폐지됐다(2026-09 회차 표시 폐지 — 연도만 남았다). 종전
+  // `text=${CUR_YEAR}년 1차` 대기는 그 구계약이라, 카드 자체의 캡션(자동 판정 안내)으로 기다린다.
+  await page.waitForSelector('text=사용승인일 기준으로 ERP가 자동 판정')
+  await page.waitForSelector(`text=${CUR_YEAR}년`)
   check('현재 회차 — 자동 판정 캡션', await page.isVisible('text=자동 판정'))
   check('현재 회차 — 항상 펼침(점검표 행)', await page.isVisible('text=점검표 입력'))
   check('현재 회차 — 성격 배지 작동(자체)', await page.isVisible('text=작동(자체)'))
@@ -151,8 +154,9 @@ try {
 
   // ── 4) 9호發 설비 대장 진입(H-5e·D-17) — 링크 컨텍스트·스플릿 ON·첫 빈칸 포커스·복귀 ──
   const ledgerHref = await p9.locator('a[href*="from=report9"]').first().getAttribute('href')
+  // 목적지는 [소방시설] 탭(구 ?tab=plan&form=1.4 — 2026-09-20 탭 승격, annex-compose-panel 정본화)
   check('9호 패널 — 설비 대장 링크에 from=report9&insp=', !!ledgerHref
-    && ledgerHref.includes('form=1.4') && ledgerHref.includes(`insp=${curInspId}`), ledgerHref ?? '(없음)')
+    && ledgerHref.includes('tab=facilities') && ledgerHref.includes(`insp=${curInspId}`), ledgerHref ?? '(없음)')
   // 실제 링크 클릭(클라이언트 내비) — plan-tab-view prop-sync 경로 실주행 (goto 풀로드 공백 해소)
   await p9.locator('a[href*="from=report9"]').first().click()
   await page.waitForSelector('text=설비 대장 — 별지 3. 소방시설등의 세부현황')
@@ -181,10 +185,18 @@ try {
   await page.waitForSelector('text=남은 미입력', { state: 'detached' })
   check('빈칸만 보기 — 전체 보기 복귀', true)
 
-  // ── 6) 복귀 버튼 — history back으로 별지 트리 복귀 ──
+  // ── 6) 복귀 버튼 — 보고서(annex) 탭으로 복귀 ──
+  // 종전 「history back」 계약은 패널 히스토리 항목(2026-09-11 openSpecs pushState) 도입으로
+  // back 한 번이 패널만 닫는 상태였다(썩은 채 방치). 이제 셸 안에서는 **?tab=annex 전체 이동**이
+  // 정본이다(D-4 규약 — goTab은 [저장하고 탭 이동] 직후 라우터 큐가 막혀 회차 조회가 고착됐다).
+  // 미저장 제원은 beforeunload 가드 몫이라, 실사용 동선대로 먼저 저장하고 복귀한다.
+  await page.click('[data-testid="specs-save"]')
+  await page.waitForSelector('text=모든 변경이 저장됐습니다', { timeout: 20000 }).catch(() => {})
   await page.click('button:has-text("9호로 돌아가기")')
-  await page.waitForURL(u => u.searchParams.get('form') === 'annex', { timeout: 10000 })
-  check('복귀 — 별지 서식 화면으로 돌아감', true)
+  await page.waitForURL(u => u.searchParams.get('tab') === 'annex', { timeout: 15000 })
+  // 전체 이동은 SSR이 회차를 미리 실어(annexInitial 프리페치) 도착 즉시 카드가 떠야 한다
+  await page.waitForSelector('text=사용승인일 기준으로 ERP가 자동 판정', { timeout: 30000 })
+  check('복귀 — 보고서(별지) 화면으로 돌아감', true)
 } catch (e) {
   check('예외 없음', false, String(e))
 } finally {

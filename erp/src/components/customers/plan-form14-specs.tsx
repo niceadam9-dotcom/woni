@@ -810,12 +810,18 @@ export function PlanForm14Specs({ customerId, buildingId, installed, initialSpec
             <span>별지 9호에서 넘어왔습니다 — 세부현황(4~7쪽)은 여기서만 입력하고, 저장하면 9호에 바로 반영됩니다</span>
             <button type="button"
               onClick={() => {
-                // 새 탭(ctrl-click) 진입은 히스토리가 없어 back이 무동작 — 별지서식 탭으로 폴백
-                if (window.history.length > 1) { router.back(); return }
-                // ⚠ 여기는 고객 상세 = **같은 경로**다. router.push로 ?tab=annex를 밀어도 서버가
-                //   재렌더되지 않아 활성 탭이 소방계획서인 채로 남는다(소방계획서_34 S4-4).
-                //   탭 셸 컨텍스트로 직접 전환하면 미저장 확인창도 그대로 존중된다.
-                if (tabsShell) tabsShell.goTab('annex')
+                // ⚠ 셸 안에서는 back()도 goTab도 쓰지 않는다(2026-09-20). 실측 둘 다 탈락:
+                //   · back() — 패널 열림이 히스토리 항목을 쌓아(openSpecs pushState, 2026-09-11)
+                //     한 번 눌러선 **패널만 닫히고** 보고서 탭으로 못 돌아갔다.
+                //   · goTab — [저장하고 탭 이동] 직후엔 revalidate+replace가 라우터 큐를 물고 늘어져
+                //     막 마운트된 보고서 패널의 회차 조회 액션이 **영영 전송되지 않았다**(30s 실측 0건,
+                //     「회차를 불러오는 중…」 고착).
+                //   전체 이동은 이 저장소의 탭 전환 정본이기도 하다(D-4·risk_same_path_tab_link —
+                //   헤더 [보고서] 버튼과 같은 규약). ?tab=annex 풀로드는 SSR이 회차를 미리 실어
+                //   도착 즉시 카드가 뜬다. 미저장 보호는 beforeunload 가드가 종전대로 맡는다.
+                if (tabsShell) { window.location.assign(`/customers/${customerId}?tab=annex`); return }
+                // 셸 밖(점검 귀속 화면 등) — 종전대로 히스토리 복귀, 새 탭(ctrl-click) 진입은 폴백
+                if (window.history.length > 1) router.back()
                 else window.location.assign(`/customers/${customerId}?tab=annex`)
               }}
               className="ml-auto inline-flex items-center gap-1 h-form-6 px-2 rounded-lg bg-brand hover:bg-brand-strong text-white text-form-xs font-medium shrink-0">

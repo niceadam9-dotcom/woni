@@ -12,7 +12,8 @@
  */
 import {
   FIRE_PLAN_SECTIONS, FIRE_PLAN_FORMS, FIRE_PLAN_FORM_KEYS, CH1_FORM_KEYS,
-  FIRE_PLAN_STATUS_KEYS, sectionsOfForm, formOfSheet, sheetCountOfForm,
+  FIRE_PLAN_STATUS_KEYS, PLAN_TREE_FORM_KEYS, tabOfForm,
+  sectionsOfForm, formOfSheet, sheetCountOfForm,
   type FirePlanFormKey,
 } from '../src/lib/fire-plan-sections.ts'
 import { FIRE_PLAN_MANIFEST } from '../src/lib/fire-plan-xlsx-manifest.ts'
@@ -70,10 +71,12 @@ check('키가 늘지도 줄지도 않았다(15)', FIRE_PLAN_FORM_KEYS.length ===
   `${FIRE_PLAN_FORM_KEYS.length}개`)
 check('1장 목차 11개가 순서까지 그대로', CH1_FORM_KEYS.join(',') === LEGACY_CH1.join(','),
   CH1_FORM_KEYS.join(','))
-// 완성도 배지 분모 = 옛 formStatus 키 14개(archive 제외)
-check('완성도 노드 14개(archive 제외)', FIRE_PLAN_STATUS_KEYS.length === 14,
+// 완성도 배지 분모 = formStatus 키. 2026-09-20 — 1.4가 [소방시설] 탭으로 승격돼 archive처럼
+// 분모에서 빠졌다(그 탭 자신의 warn이 됐다). 종전 「14개」 단언은 그 구계약이라 13으로 갈아끼운다.
+check('완성도 노드 13개(archive·이사 노드 1.4 제외)', FIRE_PLAN_STATUS_KEYS.length === 13,
   `${FIRE_PLAN_STATUS_KEYS.length}개`)
 check('완성도 노드에 archive가 없다', !(FIRE_PLAN_STATUS_KEYS as readonly string[]).includes('archive'))
+check('완성도 노드에 1.4가 없다(이사 노드)', !(FIRE_PLAN_STATUS_KEYS as readonly string[]).includes('1.4'))
 // 목차 **순서**도 계약이다 — 모바일 드롭다운·좌측 트리가 이 배열 순서를 그대로 그린다
 check('전체 노드 순서가 종전 그대로', FIRE_PLAN_FORM_KEYS.join(',') === LEGACY_KEYS.join(','),
   FIRE_PLAN_FORM_KEYS.join(','))
@@ -89,6 +92,19 @@ for (const [k, want] of Object.entries(LEGACY_NAV)) {
   const f = FIRE_PLAN_FORMS.find(x => x.key === k)!
   check(`모바일 목차 라벨 '${k}' 그대로`, navLabel(f) === want, navLabel(f))
 }
+
+/* ══════════════════════ [2b] 이사 노드 — 1.4 → 최상위 [소방시설] 탭 (2026-09-20) ══════════════════════
+ *  계약: 대장 키(딥링크 서버 변환의 전제)에는 **살아 있고**, 화면 트리 키에서만 빠진다.
+ *  둘 다 빼면 ?tab=plan&form=1.4 구 링크가 조용히 1.1로 떨어진다 — [2]가 그 회귀를 문다. */
+console.log('\n[2b] 이사 노드(1.4 → [소방시설] 탭)')
+check('대장 키에는 1.4가 산다', (FIRE_PLAN_FORM_KEYS as readonly string[]).includes('1.4'))
+check('화면 트리 키에는 1.4가 없다', !(PLAN_TREE_FORM_KEYS as readonly string[]).includes('1.4'))
+check('트리 키 14개 = 전체 15 − 이사 1', PLAN_TREE_FORM_KEYS.length === 14,
+  `${PLAN_TREE_FORM_KEYS.length}개`)
+check("tabOfForm('1.4')가 목적지 탭을 답한다", tabOfForm('1.4') === 'facilities', String(tabOfForm('1.4')))
+check('이사 안 한 노드는 tabOfForm이 undefined', tabOfForm('1.5') === undefined)
+check('1.4 시트 배정은 그대로 2장(1.4 현황·1.10.3 다중이용업소)', sectionsOfForm('1.4').length === 2,
+  sectionsOfForm('1.4').map(d => d.sheet).join(' · '))
 
 /* ══════════════════════ [3] 배정이 실제로 갈라져 있는가 ══════════════════════
  *  🚨 「전부 한 노드」여도 [1]은 초록이다. 배정이 **뜻을 갖는지**를 따로 물어야 한다. */

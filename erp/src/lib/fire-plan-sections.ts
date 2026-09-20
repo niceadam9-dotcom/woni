@@ -33,7 +33,10 @@ export const FIRE_PLAN_FORMS = [
   { key: '1.1', label: '1.1 일반현황', group: '본문 1장' },
   { key: '1.2', label: '1.2 세부현황', group: '본문 1장' },
   { key: '1.3', label: '1.3 위치·소방차진입', group: '본문 1장' },
-  { key: '1.4', label: '1.4 소방시설', group: '본문 1장' },
+  // ⭐ 1.4는 고객 상세 **최상위 [소방시설] 탭**으로 이사했다(2026-09-20 사용자 확정 — 소방계획서·
+  //   별지 4·9호·점검표가 모두 읽는 공통 축이라 계획서 트리 소유가 아니다). 대장에서 빼지 않는다:
+  //   시트 '1.4 소방시설 현황'·'1.10.3 다중이용업소'는 여전히 워크북에 있고 form 배정이 필요하다.
+  { key: '1.4', label: '1.4 소방시설', group: '본문 1장', tab: 'facilities' },
   { key: '1.5', label: '1.5 피난·방화', group: '본문 1장' },
   { key: '1.6', label: '1.6 기타시설', group: '본문 1장' },
   { key: '1.7', label: '1.7 선임현황', group: '본문 1장' },
@@ -45,7 +48,7 @@ export const FIRE_PLAN_FORMS = [
   { key: 'ch3', label: '3장 피난계획', group: '본문' },
   { key: 'cover', label: '보고서 커버', group: '본문' },
   { key: 'archive', label: '조회·개정이력', group: '조회' },
-] as const satisfies readonly { key: string; label: string; group: FirePlanFormGroup }[]
+] as const satisfies readonly { key: string; label: string; group: FirePlanFormGroup; tab?: 'facilities' }[]
 
 /** 화면 목차 노드 키 = `plan-tab-view`의 `select()` 값 = 딥링크 `?tab=plan&form=` 값.
  *  ⭐ 위 배열에서 **파생**한다 — 노드를 더하거나 빼면 이 유니온이 따라 움직이고,
@@ -57,16 +60,35 @@ export type FirePlanFormDef = (typeof FIRE_PLAN_FORMS)[number]
 export const CH1_FORM_KEYS: readonly FirePlanFormKey[] =
   FIRE_PLAN_FORMS.filter(f => f.group === '본문 1장').map(f => f.key)
 
-/** 딥링크·목차가 받아들이는 전체 키(구 `VALID_SEL`) */
+/** 대장이 아는 전체 노드 키 — 적재 검증(④)·`formOfSheet`의 축. ⚠ 이사 노드(1.4)도 **있다**:
+ *  옛 딥링크(`?form=1.4`)는 `[id]/page.tsx`가 서버에서 새 탭으로 해석하므로 키 자체는 생존해야 한다 */
 export const FIRE_PLAN_FORM_KEYS: readonly FirePlanFormKey[] = FIRE_PLAN_FORMS.map(f => f.key)
 
-/** 완성도 배지를 다는 노드 — `archive`는 서식이 아니라 조회 화면이라 분모에서 뺀다.
+/** 고객 상세 **최상위 탭으로 이사한** 노드 (2026-09-20 사용자 확정 — 1.4 소방시설 → [소방시설] 탭).
+ *  `tab` 필드가 있는 노드가 그것이고, 타입은 배열 리터럴에서 **파생**한다(손 유니온 금지 — 위 27줄 교훈). */
+export type MovedFormKey = Extract<FirePlanFormDef, { tab: string }>['key']
+const MOVED_KEYS: ReadonlySet<string> = new Set(FIRE_PLAN_FORMS.filter(f => 'tab' in f).map(f => f.key))
+
+/** 소방계획서 탭 좌측 트리·모바일 드롭다운·`select()`가 받는 노드(구 `VALID_SEL`) — 이사 노드는 뺀다.
+ *  그 서식의 입력은 이제 최상위 탭이 열고, `?tab=plan&form=1.4` 구 딥링크는 서버가 그 탭으로 보낸다. */
+export const PLAN_TREE_FORMS: readonly FirePlanFormDef[] = FIRE_PLAN_FORMS.filter(f => !('tab' in f))
+export const PLAN_TREE_FORM_KEYS: readonly FirePlanFormKey[] = PLAN_TREE_FORMS.map(f => f.key)
+
+/** 노드 → 이사 간 최상위 탭 (이사하지 않았으면 undefined) — 카드 앵커 구제(`formOfCard`)가
+ *  계획서 트리 이동 대신 **탭 이동**으로 이어야 할 때 그 목적지를 답한다 */
+export function tabOfForm(form: FirePlanFormKey): string | undefined {
+  const d = FIRE_PLAN_FORMS.find(f => f.key === form)
+  return d && 'tab' in d ? d.tab : undefined
+}
+
+/** 완성도 배지를 다는 노드 — `archive`는 서식이 아니라 조회 화면이라 분모에서 빼고,
+ *  이사 노드(1.4)는 소방계획서 탭 뱃지의 분모가 아니라 **[소방시설] 탭 자신의 warn**이라 뺀다.
  *
  *  ⭐ 타입으로도 좁힌다. `[id]/page.tsx`의 `formStatus`가 이 타입의 `Record`라서, 노드를
  *    더하거나 빼면 **tsc가** 「키가 빠졌다/모르는 키다」로 막는다 — 검사보다 앞서는 관문이다. */
-export type FirePlanStatusKey = Exclude<FirePlanFormKey, 'archive'>
+export type FirePlanStatusKey = Exclude<FirePlanFormKey, 'archive' | MovedFormKey>
 export const FIRE_PLAN_STATUS_KEYS: readonly FirePlanStatusKey[] =
-  FIRE_PLAN_FORM_KEYS.filter((k): k is FirePlanStatusKey => k !== 'archive')
+  FIRE_PLAN_FORM_KEYS.filter((k): k is FirePlanStatusKey => k !== 'archive' && !MOVED_KEYS.has(k))
 
 export type FirePlanSectionDef = {
   /** manifest 시트명 — **유일 키** */

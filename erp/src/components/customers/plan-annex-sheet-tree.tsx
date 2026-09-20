@@ -101,9 +101,10 @@ export function PlanAnnexSheetTree({ inspectionId, canRegister, onSaved, onBlank
   const compBlankTotal = ov.scope.isSpecial ? countCompBlanks(ov.sheets) : 0
   const entryHref = `/inspections/${inspectionId}/sheet`
   const fromQ = from ? `&from=${encodeURIComponent(from)}` : ''
-  // 39 S2-4 — 미입력 설비 해소 양갈래 중 '1.4 대장 체크 해제' 링크. from(고객 상세 딥링크)에서
-  // 파생한다 — 같은 경로 ?tab= Link는 서버를 안 깨우므로(risk_same_path_tab_link) 전체 이동 <a>로 쓴다
-  const ledgerHref = from ? `${from.split('?')[0]}?tab=plan&form=1.4` : null
+  // 39 S2-4 — 미입력 설비 해소 양갈래 중 '대장 체크 해제' 링크. from(고객 상세 딥링크)에서
+  // 파생한다 — 같은 경로 ?tab= Link는 서버를 안 깨우므로(risk_same_path_tab_link) 전체 이동 <a>로 쓴다.
+  // 목적지는 [소방시설] 탭(구 소방계획서 1.4 — 2026-09-20 탭 승격)
+  const ledgerHref = from ? `${from.split('?')[0]}?tab=facilities` : null
 
   return (
     <div className="pl-5 pb-1">

@@ -1,4 +1,8 @@
 // 소방계획서_43 S7 — 1.10.3 다중이용업소 카드의 1.4 이사 E2E (2026-09-09, 사용자 확정 B안)
+// 2026-09-20 재편 반영: 1.4가 최상위 [소방시설] 탭으로 승격돼 카드도 그 탭에 산다.
+//   · 진입은 ?tab=facilities (구 ?tab=plan&form=1.4는 서버가 그 탭으로 변환 — _probe-annex-tab이 단언)
+//   · 종전 「기타」 아래 순서 계약은 소멸(기타 블록이 보고서 탭·1.6으로 갈라짐 — _probe-form14-etc)
+//   · 옛 딥링크 ?form=1.10#c-1.10.3 구제의 착지도 [소방시설] 탭이다(URL은 tab=facilities)
 // 실행: npx tsx scripts/test-s7-multi-use-move.mts  (로컬 dev 서버 + 스테이징 DB)
 //
 // 이 이사의 진짜 위험은 '보이는가'가 아니라 **저장이 갈라졌는가**다:
@@ -37,22 +41,24 @@ try {
   const page = l.page
   await login(page, EMAIL)
 
-  // ── 1) 카드가 1.4에 있다 · 「기타」 아래다 ────────────────────────────────
-  await page.goto(`${BASE}/customers/${customerId}?tab=plan&form=1.4`)
-  await page.waitForSelector('[data-testid="form14-etc"]')
+  // ── 1) 카드가 [소방시설] 탭(구 1.4)에 있다 · 42종 표 아래다 ────────────────
+  await page.goto(`${BASE}/customers/${customerId}?tab=facilities`)
+  await page.waitForSelector('text=서식 1.4 소방시설 현황')
   const muOn14 = await page.locator('[data-testid="form14-multi-use"]').count()
-  check('S7-2 카드가 서식 1.4에 렌더된다', muOn14 === 1, `(count=${muOn14})`)
+  check('S7-2 카드가 [소방시설] 탭(서식 1.4)에 렌더된다', muOn14 === 1, `(count=${muOn14})`)
   check('S7-2 카드 제목은 절 번호 그대로 「1.10.3 다중이용업소 현황」',
     await page.locator('[data-testid="form14-multi-use"]:has-text("1.10.3 다중이용업소 현황")').isVisible())
-  // 「기타」 **아래**임을 DOM 순서로 — '어딘가 있다'는 요청을 만족시키지 못한다
+  // 42종 표 **아래**임을 DOM 순서로 — 종전 「기타 아래」 계약은 기타 분할(2026-09-20)로 소멸
   const order = await page.evaluate(() => {
-    const etc = document.querySelector('[data-testid="form14-etc"]')
+    const tbl = document.querySelector('[data-fac="소화기구 및 자동소화장치"]')
     const mu = document.querySelector('[data-testid="form14-multi-use"]')
-    if (!etc || !mu) return 'missing'
-    // DOCUMENT_POSITION_FOLLOWING(4) = mu가 etc보다 뒤
-    return (etc.compareDocumentPosition(mu) & Node.DOCUMENT_POSITION_FOLLOWING) ? 'after' : 'before'
+    if (!tbl || !mu) return 'missing'
+    // DOCUMENT_POSITION_FOLLOWING(4) = mu가 표보다 뒤
+    return (tbl.compareDocumentPosition(mu) & Node.DOCUMENT_POSITION_FOLLOWING) ? 'after' : 'before'
   })
-  check('S7-2 카드가 「기타」 구역 **아래**에 온다', order === 'after', `(order=${order})`)
+  check('S7-2 카드가 42종 표 **아래**에 온다', order === 'after', `(order=${order})`)
+  check('S7-2 종전 「기타」 블록은 이 탭에 없다(보고서 탭·1.6으로 분할)',
+    (await page.locator('[data-testid="form14-etc"]').count()) === 0)
   check('S7-2 저장 단위 경계가 화면에 적혀 있다(건물 아님·고객 단위)',
     await page.locator('[data-testid="form14-multi-use"]:has-text("고객 단위")').isVisible())
 
@@ -66,19 +72,23 @@ try {
   check('S7-3 이웃 카드(1.10.2·1.10.4)는 그대로 있다',
     await page.isVisible('text=1.10.4 화재·비화재보 발생 이력'))
 
-  // ── 3) 옛 딥링크 구제 — ?form=1.10#c-1.10.3 은 1.4로 착지해야 한다 ──────
+  // ── 3) 옛 딥링크 구제 — ?form=1.10#c-1.10.3 은 [소방시설] 탭으로 착지해야 한다 ──
   // ⚠ 직전 goto와 해시만 다르면 브라우저가 **문서 내 이동**으로 처리해 마운트 이펙트가 안 돈다.
   //   실사용자는 다른 화면에서 이 링크를 타고 오므로, 중립 페이지를 한 번 거쳐 진짜 진입을 만든다.
+  // 해시는 서버에 안 오므로 이 구제는 클라이언트(plan-tab-view movedAnchor → goTab)에 남아 있다.
   await page.goto(`${BASE}/customers/${customerId}?tab=plan&form=1.1`)
   await page.waitForSelector('text=① 시설현황')
   await page.goto(`${BASE}/customers/${customerId}?tab=plan&form=1.10#c-1.10.3`)
   await page.waitForSelector('[data-testid="form14-multi-use"]', { timeout: 10000 }).catch(() => {})
-  check('S7-4 옛 딥링크가 1.4로 착지하고 카드가 보인다',
+  check('S7-4 옛 딥링크가 [소방시설] 탭으로 착지하고 카드가 보인다',
     await page.locator('[data-testid="form14-multi-use"]').isVisible())
-  check('S7-4 URL도 form=1.4로 정정된다', page.url().includes('form=1.4'), `(url=${page.url()})`)
+  // router.replace는 React 트랜지션 뒤에 커밋된다 — 카드 가시화보다 늦을 수 있어 URL은 폴링으로 기다린다
+  const urlFixed = await page.waitForFunction(() => window.location.search.includes('tab=facilities'), undefined,
+    { timeout: 5000 }).then(() => true).catch(() => false)
+  check('S7-4 URL도 tab=facilities로 정정된다', urlFixed, `(url=${page.url()})`)
 
   // ── 4) 카드 자기 저장 왕복 ───────────────────────────────────────────
-  await page.goto(`${BASE}/customers/${customerId}?tab=plan&form=1.4`)
+  await page.goto(`${BASE}/customers/${customerId}?tab=facilities`)
   await page.waitForSelector('[data-testid="form14-multi-use"]')
   const card = page.locator('[data-testid="form14-multi-use"]')
   await card.locator('button:has-text("해당없음")').click()          // 해당 토글 ON
@@ -110,9 +120,14 @@ try {
     `(after=${JSON.stringify(afterForm110)})`)
 
   // ── 6) 1.4 저장(건물별 설비)이 multiUse를 지우지 않는다 ──────────────────
-  await page.goto(`${BASE}/customers/${customerId}?tab=plan&form=1.4`)
-  await page.waitForSelector('[data-testid="form14-etc"]')
-  await page.locator('[data-testid="form14-etc"] button').first().click()   // 기타 1종 체크 → dirty
+  // 기타 블록이 이 탭에서 빠졌으므로(2026-09-20 분할) dirty는 42종 토글로 만든다 —
+  // 켰다 꺼서 상태는 원상, dirty만 남긴다(설비 대장 패널은 체크 순간 열리므로 Esc로 닫는다)
+  await page.goto(`${BASE}/customers/${customerId}?tab=facilities`)
+  await page.waitForSelector('text=서식 1.4 소방시설 현황')
+  await page.locator('[data-testid="form14-check-옥외소화전설비"]').click()
+  await page.keyboard.press('Escape')
+  await page.locator('[data-testid="form14-check-옥외소화전설비"]').click()
+  await page.keyboard.press('Escape')
   await page.locator('[data-testid="form14-save"]').click()
   await page.waitForSelector('text=계획서·별지 4·9호 출력에 반영됩니다')
   const afterForm14 = await readMu()
@@ -122,7 +137,7 @@ try {
     `(after=${JSON.stringify(afterForm14)})`)
 
   // ── 7) 새로고침 후에도 화면에 값이 살아 있다 ────────────────────────────
-  await page.goto(`${BASE}/customers/${customerId}?tab=plan&form=1.4`)
+  await page.goto(`${BASE}/customers/${customerId}?tab=facilities`)
   await page.waitForSelector('[data-testid="form14-multi-use"]')
   check('S7-8 새로고침 뒤 카드가 저장값을 복원한다',
     (await page.locator('[data-testid="form14-multi-use"] input[placeholder="사업장명"]').inputValue()) === 'S7테스트업소')

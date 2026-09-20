@@ -102,8 +102,12 @@ export function CustomerTabs({ initialTab, tabs, panels, summary, banner, fullWi
   })
   function switchTab(key: string) {
     if (key === active) return
-    // 계획서 서식(1.2~3장)은 setTabDirty 배선이 없다 — 미저장 서식이 등록한 save 핸들러(dirty일 때만 등록)를 함께 본다
-    if (dirtyRef.current.has(active) || (active === 'plan' && collectPlanSaveHandlers().length > 0)) { nav.request(key); return }
+    // 계획서 서식(1.2~3장)·소방시설(1.4)·보고서 탭 기타 카드는 setTabDirty 배선이 없다 —
+    // 미저장 서식이 등록한 save 핸들러(dirty일 때만 등록)를 함께 본다.
+    // ⚠ 핸들러 버스는 전역이라 다른 탭의 미저장도 함께 잡힌다(전 패널이 마운트 유지라 등록이 살아 있다) —
+    //   과잉 확인이지만 [저장하고 이동]이 그쪽까지 저장하므로 안전한 방향의 오차다.
+    if (dirtyRef.current.has(active)
+      || (['plan', 'facilities', 'annex'].includes(active) && collectPlanSaveHandlers().length > 0)) { nav.request(key); return }
     applySwitchTab(key)
   }
   function applySwitchTab(key: string) {

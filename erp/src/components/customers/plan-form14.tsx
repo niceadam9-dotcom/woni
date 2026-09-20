@@ -83,7 +83,7 @@ type Building = {
 }
 type FacState = Record<string, { installed: boolean; note: string }>
 
-export function PlanForm14({ customerId, buildings, canManage, canRegister = false, specsByBuilding = {}, inspectionCtx, linkFrom, focusCodes, showMultiUse = false, multiUse = null }: {
+export function PlanForm14({ customerId, buildings, canManage, canRegister = false, specsByBuilding = {}, inspectionCtx, linkFrom, focusCodes, showMultiUse = false, multiUse = null, showEtc = true }: {
   customerId: string; buildings: Building[]; canManage: boolean
   /** 소방계획서_26 S4 — 설비별 점검결과 입력 권한. 1.4의 canManage(customer_manage)와 축이 다르다:
    *  결과 쓰기 액션은 전부 inspection_register라 이 값이 없으면 배지·패널을 아예 그리지 않는다. */
@@ -94,20 +94,26 @@ export function PlanForm14({ customerId, buildings, canManage, canRegister = fal
    *  주입한다. 있으면 getActiveSpecialInspectionAction 자체 페치를 생략(같은 고객이라도 URL의
    *  점검 건이 정본). 미지정이면 종전 동작 그대로 — 1.4 무변경 대조군. */
   inspectionCtx?: { id: string; label: string } | null
-  /** 소방계획서_40 S2 — 점검표 직행 링크(?from=)의 복귀 경로. 이 폼이 1.4 밖에 마운트되면
-   *  하드코딩된 ?tab=plan&form=1.4가 거짓 복귀가 되므로 마운트한 쪽이 자기 URL을 넘긴다. */
+  /** 소방계획서_40 S2 — 점검표 직행 링크(?from=)의 복귀 경로. 이 폼이 [소방시설] 탭 밖에 마운트되면
+   *  하드코딩된 ?tab=facilities가 거짓 복귀가 되므로 마운트한 쪽이 자기 URL을 넘긴다. */
   linkFrom?: string
   /** 소방계획서_40 S5-1b — 점검표에서 넘어올 때 관련 설비 행으로 스크롤·강조할 코드들.
    *  미지정이면 아무 동작 없음. */
   focusCodes?: string[]
-  /** 소방계획서_43 S7 — 1.10.3 다중이용업소 카드를 「기타」 아래에 함께 그릴지.
-   *  ⚠ 이 폼은 두 곳에 마운트된다(고객 상세 1.4 · /inspections/[id]/facilities). 카드가 읽고 쓰는
-   *    sections.multiUse는 **고객 단위**라 점검 귀속 화면에서는 켜지 않는다 — 그쪽은 회차의
+  /** 소방계획서_43 S7 — 1.10.3 다중이용업소 카드를 함께 그릴지.
+   *  ⚠ 이 폼은 두 곳에 마운트된다(고객 상세 [소방시설] 탭 · /inspections/[id]/facilities). 카드가 읽고
+   *    쓰는 sections.multiUse는 **고객 단위**라 점검 귀속 화면에서는 켜지 않는다 — 그쪽은 회차의
    *    설비 대장을 고치러 오는 자리이고, 켜려면 fire_plan_forms 조회를 그 페이지에 새로 달아야 한다.
    *    기본값 false = 종전 동작 무변경(대조군). */
   showMultiUse?: boolean
   /** showMultiUse일 때의 초기값 (sections.multiUse, 미저장이면 null) */
   multiUse?: MultiUseSection | null
+  /** 「기타」 7종(ETC_ITEMS) 섹션을 그릴지 (2026-09-20 사용자 확정으로 기타 UI가 갈라졌다 —
+   *  보고서 탭 3종 + 1.6 4종, etc-items-panel.tsx). **고객 상세 [소방시설] 탭은 false**:
+   *  렌더만 끄는 게 아니라 저장 rows에서도 빼고 서버 delete 범위도 좁힌다(scope 'standard') —
+   *  안 그러면 이 화면의 저장이 다른 카드가 방금 저장한 기타 행을 낡은 값으로 되살린다.
+   *  점검 귀속 화면은 기본값 true = 7종 그대로(무변경 대조군 — 점검표 설치 축의 회차 귀속 입력구). */
+  showEtc?: boolean
 }) {
   const [bidx, setBidx] = useState(0)
   const b = buildings[bidx]
@@ -258,9 +264,10 @@ export function PlanForm14({ customerId, buildings, canManage, canRegister = fal
 
   const canInputResult = canRegister && !!resultCtx?.inspection && (overview?.canEdit ?? false)
 
-  // 40 S2 — 점검표 직행 링크(?from=)의 복귀 경로. 기본은 1.4 정적 딥링크(배지는 그 화면에서만
-  // 그려졌으므로 목적지가 결정적이었다). 다른 마운트(점검 귀속 화면)는 linkFrom으로 자기 URL을 준다.
-  const fromParam = encodeURIComponent(linkFrom ?? `/customers/${customerId}?tab=plan&form=1.4`)
+  // 40 S2 — 점검표 직행 링크(?from=)의 복귀 경로. 기본은 [소방시설] 탭 정적 딥링크(2026-09-20
+  // 1.4 탭 승격 — 구 ?tab=plan&form=1.4는 서버가 이 탭으로 해석한다). 다른 마운트(점검 귀속 화면)는
+  // linkFrom으로 자기 URL을 준다.
+  const fromParam = encodeURIComponent(linkFrom ?? `/customers/${customerId}?tab=facilities`)
 
   // 40 S5-1b — 점검표에서 넘어온 관련 설비 강조. 첫 매칭 행으로 1회만 스크롤(건물 전환 시 재스크롤 없음).
   const focusSet = useMemo(() => new Set(focusCodes ?? []), [focusCodes])
@@ -304,7 +311,7 @@ export function PlanForm14({ customerId, buildings, canManage, canRegister = fal
    *  ⚠ `?facility=` 로 보낸다 — 설비→시트 매핑(sheetMatchesFacilities)을 링크 생성부에서 다시 하면
    *     규칙이 두 벌이 된다. 해석은 전용 페이지가 서버에서 한 번만 한다.
    *  `?from=` — 입력 화면의 뒤로가기가 이 서식(1.4)으로 돌아오게 한다. 현재 URL 캡처가 아니라
-   *     정적 딥링크다: 배지는 항상 ?tab=plan&form=1.4 화면에만 그려지므로 목적지가 결정적이다. */
+   *     정적 딥링크다: 배지는 항상 [소방시설] 탭(?tab=facilities)에만 그려지므로 목적지가 결정적이다. */
   const resultBadge = (code: string) => {
     // 부모 2행(소화기구·피난기구)의 점검**결과**는 하위 행 축이다 — 결과칸은 항상 공란이다
     // (2026-09-03 사용자 결정, image-51. 인쇄는 distributeSubMarks parent=undefined가 짝).
@@ -525,15 +532,20 @@ export function PlanForm14({ customerId, buildings, canManage, canRegister = fal
     setSaving(true)
     setMsg('')   // 직전 저장 결과가 새 저장 중에 남아 있으면 완료로 오인된다 (E2E 스테일 매칭 포함)
     try {
-      const rows: FacilityRow[] = allCodes.map(code => ({
+      // showEtc=false — 기타 7종은 이 화면 소유가 아니다: rows에서 빼고 scope 'standard'로
+      // 서버 delete도 좁힌다(둘 중 하나만 하면 낡은 값 부활이나 행 소실이 남는다)
+      const rows: FacilityRow[] = (showEtc ? allCodes : stdCodes).map(code => ({
         category: CATEGORY_OF[code] ?? '기타', facility_code: code,
         installed: fac[code].installed, detail: fac[code].note || null,
       }))
       const [mainRes, specsRes] = await Promise.all([
         // 40 S4 — 점검 귀속 마운트에서는 점검표·이 화면의 RSC도 함께 갱신(복귀 시 설치 축이 신선해야 한다)
-        dirty ? saveFacilitiesAction(b.id, customerId, rows, floors, inspectionCtx
-          ? { alsoRevalidate: [`/inspections/${inspectionCtx.id}/sheet`, `/inspections/${inspectionCtx.id}/facilities`] }
-          : undefined) : Promise.resolve(null),
+        dirty ? saveFacilitiesAction(b.id, customerId, rows, floors, {
+          ...(inspectionCtx
+            ? { alsoRevalidate: [`/inspections/${inspectionCtx.id}/sheet`, `/inspections/${inspectionCtx.id}/facilities`] }
+            : {}),
+          scope: showEtc ? 'all' : 'standard',
+        }) : Promise.resolve(null),
         specsDirty && specsSaveRef.current ? specsSaveRef.current() : Promise.resolve(null),
       ])
       const parts: string[] = []
@@ -773,15 +785,19 @@ export function PlanForm14({ customerId, buildings, canManage, canRegister = fal
       </table>
       <p className="text-form-2xs text-ink-meta">※ 비고 1. 설치장소·규격 등은 자체점검표 참조 2. 건물군은 대상명을 바꿔 대상물별로 작성</p>
 
-      {/* ── 1.4 「기타」 (2026-09-03 사용자 지시) ───────────────────────────────────
+      {/* ── 1.4 「기타」 (2026-09-03 사용자 지시 · 2026-09-20 분할) ─────────────────────
           위 42종은 법정 **소방시설**이고, 여기 7종은 범주가 다르다: 피난·방화시설(방화문·비상구)과
           방염, 그리고 대상물이 가진 위험물·화기·가스·전기 시설. 고시 별지 4호도 「기타」로 따로 뒀다.
           그래서 42칸 표 안이 아니라 **표 밖 아래**에 둔다(표에 끼우면 42칸 배선이 흔들린다).
 
-          왜 지금 만드나: 이것들을 덮는 점검표는 있는데(STD-31·EXT-10~14) 설비 축이 없어
+          왜 만들었나: 이것들을 덮는 점검표는 있는데(STD-31·EXT-10~14) 설비 축이 없어
           installed가 영원히 false였다 — 인쇄는 늘 되면서 소방계획서_39의 필수 입력 강제를 통째로
           비켜갔고 무응답이 조용히 ／로 찍혔다. 여기 체크가 그 시트의 설치 축이 된다.
-          체크의 뜻은 '해당한다'이고 결과(○/×/／)는 점검표에서 받는다 — 두 축을 섞지 않는다. */}
+          체크의 뜻은 '해당한다'이고 결과(○/×/／)는 점검표에서 받는다 — 두 축을 섞지 않는다.
+
+          showEtc=false(고객 상세 [소방시설] 탭)면 이 섹션은 여기 없다 — 보고서 탭 「기타 점검대상」
+          3종 + 소방계획서 1.6 「기타」 4종으로 갈라졌다(etc-items-panel.tsx). 저장 축은 동일. */}
+      {showEtc && (
       <div className="rounded-xl border border-brand-line-soft bg-brand-tint px-4 py-2.5 space-y-1.5" data-testid="form14-etc">
         <div className="flex items-baseline gap-2 flex-wrap">
           <span className="text-form-sm font-semibold text-ink">기타</span>
@@ -821,6 +837,7 @@ export function PlanForm14({ customerId, buildings, canManage, canRegister = fal
           })}
         </div>
       </div>
+      )}
 
       {/* ── 1.10.3 다중이용업소 현황 (소방계획서_43 S7, 2026-09-09 사용자 확정 B안) ─────────────
           「기타」 바로 아래에 둔다. 별지 9호 설비 구분 7종 중 6종은 위 1.4에서 체크하는데

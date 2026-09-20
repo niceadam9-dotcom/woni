@@ -126,8 +126,30 @@ export function PlanAnnexSection({ customerId, canRegister = false, initialData 
     })
   }
   // 서버 프리페치가 실려 오면 첫 왕복을 건너뛴다 (2026-09-02 — "불러오는 중" 스피너 소멸)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { if (!initialData) reload(true) }, [customerId])
+  // ⚠ 첫 로드는 **트랜지션 밖**에서 돈다(2026-09-20). reload()는 startTransition 안에서 액션을
+  //   부르는데, 이 패널이 goTab 직후 마운트되고 그 직전 저장(revalidatePath)이 router.replace의
+  //   RSC 전면 재조회를 물면 트랜지션이 통째로 버려져 — 액션 호출이 서버에 닿지도 않은 채 —
+  //   「회차를 불러오는 중…」에 영영 갇혔다(9호發 복귀 E2E 실측: 30s에도 호출 0건). 재시도 축이
+  //   없는 첫 로드만은 취소 불가능한 평 fetch로 둔다. 이후 갱신(reload/refreshRound)은 종전대로.
+  useEffect(() => {
+    if (initialData) return
+    let alive = true
+    getCustomerRoundsAction(customerId)
+      .then(res => {
+        if (!alive) return
+        if (res.error || !res.data) { setLoadErr(res.error ?? '조회 실패'); return }
+        setLoadErr(null)
+        setData(res.data)
+      })
+      .catch(() => { if (alive) setLoadErr('조회 실패') })
+    return () => { alive = false }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [customerId])
+  // RSC 재렌더가 프리페치를 **늦게** 실어 오는 경우(goTab 후 replace가 tab=annex로 커밋) —
+  // state는 마운트 시 1회만 초기화되므로 여기서 이어받는다. 이미 로드됐으면 덮지 않는다(입력 상태 유지).
+  useEffect(() => {
+    if (initialData) setData(prev => prev ?? initialData)
+  }, [initialData])
 
   const rounds = useMemo(() => data?.rounds ?? [], [data])
 

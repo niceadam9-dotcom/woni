@@ -1,10 +1,14 @@
 // 소방계획서_34 S7-3/S7-5 — 별지 서식 최상위 탭 승격 프로브 (2026-08-29)
+// 2026-09-20 탭 재편 반영: 라벨 「별지서식」→「보고서」, [소방시설] 탭(구 소방계획서 1.4)이
+// 소방계획서와 보고서 사이에 끼었고, ?tab=plan&form=1.4 도 annex와 같은 규약으로 서버 변환된다.
+// ①③의 종전 단언(annex가 plan 바로 오른쪽 · form=1.4가 트리 1.4 선택)은 그 구계약이라
+// **반대 방향의 새 계약으로 갈아끼웠다**(지우지 않았다). ② 딥링크 변환 축은 문자 그대로 존치.
 //
 // 이 프로브가 붙들고 있는 것 4가지. 어느 하나도 기존 스위트가 보지 않는다:
-//   ① 탭이 실재하고 **소방계획서 바로 오른쪽**인가 (순서가 바뀌면 nth 기반 셀렉터가 조용히 어긋난다)
-//   ② 구 딥링크 ?tab=plan&form=annex 가 여전히 별지서식 탭으로 해석되는가
-//      → page.tsx의 정규화 3줄을 누가 지우면 **여기만** 빨강이 된다. 사용자 북마크와 프로브 11종의 생명줄.
-//   ③ 소방계획서 트리에 별지 노드가 되살아나지 않았는가 (되살아나면 회차 조회가 이중으로 돈다)
+//   ① 탭이 실재하고 순서가 **소방계획서 → 소방시설 → 보고서**인가 (nth 기반 셀렉터의 축)
+//   ② 구 딥링크 ?tab=plan&form=annex → 보고서 탭 / ?tab=plan&form=1.4 → 소방시설 탭.
+//      → page.tsx의 정규화 줄을 누가 지우면 **여기만** 빨강이 된다. 사용자 북마크와 프로브 11종의 생명줄.
+//   ③ 소방계획서 트리에 별지·1.4 노드가 되살아나지 않았는가 (되살아나면 조회 왕복이 이중으로 돈다)
 //   ④ **지연 마운트** — 기본정보 탭만 열었을 때 별지 회차 조회 서버액션이 돌지 않는가
 //      → lazyKeys 배선이 끊기면 증상이 '고객 상세가 좀 느려졌다'뿐이라 아무도 못 알아챈다.
 //
@@ -48,12 +52,17 @@ try {
   await page.waitForSelector('h1', { timeout: 30000 })
   const labels = await tabLabels(page)
   const iPlan = labels.findIndex(t => t.includes('소방계획서'))
-  const iAnnex = labels.findIndex(t => t.includes('별지서식'))
-  check('① [별지서식] 탭 실재', iAnnex >= 0, JSON.stringify(labels))
-  check('① [소방계획서] 바로 오른쪽', iPlan >= 0 && iAnnex === iPlan + 1, `plan=${iPlan} annex=${iAnnex}`)
-  // 라벨 겹침 금지 — '소방계획서 별지' 류로 바꾸면 has-text("소방계획서")가 두 탭을 잡는다
+  const iFac = labels.findIndex(t => t.startsWith('소방시설'))
+  const iAnnex = labels.findIndex(t => t.startsWith('보고서'))
+  check('① [보고서] 탭 실재(구 별지서식 개명)', iAnnex >= 0, JSON.stringify(labels))
+  check('① [소방시설] 탭 실재(구 소방계획서 1.4)', iFac >= 0, JSON.stringify(labels))
+  check('① 순서: 소방계획서 → 소방시설 → 보고서', iPlan >= 0 && iFac === iPlan + 1 && iAnnex === iFac + 1,
+    `plan=${iPlan} fac=${iFac} annex=${iAnnex}`)
+  // 라벨 겹침 금지 — '소방계획서 별지' 류로 바꾸면 has-text("소방계획서")가 두 탭을 잡는다.
+  // '소방시설'도 같은 축: '소방계획서'와 서로 부분문자열이 아니어야 role=tab 셀렉터가 하나만 잡는다
   check('① 라벨이 서로 부분문자열이 아니다(셀렉터 충돌 방지)',
-    !labels[iAnnex]?.includes('소방계획서'), String(labels[iAnnex]))
+    !labels[iAnnex]?.includes('소방계획서') && !labels[iFac]?.includes('소방계획서')
+      && !labels[iPlan]?.includes(labels[iAnnex] ?? '보고서'), `${labels[iFac]} / ${labels[iAnnex]}`)
   check('① 진입 탭은 여전히 기본정보 (별지가 랜딩을 뺏지 않았다)',
     (await activeTab(page)).includes('기본정보'), await activeTab(page))
 
@@ -72,11 +81,11 @@ try {
   const idlePanel = (await page.locator('[role=tabpanel]').nth(iAnnex).innerHTML().catch(() => '')).length
   check('④ 기본정보 탭에서 별지 패널이 DOM에 없다 (지연 마운트)', idleMarker === 0 && idlePanel === 0,
     `마커=${idleMarker} 패널길이=${idlePanel}`)
-  await page.locator('[role=tab]').filter({ hasText: '별지서식' }).first().click()
+  await page.locator('[role=tab]').filter({ hasText: '보고서' }).first().click()
   await page.waitForSelector('text=사용승인일 기준으로 ERP가 자동 판정', { timeout: 25000 })
   const afterMarker = await page.locator('text=사용승인일 기준으로 ERP가 자동 판정').count()
   check('④ (대조군) 탭을 누르면 패널이 생긴다 — 위 검사가 항진명제가 아님', afterMarker > 0, `마커=${afterMarker}`)
-  check('④ 탭 클릭 → [별지서식] 활성', (await activeTab(page)).includes('별지서식'), await activeTab(page))
+  check('④ 탭 클릭 → [보고서] 활성', (await activeTab(page)).includes('보고서'), await activeTab(page))
   // 한 번 방문한 뒤에는 마운트를 유지한다(입력 상태 유지 계약) — 다른 탭으로 옮겨도 DOM에 남아야 한다
   await page.locator('[role=tab]').filter({ hasText: '기본정보' }).first().click()
   await page.waitForTimeout(600)
@@ -92,22 +101,34 @@ try {
   // ══ ② 구 딥링크 하위호환 (정규화 존치 가드) ═════════════════════════════════
   await page.goto(`${BASE}/customers/${custId}?tab=plan&form=annex`)
   await page.waitForSelector('h1', { timeout: 30000 })
-  check('② 구 딥링크 ?tab=plan&form=annex → [별지서식] 탭',
-    (await activeTab(page)).includes('별지서식'), await activeTab(page))
+  check('② 구 딥링크 ?tab=plan&form=annex → [보고서] 탭',
+    (await activeTab(page)).includes('보고서'), await activeTab(page))
   check('② 그 화면에 별지 본체가 실제로 떠 있다',
     await page.locator('text=사용승인일 기준으로 ERP가 자동 판정').first()
       .waitFor({ state: 'visible', timeout: 25000 }).then(() => true).catch(() => false))
-
-  // ══ ③ 소방계획서 트리에 별지 노드 부재 + 트리 축 보존 ═══════════════════════
+  // form=1.4 변환 — annex와 같은 규약(2026-09-20 신설). 지우면 구 북마크가 조용히 1.1로 떨어진다
   await page.goto(`${BASE}/customers/${custId}?tab=plan&form=1.4`)
+  await page.waitForSelector('h1', { timeout: 30000 })
+  check('② 구 딥링크 ?tab=plan&form=1.4 → [소방시설] 탭',
+    (await activeTab(page)).includes('소방시설'), await activeTab(page))
+  // 이 프로브 고객은 건물이 없다 — PlanForm14는 그때 42종 표 대신 건물 등록 안내를 그린다.
+  // 어느 쪽이든 「1.4 본체가 마운트됐다」는 증거다(빈 패널·1.1 낙하가 아니라는 것이 이 단언의 뜻)
+  check('② 그 화면에 1.4 본체가 실제로 떠 있다(42종 표 또는 무건물 안내)',
+    await page.locator('text=/서식 1\\.4 소방시설 현황|등록된 활성 건물이 없습니다/').first()
+      .waitFor({ state: 'visible', timeout: 25000 }).then(() => true).catch(() => false))
+
+  // ══ ③ 소방계획서 트리에 별지·1.4 노드 부재 + 트리 축 보존 ═══════════════════
+  await page.goto(`${BASE}/customers/${custId}?tab=plan&form=1.5`)
   await page.waitForSelector('h1', { timeout: 30000 })
   check('③ 소방계획서 탭 활성', (await activeTab(page)).includes('소방계획서'), await activeTab(page))
   const annexNodes = await page.locator('[data-plan-node="annex"]').count()
   check('③ 트리에 [data-plan-node="annex"] 0개', annexNodes === 0, `count=${annexNodes}`)
+  const facNodes = await page.locator('[data-plan-node="1.4"]').count()
+  check('③ 트리에 [data-plan-node="1.4"] 0개(이사 노드 부활 금지)', facNodes === 0, `count=${facNodes}`)
   // 트리 선택 축 자체는 살아 있어야 한다 — 이게 죽으면 위 단언이 항진명제가 된다
   const sel = await page.locator('[data-plan-node][aria-current="true"]').first()
     .getAttribute('data-plan-node').catch(() => null)
-  check('③ (대조군) form=1.4 딥링크는 여전히 노드 1.4를 선택', sel === '1.4', String(sel))
+  check('③ (대조군) form=1.5 딥링크는 노드 1.5를 선택', sel === '1.5', String(sel))
 } catch (e) {
   check('예외 없음', false, String(e))
 } finally {

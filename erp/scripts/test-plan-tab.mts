@@ -147,25 +147,28 @@ try {
   await page.waitForSelector('button:has-text("추천값 채우기")')
   await page.waitForSelector('text=① 시설현황')
   check('1.1 섹션 카드 ①②③', await page.isVisible('text=② 운영현황') && await page.isVisible('text=③ 화재보험'))
-  // 건물 축은 여전히 1.1에 있다
-  const stairsInput = page.locator('div:has(> label:text-is("계단")) input')
+  // 건물 축은 여전히 1.1에 있다 — 단 계단은 **읽기 전용**이 됐다(2026-09-16 마이그 165, 8617cfcb:
+  // stairs_count는 직통+피난 **파생**이고 입력구는 건물·시설 탭 하나). 종전 「계단 fill → stairs_count=2」
+  // 단언은 그 구계약이라 갈아끼운다 — 손입력 부재 + 안내 버튼이 새 계약이다.
+  check('1.1 — 계단은 읽기 전용 표시(파생 축, 손입력 없음)',
+    await page.isVisible('[data-testid="fp-stairs-readonly"]')
+    && (await page.locator('div:has(> label:text-is("계단(직통+피난)")) input').count()) === 0)
+  check('1.1 — 계단 [종류별 입력] 버튼이 건물 탭으로 안내', await page.isVisible('button:has-text("종류별 입력")'))
   const evacInput = page.locator('div:has(> label:text-is("피난용승강기")) input')
-  await stairsInput.fill('2')
   await evacInput.fill('1')
   // ⚠ 2026-08-30: 하이드레이션 전 fill은 DOM 값만 바꾸고 **React 상태엔 안 남는다**. 그러면 빈 값이
-  //   저장되는데 저장 자체는 성공해 '저장되었습니다' 토스트가 그대로 뜨고, :151에서야 null로 드러난다 —
+  //   저장되는데 저장 자체는 성공해 '저장되었습니다' 토스트가 그대로 뜨고, 아래에서야 null로 드러난다 —
   //   조용히 틀린 값이 들어가는 형태라 화면만 봐선 모른다. 저장을 누르기 전에 **입력이 실제로 먹었는지**
   //   확인한다. fill은 치환이라 몇 번을 돌아도 결과가 같다.
   for (let i = 0; i < 8; i++) {
-    if (await stairsInput.inputValue() === '2' && await evacInput.inputValue() === '1') break
-    await stairsInput.fill('2')
+    if (await evacInput.inputValue() === '1') break
     await evacInput.fill('1')
     await page.waitForTimeout(250)
   }
   await page.click('[data-testid="fp-info-save"]')   // [저장 후 다음 탭 →] 폐기(2026-08-08) — 1.1 [저장] 단일
   await page.waitForSelector('text=저장되었습니다')
-  const { data: bldNew } = await raw.from('buildings').select('stairs_count, evac_elevator_count').eq('customer_id', customerId).limit(1).single()
-  check('DB 1.1 신규 필드(buildings)', bldNew?.stairs_count === 2 && bldNew?.evac_elevator_count === 1, JSON.stringify(bldNew))
+  const { data: bldNew } = await raw.from('buildings').select('evac_elevator_count').eq('customer_id', customerId).limit(1).single()
+  check('DB 1.1 신규 필드(buildings)', bldNew?.evac_elevator_count === 1, JSON.stringify(bldNew))
 
   // 사람 축(대표자 구분·관리자 자격구분)은 2026-08-20 `ee1d290`부터 **관계인 탭 [소방안전관리]**로
   // 이관됐다(fire-plan-info-panel.tsx:306-318 — 1.1엔 안내 링크만 남았다). 이 테스트는 이관을
@@ -304,13 +307,16 @@ try {
   // ── 4.6) 서식 1.5·1.6·1.7 (P4-③) — 저장·DB 반영 ──
   await page.click('button:has-text("1.5 피난·방화")')
   await page.waitForSelector('text=1.5.1 피난·방화시설 일반현황')
-  await page.click('button:has-text("직통계단")')
+  // 계단은 읽기 전용이 됐다(2026-09-16 마이그 165, 8617cfcb — 원천은 건물·시설 탭 하나).
+  // 종전 「직통계단 토글 → sections.evacFire.stairs 저장」 단언은 그 구계약이라 갈아끼운다.
+  check('1.5 — 계단 토글 없음(읽기 전용 — 원천은 건물·시설 탭)',
+    (await page.locator('button:has-text("직통계단")').count()) === 0)
   await page.click('button:has-text("해당없음")') // 방화구획 해당없음 원클릭
   await page.click('button:has-text("서식 1.5 저장")')
   await page.waitForSelector('text=서식 1.5 저장됨')
   const { data: f15 } = await raw.from('fire_plan_forms').select('sections').eq('customer_id', customerId).maybeSingle()
   const ef = (f15?.sections as { evacFire?: { stairs: Record<string, string>; compartment: string } } | null)?.evacFire
-  check('DB sections.evacFire 저장 (직통계단·방화구획 해당없음)', ef?.stairs?.['직통계단'] !== undefined && ef?.compartment === 'none', JSON.stringify(ef))
+  check('DB sections.evacFire 저장 (방화구획 해당없음)', ef?.compartment === 'none', JSON.stringify(ef))
 
   await page.click('button:has-text("1.6 기타시설")')
   await page.waitForSelector('text=가스 시설')
@@ -450,7 +456,9 @@ try {
   // zones(1.2)·hazards(1.2)·evacPlan(3.4)·brigade(2장)가 저장돼 있으므로 웹 생성 기본값에 반영됨 — 코드 대조 + 저장 검증으로 충족
 
   // ── 4.7) 서식 1.4 양식 재현 (P4-②b) — 체크·하위 연동·저장·DB 반영 ──
-  await page.click('button:has-text("1.4 소방시설")')
+  // 2026-09-20: 1.4가 최상위 [소방시설] 탭으로 승격 — 트리 노드 클릭 대신 탭으로 들어간다.
+  // (트리에서의 부재는 _probe-annex-tab ③이 단언한다)
+  await page.locator('[role=tab]').filter({ hasText: '소방시설' }).first().click()
   await page.waitForSelector('text=서식 1.4 소방시설 현황')
   check('서식 1.4 — 양식 표 렌더', await page.isVisible('text=소화기구 및 자동소화장치'))
   // 소방계획서_9(a9e2df3): 설비를 체크할 때마다 '설비 대장' 우측 슬라이드 패널이 열리고,
@@ -547,10 +555,11 @@ try {
     await page.locator('[data-testid="specs-footer-status"]').textContent()
       .then(t => (t ?? '').includes('모든 변경이 저장됐습니다')))
 
-  // 건물·시설 탭 — 패널 이동 안내
+  // 건물·시설 탭 — 패널 이동 안내 (2026-09-20 목적지가 [소방시설] 탭으로 바뀜)
   await page.goto(`${BASE}/customers/${customerId}?tab=buildings`)
-  await page.waitForSelector('text=1.4 소방시설')
-  check('건물 탭 — 시설현황 이동 안내', await page.isVisible('text=소방계획서 탭'))
+  await page.waitForSelector('text=소방시설 현황 입력은')
+  check('건물 탭 — 시설현황 이동 안내가 [소방시설] 탭을 가리킨다',
+    await page.isVisible('a:has-text("[소방시설] 탭")'))
 
   // ── 5) 일반관리 고객 — 특례 제거(소방계획서_6 W-14·W-19): 소방안전관리와 동일 취급 ──
   // 구 배너('작성 대상이 아닙니다')는 32c2ace에서 설계상 제거 — 일반관리도 소방계획서·필수 완성도 대상

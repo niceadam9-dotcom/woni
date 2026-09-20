@@ -1,7 +1,13 @@
-/** 1.4 「기타」 블록 라이브 검증 (2026-09-03 사용자 지시) — 체크 → 저장 → 점검표 딥링크.
+/** 「기타」 7종 분할 라이브 검증 (2026-09-03 신설 → 2026-09-20 분할 재작성) — 체크 → 저장 → 점검표 딥링크.
  *
- *  이 축의 계약: **1.4 체크는 '해당한다'는 사실이고, 결과(○/×/／)는 점검표에서 받는다.**
- *  체크가 STD-31·EXT-10~14의 설치 축이 되므로 체크하는 순간 39의 필수 입력 강제가 붙는다.
+ *  이 축의 계약: **체크는 '해당한다'는 사실이고, 결과(○/×/／)는 점검표에서 받는다.**
+ *  체크가 STD-31·EXT-10~14의 설치 축이 되는 배선(sheet-facility-map)은 분할 전과 동일하다.
+ *
+ *  2026-09-20 사용자 확정으로 입력 UI가 갈라졌다 — 종전 「1.4 하단 한 블록」 단언은 구계약이라 갈아끼웠다:
+ *   · [소방시설] 탭(구 1.4)에는 기타 블록이 **없다** (showEtc=false — 음성 단언)
+ *   · 보고서 탭 「기타 점검대상」 = 방화문·방화셔터 / 비상구·피난통로 / 방염 (자체 [저장])
+ *   · 소방계획서 1.6 「기타」 = 위험물 저장·취급 / 화기 / 가연성 가스 / 전기 (1.6 통합 [저장])
+ *   · 🚨 race — [소방시설] 탭 저장(scope 'standard')이 다른 카드가 저장한 기타 행을 되살리면 안 된다
  *
  *  대상: 별그리다(추모공원) — 진행 중 자체점검 회차가 있어 링크(canInputResult)가 그려진다.
  *  ⚠ 쓰기 검사다(fire_facilities). 원상 복구를 finally에서 **DB로 직접** 되돌린다 —
@@ -24,7 +30,10 @@ const EMAIL = 'form14-etc-e2e@erp-test.com'
 const PW = 'EtcAxis39!'
 const ETC7 = ['방화문 및 방화셔터', '비상구 및 피난통로', '방염',
   '위험물 저장·취급시설', '화기시설', '가연성 가스시설', '전기시설']
-const TARGET = '방염'   // 짧은 어휘 = 퍼지 폴백에 가장 취약했던 코드를 일부러 고른다
+const REPORT3 = ETC7.slice(0, 3)
+const PLAN4 = ETC7.slice(3)
+const TARGET = '방염'      // 보고서 탭 갈래 — 짧은 어휘 = 퍼지 폴백에 가장 취약했던 코드를 일부러 고른다
+const TARGET_PLAN = '화기시설' // 1.6 갈래
 
 let pass = 0, fail = 0
 const check = (name: string, ok: boolean, extra = '') => {
@@ -61,46 +70,45 @@ try {
   await page.click('button[type=submit]')
   await page.waitForURL(x => !x.pathname.includes('/login'))
 
-  await page.goto(`${BASE}/customers/${custId}`)
-  await page.click('text=소방계획서')
-  await page.click('button:has-text("1.4 소방시설")')
+  // ── ⓪ 음성 — [소방시설] 탭(구 1.4)에는 기타 블록이 없다 ────────────────────
+  await page.goto(`${BASE}/customers/${custId}?tab=facilities`)
   await page.waitForSelector('text=서식 1.4 소방시설 현황')
+  check('[소방시설] 탭에 종전 기타 블록(form14-etc)이 없다',
+    await page.locator('[data-testid="form14-etc"]').count() === 0)
+  check('[소방시설] 탭에 분할 카드(etc-items-panel)도 없다(42종·대장·다중이용업소만)',
+    await page.locator('[data-testid="etc-items-panel"]').count() === 0)
 
-  // ── ① 블록·체크박스 실재 ────────────────────────────────────────────────
-  const block = page.locator('[data-testid="form14-etc"]')
+  // ── ① 보고서 탭 「기타 점검대상」 — 3종 실재·안내 ───────────────────────────
+  await page.goto(`${BASE}/customers/${custId}?tab=annex`)
+  const block = page.locator('[data-testid="etc-items-panel"]')
   await block.waitFor({ timeout: 15_000 })
-  check('「기타」 블록이 1.4 하단에 있다', await block.isVisible())
-  for (const code of ETC7) {
-    check(`체크박스 '${code}'`, await block.locator(`[data-testid="form14-check-${code}"]`).count() === 1)
+  check('보고서 탭에 「기타 점검대상」 카드가 있다', await block.isVisible())
+  for (const code of REPORT3) {
+    check(`체크박스 '${code}'`, await block.locator(`[data-testid="etc-check-${code}"]`).count() === 1)
+  }
+  for (const code of PLAN4) {
+    check(`소방계획서 갈래 '${code}'는 보고서 카드에 없다`, await block.locator(`[data-testid="etc-check-${code}"]`).count() === 0)
   }
   const txt = (await block.textContent()) ?? ''
   check('안내가 "결과는 점검표에서"를 말한다', txt.includes('점검 결과') && txt.includes('점검표에서'))
 
   // ── ② 음성 대조 — 미체크면 입력 링크가 없다 ──────────────────────────────
   check(`미체크 상태에선 '${TARGET}' 링크 없음`,
-    await page.locator(`[data-testid="form14-etc-link-${TARGET}"]`).count() === 0)
+    await page.locator(`[data-testid="etc-link-${TARGET}"]`).count() === 0)
 
   // ── ③ 체크 → 링크 등장 → 딥링크 계약 ────────────────────────────────────
-  await block.locator(`[data-testid="form14-check-${TARGET}"]`).click()
-  const link = page.locator(`[data-testid="form14-etc-link-${TARGET}"]`)
+  await block.locator(`[data-testid="etc-check-${TARGET}"]`).click()
+  const link = page.locator(`[data-testid="etc-link-${TARGET}"]`)
   await link.waitFor({ timeout: 15_000 })
   const href = await link.getAttribute('href')
   check('체크하면 점검표 링크가 생긴다', !!href, href ?? '(없음)')
   check('딥링크 계약 — /sheet?facility=&from=',
     !!href && /\/inspections\/[0-9a-f-]+\/sheet\?facility=/.test(href) && href.includes('from='), href ?? '')
+  check('복귀(from)가 보고서 탭을 가리킨다', !!href && decodeURIComponent(href).includes('tab=annex'), href ?? '')
 
   // ── ④ 저장 → DB 영속 ───────────────────────────────────────────────────
-  // 「기타」 체크는 설비 대장 패널을 열지 않아야 한다 — 세부제원 섹션이 없을뿐더러 그 패널이
-  // 전면 오버레이(fixed inset-0 z-40)라 [저장]을 가려 **저장 자체가 막힌다**(수리 전 실측).
-  // ⚠ 패널 컨테이너는 **항상 마운트**돼 있다(plan-form14.tsx:378 주석) — count로 재면 늘 1이라
-  //    닫힘/열림을 구별하지 못한다. 패널 안의 버튼이 실제로 보이는지로 판정한다.
-  check('기타 체크가 설비 대장 패널을 열지 않는다',
-    !(await page.locator('[data-testid="specs-save"]').isVisible()))
-
-  // ⚠ 'button:has-text("저장")'은 이 화면에서 5개를 잡고 첫 번째가 숨은 다른 폼의 버튼이다(실측).
-  //    testid로 특정한다 — 문자열 셀렉터는 화면이 커질수록 조용히 남의 버튼을 누른다.
-  await page.locator('[data-testid="form14-save"]').click()
-  await page.waitForSelector('text=/저장(했습니다|되었습니다|완료)|확인일/', { timeout: 20_000 }).catch(() => {})
+  await page.locator('[data-testid="etc-items-save"]').click()
+  await page.waitForSelector('text=✅ 저장됨', { timeout: 20_000 }).catch(() => {})
   await page.waitForTimeout(1200)
   const { data: post } = await raw.from('fire_facilities')
     .select('facility_code, category, installed').eq('building_id', buildingId).in('facility_code', ETC7)
@@ -112,7 +120,47 @@ try {
   check('체크 안 한 6종은 저장되지 않는다(미설치는 행을 만들지 않는 종전 규약)',
     (post ?? []).length === 1, `${(post ?? []).length}건`)
 
-  // ── ⑤ 링크 이동 — 지목한 점검표가 열린 채 도착하는가 ─────────────────────
+  // ── ⑤ 🚨 race — [소방시설] 탭 저장이 방금 저장한 기타 행을 되살리거나 지우지 않는다 ──
+  // scope 'standard'의 존재 이유. 42종 상태는 화면 로드값 그대로 두고(켰다 끄면 원상), dirty만 만든다.
+  await page.goto(`${BASE}/customers/${custId}?tab=facilities`)
+  await page.waitForSelector('text=서식 1.4 소방시설 현황')
+  const probe = page.locator('[data-testid="form14-check-이산화탄소소화설비"]')
+  const before = await probe.getAttribute('aria-pressed')
+  await probe.click()
+  await page.keyboard.press('Escape')   // 체크 순간 열리는 설비 대장 패널을 닫는다(저장 버튼 가림 방지)
+  await probe.click()                    // 원상 — 상태는 그대로, dirty만 남는다
+  await page.keyboard.press('Escape')
+  check('42종 상태가 원상(켰다 끔)', (await probe.getAttribute('aria-pressed')) === before)
+  await page.locator('[data-testid="form14-save"]').click()
+  await page.waitForTimeout(1500)
+  const { data: afterStd } = await raw.from('fire_facilities')
+    .select('facility_code').eq('building_id', buildingId).in('facility_code', ETC7)
+  check('🚨 [소방시설] 저장 후에도 기타 행이 그대로 1건(scope standard)', (afterStd ?? []).length === 1,
+    JSON.stringify(afterStd ?? []))
+
+  // ── ⑥ 1.6 「기타 — 점검 대상 여부」 4종 + 통합 저장 ─────────────────────────
+  await page.goto(`${BASE}/customers/${custId}?tab=plan&form=1.6`)
+  const planBlock = page.locator('[data-testid="etc-items-panel"]')
+  await planBlock.waitFor({ timeout: 15_000 })
+  for (const code of PLAN4) {
+    check(`1.6 체크박스 '${code}'`, await planBlock.locator(`[data-testid="etc-check-${code}"]`).count() === 1)
+  }
+  for (const code of REPORT3) {
+    check(`보고서 갈래 '${code}'는 1.6 카드에 없다`, await planBlock.locator(`[data-testid="etc-check-${code}"]`).count() === 0)
+  }
+  await planBlock.locator(`[data-testid="etc-check-${TARGET_PLAN}"]`).click()
+  await page.locator('button:has-text("서식 1.6 저장")').click()
+  await page.waitForSelector('text=기타(해당 여부) 저장됨', { timeout: 20_000 }).catch(() => {})
+  await page.waitForTimeout(1200)
+  const { data: post16 } = await raw.from('fire_facilities')
+    .select('facility_code, installed').eq('building_id', buildingId).in('facility_code', ETC7)
+  const rows16 = (post16 ?? []) as Array<{ facility_code: string; installed: boolean }>
+  check(`1.6 통합 저장 → '${TARGET_PLAN}' 행이 DB에 있다`, rows16.some(r => r.facility_code === TARGET_PLAN && r.installed),
+    JSON.stringify(post16 ?? []))
+  check(`보고서 갈래 '${TARGET}' 행도 그대로다(부분 저장이 남의 갈래를 안 지운다)`,
+    rows16.some(r => r.facility_code === TARGET), JSON.stringify(post16 ?? []))
+
+  // ── ⑦ 링크 이동 — 지목한 점검표가 열린 채 도착하는가 ─────────────────────
   await page.goto(`${BASE}${href!}`)
   await page.waitForURL(/\/inspections\/[0-9a-f-]+\/sheet/, { timeout: 20_000 })
   await page.waitForSelector('text=점검표 입력 —', { timeout: 20_000 })

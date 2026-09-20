@@ -21,8 +21,9 @@ type AutoRow = { label: string; source: string; href?: string }
 function autoRows(annexNo: ComposeAnnexNo, customerId?: string, inspectionId?: string): AutoRow[] {
   const cust = customerId ? `/customers/${customerId}` : undefined
   // D-17 9호發 진입 컨텍스트 — 설비 대장이 스플릿 ON·첫 빈칸 포커스·[9호로 돌아가기]를 켜는 신호
+  // 1.4가 [소방시설] 탭으로 승격돼(2026-09-20) 목적지도 그 탭이다 — 구 ?tab=plan&form=1.4는 서버가 변환
   const ledger = customerId
-    ? `/customers/${customerId}?tab=plan&form=1.4&from=report9${inspectionId ? `&insp=${inspectionId}` : ''}`
+    ? `/customers/${customerId}?tab=facilities&from=report9${inspectionId ? `&insp=${inspectionId}` : ''}`
     : undefined
   // 소방계획서_44 — 2쪽 3행의 확정 자리(1.10 「전년도 업무 실시사항」)
   const duty = customerId

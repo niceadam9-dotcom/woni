@@ -1,13 +1,20 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useCallback, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Loader2, Save } from 'lucide-react'
 import { saveFirePlanSectionsAction } from '@/app/(dashboard)/customers/fire-plan-form-actions'
 import { NumField, useUnsavedWarning } from '@/components/ui/fields'
+import { ETC_ITEMS_PLAN } from '@/lib/facility-codes'
+import { EtcItemsPanel, type EtcBuildingInit } from '@/components/customers/etc-items-panel'
 
 /** 서식 1.6 기타시설 현황 (1.6.1) — 전기·가스·위험물 (소방계획서_4.md §3, sections.etcFacility)
- *  §11-3: 가스 [LPG 프리셋], 위험물 [해당없음] 원클릭 */
+ *  §11-3: 가스 [LPG 프리셋], 위험물 [해당없음] 원클릭
+ *
+ *  「기타 — 해당 여부」 4종 (2026-09-20 사용자 확정): 1.4 「기타」에서 위험물 저장·취급/화기/가연성
+ *  가스/전기 시설 체크가 이리로 왔다(방화문·비상구·방염 3종은 보고서 탭). ⚠ 두 축이 한 화면에 산다:
+ *  체크 = **건물별 fire_facilities**(외관점검표 대상 축) / 아래 현황 입력 = **고객별 sections**(계획서
+ *  서술 축). [저장] 버튼 하나가 dirty인 쪽만 골라 둘 다 저장한다(plan-form14 U3 통합 저장 전례). */
 
 export type EtcFacilitySection = {
   // M-17(소방계획서_15, 2026-08-11 보강): 비상발전기 용량·위치·수량 구조화(genKw·genLocation·genQty).
@@ -38,15 +45,25 @@ export const EMPTY_ETC_FACILITY: EtcFacilitySection = {
   hazmat: { none: false, note: '' },
 }
 
-export function PlanForm16({ customerId, canManage, initial }: {
+export function PlanForm16({ customerId, canManage, initial, etcBuildings, etcDefaultBuildingId, canRegister = false }: {
   customerId: string; canManage: boolean; initial: EtcFacilitySection
+  /** 「기타 — 해당 여부」 4종 카드용 건물별 초기값 (fire_facilities 축) — 미지정이면 카드를 그리지 않는다 */
+  etcBuildings?: EtcBuildingInit[]
+  /** 카드가 처음 보여줄 건물 = 대표동(lib/primary-building) */
+  etcDefaultBuildingId?: string | null
+  /** 카드의 점검표 링크·진행 배지 축(inspection_register) */
+  canRegister?: boolean
 }) {
   const router = useRouter()
   const [v, setV] = useState<EtcFacilitySection>({ ...EMPTY_ETC_FACILITY, ...initial })
   const [dirty, setDirty] = useState(false)
   const [msg, setMsg] = useState('')
   const [isPending, startTransition] = useTransition()
-  useUnsavedWarning(dirty, save) // §11-4 이탈 경고 + 이동 확인창 [저장하고 이동]
+  // 기타 4종 카드(embedded) — dirty·저장을 이 폼의 [저장] 하나로 통합 (plan-form14 registerSpecsSave 전례)
+  const [etcDirty, setEtcDirty] = useState(false)
+  const etcSaveRef = useRef<(() => Promise<boolean>) | null>(null)
+  const registerEtcSave = useCallback((fn: () => Promise<boolean>) => { etcSaveRef.current = fn }, [])
+  useUnsavedWarning(dirty || etcDirty, save) // §11-4 이탈 경고 + 이동 확인창 [저장하고 이동]
 
   function pe(p: Partial<EtcFacilitySection['electric']>) { setV(x => ({ ...x, electric: { ...x.electric, ...p } })); setDirty(true) }
   function pg(p: Partial<EtcFacilitySection['gas']>) { setV(x => ({ ...x, gas: { ...x.gas, ...p } })); setDirty(true) }
@@ -54,16 +71,27 @@ export function PlanForm16({ customerId, canManage, initial }: {
   function lpgPreset() {
     pg({ kind: 'LPG', location: '주방·보일러실', usage: '취사·난방', regulator: true, shutoff: true })
   }
-  /** 반환 Promise는 이동 확인창이 저장 완료를 기다리는 용도 (true=성공) */
+  /** 반환 Promise는 이동 확인창이 저장 완료를 기다리는 용도 (true=성공).
+   *  두 저장소가 독립이라 dirty인 쪽만 병렬 호출 — 실패한 쪽은 dirty가 남아 재클릭이 재시도다. */
   function save(): Promise<boolean> {
     return new Promise(resolve => {
       startTransition(async () => {
-        const res = await saveFirePlanSectionsAction(customerId, { etcFacility: v })
-        if (res.error) { setMsg(`❌ ${res.error}`); resolve(false); return }
-        setDirty(false)
-        setMsg('✅ 서식 1.6 저장됨')
-        router.refresh()
-        resolve(true)
+        const [secRes, etcOk] = await Promise.all([
+          dirty ? saveFirePlanSectionsAction(customerId, { etcFacility: v }) : Promise.resolve(null),
+          etcDirty && etcSaveRef.current ? etcSaveRef.current() : Promise.resolve(true),
+        ])
+        const parts: string[] = []
+        let ok = true
+        if (secRes) {
+          if (secRes.error) { ok = false; parts.push(`❌ ${secRes.error}`) }
+          else { setDirty(false); parts.push('✅ 서식 1.6 저장됨') }
+        }
+        // 기타 카드 실패의 상세 메시지는 카드 자신이 띄운다 — 여기선 합산 결과만
+        if (!etcOk) { ok = false; parts.push('❌ 기타(해당 여부) 저장 실패') }
+        else if (etcDirty) parts.push('✅ 기타(해당 여부) 저장됨')
+        setMsg(parts.join(' · '))
+        if (ok) router.refresh()
+        resolve(ok)
       })
     })
   }
@@ -77,6 +105,17 @@ export function PlanForm16({ customerId, canManage, initial }: {
 
   return (
     <div className="space-y-4">
+      {/* 기타 — 해당 여부 4종 (2026-09-20, 1.4 「기타」에서 분할 이사). ⚠ 아래 현황 입력과 축이 다르다:
+          체크는 건물별 fire_facilities(외관점검표 대상 축), 현황은 고객별 sections(계획서 서술 축) */}
+      {etcBuildings && etcBuildings.length > 0 && (
+        <EtcItemsPanel customerId={customerId} items={ETC_ITEMS_PLAN}
+          buildings={etcBuildings} defaultBuildingId={etcDefaultBuildingId}
+          canManage={canManage} canRegister={canRegister}
+          linkFrom={`/customers/${customerId}?tab=plan&form=1.6`}
+          title="기타 — 점검 대상 여부"
+          description="※ 해당하면 ☑ — 외관점검표의 대상 축이 됩니다 · 아래 현황 입력(수전·가스·위험물)은 소방계획서 서술로 별개입니다"
+          embedded registerSave={registerEtcSave} onDirtyChange={setEtcDirty} />
+      )}
       {/* 전기 */}
       <div className="rounded-xl border border-brand-line-soft bg-brand-tint p-4 space-y-2">
         <div className="flex items-center gap-2">
@@ -174,7 +213,7 @@ export function PlanForm16({ customerId, canManage, initial }: {
 
       {canManage && (
         <div className="flex items-center gap-2">
-          <button onClick={() => { void save() }} disabled={!dirty || isPending}
+          <button onClick={() => { void save() }} disabled={(!dirty && !etcDirty) || isPending}
             className="inline-flex items-center gap-1 h-form-8 px-3 rounded-lg bg-brand text-white text-form-sm font-medium disabled:opacity-50">
             {isPending ? <Loader2 className="size-3.5 animate-spin" /> : <Save className="size-3.5" />} 서식 1.6 저장
           </button>

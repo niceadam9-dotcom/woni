@@ -10,7 +10,7 @@ import { DateInput } from '@/components/ui/date-input'
 import { TableWrap } from '@/components/ui/fields'
 import { collectPlanSaveHandlers, useUnsavedNavGuard } from '@/components/ui/unsaved-nav'
 import { useCustomerTabs } from '@/components/customers/customer-tabs'
-import { FIRE_PLAN_FORMS, FIRE_PLAN_FORM_KEYS, formOfCard, sectionsOfForm, type FirePlanFormKey } from '@/lib/fire-plan-sections'
+import { PLAN_TREE_FORMS, PLAN_TREE_FORM_KEYS, formOfCard, tabOfForm, sectionsOfForm, type FirePlanFormKey } from '@/lib/fire-plan-sections'
 import { PlanBlankReport } from '@/components/customers/plan-blank-report'
 import type { FormBlankSummary } from '@/lib/fire-plan-blanks'
 import { RevisionHistory } from '@/components/customers/revision-history'
@@ -63,8 +63,10 @@ const CHIP_FIELD_ID: Record<string, string> = {
  *
  *  목차가 종전엔 여기(`CH1_FORMS`)·바로 아래(`VALID_SEL`)·`[id]/page.tsx`(`formStatus` 키)
  *  **세 곳**에 각자 있었다. 셋이 갈라지면 딥링크가 조용히 엉뚱한 화면을 연다.
- *  ⚠ 여기 손목록을 되살리지 않는다 — 이제 50시트 대장과 1:1이 적재 시점에 검증된다. */
-const CH1_FORMS = FIRE_PLAN_FORMS.filter(f => f.group === '본문 1장')
+ *  ⚠ 여기 손목록을 되살리지 않는다 — 이제 50시트 대장과 1:1이 적재 시점에 검증된다.
+ *  PLAN_TREE_*는 이사 노드(1.4 → 최상위 [소방시설] 탭, 2026-09-20)를 뺀 **화면 트리** 축이다 —
+ *  구 딥링크 ?form=1.4는 page.tsx가 서버에서 그 탭으로 해석하므로 여기 올 일이 없다. */
+const CH1_FORMS = PLAN_TREE_FORMS.filter(f => f.group === '본문 1장')
 
 /** 목차 완성도 — true=입력 있음(✓), false=비어 있음(○), {done,total}=게이지형(1.1) */
 export type FormStatusMap = Record<string, boolean | { done: number; total: number }>
@@ -72,7 +74,7 @@ export type FormStatusMap = Record<string, boolean | { done: number; total: numb
 export function PlanTabView({
   customerId, canManage, readiness, revisionYears, importCandidate, initialSection, initialForm, formStatus,
   blankSummary, archive,
-  form11, form12, form13, form14, form15, form16, form17, form18, form110, form111, form1215, ch2, ch3, formCover,
+  form11, form12, form13, form15, form16, form17, form18, form110, form111, form1215, ch2, ch3, formCover,
   ledgerAutoNeeded, textDefaultsNeeded,
 }: {
   customerId: string
@@ -92,7 +94,9 @@ export function PlanTabView({
   form11: ReactNode
   form12: ReactNode
   form13: ReactNode
-  form14: ReactNode
+  // form14 prop 폐지 — 1.4 소방시설은 최상위 [소방시설] 탭으로 승격됐다(2026-09-20 사용자 확정).
+  // annex prop 폐지(아래)와 같은 이유로 여기 남겨두면 두 곳 마운트 = 회차·점검 조회 왕복 이중.
+  // 진입점은 customers/[id]/page.tsx의 facilitiesTab 한 곳.
   form15: ReactNode
   form16: ReactNode
   form17: ReactNode
@@ -111,7 +115,7 @@ export function PlanTabView({
   // 기본 진입 = ⚡ 빠른 입력 노드(트리 최상단 랜딩). 토글 제거 — 서식 전체 트리로 통합 (2026-08-05).
   // 딥링크: form=(§1-3, 우선) 또는 sub=(구 형식 호환)
   // 2026-08-06 사용자 확정: ⚡ 빠른 입력 페이지 폐기 — 탭 진입 = 1.1 일반현황 입력폼(첫 화면)
-  const VALID_SEL = new Set<string>(FIRE_PLAN_FORM_KEYS)
+  const VALID_SEL = new Set<string>(PLAN_TREE_FORM_KEYS)
   // 2026-08-08: 지도·사진 노드를 폐지하고 슬롯 UI를 1.3 안으로 옮겼다 — 옛 딥링크(?form=assets)는 1.3으로 보낸다
   const norm = (key: string | undefined) => (key === 'assets' ? '1.3' : key)
   const initialSel = norm(initialForm) && VALID_SEL.has(norm(initialForm)!) ? norm(initialForm)!
@@ -172,13 +176,24 @@ export function PlanTabView({
   // 이사한 카드의 옛 딥링크 구제 — 앵커 id는 그대로 두고 서식만 바로잡는다.
   // 그냥 두면 ?form=1.10#c-1.10.3이 1.10을 열고 아무것도 못 찾아 조용히 아무 일도 안 일어난다.
   // 1회만 — 그 뒤 사용자가 서식을 바꾸면 그 선택이 이긴다.
+  // 노드째 최상위 탭으로 이사한 카드(c-1.10.3 → 1.4 → [소방시설] 탭)는 트리 이동이 아니라
+  // **탭 이동**으로 구제한다 — 해시는 서버에 안 오므로 이 구제는 클라이언트에 남아야 한다.
   const movedAnchorRan = useRef(false)
   useEffect(() => {
     if (movedAnchorRan.current) return
     movedAnchorRan.current = true
     const id = decodeURIComponent(window.location.hash.slice(1))
     const to = formOfCard(id)
-    if (to && VALID_SEL.has(to) && to !== sel) applySelect(to)
+    if (!to) return
+    const movedTab = tabOfForm(to)
+    if (movedTab) {
+      if (tabsShell) tabsShell.goTab(movedTab)
+      else router.push(`/customers/${customerId}?tab=${movedTab}`)
+      // 탭 패널이 lazy 마운트라 카드가 아직 없다 — 잠깐 기다렸다 앵커로 스크롤(실패해도 무해)
+      setTimeout(() => document.getElementById(id)?.scrollIntoView({ block: 'start' }), 500)
+      return
+    }
+    if (VALID_SEL.has(to) && to !== sel) applySelect(to)
   }, [])
   // §1-2·1-3 카드 앵커 딥링크 — ?form=…#c-카드 진입/서식 전환 시 해당 카드로 스크롤
   useEffect(() => {
@@ -397,7 +412,7 @@ export function PlanTabView({
         // ⚠ 접두 모양은 종전 그대로 둔다(1장만 ' > ', 나머지는 붙여쓰기) — 이 단계는 목차의
         //   **원천**을 옮기는 것이지 보이는 글자를 바꾸는 것이 아니다. 둘을 한 커밋에 섞으면
         //   화면이 달라진 이유를 나중에 못 가린다.
-        const NAV_ALL = FIRE_PLAN_FORMS.map(f => ({
+        const NAV_ALL = PLAN_TREE_FORMS.map(f => ({
           key: f.key,
           label: f.group === '조회' ? f.label
             : f.group === '본문 1장' ? `본문 1장 > ${f.label}`
@@ -463,7 +478,7 @@ export function PlanTabView({
       {sel === '1.1' && <>{form11}{oneOneExtras}</>}
       {sel === '1.2' && form12}
       {sel === '1.3' && form13}
-      {sel === '1.4' && form14}
+      {/* 1.4 렌더는 최상위 [소방시설] 탭으로 이관 (2026-09-20) — sel에 '1.4'가 올 수 없다(PLAN_TREE_FORM_KEYS) */}
       {sel === '1.5' && form15}
       {sel === '1.6' && form16}
       {sel === '1.7' && form17}

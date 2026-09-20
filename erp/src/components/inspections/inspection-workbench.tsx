@@ -624,7 +624,7 @@ export function InspectionWorkbench({
         {customerId && (
           <NextLink href={`/customers/${customerId}?tab=annex`}
             className={`${isSpecial ? '' : 'ml-auto'} inline-flex items-center gap-1 text-form-xs text-brand hover:underline shrink-0`}>
-            별지서식 <ExternalLink className="size-3" />
+            보고서 <ExternalLink className="size-3" />
           </NextLink>
         )}
       </div>

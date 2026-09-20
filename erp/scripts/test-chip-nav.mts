@@ -51,22 +51,23 @@ try {
     check('사용승인일 칩 → 기본정보 탭 전환 (칩 없음 — 스킵 아님 실패)', false)
   }
 
-  // 4) 다른 탭에서 ?tab=plan&form= Link 케이스 — 마운트 후 서버 재렌더 딥링크 동기화
+  // 4) 다른 탭에서 전체 이동 <a> 케이스 — 건물 탭 안내 링크가 [소방시설] 탭으로 간다
+  //    (2026-09-20 탭 재편: 구 ?tab=plan&form=1.4 안내가 ?tab=facilities로 정본화 — 구 URL 변환은 _probe-annex-tab ②)
   await page.evaluate(() => { (window as unknown as { next?: { router?: unknown } }).next; history.scrollRestoration = 'auto' })
   await page.locator('[role=tab]:has-text("건물·시설")').click()
   await page.waitForTimeout(300)
-  const link = page.locator('a[href*="tab=plan"][href*="form=1.4"]').first()
+  const link = page.locator('a[href*="tab=facilities"]').first()
   if (await link.count() > 0) {
     await link.click()
-    const planSel = await page.waitForSelector('[role=tab][aria-selected="true"]:has-text("소방계획서")', { timeout: 15000 })
+    const facSel = await page.waitForSelector('[role=tab][aria-selected="true"]:has-text("소방시설")', { timeout: 15000 })
       .then(() => true).catch(() => false)
     const activeLabel = await page.locator('[role=tab][aria-selected="true"]').first().textContent()
-    check('페이지 내 Link(?tab=plan&form=1.4) → 탭 전환', planSel, `url=${page.url()} active=${activeLabel}`)
-    const form14 = await page.waitForSelector('[role=tabpanel]:not([hidden]) button:has-text("1.4 소방시설")', { timeout: 15000 })
+    check('페이지 내 링크(?tab=facilities) → [소방시설] 탭 전환', facSel, `url=${page.url()} active=${activeLabel}`)
+    const form14 = await page.waitForSelector('[role=tabpanel]:not([hidden]) >> text=/서식 1\\.4 소방시설 현황|등록된 활성 건물이 없습니다/', { timeout: 15000 })
       .then(() => true).catch(() => false)
-    check('form=1.4 서식 화면 표시(plan 패널 내)', form14)
+    check('1.4 본체 표시(소방시설 패널 내)', form14)
   } else {
-    check('페이지 내 Link 존재(1.4 안내)', false, 'a[href*=form=1.4] 미발견')
+    check('페이지 내 링크 존재(소방시설 탭 안내)', false, 'a[href*=tab=facilities] 미발견')
   }
 } catch (e) {
   check('예외 없음', false, String(e))

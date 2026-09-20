@@ -56,6 +56,13 @@ export const ETC_ITEMS: Array<{ code: string; sheetName: string; note: string }>
 export const ETC_CATEGORY = '기타'
 export const ETC_CODES: string[] = ETC_ITEMS.map(i => i.code)
 
+/** 기타 7종의 **UI 분할** (2026-09-20 사용자 확정) — 저장 축(fire_facilities)은 하나 그대로다.
+ *  · 앞 3종(자체점검 「기타사항」 한 시트가 함께 덮는다) → 보고서(별지) 탭 「기타 점검대상」 카드
+ *  · 뒤 4종(외관점검 시트가 각각 하나씩) → 소방계획서 1.6 기타시설 「해당 여부」 카드
+ *  갈래 기준은 순서가 아니라 **시트 소속**이다 — 항목이 늘어도 시트가 갈래를 정한다. */
+export const ETC_ITEMS_REPORT = ETC_ITEMS.filter(i => i.sheetName === '기타사항')
+export const ETC_ITEMS_PLAN = ETC_ITEMS.filter(i => i.sheetName !== '기타사항')
+
 /** 피난기구 종류 — **통합 어휘 11종** (2026-08-08 단일화).
  *
  *  종전에는 같은 정보를 두 곳에서 서로 다른 어휘로 받았다:
