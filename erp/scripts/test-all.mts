@@ -646,6 +646,12 @@ const steps: Step[] = [
   // 🚨 미저장 확인창의 키보드(포커스가 창 안에 들어가는가 · ESC로 닫히는가 · Tab이 안 새는가).
   //    셋 다 실측으로 잡은 결함이라 대조군 없이 두면 조용히 되돌아간다.
   { name: '트리·탭 키보드 왕복(프로브)',  cmd: 'npx tsx scripts/_probe-tree-keyboard.mts',      needServer: true },
+  // 달력 → 사이드 패널 → 점검표 입력 → [←] **복귀 왕복**(2026-09-21 사용자 요청).
+  // 🚨 함께 붙드는 것이 하나 더 있다: `history.replaceState(null, …)`이 App Router의 라우팅
+  //    상태를 지워 **브라우저 뒤로가기가 주소만 바꾸고 화면은 그대로** 남던 결함(⑤).
+  //    여섯 자리에 같은 꼴이 있었고 전부 `window.history.state`를 싣도록 고쳤다 —
+  //    이 단언이 없으면 누가 `null`로 되돌려도 아무도 모른다(reload하면 멀쩡해 보인다).
+  { name: '달력↔점검표 복귀(프로브)',    cmd: 'npx tsx scripts/_probe-calendar-sheet-back.mts', needServer: true },
   { name: '별지 같은경로 이동(프로브)',   cmd: 'npx tsx scripts/_probe-annex-samepath-nav.mts', needServer: true },
   // 별지서식 직행 3동선(달력 데이 패널 · 최근 본 고객 칩 · 고객 상세 헤더) — 30 S4-4.
   // 종전 판정: "9/9는 **커버리지 구멍 위의 초록**이었다 — 목적지를 변조해도 초록이었다."

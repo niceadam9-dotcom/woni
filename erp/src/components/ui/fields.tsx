@@ -165,7 +165,7 @@ export function CardAnchorBar({ items }: { items: Array<{ id: string; label: str
             document.getElementById(it.id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
             const url = new URL(window.location.href)
             url.hash = it.id
-            window.history.replaceState(null, '', url.toString())
+            window.history.replaceState(window.history.state, '', url.toString())
           }}
           className="inline-flex items-center h-7 px-2.5 rounded-full text-form-xs font-medium border bg-brand-tint text-brand border-brand-line hover:bg-brand-tint transition-colors">
           {it.label}

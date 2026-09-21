@@ -167,7 +167,7 @@ export function PlanTabView({
     url.searchParams.set('tab', 'plan')
     url.searchParams.set('form', key)
     url.searchParams.delete('sub')
-    window.history.replaceState(null, '', url.toString())
+    window.history.replaceState(window.history.state, '', url.toString())
     // 포커스를 **이동이 실제로 일어난 여기서만** 옮긴다 — 키 핸들러에서 옮기면 미저장 확인창이 떠서
     // 이동이 보류된 경우에도 포커스가 앞서 나간다(2026-09-21 실측). tab-form-tree와 같은 규약.
     focusTreeNode(treeRef.current, key)

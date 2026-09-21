@@ -58,7 +58,7 @@ export function TabFormTree({ tabKey, groupLabel, nodes, panels, initialForm, fo
     const url = new URL(window.location.href)
     url.searchParams.set('tab', tabKey)
     url.searchParams.set('form', key)
-    window.history.replaceState(null, '', url.toString())
+    window.history.replaceState(window.history.state, '', url.toString())
     // 포커스를 **이동이 실제로 일어난 여기서만** 옮긴다. 키 핸들러에서 옮기면 미저장 확인창이
     // 떠서 이동이 보류된 경우에도 포커스가 앞서 나가, 선택은 A인데 포커스는 B인 어긋난 상태가 된다
     // (2026-09-21 실측으로 잡았다). 확인창에서 [이동]을 고른 경우에도 이 경로를 지나므로 포커스가 따라온다.

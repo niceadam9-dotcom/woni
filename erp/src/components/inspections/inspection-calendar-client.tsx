@@ -320,6 +320,8 @@ interface Props {
   initialFilter?: QuickFilter
   /** 고객명 검색어 복원 — URL ?cust= (새로고침·링크 공유에도 유지) */
   initialCustomerQuery?: string
+  /** 단계 사이드 패널 복원 — URL ?insp= (점검표 입력에서 [←]로 돌아오면 그 패널이 다시 열린다) */
+  initialInspectionId?: string
   /** 주말·공휴일 표시용 (YYYY-MM-DD + 이름) */
   holidays?: Array<{ date: string; name: string }>
   /** 정기 칩 드래그 이동 권한 (inspection_plan_manage) */
@@ -329,7 +331,7 @@ interface Props {
 }
 
 // ─── Component ───────────────────────────────────────────────────────────────
-export function InspectionCalendarClient({ inspections, planItems = [], employees, currentUserId, currentUserRole, initialFilter = 'all', initialCustomerQuery = '', holidays = [], canMovePlan = false, canSendSms = false }: Props) {
+export function InspectionCalendarClient({ inspections, planItems = [], employees, currentUserId, currentUserRole, initialFilter = 'all', initialCustomerQuery = '', initialInspectionId = '', holidays = [], canMovePlan = false, canSendSms = false }: Props) {
   const router = useRouter()
   // B-3 복귀 경로 재료 — 지금 보고 있는 달까지 포함해 되돌아가려고 쓴다(하이드레이션 안전)
   const pathname = usePathname()
@@ -411,12 +413,18 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
   const [customerSearch, setCustomerSearch] = useState(initialCustomerQuery)
   const custQuery = customerSearch.trim()
 
-  // 검색어를 URL에 기록 — 새로고침·뒤로가기·링크 공유에도 유지 (점검확정 ?cust= 와 같은 규약)
+  /* 검색어를 URL에 기록 — 새로고침·뒤로가기·링크 공유에도 유지 (점검확정 ?cust= 와 같은 규약)
+   *
+   * 🚨 첫 인자는 **`window.history.state`다(`null`이 아니다)** — 2026-09-21 실측으로 잡았다.
+   *   App Router는 자기 라우팅 정보를 `history.state`에 둔다. `null`로 덮으면 그게 사라져
+   *   **브라우저 뒤로가기가 주소만 바꾸고 화면은 그대로** 남는다(달력으로 돌아왔는데 점검표가
+   *   계속 보였다 — reload해야 고쳐졌다). 상태를 그대로 실어 주면 주소만 갈리고 라우터는 멀쩡하다.
+   *   같은 결함이 이 파일 2곳·점검표 입력·소방계획서 트리·공통 트리·fields에 있었다(전부 수리). */
   useEffect(() => {
     const sp = new URLSearchParams(window.location.search)
     if (!custQuery) sp.delete('cust'); else sp.set('cust', custQuery)
     const qs = sp.toString()
-    window.history.replaceState(null, '', qs ? `?${qs}` : window.location.pathname)
+    window.history.replaceState(window.history.state, '', qs ? `?${qs}` : window.location.pathname)
   }, [custQuery])
   const [selectedCustomerIds, setSelectedCustomerIds] = useState<Set<string>>(
     () => new Set([...inspections.map(i => i.customer_id), ...planItems.map(p => p.customer_id)])
@@ -428,10 +436,29 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
     () => new Set(['incomplete', 'completed', 'overdue'])
   )
 
-  // Slide panel state
-  const [selectedInspectionId, setSelectedInspectionId] = useState<string | null>(null)
+  /* Slide panel state.
+   *
+   *  초기값을 URL(?insp=)에서 받는다 — 점검표 입력에서 [←]로 돌아왔을 때 **떠나기 직전 그 패널**이
+   *  다시 열려 있어야 한다(2026-09-21 사용자 요청). 종전엔 로컬 state뿐이라 돌아오면 달력만 남고
+   *  사용자가 날짜 → 단계를 처음부터 다시 짚어 들어가야 했다.
+   *  ⚠ 서버가 형식만 검증해 넘긴다 — 실재 여부는 아래 `selectedInspection`이 목록에서 찾는다.
+   *    없는 id면 패널이 안 열리고 조용히 달력만 보인다(그게 옳다: 남의 링크·지난 회차일 수 있다). */
+  const [selectedInspectionId, setSelectedInspectionId] = useState<string | null>(initialInspectionId || null)
   const [completingStepId, setCompletingStepId] = useState<string | null>(null)
   const [stepError, setStepError] = useState<string | null>(null)
+
+  /* 열린 패널을 URL에 기록 — 위 `?cust=`와 **같은 규약**(서버 왕복 없는 replaceState).
+   *
+   *  이게 있어야 점검표 입력으로 넘어갈 때 붙이는 복귀 주소(`?from=`)가 «지금 이 패널»을 가리킨다.
+   *  🚨 `router.replace`를 쓰지 않는다 — 서버 컴포넌트를 다시 태우면 달력 전체가 재조회되고
+   *    (이 페이지는 점검·계획·공휴일을 한꺼번에 읽는다) 패널을 열 때마다 화면이 깜빡인다. */
+  useEffect(() => {
+    const sp = new URLSearchParams(window.location.search)
+    if (selectedInspectionId) sp.set('insp', selectedInspectionId)
+    else sp.delete('insp')
+    const qs = sp.toString()
+    window.history.replaceState(window.history.state, '', qs ? `?${qs}` : window.location.pathname)
+  }, [selectedInspectionId])
 
   const today = useMemo(() => todayKst(), [])
 
@@ -2093,10 +2120,25 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
                           <Link
                             /* B-3 — 단계 링크에도 복귀 경로를 싣는다(패널 하단 링크와 같은 규약).
                                왕복이 닫히지 않으면 「들어가는 길만 여섯 개」가 된다. 링크가
-                               이미 자기 쿼리를 들고 있을 수 있어 `?`/`&`를 보고 잇는다. */
-                            href={`${inputLink.href}${inputLink.href.includes('?') ? '&' : '?'}from=${encodeURIComponent(`${pathname}${searchParams.toString() ? `?${searchParams.toString()}` : ''}`)}`}
+                               이미 자기 쿼리를 들고 있을 수 있어 `?`/`&`를 보고 잇는다.
+
+                               🚨 복귀 경로에 **열린 패널(`insp`)을 실어야** 한다(2026-09-21 사용자 요청:
+                                 「돌아가면 단계별 클릭 사이드 화면이어야 한다」). 이게 없으면 달력까지는
+                                 오지만 패널이 닫혀 있어, 사용자가 날짜→단계를 처음부터 다시 짚는다.
+                               ⚠ `searchParams`(라우터가 아는 주소)에는 `insp`가 없을 수 있다 —
+                                 그건 위 effect가 `replaceState`로 쓰는 값이라 라우터를 거치지 않는다.
+                                 그래서 **여기서 지금 열린 패널로 덮어쓴다**(둘을 합치는 지점이 여기다). */
+                            href={`${inputLink.href}${inputLink.href.includes('?') ? '&' : '?'}from=${encodeURIComponent((() => {
+                              const sp = new URLSearchParams(searchParams.toString())
+                              sp.set('insp', selectedInspection.id)
+                              return `${pathname}?${sp.toString()}`
+                            })())}`}
                             title={inputLink.title}
-                            onClick={() => setSelectedInspectionId(null)}
+                            data-testid="calendar-step-input"
+                            /* 🚨 여기서 패널을 닫지 않는다(2026-09-21). 닫으면 위 effect가 주소에서
+                               `?insp=`를 지워, **브라우저 뒤로가기**로 돌아왔을 때 패널이 안 열린다
+                               ([←] 버튼만 살고 back은 죽는 어긋난 상태). 어차피 화면을 떠나므로
+                               닫아서 얻는 것도 없다 — 돌아오면 그 패널이 그대로 있는 편이 옳다. */
                             className="flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-brand text-white hover:bg-brand-strong transition-colors whitespace-nowrap"
                           >
                             <PenLine className="size-3" />

@@ -266,9 +266,14 @@ export function SheetEntryClient({
     const code = ov.sheets.find(s => s.sheetId === sheetId)?.sheetCode
     if (code) {
       const u = new URL(window.location.href)
+      /* 🚨 **떠난 뒤 도착한 응답은 주소를 만지지 않는다**(2026-09-21 실측).
+         시트 적재는 서버 왕복이라 늦게 끝나는데, 그 사이 사용자가 [←]를 누르면 여기의
+         `replaceState`가 **진행 중인 이동을 덮어써** 제자리에 묶인다(달력으로 못 돌아간다).
+         지금 주소가 아직 이 점검의 시트 화면일 때만 동기화한다. */
+      if (u.pathname !== `/inspections/${inspectionId}/sheet`) return
       u.searchParams.set('sheet', code); u.searchParams.delete('facility')
       if (isExterior) u.searchParams.set('month', String(m ?? month))
-      window.history.replaceState(null, '', u.toString())
+      window.history.replaceState(window.history.state, '', u.toString())
     }
   }, [inspectionId, isExterior, month, ov.sheets])
 

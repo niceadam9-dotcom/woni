@@ -11,7 +11,7 @@ import type { InspectionType, InspectionStatus, UserRole } from '@/types'
 export default async function InspectionCalendarPage({
   searchParams,
 }: {
-  searchParams: Promise<{ filter?: string; cust?: string }>
+  searchParams: Promise<{ filter?: string; cust?: string; insp?: string }>
 }) {
   const profile = await getProfile()
   if (!profile) redirect('/login')
@@ -22,6 +22,11 @@ export default async function InspectionCalendarPage({
     : 'all') as 'all' | 'today' | 'week' | 'overdue'
   // 고객명 검색어 — 필터링은 클라이언트가 한다(달력에 실린 고객에서 고르므로). 여기선 복원만.
   const initialCustomerQuery = (params.cust ?? '').slice(0, 100)
+  // 단계 사이드 패널 복원 (2026-09-21 사용자 요청) — 점검표 입력에서 [←]로 돌아오면
+  // **떠나기 직전 그 패널이 다시 열려 있어야** 한다. 종전엔 패널이 로컬 state뿐이라
+  // 돌아오면 달력만 남고 사용자가 단계를 처음부터 다시 찾아 들어가야 했다.
+  // 형식 검증만 여기서(uuid 꼴이 아니면 무시) — 실재 여부는 클라이언트가 목록에서 찾는다.
+  const initialInspectionId = /^[0-9a-f-]{36}$/i.test(params.insp ?? '') ? params.insp! : ''
 
   const admin = createAdminClient()
   const currentYear = new Date().getFullYear()
@@ -246,6 +251,7 @@ export default async function InspectionCalendarPage({
       currentUserRole={profile.role as UserRole}
       initialFilter={initialFilter}
       initialCustomerQuery={initialCustomerQuery}
+      initialInspectionId={initialInspectionId}
       holidays={holidays}
       canMovePlan={can(profile.role as UserRole, 'inspection_plan_manage')}
       canSendSms={can(profile.role as UserRole, 'inspection_sms_send')}
