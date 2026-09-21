@@ -726,6 +726,10 @@ const steps: Step[] = [
   //   달력 패널이 급한 단계로 보내고(?step=N), 복귀 경로를 보던 **달까지** 싣고(?from=),
   //   작업대 뒤로가기가 그 경로로 돌아간다(없으면 목록이 아니라 달력으로).
   { name: '달력↔작업대 왕복(E2E)',      cmd: 'npx tsx scripts/test-calendar-workbench-roundtrip.mts', needServer: true },
+  // 한 바퀴(2026-09-21) — 달력 → **설비 확인** → 점검표 → 달력. 대장이 빈 채로 점검표를 열면
+  //   설치 필터가 풀려 시트 33개가 쏟아지던 자리(운주빌딩 실측)를 **입구에서 가른다**.
+  //   막지 않고 순서를 준다 — 1.4 화면의 [점검표 입력]이 곧 「건너뛰기」를 겸한다.
+  { name: '점검 한 바퀴(E2E)',          cmd: 'npx tsx scripts/test-inspection-one-lap.mts',         needServer: true },
   // 최근 본 고객 스트립 — '기본 정렬은 그대로 둔다'가 이 기능의 설계 전제라 그것까지 고정한다
   { name: '최근 본 고객(E2E)',          cmd: 'npx tsx scripts/test-recent-customers.mts',           needServer: true },
   // 불량 전/후 사진 — 비공개 버킷에 public URL을 저장해 사진이 전부 안 뜨던 결함의 회귀 방어.

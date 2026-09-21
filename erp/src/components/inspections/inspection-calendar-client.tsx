@@ -55,6 +55,10 @@ export type CalendarInspection = {
   assigned_employee_id: string
   assigned_employee_name: string
   steps: CalendarStep[]
+  /** 1.4 소방시설을 **아직 확인하지 않았는가**(활성 건물 중 하나라도 미확인) — 2026-09-21 A.
+   *  ① 링크의 목적지를 가른다: 미확인이면 설비 확인부터, 확인됐으면 바로 점검표로.
+   *  판정은 `lib/facility-verify-gate` 한 곳 — 서버가 재 보내고 여기서 다시 세지 않는다. */
+  facilitiesUnverified?: boolean
 }
 
 /** 정기(monthly)·일반관리(event) 계획 항목 — 6단계 없이 예정일 1건짜리 일정 */
@@ -2040,7 +2044,10 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
                 const canCompleteThis = canCompleteInspection(selectedInspection) && isCurrentStep
                 // [입력]은 **모든 미완료 단계**에 — 서버는 R4-4에서 순서 강제를 폐지했다(배치확인서는 협회에서
                 // 늦게 오고 점검표는 먼저 채워진다). 정상 경로까지 ①에 막히면 뒤 단계를 영영 시작할 수 없다.
-                const inputLink = step.status !== 'completed' ? stepInputLink(selectedInspection.id, step.step_num) : null
+                const inputLink = step.status !== 'completed'
+                  ? stepInputLink(selectedInspection.id, step.step_num,
+                      { facilitiesUnverified: selectedInspection.facilitiesUnverified })
+                  : null
 
                 return (
                   <div

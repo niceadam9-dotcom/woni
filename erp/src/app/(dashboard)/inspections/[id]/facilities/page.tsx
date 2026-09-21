@@ -1,6 +1,6 @@
 import { redirect, notFound } from 'next/navigation'
 import Link from 'next/link'
-import { ChevronLeft } from 'lucide-react'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { getProfile, can } from '@/lib/auth'
 import type { UserRole } from '@/types'
 import { createAdminClient } from '@/lib/supabase/admin'
@@ -74,14 +74,38 @@ export default async function InspectionFacilitiesPage({
       <div className="flex items-center gap-3 flex-wrap">
         <Link href={backHref} data-testid="facilities-back"
           className="inline-flex items-center gap-1 text-form-sm text-ink-sub hover:text-brand">
-          <ChevronLeft className="size-4" /> 점검표로
+          <ChevronLeft className="size-4" /> 뒤로
         </Link>
         <h1 className="text-form-base font-semibold text-ink">
           {insp.customers?.customer_name ?? '—'} · {insp.year}년 {insp.sequence_num}차
         </h1>
-        <span className="text-form-xs text-ink-meta">
-          설치 체크를 저장하면 점검표의 설치 설비·필수 입력 대상이 함께 갱신됩니다
+        {/* 🚨 2026-09-21 — 「설비 확인 → 점검표 입력」이 **한 세트**임을 화면이 말한다.
+            종전엔 순서가 어디에도 없어서, 달력에서 ①을 누른 사용자가 무엇을 먼저 해야 하는지
+            몰랐다(운주빌딩: 대장 0건인 채 33개 시트가 펼쳐졌다). */}
+        <span className="inline-flex items-center gap-1.5 text-form-xs" data-testid="facilities-stepband">
+          <span className="rounded-full bg-brand px-2 py-0.5 font-medium text-white">① 설비 확인</span>
+          <span className="text-ink-faint">→</span>
+          <span className="rounded-full border border-brand-line px-2 py-0.5 text-ink-sub">② 점검표 입력</span>
         </span>
+      </div>
+      <p className="text-form-xs text-ink-meta">
+        설치 체크를 저장하면 점검표의 설치 설비·필수 입력 대상이 함께 갱신됩니다 ·
+        설비가 하나도 없는 건물은 아래 [해당 설비 없음 — 확인만]으로 끝낼 수 있습니다
+      </p>
+      {/* B — **전진 버튼**. 종전엔 왼쪽 위 화살표뿐이라 「다 됐으니 이제 점검표로」가 화면에 없었다.
+          뒤로가기(←)는 *취소*처럼 읽힌다 — 마쳤을 때 누를 자리는 따로 있어야 한다.
+          ⚠ 저장 여부로 막지 않는다: 막으면 「설비 없음」 건물이 갇힌다. 이 버튼이 곧
+            A의 「건너뛰고 점검표로」를 겸한다(막지 않는다는 규약과 한 벌).
+          ⚠ E-1 — 내가 받은 복귀 경로(`backHref`)를 **점검표에 그대로 넘긴다**. 그래야 점검표의
+            뒤로가기가 달력까지 닿는다(종전엔 여기서 출처가 끊겼다). */}
+      <div className="flex flex-wrap items-center gap-2">
+        <Link
+          href={`/inspections/${id}/sheet${backHref !== `/inspections/${id}/sheet` ? `?from=${encodeURIComponent(backHref)}` : ''}`}
+          data-testid="facilities-to-sheet"
+          className="inline-flex h-form-7 items-center gap-1 rounded-lg bg-brand px-3 text-form-xs font-medium text-white hover:bg-brand-strong">
+          점검표 입력 <ChevronRight className="size-3.5" />
+        </Link>
+        <span className="text-form-xs text-ink-meta">확인이 끝났으면 이어서 점검표를 입력합니다</span>
       </div>
       <PlanForm14
         customerId={insp.customer_id}

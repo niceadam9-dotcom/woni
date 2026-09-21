@@ -114,7 +114,11 @@ try {
   const backLoc = page.locator('[data-testid="sheet-entry-back"]')
   await page.goto(URL_)
   await page.waitForSelector('text=점검표 입력 —')
-  check('뒤로가기 기본 — 점검 상세로', (await backLoc.getAttribute('href')) === `/inspections/${inspId}`,
+  /* 🚨 2026-09-21 계약 갱신 — 기본 귀소처가 **점검 달력**이다(종전 점검 상세).
+     작업대(B-4)와 같은 기준으로 맞췄다: 달력이 일감을 내주는 화면이고 끝나면 거기서 다음
+     일정을 본다 — 점검 상세는 그 흐름의 중간역이지 목적지가 아니었다.
+     계약을 지우지 않고 **목적지만 갈아끼운다**(「from이 없으면 어디로 가는가」는 그대로 묻는다). */
+  check('뒤로가기 기본 — 점검 달력으로', (await backLoc.getAttribute('href')) === '/inspections/calendar',
     (await backLoc.getAttribute('href')) ?? '(없음)')
 
   const fromPath = `/customers/${customerId}?tab=plan&form=1.4`
@@ -133,7 +137,8 @@ try {
   for (const bad of ['https://evil.example/x', '//evil.example/x']) {
     await page.goto(`${URL_}?from=${encodeURIComponent(bad)}`)
     await page.waitForSelector('text=점검표 입력 —')
-    check(`뒤로가기 외부 경로 거부(${bad.slice(0, 12)}…)`, (await backLoc.getAttribute('href')) === `/inspections/${inspId}`,
+    // 거부의 **뜻**은 그대로다(외부 경로는 버린다) — 떨어지는 자리만 달력으로 바뀌었다
+    check(`뒤로가기 외부 경로 거부(${bad.slice(0, 12)}…)`, (await backLoc.getAttribute('href')) === '/inspections/calendar',
       (await backLoc.getAttribute('href')) ?? '(없음)')
   }
 

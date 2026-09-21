@@ -21,12 +21,30 @@ import { sheetShownWhenInstalledOnly } from '@/lib/sheet-facility-map'
 export function stepInputLink(
   inspectionId: string,
   stepNum: number,
+  opts?: {
+    /** 1.4 소방시설 미확인 — ①의 목적지를 **설비 확인 먼저**로 돌린다 (2026-09-21 A) */
+    facilitiesUnverified?: boolean
+  },
 ): { href: string; label: string; title: string } | null {
   /** 작업대의 그 칸을 바로 연다 — `?step=N` 딥링크(1..6, 범위 밖이면 서버가 조용히 무시) */
   const pane = (n: number, label: string, title: string) =>
     ({ href: `/inspections/${inspectionId}?step=${n}`, label, title })
   switch (stepNum) {
     case 1:
+      /* 🚨 2026-09-21 A — 대장을 아직 확인하지 않았으면 **설비 확인부터** 보낸다.
+         대장이 빈 채로 점검표를 열면 설치 필터가 자동 해제돼 v2025 **33개 시트가 전부** 펼쳐지고,
+         사용자는 자기 건물에 없는 설비까지 훑는다(운주빌딩 실측: 대장 0건·점검표 0건).
+         ⚠ **막는 것이 아니다**(2026-09-11 사용자 확정 「막으면 그 자리에서 할 수 없는 일을
+           요구받는다」) — 목적지를 바꿀 뿐이고, 1.4 화면에는 [건너뛰고 점검표로]가 있다.
+         ⚠ 1.4 화면의 복귀 기본값이 `/sheet`라, 설비를 확인하고 나오면 **그대로 점검표로 이어진다**.
+           한 세트가 되는 지점이 여기다. */
+      if (opts?.facilitiesUnverified) {
+        return {
+          href: `/inspections/${inspectionId}/facilities`,
+          label: '설비 확인 → 점검표',
+          title: '1.4 소방시설을 아직 확인하지 않았습니다 — 설비를 확인하면 점검표의 대상이 정해집니다',
+        }
+      }
       // ① 증거 = 점검표 응답 1건 이상 → **입력 전용 페이지**(소방계획서_28 S1)로 보낸다.
       //    종전엔 점검 상세(`?step=1&sheet=auto`)의 드로어를 열었지만, 입력의 정본이
       //    `/inspections/{id}/sheet`로 옮겨졌다(회차트리·1.4 배지도 그리로 간다).

@@ -3,6 +3,7 @@ import { getProfile, can } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { fetchAllRows, fetchAllRowsByIds } from '@/lib/supabase/paginate'
 import { activeStepsByInspection, isStepVisible } from '@/lib/active-steps'
+import { facilityVerifyState, shouldWarnFacilitiesUnverified } from '@/lib/facility-verify-gate'
 import { InspectionCalendarClient } from '@/components/inspections/inspection-calendar-client'
 import type { CalendarInspection, CalendarPlanItem } from '@/components/inspections/inspection-calendar-client'
 import type { InspectionType, InspectionStatus, UserRole } from '@/types'
@@ -99,7 +100,7 @@ export default async function InspectionCalendarPage({
     const inspIds = rawInspections.map(i => i.id)
     const custIds = [...new Set(rawInspections.map(i => i.customer_id))]
 
-    const [stepsRes, customersRes] = await Promise.all([
+    const [stepsRes, customersRes, bldVerifyRes] = await Promise.all([
       // ⚠ 옆의 customers만 fetchAllRows로 감싸져 있었다 — **같은 조회 묶음 안에서 셋 중 둘**이다.
       // 단계 행은 점검당 최대 6이라 상한을 가장 먼저 넘는데, 잘리면 뒤쪽 점검의 진행 칩이 통째로
       // 사라진다(오류 없이). 정렬은 페이징 규약대로 동점 없는 id로 걸고 step_num은 아래서 세운다.
@@ -121,6 +122,16 @@ export default async function InspectionCalendarPage({
         custIds, (c, from, to) => admin
           .from('customers').select('id, customer_name, customer_code, is_active, address')
           .in('id', c).order('id').range(from, to)),
+      /* 🚨 2026-09-21 A — 1.4 **확인 여부**. 달력의 ① 링크가 「점검표로 보낼까, 설비 확인부터
+         보낼까」를 고르는 데 쓴다. 대장이 빈 채로 점검표를 열면 설치 필터가 자동 해제돼
+         **전 시트(v2025 33개)**가 쏟아지고 사용자는 자기 건물에 없는 설비까지 훑는다
+         (운주빌딩 실측: 대장 0건·점검표 0건).
+         ⚠ 판정 축은 `buildings.facilities_verified_at` **하나**다 — 여기서 다시 세지 않고
+           `facilityVerifyState`에 넘긴다. 「설비 0건」과 「아직 안 봤다」의 구별이 그 축의 전부다. */
+      fetchAllRowsByIds<{ id: string; customer_id: string; facilities_verified_at: string | null }, string>(
+        custIds, (c, from, to) => admin
+          .from('buildings').select('id, customer_id, facilities_verified_at')
+          .in('customer_id', c).eq('is_active', true).order('id').range(from, to)),
     ])
 
     type StepRow = {
@@ -155,10 +166,21 @@ export default async function InspectionCalendarPage({
     }
     const customerMap = new Map(customersRes.rows.map(c => [c.id, c]))
 
+    /* A — 고객별 1.4 확인 상태. 판정은 `facilityVerifyState` 한 곳(여기서 세지 않는다).
+       활성 건물이 **0동**이면 확인할 대상 자체가 없으므로 경고 축도 서지 않는다(total>0 조건). */
+    const bldByCust = new Map<string, Array<{ facilities_verified_at: string | null }>>()
+    for (const b of bldVerifyRes.rows as Array<{ customer_id: string; facilities_verified_at: string | null }>) {
+      const arr = bldByCust.get(b.customer_id)
+      if (arr) arr.push(b)
+      else bldByCust.set(b.customer_id, [b])
+    }
+
     // 고객관리에서 삭제(비활성)된 고객의 점검 건은 달력에 싣지 않는다 (2026-08-28)
     calendarData = rawInspections.filter(insp => customerMap.get(insp.customer_id)?.is_active !== false).map(insp => {
       const cust = customerMap.get(insp.customer_id)
       return {
+        facilitiesUnverified: shouldWarnFacilitiesUnverified(
+          facilityVerifyState(bldByCust.get(insp.customer_id) ?? [])),
         id: insp.id,
         customer_id: insp.customer_id,
         customer_name: cust?.customer_name ?? '—',

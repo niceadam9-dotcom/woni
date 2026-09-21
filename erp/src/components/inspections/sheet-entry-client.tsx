@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import Link from 'next/link'
-import { ArrowLeft, Loader2, RefreshCw } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Loader2, RefreshCw } from 'lucide-react'
 import { SheetItemEditor, type SheetItem } from '@/components/inspections/sheet-item-editor'
 import { WorkbookXlsxButton } from '@/components/inspections/workbook-xlsx-button'
 import { useSheetAutosave } from '@/hooks/use-sheet-autosave'
@@ -427,19 +427,28 @@ export function SheetEntryClient({
     }
   })()
 
+  /** 이 화면의 자기 주소(받은 복귀 경로 포함) — 1.4로 나갔다 돌아올 때 **출처를 잃지 않게** 넘긴다(E-1).
+   *  ⚠ 라우터 훅을 쓰지 않는다: 이 값은 서버가 준 `backHref`만으로 결정되므로 재현 가능하고,
+   *    `window.location`과 달리 서버·클라이언트가 같은 문자열을 만든다. */
+  const selfHref = `/inspections/${inspectionId}/sheet${backHref ? `?from=${encodeURIComponent(backHref)}` : ''}`
+  /** 🚨 E-2 — 복귀 기본값이 **점검 달력**이다(종전 점검 상세). 작업대(2026-09-21 B-4)와 같은 기준으로
+   *  맞춘다: 세 화면이 같은 귀소처를 갖는다. 달력이 이 일감을 내주는 화면이고, 끝나면 거기서
+   *  다음 일정을 본다 — 점검 상세는 그 흐름의 중간역이지 목적지가 아니었다. */
+  const homeHref = backHref ?? '/inspections/calendar'
+  /** 필수 미입력이 남았을 때의 이탈 확인 — 뒤로가기·[입력 완료]가 **같은 문장**을 쓴다(축 하나). */
+  const confirmLeave = () => !(canEdit && requiredBlank > 0) || window.confirm(
+    `필수 미입력 항목 ${requiredBlank}건이 남아 있습니다`
+    + `${compBlankTotal > 0 ? ` (종합 필수 ● ${compBlankTotal}건 포함)` : ''}.\n`
+    + `설치된 설비의 점검표는 항목마다 ○/✕/／ 중 하나를 기재해야 합니다.\n\n그대로 나갈까요?`)
+
   return (
     <div className="p-4 sm:p-6 max-w-[1400px] mx-auto">
       <div className="flex items-center gap-3 mb-4">
-        <Link href={backHref ?? `/inspections/${inspectionId}`} data-testid="sheet-entry-back"
-          className="p-1.5 rounded-lg hover:bg-paper text-ink-sub" aria-label={backHref ? '이전 화면으로' : '점검 상세로'}
+        <Link href={homeHref} data-testid="sheet-entry-back"
+          className="p-1.5 rounded-lg hover:bg-paper text-ink-sub" aria-label={backHref ? '이전 화면으로' : '점검 달력으로'}
           // 39 S2-1 — 필수 미입력 이탈 확인(소프트): OK=이탈 진행(Playwright auto-accept=종전 동작).
           // 자동저장이라 값 유실 확인이 아니라 **법정 기재 누락** 확인이다 — 문구가 그 축을 말해야 한다
-          onClick={e => {
-            if (canEdit && requiredBlank > 0 && !window.confirm(
-              `필수 미입력 항목 ${requiredBlank}건이 남아 있습니다`
-              + `${compBlankTotal > 0 ? ` (종합 필수 ● ${compBlankTotal}건 포함)` : ''}.\n`
-              + `설치된 설비의 점검표는 항목마다 ○/✕/／ 중 하나를 기재해야 합니다.\n\n그대로 나갈까요?`)) e.preventDefault()
-          }}>
+          onClick={e => { if (!confirmLeave()) e.preventDefault() }}>
           <ArrowLeft className="size-4" />
         </Link>
         <div className="min-w-0">
@@ -472,6 +481,18 @@ export function SheetEntryClient({
         <div className="ml-auto flex items-center gap-2">
           <WorkbookXlsxButton inspectionId={inspectionId} variant="compact" />
           <div className="flex items-center gap-2" data-testid="sheet-entry-autosave" data-status={autosave.status}>{saveChip}</div>
+          {/* 🚨 E-3 — **끝냈을 때 누를 자리**. 뒤로가기(←)는 *취소*처럼 읽혀서, 입력을 마친
+              사용자가 「이제 어디로 가야 하나」를 스스로 정해야 했다. 여기서 한 바퀴를 닫는다:
+              달력에서 출발했으면 보던 달로, 아니면 점검 달력으로 돌아간다.
+              ⚠ 이탈 확인은 뒤로가기와 **같은 함수**(confirmLeave)를 쓴다 — 문장이 두 벌이 되면
+                한쪽만 고쳐지고, 「뒤로는 묻는데 완료는 안 묻는다」가 된다.
+              ⚠ 막지 않는다: 필수 미입력이 남아도 확인 후 나갈 수 있다(39 S2-1 규약 그대로). */}
+          <Link href={homeHref} data-testid="sheet-entry-done"
+            title={backHref ? '입력을 마치고 이전 화면으로 돌아갑니다' : '입력을 마치고 점검 달력으로 돌아갑니다'}
+            onClick={e => { if (!confirmLeave()) e.preventDefault() }}
+            className="inline-flex h-8 shrink-0 items-center gap-1 rounded-lg bg-brand px-3 text-xs font-medium text-white hover:bg-brand-strong">
+            입력 완료 <ArrowRight className="size-3.5" />
+          </Link>
         </div>
       </div>
 
@@ -531,7 +552,12 @@ export function SheetEntryClient({
               ? <><b>1.4 소방시설을 아직 확인하지 않았습니다.</b> 대장에 없는 설비는 점검 결과를 넣어도 문서에 <b>／</b>로 인쇄되고, 이 회차는 <b>완료 처리가 보류</b>됩니다.</>
               : <>활성 건물 {facilityVerify.total}동 중 <b>{facilityVerify.unverified}동</b>의 소방시설이 미확인입니다.</>}
           </span>
-          <Link href={`/inspections/${inspectionId}/facilities?from=/inspections/${inspectionId}/sheet`}
+          {/* 🚨 E-1 — `from`을 **릴레이한다**. 종전엔 자기 경로(`/sheet`)를 박아 넣어서,
+              달력에서 출발한 사용자가 1.4를 한 번 거치는 순간 **출처가 버려졌다**
+              (달력 → 점검표 → 1.4 → 점검표 → 뒤로가기 = 점검 상세. 달력으로 돌아갈 길이 없다).
+              내가 받은 복귀 경로를 함께 실으면 1.4가 그대로 되돌려 주므로 한 줄로 풀린다. */}
+          <Link href={`/inspections/${inspectionId}/facilities?from=${encodeURIComponent(selfHref)}`}
+            data-testid="sheet-entry-to-facilities"
             className="text-xs font-medium text-brand hover:underline shrink-0">1.4 입력하기</Link>
           {canEdit && facilityVerify.soleBuildingId && (
             <button onClick={confirmFacilities} disabled={busy} data-testid="sheet-entry-facility-verify"
