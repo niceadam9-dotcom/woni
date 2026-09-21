@@ -10,6 +10,7 @@ import { notifyIfEnabled } from '@/lib/notify'
 import { syncInspectionSteps, recalcStepDueDates } from '@/lib/inspection-step-sync'
 import { STEP_FORCE_COMPLETE_ACTION, isSelfInspection } from '@/lib/inspection-step-status'
 import { dateRangeError } from '@/lib/date-range'
+import { daysFromRange, inspectionPeriodError } from '@/lib/inspection-period'
 import type { InspectionType } from '@/types'
 
 // ── 점검 보조 참여자 관리 (P31-2) — 보고서 개요의 보조 인력 ──
@@ -176,7 +177,16 @@ export async function updateInspectionMultidayAction(
   // 같은 날(1일 점검)은 허용, 미완성 형식은 통과라는 규약이 다른 기간 칸과 같아진다.
   const multidayErr = dateRangeError(start, input.endDate, '점검 종료일')
   if (multidayErr) return { error: multidayErr }
-  const days = Number.isFinite(input.days) && input.days >= 1 && input.days <= 5 ? input.days : 1
+  /* 🚨 2026-09-21 — 일수를 **기간에서 유도한다**(받은 값을 그대로 믿지 않는다).
+     종전엔 두 값이 독립이라 「기간 9/14~9/21 · 일수 1」 같은 쌍이 그대로 저장됐고, 그 일수는
+     별지 9호에 인쇄된다(report9-assemble `inspDays`). 다일 점검 3건 중 3건이 그 상태였다(실측).
+     화면이 두 칸을 묶었지만 'use server'는 공개 엔드포인트라 여기서도 같은 산식으로 다시 센다 —
+     단일 원천은 `lib/inspection-period`다(사본을 만들면 조용히 갈린다).
+     🚨 종전 `days <= 5 ? days : 1`은 범위 밖 값을 **조용히 1로** 떨어뜨렸다(7 → 5가 아니라 1).
+       이제는 떨어뜨리지 않고 **막고 말한다**(DB CHECK 1~5 · 마이그레이션 079). */
+  const periodErr = inspectionPeriodError(start, input.endDate)
+  if (periodErr) return { error: periodErr }
+  const days = daysFromRange(start, input.endDate) ?? 1
 
   const { error } = await admin.from('inspections')
     .update({ inspection_end_date: input.endDate || null, inspection_days: days } as Record<string, unknown>)
