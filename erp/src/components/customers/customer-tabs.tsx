@@ -154,32 +154,37 @@ export function CustomerTabs({ initialTab, tabs, panels, summary, banner, fullWi
       {nav.dialog}
       {linkNav.dialog}
       {banner && <div className="mb-4">{banner}</div>}
+      {/* 탭 바는 본문 칼럼(max-w-3xl=768px) **밖**에 둔다 — 안에 두면 탭 9개의 자연 폭이
+          768을 넘어(2026-09-21 실측 784px, 뱃지가 긴 고객은 ~870px) 회차·청구·수금·이력이
+          둘째 줄로 접혔다. 요약 패널까지 지나 본문 전체 폭을 쓰면 1280vw에서도 1008px이라
+          한 줄에 들어온다. 접힘(flex-wrap)은 더 좁거나 글꼴 배율이 큰 경우의 안전판으로 남긴다.
+          읽기 폭 768은 **패널에만** 남는다 — 폼 레이아웃은 그 폭에 맞춰져 있다. */}
+      <div role="tablist" ref={tablistRef} onKeyDown={onTablistKeyDown} className="flex flex-wrap gap-1 border-b border-line">
+        {/* roving tabindex — 활성 탭만 Tab 대상. 전부 0이면 패널에 닿는 데 탭 수(9)만큼
+            Tab을 눌러야 한다(2026-09-21 실측). 탭 사이 이동은 ←/→가 맡는다(ARIA tablist 규약). */}
+        {tabs.map(t => (
+          <button
+            key={t.key}
+            role="tab"
+            aria-selected={active === t.key}
+            tabIndex={active === t.key ? 0 : -1}
+            onClick={() => switchTab(t.key)}
+            className={`inline-flex items-center gap-1.5 px-3.5 h-form-9 text-form-base rounded-t-lg border-b-2 -mb-px transition-colors ${
+              active === t.key
+                ? 'border-brand text-brand font-semibold bg-brand-tint'
+                : 'border-transparent text-ink-sub hover:text-ink hover:bg-paper'
+            }`}
+          >
+            {t.label}
+            {t.badge && (
+              <span className={`text-form-2xs font-medium ${t.warn ? 'text-amber-600' : 'text-ink-sub'}`}>{t.badge}</span>
+            )}
+            {t.warn && !t.badge && <span className="text-form-2xs text-amber-500">⚠</span>}
+          </button>
+        ))}
+      </div>
       <div className="flex gap-6 items-start">
         <div className={`flex-1 min-w-0 ${isFull ? '' : 'max-w-3xl'}`}>
-          <div role="tablist" ref={tablistRef} onKeyDown={onTablistKeyDown} className="flex flex-wrap gap-1 border-b border-line">
-            {/* roving tabindex — 활성 탭만 Tab 대상. 전부 0이면 패널에 닿는 데 탭 수(9)만큼
-                Tab을 눌러야 한다(2026-09-21 실측). 탭 사이 이동은 ←/→가 맡는다(ARIA tablist 규약). */}
-            {tabs.map(t => (
-              <button
-                key={t.key}
-                role="tab"
-                aria-selected={active === t.key}
-                tabIndex={active === t.key ? 0 : -1}
-                onClick={() => switchTab(t.key)}
-                className={`inline-flex items-center gap-1.5 px-3.5 h-form-9 text-form-base rounded-t-lg border-b-2 -mb-px transition-colors ${
-                  active === t.key
-                    ? 'border-brand text-brand font-semibold bg-brand-tint'
-                    : 'border-transparent text-ink-sub hover:text-ink hover:bg-paper'
-                }`}
-              >
-                {t.label}
-                {t.badge && (
-                  <span className={`text-form-2xs font-medium ${t.warn ? 'text-amber-600' : 'text-ink-sub'}`}>{t.badge}</span>
-                )}
-                {t.warn && !t.badge && <span className="text-form-2xs text-amber-500">⚠</span>}
-              </button>
-            ))}
-          </div>
           {tabs.map(t => {
             // 지연 마운트(소방계획서_34 S2) — 아직 한 번도 안 연 lazy 탭은 패널 자체를 만들지 않는다
             const deferred = (lazyKeys?.includes(t.key) ?? false) && !visitedRef.current.has(t.key)
