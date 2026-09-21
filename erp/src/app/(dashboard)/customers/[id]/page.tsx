@@ -471,7 +471,8 @@ export default async function CustomerDetailPage({
     { key: 'info', label: '기본정보', warn: !customer.plan_anchor_date || !customer.assigned_employee_id },
     { key: 'buildings', label: '건물·시설', warn: !obState.buildings },
     { key: 'contacts', label: '관계인', badge: `(${contacts.length})`, warn: !obState.contacts },
-    // ── 소방계획서 3분리 구간 (2026-09-20 사용자 확정): 순서도 사용자 지정 — 공통 → 보고서 → 회차 → 소방계획서.
+    // ── 소방계획서 3분리 구간 (2026-09-20 사용자 확정): 순서도 사용자 지정 — 공통 → 보고서 → 소방계획서 → 회차
+    //    (2026-09-21 사용자 지시로 회차를 소방계획서 **뒤**로 옮겼다 — 종전: 공통 → 보고서 → 회차 → 소방계획서).
     //    분리 이유(사용자): 소방계획서가 필요 없는 고객이 있다 — 공통·보고서만 채우면 별지 업무가 끝나야 한다. ──
     // 공통 탭(구 소방계획서 트리 1.1·1.4) — 소방계획서·별지 9호(·4호·점검표)가 **양쪽에서 읽는** 입력.
     // ⭐ 확장 규칙(사용자 확정): 앞으로 공통으로 판정되는 서식은 이 탭 트리에 노드로 추가한다.
@@ -479,14 +480,14 @@ export default async function CustomerDetailPage({
       warn: !facilitiesDone || readiness.done < readiness.total },
     // 보고서 — **별지에만** 실리는 입력(기타 점검대상·전년도 업무 실시사항). 2026-09-20 3분리로 신설.
     { key: 'reports', label: '보고서' },
+    // 일반관리도 소방계획서 대상 (소방계획서_6 W-14·D-6). 뱃지 = 목차 완성도 합산(§1-4).
+    // warn도 그 축 — 1.1 필수 완성도(readiness)는 공통 탭으로 이사했다.
+    { key: 'plan', label: '소방계획서', badge: `${formFilled}/${formTotal}`, warn: formFilled < formTotal },
     // 회차(구 별지서식 → 보고서 → 회차, 2026-09-20 재개명 — key 'annex'·?tab=annex·testid는 불변:
     // 프로브 11종·달력·원장·작업대의 문서 현황 링크가 전부 이 키다. 회차별 별지 생성·문서 확인·점검표 진입).
     // 뱃지 없음(D34-3): 별지 화면의 '회차'는 inspection_plan_items ∪ inspections인데 이 페이지는
     // plan_items를 조회하지 않아, 뱃지 n/m과 실제 카드 수가 어긋난다.
     { key: 'annex', label: '회차' },
-    // 일반관리도 소방계획서 대상 (소방계획서_6 W-14·D-6). 뱃지 = 목차 완성도 합산(§1-4).
-    // warn도 그 축 — 1.1 필수 완성도(readiness)는 공통 탭으로 이사했다.
-    { key: 'plan', label: '소방계획서', badge: `${formFilled}/${formTotal}`, warn: formFilled < formTotal },
     { key: 'billing', label: '청구·수금', warn: !billingProfileRes.data },
     { key: 'history', label: '이력', badge: lastInspectionDate ? lastInspectionDate.slice(5) : undefined },
   ]

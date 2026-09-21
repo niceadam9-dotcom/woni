@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
+import { createContext, useContext, useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { collectPlanSaveHandlers, useUnsavedNavGuard } from '@/components/ui/unsaved-nav'
 
@@ -56,6 +56,7 @@ export function CustomerTabs({ initialTab, tabs, panels, summary, banner, fullWi
     setActive(validInitial)
   }
   const dirtyRef = useRef<Set<string>>(new Set())
+  const tablistRef = useRef<HTMLDivElement>(null)
   // lazyKeys 지연 마운트 — 방문한 탭을 누적한다. active 변경이 이미 렌더를 일으키므로 ref로 충분하다.
   const visitedRef = useRef<Set<string>>(new Set([validInitial]))
   visitedRef.current.add(active)
@@ -115,6 +116,26 @@ export function CustomerTabs({ initialTab, tabs, panels, summary, banner, fullWi
     const sp = new URLSearchParams(window.location.search)
     sp.set('tab', key)
     router.replace(`${pathname}?${sp.toString()}`, { scroll: false })
+    // 포커스는 **이동이 실제로 일어난 여기서만** 옮긴다 — 키 핸들러에서 옮기면 미저장 확인창이
+    // 떠서 이동이 보류된 경우에도 포커스가 앞서 나간다(2026-09-21, 트리와 같은 규약).
+    // 확인창에서 [이동]을 고른 경우에도 이 경로를 지나므로 포커스가 목적지 탭을 따라온다.
+    tablistRef.current?.querySelectorAll<HTMLButtonElement>('[role=tab]')[tabs.findIndex(t => t.key === key)]?.focus()
+  }
+
+  // 키보드 탭 이동 (2026-09-21 사용자 요청) — ←/→로 이웃 탭, Home/End로 첫·마지막(ARIA tablist 규약).
+  // 포커스가 탭 바 안에 있을 때만 듣는다. switchTab을 태워 미저장 확인을 존중한다.
+  // ↑/↓는 각 탭 안 좌측 트리의 축이라 여기서 잡지 않는다. 포커스 이동은 applySwitchTab이 맡는다.
+  function onTablistKeyDown(e: KeyboardEvent<HTMLDivElement>) {
+    const i = tabs.findIndex(t => t.key === active)
+    if (i < 0) return
+    const next = e.key === 'ArrowRight' ? tabs[i + 1]
+      : e.key === 'ArrowLeft' ? tabs[i - 1]
+      : e.key === 'Home' ? tabs[0]
+      : e.key === 'End' ? tabs[tabs.length - 1]
+      : undefined
+    if (!next || next.key === active) return
+    e.preventDefault()
+    switchTab(next.key)
   }
 
   const ctx: TabsCtx = {
@@ -135,12 +156,15 @@ export function CustomerTabs({ initialTab, tabs, panels, summary, banner, fullWi
       {banner && <div className="mb-4">{banner}</div>}
       <div className="flex gap-6 items-start">
         <div className={`flex-1 min-w-0 ${isFull ? '' : 'max-w-3xl'}`}>
-          <div role="tablist" className="flex flex-wrap gap-1 border-b border-line">
+          <div role="tablist" ref={tablistRef} onKeyDown={onTablistKeyDown} className="flex flex-wrap gap-1 border-b border-line">
+            {/* roving tabindex — 활성 탭만 Tab 대상. 전부 0이면 패널에 닿는 데 탭 수(9)만큼
+                Tab을 눌러야 한다(2026-09-21 실측). 탭 사이 이동은 ←/→가 맡는다(ARIA tablist 규약). */}
             {tabs.map(t => (
               <button
                 key={t.key}
                 role="tab"
                 aria-selected={active === t.key}
+                tabIndex={active === t.key ? 0 : -1}
                 onClick={() => switchTab(t.key)}
                 className={`inline-flex items-center gap-1.5 px-3.5 h-form-9 text-form-base rounded-t-lg border-b-2 -mb-px transition-colors ${
                   active === t.key

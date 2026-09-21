@@ -35,7 +35,7 @@ try {
   posts.forEach((p, i) => console.log(`  ${i + 1}. ${p}`))
 
   posts.length = 0
-  await page.locator('[role=tab]').filter({ hasText: '별지서식' }).first().click()
+  await page.locator('[role=tab]').filter({ hasText: '회차' }).first().click()
   await page.waitForSelector('text=별지는 입력한 데이터로 자동 생성됩니다', { timeout: 25000 })
   await page.waitForTimeout(1000)
   console.log(`\n[탭 클릭 후] POST ${posts.length}건:`)

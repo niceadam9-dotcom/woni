@@ -29,7 +29,7 @@ async function activeTabLabel(page: Awaited<ReturnType<typeof launch>>['page']):
 
 /** 별지서식 탭이 실제로 활성인지 */
 async function annexTabActive(page: Awaited<ReturnType<typeof launch>>['page']): Promise<boolean> {
-  return (await activeTabLabel(page)).includes('별지서식')
+  return (await activeTabLabel(page)).includes('회차')
 }
 
 try {
@@ -61,7 +61,7 @@ try {
     await dayLink.first().click()
     await page.waitForURL(u => u.pathname === `/customers/${custId}`, { timeout: 20000 }).catch(() => {})
     const n1 = await activeTabLabel(page)
-    check('① 클릭 → [별지서식] 탭 활성 — 소방계획서 탭이 아니다', n1.includes('별지서식'), n1)
+    check('① 클릭 → [별지서식] 탭 활성 — 소방계획서 탭이 아니다', n1.includes('회차'), n1)
   }
 
   // ── ③ 고객 상세 헤더 상시 버튼 (다른 탭에 있어도 한 번에) ──
@@ -76,7 +76,7 @@ try {
       String(await headerLink.getAttribute('href')))
     await headerLink.click()
     const n3 = await activeTabLabel(page)
-    check('③ 다른 탭(건물·시설)에서 눌러도 [별지서식] 탭 전환', n3.includes('별지서식'), n3)
+    check('③ 다른 탭(건물·시설)에서 눌러도 [별지서식] 탭 전환', n3.includes('회차'), n3)
   }
 
   // ── ② 최근 본 고객 칩 📄 (위에서 상세를 열었으므로 기록돼 있다) ──
@@ -95,14 +95,14 @@ try {
   await planChip.click()
   await page.waitForURL(u => u.pathname === `/customers/${custId}`, { timeout: 20000 }).catch(() => {})
   const n2 = await activeTabLabel(page)
-  check('② 📄 클릭 → [별지서식] 탭 활성', n2.includes('별지서식'), n2)
+  check('② 📄 클릭 → [별지서식] 탭 활성', n2.includes('회차'), n2)
 
   // ── ④ 구 딥링크 하위호환 (소방계획서_34 S1-1) — 사용자 북마크·프로브 11종이 여기 의존한다.
   //    page.tsx의 정규화 3줄을 지우면 이 검사만 빨강이 된다.
   await page.goto(`${BASE}/customers/${custId}?tab=plan&form=annex`)
   await page.waitForSelector('h1', { timeout: 20000 })
   const n4 = await activeTabLabel(page)
-  check('④ 구 딥링크 ?tab=plan&form=annex → [별지서식] 탭으로 해석', n4.includes('별지서식'), n4)
+  check('④ 구 딥링크 ?tab=plan&form=annex → [별지서식] 탭으로 해석', n4.includes('회차'), n4)
 
   // ── ⑤ 소방계획서 탭 트리에 별지 노드가 남아 있지 않다 (D34-2 완전 제거) ──
   await page.goto(`${BASE}/customers/${custId}?tab=plan&form=1.1`)

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState, useTransition, type ReactNode } from 'react'
+import { useEffect, useRef, useState, useTransition, type KeyboardEvent, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import { Download, Loader2, Info, FileText } from 'lucide-react'
 import { importLegacyFormAction } from '@/app/(dashboard)/customers/fire-plan-form-actions'
@@ -14,6 +14,7 @@ import { PLAN_TREE_FORMS, PLAN_TREE_FORM_KEYS, formOfCard, tabOfForm, sectionsOf
 import { FirePlanXlsxButton } from '@/components/customers/fire-plan-xlsx-button'
 import { firePlanPdfUrl } from '@/lib/fire-plan-doc-urls'
 import { parseFirePlanNotice } from '@/lib/fire-plan-notice'
+import { focusDetailPanel, focusTreeNode, treeKeyAction } from '@/components/customers/tree-keyboard'
 import { PlanBlankReport } from '@/components/customers/plan-blank-report'
 import type { FormBlankSummary } from '@/lib/fire-plan-blanks'
 import { RevisionHistory } from '@/components/customers/revision-history'
@@ -127,6 +128,8 @@ export function PlanTabView({
     : norm(initialSection) && VALID_SEL.has(norm(initialSection)!) ? norm(initialSection)!
     : LANDING
   const [sel, setSelState] = useState<string>(initialSel)
+  const treeRef = useRef<HTMLElement>(null)
+  const detailRef = useRef<HTMLDivElement>(null)
   // form= 딥링크가 마운트 후 서버 재렌더로 바뀐 경우(다른 탭의 ?tab=plan&form=x Link) 동기화 — state는 1회만 초기화되므로
   const prevFormRef = useRef(initialForm)
   if (prevFormRef.current !== initialForm) {
@@ -165,6 +168,9 @@ export function PlanTabView({
     url.searchParams.set('form', key)
     url.searchParams.delete('sub')
     window.history.replaceState(null, '', url.toString())
+    // 포커스를 **이동이 실제로 일어난 여기서만** 옮긴다 — 키 핸들러에서 옮기면 미저장 확인창이 떠서
+    // 이동이 보류된 경우에도 포커스가 앞서 나간다(2026-09-21 실측). tab-form-tree와 같은 규약.
+    focusTreeNode(treeRef.current, key)
   }
   // 서식 안에서 다른 노드로 보내는 요청 수신 (소방계획서_11 D-5 — 3장 → 1.3 [지도·사진] 단일 원천 안내 링크).
   // select()가 미저장 확인·URL 동기화를 그대로 태우도록 이벤트로 위임한다.
@@ -481,9 +487,12 @@ export function PlanTabView({
         // data-plan-node/aria-current: 어느 노드가 실제로 선택됐는지 보이는 구조적 표식.
         // 없을 때는 딥링크 검사가 URL 문자열(?form=annex)밖에 볼 수 없어, 링크의 form 값을
         // 엉뚱하게 바꿔도 초록으로 남았다(소방계획서_32 F-1 변이 검사로 실증).
+        // roving tabindex — 선택된 노드만 Tab 대상. 전부 0이면 트리를 빠져나오는 데 Tab을
+        // 노드 수만큼 눌러야 한다(2026-09-21 실측: 이 트리에서 13번). 트리 안 이동은 화살표가 맡는다.
         const navBtn = (key: string, label: string, indent = false) => (
           <button key={key} onClick={() => select(key)}
             data-plan-node={key} aria-current={sel === key ? 'true' : undefined}
+            tabIndex={sel === key ? 0 : -1}
             className={`w-full flex items-center gap-1.5 h-form-7 rounded-lg text-form-xs text-left transition-colors ${indent ? 'pl-5 pr-2' : 'px-2 font-medium'} ${
               sel === key ? 'bg-brand text-white [&>span]:!text-white' : 'text-ink-sub hover:bg-brand-tint'
             }`}>
@@ -491,6 +500,22 @@ export function PlanTabView({
             {dot(key)}
           </button>
         )
+        // 키보드 트리 왕복 (2026-09-21 사용자 요청) — 규칙은 tree-keyboard가 정본(공통·보고서 트리와 공용).
+        // 순서는 PLAN_TREE_FORM_KEYS(대장 파생) — 트리 렌더 순서(1장 → 2·3장 → 커버 → 조회)와 같다.
+        // 포커스가 트리 안에 있을 때만 듣는다(전역이면 입력칸 커서·페이지 스크롤과 충돌).
+        const onTreeKeyDown = (e: KeyboardEvent<HTMLElement>) => {
+          const act = treeKeyAction(PLAN_TREE_FORM_KEYS, sel, e.key)
+          if (!act) return
+          e.preventDefault()
+          if (act.kind === 'enter') { focusDetailPanel(detailRef.current, sel); return }
+          select(act.to)   // 미저장이면 확인창으로 — 포커스는 applySelect가 옮긴다
+        }
+        // 상세 → 트리 복귀 (ESC). defaultPrevented면 안쪽이 이미 쓴 ESC다(콤보박스 닫기 등) — 뺏지 않는다.
+        const onDetailKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
+          if (e.key !== 'Escape' || e.defaultPrevented) return
+          e.preventDefault()
+          focusTreeNode(treeRef.current, sel)
+        }
         const ch1Filled = CH1_FORMS.filter(f => {
           const v = fs[f.key]
           return typeof v === 'object' ? v.done >= v.total : v === true
@@ -513,7 +538,8 @@ export function PlanTabView({
         <div className="flex gap-4 items-start">
           {nav.dialog}
           {/* 좌측 목차 트리 (데스크톱, 1-1) — 모바일은 아래 드롭다운 폴백(7-6) */}
-          <aside className="hidden md:block w-48 shrink-0 rounded-xl border border-brand-line-soft bg-brand-tint p-2 space-y-0.5 sticky top-2">
+          <aside ref={treeRef} onKeyDown={onTreeKeyDown}
+            className="hidden md:block w-48 shrink-0 rounded-xl border border-brand-line-soft bg-brand-tint p-2 space-y-0.5 sticky top-2">
             {/* 1.1·1.4 노드는 [공통] 탭으로 이사(2026-09-20 3분리) — 랜딩은 1장 첫 노드(1.2) */}
             <div>
               <p className="px-2 py-1 text-form-2xs font-bold text-ink-soft flex items-center">📘 소방계획서 본문
@@ -536,7 +562,7 @@ export function PlanTabView({
           </aside>
 
           {/* 콘텐츠 — 입력 캡처로 미저장 감지(1-2 휴리스틱: 입력=dirty, '저장' 클릭=해제) */}
-          <div className="flex-1 min-w-0"
+          <div ref={detailRef} onKeyDown={onDetailKeyDown} className="flex-1 min-w-0"
             onInputCapture={e => {
               // 모바일 목차 드롭다운 자체의 input 이벤트는 편집이 아니다 — dirty로 오인하면 매 이동마다 확인창이 뜬다
               if ((e.target as HTMLElement).closest('[data-plan-nav]')) return
@@ -553,6 +579,11 @@ export function PlanTabView({
               className="md:hidden mb-3 h-form-8 w-full rounded-lg border border-brand-line bg-surface px-2 text-form-sm outline-none">
               {NAV_ALL.map(n => <option key={n.key} value={n.key}>{n.label}</option>)}
             </select>
+
+            {/* data-detail-panel: 트리에서 Enter로 들어올 착지점(tree-keyboard.focusDetailPanel).
+                이 트리는 tab-form-tree와 달리 선택된 서식 **하나만** 렌더하므로 감싸개도 하나면 된다 —
+                노드마다 감싸개를 두면 hidden 패널까지 후보가 돼 엉뚱한 서식에 포커스가 간다. */}
+            <div data-detail-panel={sel}>
 
       {/* ── ⚡ 빠른 입력 (트리 최상단 노드, 한 페이지에 필수·송달동의) ── */}
 
@@ -600,6 +631,7 @@ export function PlanTabView({
           canManage={canManage}
         />
       )}
+            </div>
           </div>
         </div>
         </>

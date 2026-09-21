@@ -5,7 +5,8 @@
 // **반대 방향의 새 계약으로 갈아끼웠다**(지우지 않았다). ② 딥링크 변환 축은 문자 그대로 존치.
 //
 // 이 프로브가 붙들고 있는 것 4가지. 어느 하나도 기존 스위트가 보지 않는다:
-//   ① 탭이 실재하고 순서가 **공통 → 보고서 → 회차 → 소방계획서**인가 (nth 기반 셀렉터의 축 — 사용자 지정 순서)
+//   ① 탭이 실재하고 순서가 **공통 → 보고서 → 소방계획서 → 회차**인가 (nth 기반 셀렉터의 축 —
+//      2026-09-21 사용자 지시로 회차가 소방계획서 뒤로 이동. 종전 순서 단언을 갈아끼웠다)
 //   ② 구 딥링크 ?tab=plan&form=annex → 회차 탭 / ?tab=plan&form=1.1·1.4 → 공통 탭(해당 노드).
 //      → page.tsx의 정규화 줄을 누가 지우면 **여기만** 빨강이 된다. 사용자 북마크와 프로브 11종의 생명줄.
 //   ③ 소방계획서 트리에 별지·1.4 노드가 되살아나지 않았는가 (되살아나면 조회 왕복이 이중으로 돈다)
@@ -59,9 +60,9 @@ try {
   check('① [회차] 탭 실재(구 별지서식 — key annex)', iAnnex >= 0, JSON.stringify(labels))
   check('① [보고서] 탭 실재(별지 전용 입력 — 신설 key reports)', iReports >= 0, JSON.stringify(labels))
   check('① [공통] 탭 실재(1.1·1.4가 산다)', iFac >= 0, JSON.stringify(labels))
-  check('① 순서: 공통 → 보고서 → 회차 → 소방계획서 (사용자 지정)',
-    iFac >= 0 && iReports === iFac + 1 && iAnnex === iReports + 1 && iPlan === iAnnex + 1,
-    `fac=${iFac} reports=${iReports} annex=${iAnnex} plan=${iPlan}`)
+  check('① 순서: 공통 → 보고서 → 소방계획서 → 회차 (2026-09-21 사용자 지정 — 회차가 소방계획서 뒤)',
+    iFac >= 0 && iReports === iFac + 1 && iPlan === iReports + 1 && iAnnex === iPlan + 1,
+    `fac=${iFac} reports=${iReports} plan=${iPlan} annex=${iAnnex}`)
   // 라벨 겹침 금지 — '소방계획서 별지' 류로 바꾸면 has-text("소방계획서")가 두 탭을 잡는다.
   // '공통'도 같은 축: '소방계획서'와 서로 부분문자열이 아니어야 role=tab 셀렉터가 하나만 잡는다
   check('① 라벨이 서로 부분문자열이 아니다(셀렉터 충돌 방지)',

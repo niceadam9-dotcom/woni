@@ -63,7 +63,7 @@ try {
   check('① (전제) 기본정보 탭에서 출발', (await activeTab(page)).includes('기본정보'), await activeTab(page))
   await page.locator('[data-testid="header-plan-link"]').first().click()
   await page.waitForSelector('h1', { timeout: 25000 }).catch(() => {})
-  check('① 헤더 버튼 → [별지서식] 탭 활성', (await activeTab(page)).includes('별지서식'), await activeTab(page))
+  check('① 헤더 버튼 → [별지서식] 탭 활성', (await activeTab(page)).includes('회차'), await activeTab(page))
   check('① 별지 본체 렌더', await annexBodyVisible(page))
 
   // ══ ② [⑨ 9호로 돌아가기] — 별지 → 1.4 → 복귀 왕복 ═══════════════════════════
@@ -87,10 +87,14 @@ try {
   const backSeen = await backBtn.waitFor({ state: 'visible', timeout: 25000 }).then(() => true).catch(() => false)
   check('② (전제) from=report9 컨텍스트로 복귀 바가 떴다', backSeen)
   if (backSeen) {
-    check('② (전제) 출발은 소방계획서 탭', (await activeTab(fresh)).includes('소방계획서'), await activeTab(fresh))
+    // ⚠ 2026-09-21 갈아끼움: 출발지는 이제 **공통** 탭이다. 1.4가 최상위 [공통] 탭으로 이사하면서
+    //   (2026-09-20 3분리, fc802dbb) ?tab=plan&form=1.4는 서버가 그 탭으로 해석한다
+    //   (_probe-annex-tab ②가 그 변환 자체를 붙들고 있다). 구계약은 지우지 않고 반대 방향으로 바꾼다 —
+    //   여기서 묻는 것은 '어느 탭에서 출발하든 [9호로 돌아가기]가 회차로 되돌리는가'이고 그 축은 그대로다.
+    check('② (전제) 출발은 공통 탭 — 1.4가 거기 산다', (await activeTab(fresh)).includes('공통'), await activeTab(fresh))
     await backBtn.click()
     await fresh.waitForTimeout(1500)
-    check('② [⑨ 9호로 돌아가기] → [별지서식] 탭 활성', (await activeTab(fresh)).includes('별지서식'),
+    check('② [⑨ 9호로 돌아가기] → [별지서식] 탭 활성', (await activeTab(fresh)).includes('회차'),
       await activeTab(fresh))
     check('② 별지 본체 렌더', await annexBodyVisible(fresh))
   }
@@ -116,7 +120,7 @@ try {
       await hit.click()
       await page.waitForSelector('h1', { timeout: 25000 }).catch(() => {})
       await page.waitForTimeout(800)
-      check('③ 같은 고객을 다시 골라도 [별지서식] 탭으로 전환', (await activeTab(page)).includes('별지서식'),
+      check('③ 같은 고객을 다시 골라도 [별지서식] 탭으로 전환', (await activeTab(page)).includes('회차'),
         await activeTab(page))
       check('③ 별지 본체 렌더', await annexBodyVisible(page))
     }

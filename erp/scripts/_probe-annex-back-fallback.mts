@@ -118,7 +118,7 @@ try {
     await popup.waitForTimeout(1500)
 
     check('① [⑨ 9호로 돌아가기] → [별지서식] 탭 활성 (history.length===1 = back 분기 아님)',
-      (await activeTab(popup)).includes('별지서식'), await activeTab(popup))
+      (await activeTab(popup)).includes('회차'), await activeTab(popup))
     check('① 별지 본체 렌더', await annexBodyVisible(popup))
 
     const mark = await popup.evaluate(() => (window as unknown as Record<string, string>).__probe34).catch(() => undefined)
@@ -144,7 +144,7 @@ try {
     check('③ (전제) 여기는 history.length>1 — back 분기', len2 > 1, `length=${len2}`)
     await btn2.click()
     await page.waitForTimeout(1500)
-    check('③ back 분기도 [별지서식] 탭으로 돌아온다', (await activeTab(page)).includes('별지서식'),
+    check('③ back 분기도 [별지서식] 탭으로 돌아온다', (await activeTab(page)).includes('회차'),
       await activeTab(page))
   }
 } catch (e) {

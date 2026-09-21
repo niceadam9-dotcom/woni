@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import { AlertTriangle, Loader2, Save } from 'lucide-react'
 
 /** 미저장 이동 확인 — 확인창에 [저장하고 이동]을 제공하기 위한 공통 배선.
@@ -50,16 +50,49 @@ export function useUnsavedNavGuard<T>({ onProceed, message, saveLabel = '저장�
   const [canSave, setCanSave] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const titleId = useId()
+  const dialogRef = useRef<HTMLDivElement>(null)
+  /** 확인창을 띄운 시점의 포커스 — [취소]·ESC로 돌아갈 자리 */
+  const returnFocusRef = useRef<HTMLElement | null>(null)
 
   /** 미저장일 때 호출 — 확인창을 띄운다 (미저장이 아닌 경우의 즉시 이동은 호출부 판단) */
   function request(target: T) {
+    returnFocusRef.current = document.activeElement as HTMLElement | null
     setError('')
     setSaving(false)
     setCanSave(collectPlanSaveHandlers().length > 0)
     setPending({ target })
   }
 
+  // 확인창이 뜨면 포커스를 창 **안으로** 들인다 (2026-09-21 — 키보드 실측으로 잡은 결함).
+  // 종전엔 포커스가 창 뒤 트리·탭에 남아, 키보드 사용자는 창이 떴다는 걸 모른 채 ↓·Tab으로
+  // 모달 뒤 페이지를 계속 걸어다녔다(스크린리더도 창을 못 읽는다).
+  useEffect(() => {
+    if (!pending) return
+    dialogRef.current?.querySelector<HTMLButtonElement>('button:not([disabled])')?.focus()
+  }, [pending])
+
   function close() { setPending(null); setSaving(false); setError('') }
+  /** 이동을 포기하고 원래 자리로 — [취소]·ESC 전용(proceed는 목적지가 포커스를 가져간다) */
+  function cancel() {
+    close()
+    returnFocusRef.current?.focus()
+  }
+
+  // ESC = [취소], Tab = 창 안 순환. 저장 중에는 둘 다 막는다(버튼도 disabled인 구간).
+  function onDialogKeyDown(e: KeyboardEvent<HTMLDivElement>) {
+    if (saving) { if (e.key === 'Tab' || e.key === 'Escape') e.preventDefault(); return }
+    if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); cancel(); return }
+    if (e.key !== 'Tab') return
+    const items = Array.from(dialogRef.current?.querySelectorAll<HTMLButtonElement>('button:not([disabled])') ?? [])
+    if (items.length === 0) return
+    const edge = e.shiftKey ? items[0] : items[items.length - 1]
+    // 포커스가 창 밖이면(어떤 경로로든) 되돌린다 — 트랩의 본뜻은 '밖으로 못 나간다'이다
+    if (document.activeElement === edge || !dialogRef.current?.contains(document.activeElement)) {
+      e.preventDefault()
+      ;(e.shiftKey ? items[items.length - 1] : items[0]).focus()
+    }
+  }
 
   function proceed() {
     if (!pending) return
@@ -91,11 +124,13 @@ export function useUnsavedNavGuard<T>({ onProceed, message, saveLabel = '저장�
 
   const dialog: ReactNode = pending && (
     // data-unsaved-dialog: 확인창 버튼의 '저장' 글자가 서식 화면의 미저장 감지 휴리스틱에 걸리지 않도록 하는 표식
-    <div data-unsaved-dialog className="fixed inset-0 bg-black/25 dark:bg-black/60 backdrop-blur-sm flex items-center justify-center z-[70] p-4">
+    <div data-unsaved-dialog ref={dialogRef} onKeyDown={onDialogKeyDown}
+      role="dialog" aria-modal="true" aria-labelledby={titleId}
+      className="fixed inset-0 bg-black/25 dark:bg-black/60 backdrop-blur-sm flex items-center justify-center z-[70] p-4">
       <div className="bg-surface rounded-2xl shadow-xl border border-line w-full max-w-sm">
         <div className="flex items-center gap-2 px-6 py-4 border-b border-line">
           <AlertTriangle className="size-4 text-amber-500" />
-          <h2 className="text-sm font-semibold text-ink">저장하지 않은 변경이 있습니다</h2>
+          <h2 id={titleId} className="text-sm font-semibold text-ink">저장하지 않은 변경이 있습니다</h2>
         </div>
         <div className="px-6 py-4">
           <p className="text-xs text-ink-sub leading-relaxed">{message}</p>
@@ -121,7 +156,7 @@ export function useUnsavedNavGuard<T>({ onProceed, message, saveLabel = '저장�
             {discardLabel}
           </button>
           <button
-            onClick={close}
+            onClick={cancel}
             disabled={saving}
             data-testid="unsaved-nav-cancel"
             className="h-9 rounded-lg text-xs text-ink-faint hover:text-ink-sub transition-colors disabled:opacity-50"
