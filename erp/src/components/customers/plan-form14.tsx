@@ -1018,8 +1018,11 @@ export function PlanForm14({ customerId, buildings, canManage, canRegister = fal
               {specsWide ? <Minimize2 className="size-6" strokeWidth={3} /> : <Maximize2 className="size-6" strokeWidth={3} />}
               {specsWide ? '기본 폭' : '넓게'}
             </button>
+            {/* [×]는 헤더 화살표(‹ ›)와 **같은 치수**로 둔다 — 40px·굵기3.
+                2026-09-21 사용자 요청 「X 표시와 < 표시를 동일하게」. 같은 「누르는 표시」인데
+                크기가 다르면 위계가 있는 것처럼 보인다. */}
             <button onClick={closeSpecs} data-testid="specs-close" className="shrink-0 text-ink hover:text-brand transition-colors" aria-label="닫기">
-              <X className="size-8" strokeWidth={3} />
+              <X className="size-10" strokeWidth={3} />
             </button>
           </div>
           <div className="flex-1 overflow-y-auto p-4">
