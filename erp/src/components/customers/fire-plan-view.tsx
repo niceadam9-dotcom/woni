@@ -1,9 +1,9 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { ChevronDown, ChevronRight, Download, Loader2, Printer } from 'lucide-react'
+import { ChevronDown, ChevronRight, Loader2, Printer } from 'lucide-react'
 import { previewFirePlanHtmlAction } from '@/app/(dashboard)/customers/fire-plan-form-actions'
-import { FirePlanXlsxButton } from '@/components/customers/fire-plan-xlsx-button'
+import { firePlanPdfUrl } from '@/lib/fire-plan-doc-urls'
 
 /** 소방계획서 즉석 조회·인쇄 (2026-09-02 사용자 확정 — 보관함 폐지)
  *
@@ -13,13 +13,17 @@ import { FirePlanXlsxButton } from '@/components/customers/fire-plan-xlsx-button
  *  연도 표기는 '보고서 커버' 서식(비우면 생성 연도), 변경 이력은 개정이력(수동 기록)이 담당한다.
  *
  *  소방계획서_42 D-1 — **엑셀이 기본 산출물**이다(받은 뒤 사용자가 직접 고쳐 최종본을 만든다).
- *  PDF는 뒤로 물리되 존치한다. */
+ *
+ *  ⭐ **여기는 「보는 곳」이고, 「받는 곳」은 탭 상단 생성 바다** (2026-09-21 사용자 요청).
+ *    종전엔 이 노드가 [엑셀 받기]·[PDF 받기]까지 갖고 있었는데, 그러려면 사용자가 서식을 입력하다
+ *    말고 트리에서 [조회·이력] 노드를 **찾아 들어와야** 했다. 받기를 생성 바로 올리면서 여기서는
+ *    뺐다 — 남기면 같은 탭에 받기 창구가 두 벌이 되고, 둘 중 하나만 고쳐지는 날이 온다.
+ *    [현재 내용](즉석 렌더)·[인쇄]는 조회 행위라 여기 남는다. */
 
 export function FirePlanViewClient({ customerId }: { customerId: string }) {
   const [preview, setPreview] = useState<{ open: boolean; html: string; missing: string[]; loading: boolean }>(
     { open: false, html: '', missing: [], loading: false })
   const [error, setError] = useState('')
-  const [notice, setNotice] = useState('')
   const [isPending, startTransition] = useTransition()
 
   const currentYear = new Date().getFullYear()
@@ -36,14 +40,11 @@ export function FirePlanViewClient({ customerId }: { customerId: string }) {
     })
   }
 
-  /** 인쇄·PDF — 서버 즉석 생성 라우트를 새 탭으로. 브라우저 PDF 뷰어에서 바로 인쇄된다 */
-  function openPdf(download: boolean) {
-    window.open(`/customers/${customerId}/fire-plan/pdf${download ? '?download=1' : ''}`, '_blank')
+  /** 인쇄 — 서버 즉석 생성 라우트를 새 탭으로. 브라우저 PDF 뷰어에서 바로 인쇄된다.
+   *  내려받기(`download=1`)는 생성 바의 [PDF]가 맡는다 — 여기 두면 받기 창구가 두 벌이다. */
+  function openPrint() {
+    window.open(firePlanPdfUrl(customerId), '_blank')
   }
-
-  /* 엑셀 받기 로직은 `fire-plan-xlsx-button.tsx`로 뺐다 (소방계획서_47) — 별지서식 탭에도
-     같은 버튼이 필요해졌는데, 복제하면 한쪽만 고쳐지는 날이 온다. 고지·오류는 이 화면이
-     이미 자리를 갖고 있으므로 콜백으로 받아 아래 기존 자리에 그대로 그린다. */
 
   return (
     <div>
@@ -54,30 +55,20 @@ export function FirePlanViewClient({ customerId }: { customerId: string }) {
           {preview.loading ? <Loader2 className="size-3.5 animate-spin" /> : preview.open ? <ChevronDown className="size-3.5" /> : <ChevronRight className="size-3.5" />}
           현재 내용
         </button>
-        {/* D-1 — 엑셀이 주 버튼. 받은 뒤 엑셀에서 직접 고쳐 최종본을 만드는 것이 실사용 흐름이다 */}
-        <FirePlanXlsxButton customerId={customerId} onNotice={setNotice} onError={setError} />
-        <button onClick={() => openPdf(false)}
+        <button onClick={openPrint}
           title="현재 입력값으로 즉석 생성해 새 탭에서 엽니다 — 뷰어에서 바로 인쇄하세요"
           className="inline-flex items-center gap-1 h-form-8 px-3 rounded-lg border border-brand-line text-form-sm text-brand hover:bg-brand-tint transition-colors">
           <Printer className="size-3.5" /> 인쇄
         </button>
-        <button onClick={() => openPdf(true)}
-          title="현재 입력값으로 즉석 생성한 PDF를 내려받습니다"
-          className="inline-flex items-center gap-1 h-form-8 px-3 rounded-lg border border-brand-line text-form-sm text-ink-sub hover:bg-brand-tint hover:text-brand transition-colors">
-          <Download className="size-3.5" /> PDF 받기
-        </button>
         <span className="text-form-xs text-ink-meta">
-          파일은 ERP에 저장되지 않습니다 — 항상 현재 입력값으로 즉석 생성 · 파일 보관은 외부 폴더
+          파일은 ERP에 저장되지 않습니다 — 항상 현재 입력값으로 즉석 생성 · 파일 보관은 외부 폴더 ·
+          <strong className="font-medium">엑셀·PDF 받기는 이 탭 맨 위 줄</strong>에 있습니다
         </span>
       </div>
 
       {error && <p className="text-form-sm text-red-600 bg-red-50 rounded-lg px-3 py-2 mb-3">{error}</p>}
-      {/* 헤더 고지 — `window.open`이면 사라졌을 정보다(S6-3). 잘림 표기까지 그대로 보여 준다 */}
-      {notice && (
-        <p className="text-form-xs text-amber-700 bg-amber-50 rounded-lg px-3 py-2 mb-3 whitespace-pre-wrap break-words">
-          엑셀 고지: {notice}
-        </p>
-      )}
+      {/* 엑셀 고지 자리는 생성 바 아래로 함께 옮겼다(받기가 거기 있으므로) — 고지는 **받는 자리 옆**에
+          떠야 읽힌다. 여기 남겨 두면 다른 노드에서 받았을 때 아무 데도 안 뜬다. */}
 
       {preview.open && (
         <div className="mb-4">

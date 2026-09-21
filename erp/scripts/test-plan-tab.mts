@@ -38,11 +38,14 @@ try {
   check('폐기 — 보관함 요약 없음', !(await page.isVisible('text=보관함이 비어 있습니다')))
   check('폐기 — 건축물대장 불러오기 버튼 없음', !(await page.isVisible('button:has-text("건축물대장 불러오기")')))
   check('생성 바 — 누락 칩(입력처 이동) 유지', await page.isVisible('text=누락:'))
-  // 생성 버튼은 보관함으로 이관됐다 (소방계획서_21 R2-11 / #2 D-1) — 생성물이 쌓이는 곳에서 생성해야
-  // 결과가 그 자리에 바로 보인다. 종전 라벨 '계획서 생성 (HWP+PDF)'는 사실과도 달랐다:
-  // 소방계획서_7 H-13이 한글 SDK를 걷어낸 뒤 hwp_path에 null을 넣으므로 HWP는 만들어지지 않는다.
-  // (이 단언은 이관 이후 계속 실패하고 있었다 — 사라진 버튼을 찾고 있었다. 2026-08-19 정정)
-  check('생성 바 — [계획서 생성] 버튼 폐지(조회는 즉석 렌더로 일원화)',
+  // ⭐ 받기가 생성 바로 **돌아왔다** (2026-09-21 사용자 요청). 종전 주석은 「생성 버튼은 보관함으로
+  //   이관했다(R2-11)」였는데 **그 보관함이 2026-09-02에 폐지됐다** — 목적지가 사라졌는데 버튼은
+  //   돌아오지 않아, 입력은 이 탭에서 하고 받기는 [조회·이력] 노드 안쪽·[회차] 탭으로 흩어져 있었다.
+  check('생성 바 — [엑셀 받기] 주 버튼', await page.isVisible('[data-testid="fire-plan-xlsx"]'))
+  check('생성 바 — [PDF] 보조 버튼', await page.isVisible('[data-testid="plan-bar-pdf"]'))
+  // ⚠ 종전 라벨 '계획서 생성 (HWP+PDF)'로 되돌리지 말 것: 소방계획서_7 H-13이 한글 SDK를 걷어낸 뒤
+  //   hwp_path에 null을 넣으므로 HWP는 만들어지지 않는다. 지금 나가는 것은 엑셀과 PDF뿐이다.
+  check('생성 바 — [계획서 생성] 버튼 폐지(HWP는 생성되지 않는다)',
     !(await page.isVisible('button:has-text("계획서 생성")')))
   check('생성 바 — [PDF 생성](웹 템플릿) 폐기 확인', !(await page.isVisible('button:has-text("PDF 생성")')))
   // 2026-08-10: 생성 바 연도 입력칸 폐지(올해 자동) — 연도 표기는 '보고서 커버' 서식으로 이동.
@@ -50,12 +53,31 @@ try {
   check('생성 바 — 연도 입력칸 폐지',
     (await page.locator('div:has(> p:has-text("누락:")) input[type="number"]').count()) === 0)
 
-  // 보관함 폐지(2026-09-02) — 조회·개정이력 노드에 즉석 조회 3버튼([현재 내용]·[인쇄]·[PDF 받기])만
-  // 있고, 파일을 만들던 [개정 발행]·업로드·연차·제출 추적은 전부 사라졌다
+  // 🎯 이 커밋의 **핵심 계약**: 생성 바는 「모든 서브탭 상단 고정」이므로, 어느 서식을 입력하고
+  //   있든 받기가 그 자리에 있어야 한다. 랜딩(1.2)에서만 재면 「랜딩에만 달았다」를 못 잡는다 —
+  //   사용자가 실제로 받기를 누르는 시점은 한참 안쪽 서식을 채운 뒤다.
+  for (const form of ['1.6', 'ch3', 'cover']) {
+    await page.goto(`${BASE}/customers/${customerId}?tab=plan&form=${form}`)
+    await page.waitForSelector('[data-testid="fire-plan-xlsx"]')
+    check(`생성 바 — ${form} 서식에서도 [엑셀 받기]가 보인다`,
+      await page.isVisible('[data-testid="fire-plan-xlsx"]'))
+    check(`생성 바 — ${form} 서식에서도 [PDF]가 보인다`,
+      await page.isVisible('[data-testid="plan-bar-pdf"]'))
+  }
+
+  // 보관함 폐지(2026-09-02) — 조회·개정이력 노드에 즉석 조회 버튼만 남는다.
+  // ⭐ 계약 교체(2026-09-21): 종전 단언은 「[현재 내용]·[인쇄]·[PDF 받기] 3버튼」이었다. 받기가
+  //   생성 바로 승격되면서 여기 [PDF 받기]·[엑셀 받기]는 **뺐다** — 같은 탭에 받기 창구가 두 벌이면
+  //   둘 중 하나만 고쳐지는 날이 온다. 지우지 않고 **반대 방향으로 갈아끼운다**(부활하면 빨강).
   await page.goto(`${BASE}/customers/${customerId}?tab=plan&form=archive`)
   await page.waitForSelector('button:has-text("현재 내용")')
-  check('조회 — [현재 내용]·[인쇄]·[PDF 받기] 즉석 3버튼',
-    await page.isVisible('button:has-text("인쇄")') && await page.isVisible('button:has-text("PDF 받기")'))
+  // 전제 — 음성 단언이 빈 화면에서 공허 통과하지 않도록 이 노드가 실제로 열렸음을 먼저 못박는다
+  check('조회 — 전제: 조회·이력 노드가 열렸다(즉석 조회 2버튼)',
+    await page.isVisible('button:has-text("현재 내용")') && await page.isVisible('button:has-text("인쇄")'))
+  check('조회 — [PDF 받기] 없음(받기는 생성 바로 승격)',
+    !(await page.isVisible('button:has-text("PDF 받기")')))
+  check('조회 — [엑셀 받기] 없음(받기 창구는 생성 바 한 곳)',
+    (await page.locator('[data-testid="fire-plan-xlsx"]').count()) === 1)
   check('폐지 — [개정 발행] 없음', !(await page.isVisible('button:has-text("개정 발행")')))
   check('폐지 — [연차] 없음', !(await page.isVisible('button:has-text("연차")')))
   check('폐지 — 제출 추적 없음', !(await page.isVisible('text=제출 추적')))

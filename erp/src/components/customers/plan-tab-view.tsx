@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useTransition, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
-import { Download, Loader2, Info } from 'lucide-react'
+import { Download, Loader2, Info, FileText } from 'lucide-react'
 import { importLegacyFormAction } from '@/app/(dashboard)/customers/fire-plan-form-actions'
 import { autoApplyLedgerEmptyAction } from '@/app/(dashboard)/customers/fire-plan-info-actions'
 import { applyPlanTextDefaultsAction } from '@/app/(dashboard)/customers/plan-text-library-actions'
@@ -11,6 +11,8 @@ import { TableWrap } from '@/components/ui/fields'
 import { collectPlanSaveHandlers, useUnsavedNavGuard } from '@/components/ui/unsaved-nav'
 import { useCustomerTabs } from '@/components/customers/customer-tabs'
 import { PLAN_TREE_FORMS, PLAN_TREE_FORM_KEYS, formOfCard, tabOfForm, sectionsOfForm, type FirePlanFormKey } from '@/lib/fire-plan-sections'
+import { FirePlanXlsxButton } from '@/components/customers/fire-plan-xlsx-button'
+import { firePlanPdfUrl } from '@/lib/fire-plan-doc-urls'
 import { PlanBlankReport } from '@/components/customers/plan-blank-report'
 import type { FormBlankSummary } from '@/lib/fire-plan-blanks'
 import { RevisionHistory } from '@/components/customers/revision-history'
@@ -317,10 +319,18 @@ export function PlanTabView({
     })
   }
 
-  // 생성 버튼은 보관함으로 이관했다 (소방계획서_21 R2-11 / #2 D-1) —
-  // 생성물이 쌓이는 곳에서 생성해야 결과가 그 자리에 바로 보인다. 프리셋(recommendPresetType)도 함께 옮겼다.
-  // 종전 라벨 '계획서 생성 (HWP+PDF)'는 사실과 달랐다: 소방계획서_7 H-13이 한글 SDK를 걷어낸 뒤
-  // hwp_path에 null을 넣으므로 HWP는 생성되지 않는다.
+  // 🚨 **「생성 바」에 생성이 없었다** (2026-09-21 사용자 요청으로 되돌림).
+  //   종전 주석: 「생성 버튼은 보관함으로 이관했다(소방계획서_21 R2-11) — 생성물이 쌓이는 곳에서
+  //   생성해야 결과가 그 자리에 바로 보인다」. 그런데 **그 보관함이 2026-09-02에 폐지됐다** —
+  //   옮겨 둔 목적지가 사라졌는데 버튼은 돌아오지 않았고, 그 사이 받는 자리는 [조회·이력] 노드
+  //   안쪽과 [회차] 탭으로 흩어졌다. 입력은 이 탭에서 하는데 받으려면 노드를 파고들거나 탭을
+  //   건너야 했다는 뜻이다.
+  //   이 줄은 **모든 서식에서 상단 고정**이라, 1.2를 입력하든 3장을 입력하든 받기가 늘 한 번 클릭
+  //   거리에 있다 — 그게 이 자리를 고른 이유다(게이지·누락 칩이 여기 남은 이유와 같다).
+  // ⚠ 종전 라벨 '계획서 생성 (HWP+PDF)'로 되돌리지 말 것: 소방계획서_7 H-13이 한글 SDK를 걷어낸
+  //   뒤 hwp_path에 null을 넣으므로 HWP는 생성되지 않는다. 지금 나가는 것은 엑셀과 PDF뿐이다.
+  const [xlsxNotice, setXlsxNotice] = useState('')
+  const [xlsxError, setXlsxError] = useState('')
 
   const pct = readiness.total > 0 ? Math.round((readiness.done / readiness.total) * 100) : 0
   // 일반관리도 소방계획서 대상 (소방계획서_6 W-14·D-6) — 유형 안내 배너 특례 제거
@@ -354,17 +364,36 @@ export function PlanTabView({
             ))}
           </span>
         )}
-        {/* 구 보고서 센터 역링크 제거 — 문서 현황의 단일 허브는 [별지서식] 탭 (소방계획서_8 Phase B → _34로 탭 승격)
-            생성 버튼 제거(R2-11) — 조회는 보관함 [현재 내용], 발행은 보관함 [개정 발행]으로 일원화.
-            준비율 게이지·누락 칩은 입력처 점프 기능이라 여기 남긴다 */}
-        {/* 글자 크기 (소방계획서_35 S5-3) — 배율 효과가 **가장 크게 보이는 화면**이라 여기 둔다.
-            전역 헤더에 두면 배율이 안 걸리는 화면에서도 눌리는 버튼이 된다.
-            ⚠ 종전 주석의 '유일한 화면'은 소방계획서_38이 점검표 입력까지 넓히며 거짓이 됐다. */}
-        <span className="ml-auto shrink-0">
+        {/* 받기 — 엑셀이 **주**, PDF가 보조다(소방계획서_42 D-1: 받은 뒤 엑셀에서 직접 고쳐 최종본을
+            만드는 것이 실사용 흐름). 누락 칩이 여러 줄로 늘어나도 자리가 흔들리지 않게 ml-auto 묶음에
+            둔다 — 칩은 왼쪽에서 자라고 받기는 오른쪽 끝에 고정된다.
+            ⚠ 엑셀은 `FirePlanXlsxButton` **한 벌**을 쓴다(목록 행·여기가 같은 로직). 여기서 fetch를
+              다시 짜면 `X-FirePlan-Missing` 고지 처리가 두 벌이 된다.
+            ⚠ PDF는 `window.open`이 규약이다(고지 헤더가 없다) — 엑셀처럼 Blob으로 바꾸지 말 것. */}
+        <span className="ml-auto shrink-0 flex items-center gap-2">
+          <FirePlanXlsxButton customerId={customerId} onNotice={setXlsxNotice} onError={setXlsxError} />
+          <button onClick={() => window.open(firePlanPdfUrl(customerId), '_blank')}
+            data-testid="plan-bar-pdf"
+            title="현재 입력값으로 즉석 생성한 PDF를 새 탭에서 엽니다 — 뷰어에서 그대로 인쇄·저장할 수 있습니다"
+            className="inline-flex items-center gap-1 h-form-8 px-3 rounded-lg border border-brand-line text-form-sm text-ink-sub hover:bg-brand-tint hover:text-brand transition-colors">
+            <FileText className="size-3.5" /> PDF
+          </button>
+          {/* 글자 크기 (소방계획서_35 S5-3) — 배율 효과가 **가장 크게 보이는 화면**이라 여기 둔다.
+              전역 헤더에 두면 배율이 안 걸리는 화면에서도 눌리는 버튼이 된다.
+              ⚠ 종전 주석의 '유일한 화면'은 소방계획서_38이 점검표 입력까지 넓히며 거짓이 됐다. */}
           <FontScaleSettingsClient variant="compact" />
         </span>
       </div>
       {msg && <p className="text-form-sm text-ink-sub mb-3">{msg}</p>}
+      {/* 엑셀 고지·오류 — `window.open`이었다면 사라졌을 정보다(자가치유·구역 넘침·미입력).
+          생성 바 **아래**에 그린다: 바 안에 넣으면 고지가 길 때 게이지·칩 줄이 통째로 밀린다. */}
+      {xlsxError && <p className="text-form-sm text-red-600 bg-red-50 rounded-lg px-3 py-2 mb-3">{xlsxError}</p>}
+      {xlsxNotice && (
+        <p data-testid="plan-bar-xlsx-notice"
+          className="text-form-xs text-amber-700 bg-amber-50 rounded-lg px-3 py-2 mb-3 whitespace-pre-wrap break-words">
+          엑셀 고지: {xlsxNotice}
+        </p>
+      )}
 
       {/* ══ 서식 전체 트리(기본) — ⚡ 빠른 입력을 최상단 노드로 통합. 토글 제거 (2026-08-05) ══ */}
       {(() => {

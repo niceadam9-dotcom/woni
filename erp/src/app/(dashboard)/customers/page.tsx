@@ -12,6 +12,7 @@ import { FirePlanXlsxButton } from '@/components/customers/fire-plan-xlsx-button
 import { CustomerViewTabs } from '@/components/customers/customer-view-tabs'
 import { RecentCustomersStrip } from '@/components/customers/recent-customers-strip'
 import { assigneeLabel } from '@/lib/default-assignee'
+import { firePlanPdfUrl } from '@/lib/fire-plan-doc-urls'
 import { TableScroll, STICKY_THEAD } from '@/components/ui/table-scroll'
 import { AddressMapButton } from '@/components/ui/address-map-button'
 import { fetchCustomerList, parseListFilter } from '@/lib/customer-list'
@@ -313,7 +314,7 @@ export default async function CustomersPage({
                               <FirePlanXlsxButton customerId={c.id} variant="compact" />
                               {/* PDF는 고지 헤더가 없어 새 탭 조회가 규약(fire-plan-view의 openPdf와 같은 축).
                                   브라우저 뷰어에서 바로 인쇄·저장할 수 있어 download=1을 붙이지 않는다 */}
-                              <a href={`/customers/${c.id}/fire-plan/pdf`} target="_blank" rel="noopener noreferrer"
+                              <a href={firePlanPdfUrl(c.id)} target="_blank" rel="noopener noreferrer"
                                 title="소방계획서 PDF 열기 — 새 탭에서 조회하고 그대로 인쇄·저장할 수 있습니다"
                                 data-testid="fire-plan-pdf-link"
                                 className="inline-flex h-6 w-[2.6rem] items-center justify-center rounded border border-red-200 text-form-2xs font-medium text-red-600 transition-colors hover:bg-red-50">

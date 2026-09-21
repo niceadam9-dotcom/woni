@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { FileSpreadsheet, Loader2 } from 'lucide-react'
 import { DocNoticeToast } from '@/components/ui/doc-notice-toast'
+import { firePlanXlsxUrl } from '@/lib/fire-plan-doc-urls'
 
 /** 소방계획서 엑셀 받기 — **단일 원천** (소방계획서_47).
  *
@@ -43,7 +44,7 @@ export function FirePlanXlsxButton({
   async function download() {
     say.error(''); say.notice(''); setBusy(true)
     try {
-      const res = await fetch(`/customers/${customerId}/fire-plan/xlsx`)
+      const res = await fetch(firePlanXlsxUrl(customerId))
       if (!res.ok) {
         // 라우트는 앵커 불일치·미착지를 500으로 끊는다 — 조용한 오적용 대신 사유를 보여 준다
         const body = await res.json().catch(() => null) as { error?: string } | null
