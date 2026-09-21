@@ -145,7 +145,7 @@ export async function judgePrevYearDutyAuto(
 }
 
 /** ── 확정 해석 사슬 ──────────────────────────────────────────────────────────
- *  ① sections.annexStatus (소방계획서 1.10 확정 — 새 정본)
+ *  ① sections.annexStatus (보고서 탭 「전년도 업무 실시사항」 확정 — 새 정본·51 3분리로 1.10에서 이사)
  *  ② annex_inputs.fields  (레거시 읽기 폴백, Q-3 — 입력구는 없앴다)
  *  ③ 자동 판정 (부정 단정 없음)
  */

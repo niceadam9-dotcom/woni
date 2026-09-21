@@ -190,7 +190,7 @@ export type Report9Data = {
   firePlanNone?: boolean      // 미작성
   /** 보관 √ — **사람이 고를 때만**. 소방계획서_44 Q-4로 hasFirePlan 폴백을 끊었다:
    *  「보관」에는 원천이 없어(현장 비치 여부를 ERP가 알 수 없다) 작성 여부로 대신 찍던 것이
-   *  근거 없는 단정이었다. 확정 자리는 소방계획서 1.10 「전년도 업무 실시사항」. */
+   *  근거 없는 단정이었다. 확정 자리는 보고서 탭 「전년도 업무 실시사항」(51 3분리로 1.10에서 이사). */
   firePlanStored?: boolean
   firePlanUnstored?: boolean  // 미보관
   prevOpNone?: boolean        // 전년도 작동점검 미실시

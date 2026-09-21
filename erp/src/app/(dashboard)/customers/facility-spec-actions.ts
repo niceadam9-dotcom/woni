@@ -303,11 +303,12 @@ export async function getAnnexAutoDefaultsAction(
 
 /** 별지 9호 2쪽 3행 요약 (소방계획서_44 S4-2) — 작성 패널 1단에 **읽기 전용**으로 비춘다.
  *
- *  확정 자리는 소방계획서 1.10이므로 여기서는 고치지 못한다. 대신 "지금 무엇이 인쇄되는가"를 보여 준다.
+ *  확정 자리는 보고서 탭 「전년도 업무 실시사항」(51 3분리로 1.10에서 이사)이므로 여기서는 고치지
+ *  못한다. 대신 "지금 무엇이 인쇄되는가"를 보여 준다.
  *  year는 **자동 판정의 기준 연도**(insp.year - 1)일 뿐 확정값의 축이 아니다 — 확정은 연도 없는 한 벌(D-6). */
 export async function getAnnexDutySummaryAction(inspectionId: string): Promise<{
   year: number
-  /** 확정 화면(소방계획서 1.10) 링크용 — 이 액션을 쓰는 두 표면(작업대·작성 패널) 모두 고객 id가 없다 */
+  /** 확정 화면(보고서 탭 「전년도 업무 실시사항」) 링크용 — 이 액션을 쓰는 두 표면(작업대·작성 패널) 모두 고객 id가 없다 */
   customerId: string
   lines: Array<{ label: string; text: string }>
   confirmed: boolean

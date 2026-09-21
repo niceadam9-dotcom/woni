@@ -77,7 +77,7 @@ export function AnnexComposePanel({ inspectionId, annexNo, customerId, from, onC
   const [isPending, startTransition] = useTransition()
   // H-5b 전 회차 이어받기 — 첫 작성(기존 입력 없음)일 때만 제안 (덮어쓰기 방지, D-5)
   const [prevOffer, setPrevOffer] = useState<{ fields: Record<string, string>; fromLabel: string } | null>(null)
-  // 소방계획서_44 — 2쪽 3행 읽기 전용 요약(확정 자리는 소방계획서 1.10)
+  // 소방계획서_44 — 2쪽 3행 읽기 전용 요약(확정 자리는 보고서 탭 「전년도 업무 실시사항」 — 51 3분리로 이사)
   const [dutySummary, setDutySummary] = useState<{ year: number; lines: Array<{ label: string; text: string }>; confirmed: boolean } | null>(null)
   /** 이 패널이 **안 그리는** 키까지 포함한 저장본 — saveAnnexInputsAction의 upsert는 fields를 통째로
    *  교체하므로, FIELD_DEFS만 보내면 남는 키가 지워진다. 44가 별지 9호 6칸을 걷어낸 뒤로는
@@ -263,13 +263,13 @@ export function AnnexComposePanel({ inspectionId, annexNo, customerId, from, onC
                       </span>
                     </div>
                   ))}
-                  {/* 소방계획서_44 S4-2 — 2쪽 3행이 지금 무엇으로 인쇄되는지. 여기서는 못 고친다(원천은 1.10) */}
+                  {/* 소방계획서_44 S4-2 — 2쪽 3행이 지금 무엇으로 인쇄되는지. 여기서는 못 고친다(원천은 보고서 탭) */}
                   {annexNo === 'report9' && dutySummary && (
                     <div className="rounded-lg border border-brand-line-soft bg-paper px-2.5 py-2 space-y-1">
                       <p className="text-form-2xs text-ink-meta">
                         2쪽 전년도({dutySummary.year}년) 실시사항 —{' '}
                         {dutySummary.confirmed
-                          ? '소방계획서 1.10에서 확정됨'
+                          ? '보고서 탭에서 확정됨'
                           : '확정 없음 · 자동 판정대로 인쇄(빈 칸은 √ 없이 나갑니다)'}
                       </p>
                       {dutySummary.lines.map(l => (

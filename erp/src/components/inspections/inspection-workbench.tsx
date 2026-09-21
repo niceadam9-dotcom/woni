@@ -1373,7 +1373,8 @@ function AnnexFields({ inspectionId, annexNo, canEdit, onSaved, compact, only, t
   /** 이 칸이 **안 그리는** 키까지 포함한 저장본 — only로 쪼갠 뒤 저장이 남의 칸을 지우지 않게 한다.
    *  (saveAnnexInputsAction의 upsert는 fields를 통째로 교체한다) */
   const allRef = useRef<Record<string, unknown>>({})
-  // 소방계획서_44 — 2쪽 3행 안내(확정 자리는 소방계획서 1.10). 보조 정보라 실패해도 입력은 되어야 한다
+  // 소방계획서_44 — 2쪽 3행 안내(확정 자리는 보고서 탭 「전년도 업무 실시사항」 — 51 3분리로 1.10에서 이사).
+  // 보조 정보라 실패해도 입력은 되어야 한다
   const [duty, setDuty] = useState<{ year: number; customerId: string; confirmed: boolean } | null>(null)
   useEffect(() => {
     if (annexNo !== 'report9') { setDuty(null); return }
@@ -1435,16 +1436,17 @@ function AnnexFields({ inspectionId, annexNo, canEdit, onSaved, compact, only, t
         {state === 'saved' && <span className="text-green-600">저장됨</span>}
         {state === 'error' && <span className="text-red-600">저장 실패</span>}
       </p>
-      {/* 소방계획서_44 — 2쪽 3행의 확정 자리는 여기가 아니라 소방계획서 1.10이다.
+      {/* 소방계획서_44 — 2쪽 3행의 확정 자리는 여기가 아니라 보고서 탭 「전년도 업무 실시사항」이다
+          (51 3분리로 소방계획서 1.10에서 카드째 이사 — 별지에만 인쇄되는 값이라 별지 전용 탭이 맞다).
           6칸을 걷어내기만 하면 "있던 칸이 사라졌다"로만 보인다 — 어디로 갔는지 한 줄로 말한다.
           상세 3줄은 작성 패널이 보여 준다(여기는 옆이 미리보기라 세로가 귀하다). */}
       {annexNo === 'report9' && duty && (
         <p className="shrink-0 text-form-2xs text-ink-soft">
-          2쪽 전년도({duty.year}년) 실시사항 — {duty.confirmed ? '소방계획서 1.10에서 확정됨' : '확정 없음 · 자동 판정대로 인쇄'}
+          2쪽 전년도({duty.year}년) 실시사항 — {duty.confirmed ? '보고서 탭에서 확정됨' : '확정 없음 · 자동 판정대로 인쇄'}
           {duty.customerId && (
             // ⚠ <a>(전체 이동) — 같은 경로 soft nav는 서버를 재렌더하지 않아 ?form=이 무시된다(34 S6-1)
-            <a href={`/customers/${duty.customerId}?tab=plan&form=1.10&from=report9&insp=${inspectionId}`}
-              className="ml-1 text-brand hover:underline">1.10에서 확정</a>
+            <a href={`/customers/${duty.customerId}?tab=reports&form=duty&from=report9&insp=${inspectionId}`}
+              className="ml-1 text-brand hover:underline">보고서 탭에서 확정</a>
           )}
         </p>
       )}

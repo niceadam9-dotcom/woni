@@ -1,6 +1,7 @@
 /** 소방계획서_44 E2E (S5-2) — 확정 자리를 옮긴 뒤 **두 화면이 같은 값을 말하는가**.
+ *  (소방계획서_51 3분리로 확정 자리가 1.10 → 보고서 탭 「전년도 업무 실시사항」 카드로 이사 — 재조준)
  *
- *  ① 소방계획서 1.10 「전년도 업무 실시사항」에서 확정 → 저장
+ *  ① 보고서 탭 「전년도 업무 실시사항」 카드에서 확정 → 저장
  *  ② DB: fire_plan_forms.sections.annexStatus 에 **연도축 없이 한 벌로** 남는가 (annex_inputs 아님, D-6)
  *  ③ 재로드 복원 (aria-pressed)
  *  ④ 별지 9호 작성 패널 1단 요약이 그 값을 그대로 비추는가 — 화면 두 개가 갈라지지 않는다
@@ -40,9 +41,9 @@ try {
   const page = l.page
   await login(page, EMAIL)
 
-  // ── ① 1.10 블록에서 확정 ──
-  await page.goto(`${BASE}/customers/${customerId}?tab=plan&form=1.10`)
-  const block = page.locator('#c-1\\.10-prev')
+  // ── ① 보고서 탭 카드에서 확정 (⚠ TabFormTree는 hidden 전체 렌더 — &form=duty까지 실어야 보인다) ──
+  await page.goto(`${BASE}/customers/${customerId}?tab=reports&form=duty`)
+  const block = page.locator('[data-testid="annex-status-card"]')
   await block.waitFor({ timeout: 60000 })
   const opGroup = block.locator('[role="group"][aria-label="자체점검 작동"]')
   const eduGroup = block.locator('[role="group"][aria-label="소방안전교육"]')
@@ -60,8 +61,8 @@ try {
   await opGroup.locator('button', { hasText: '미실시' }).click()
   await eduGroup.locator('button', { hasText: '실시' }).first().click()
   await writtenGroup.locator('button', { hasText: '작성' }).first().click()
-  await page.click('text=서식 1.10 저장')
-  await page.locator('text=서식 1.10 저장됨').waitFor({ timeout: 30000 })
+  await page.click('[data-testid="annex-status-save"]')
+  await page.locator('text=전년도 업무 실시사항 저장됨').waitFor({ timeout: 30000 })
 
   // ── ② 저장 위치·연도 키 ──
   let sec: Record<string, unknown> = {}
@@ -83,7 +84,7 @@ try {
   check('② 점검 건(annex_inputs)에는 안 쓴다', !((ai?.fields ?? {}) as Record<string, string>).prevOpDone)
 
   // ── ③ 재로드 복원 ──
-  await page.goto(`${BASE}/customers/${customerId}?tab=plan&form=1.10`)
+  await page.goto(`${BASE}/customers/${customerId}?tab=reports&form=duty`)
   await opGroup.waitFor({ timeout: 60000 })
   check('③ 재로드 후 aria-pressed 유지 (미실시)',
     (await opGroup.locator('button', { hasText: '미실시' }).getAttribute('aria-pressed')) === 'true')
@@ -97,10 +98,12 @@ try {
   await p9.waitFor({ timeout: 60000 })
   await p9.locator(`text=전년도(${prevYear}년) 실시사항`).waitFor({ timeout: 30000 })
   const p9Text = await p9.innerText()
-  check('④ 작업대가 확정 사실을 말한다', p9Text.includes('소방계획서 1.10에서 확정됨'), p9Text.slice(0, 300))
-  const href = await p9.locator('a', { hasText: '1.10에서 확정' }).getAttribute('href')
-  check('④ 확정 자리로 가는 길이 있다(1.10 딥링크)',
-    !!href && href.includes(`/customers/${customerId}`) && href.includes('form=1.10'), String(href))
+  check('④ 작업대가 확정 사실을 말한다', p9Text.includes('보고서 탭에서 확정됨'), p9Text.slice(0, 300))
+  const href = await p9.locator('a', { hasText: '보고서 탭에서 확정' }).getAttribute('href')
+  check('④ 확정 자리로 가는 길이 있다(보고서 탭 duty 노드 딥링크)',
+    !!href && href.includes(`/customers/${customerId}`) && href.includes('tab=reports') && href.includes('form=duty'),
+    String(href))
+  check('④ 낡은 1.10 자리를 더는 가리키지 않는다', !p9Text.includes('1.10에서 확정'), p9Text.slice(0, 300))
   // ⑤ 확정 창구가 둘이 되면 안 된다 — 6칸이 ③계층에 되살아났는지 라벨로 본다
   check('⑤ ③계층에 전년도 확정 칸이 되살아나지 않았다',
     !/소방안전교육|자체점검\(전년도\)|보관 여부/.test(p9Text), p9Text.slice(0, 300))
