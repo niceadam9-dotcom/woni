@@ -43,6 +43,27 @@ try {
   //   돌아오지 않아, 입력은 이 탭에서 하고 받기는 [조회·이력] 노드 안쪽·[회차] 탭으로 흩어져 있었다.
   check('생성 바 — [엑셀 받기] 주 버튼', await page.isVisible('[data-testid="fire-plan-xlsx"]'))
   check('생성 바 — [PDF] 보조 버튼', await page.isVisible('[data-testid="plan-bar-pdf"]'))
+  // 🎯 엑셀 고지 → **클릭 칩** (2026-09-21). 종전엔 한 덩어리 `<p>`라 「무엇이 비었다」를 읽고도
+  //   그 자리를 사용자가 직접 찾아가야 했다. 여기서 재는 것은 **배선**이다 — 규칙 자체는
+  //   test-fire-plan-notice가 따로 못박는다(순수 함수라 거기가 제자리다).
+  //   ⚠ 빈 고객이라 미입력 16조각이 오고, 그중 13개가 누락 칩 어휘와 겹쳐 칩이 된다(프로브 실측).
+  {
+    await page.click('[data-testid="fire-plan-xlsx"]')
+    await page.waitForSelector('[data-testid="plan-bar-xlsx-notice"]', { timeout: 180000 })
+    const chips = await page.locator('[data-testid="xlsx-notice-chip"]').count()
+    const rows = await page.locator('[data-testid="plan-bar-xlsx-notice"] li').count()
+    check('고지 — 한 덩어리가 아니라 조각별 줄로 쪼개진다', rows > 5, `${rows}줄`)
+    check('🚨 고지 — 갈 곳이 있는 조각이 실제로 칩이 된다(0이면 배선이 죽은 것)', chips > 0, `${chips}개`)
+    check('고지 — 칩이 줄 수를 넘지 않는다(조각당 최대 하나)', chips <= rows, `${chips}/${rows}`)
+    // 🚨 칩을 눌렀을 때 **실제로 옮겨 가는가** — 모양만 칩이고 아무 데도 안 가면 종전과 같다.
+    const before = page.url()
+    await page.locator('[data-testid="xlsx-notice-chip"]').first().click()
+    await page.waitForTimeout(1500)
+    const moved = page.url() !== before || (await page.locator('[data-plan-node][aria-current="true"]').count()) > 0
+    check('🚨 고지 칩을 누르면 입력처로 옮겨 간다(모양만 칩이 아니다)', moved, `${before} → ${page.url()}`)
+    await page.goto(`${BASE}/customers/${customerId}?tab=plan`)
+    await page.waitForSelector('[data-testid="fire-plan-xlsx"]')
+  }
   // ⚠ 종전 라벨 '계획서 생성 (HWP+PDF)'로 되돌리지 말 것: 소방계획서_7 H-13이 한글 SDK를 걷어낸 뒤
   //   hwp_path에 null을 넣으므로 HWP는 만들어지지 않는다. 지금 나가는 것은 엑셀과 PDF뿐이다.
   check('생성 바 — [계획서 생성] 버튼 폐지(HWP는 생성되지 않는다)',

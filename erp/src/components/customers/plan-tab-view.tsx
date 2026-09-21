@@ -13,6 +13,7 @@ import { useCustomerTabs } from '@/components/customers/customer-tabs'
 import { PLAN_TREE_FORMS, PLAN_TREE_FORM_KEYS, formOfCard, tabOfForm, sectionsOfForm, type FirePlanFormKey } from '@/lib/fire-plan-sections'
 import { FirePlanXlsxButton } from '@/components/customers/fire-plan-xlsx-button'
 import { firePlanPdfUrl } from '@/lib/fire-plan-doc-urls'
+import { parseFirePlanNotice } from '@/lib/fire-plan-notice'
 import { PlanBlankReport } from '@/components/customers/plan-blank-report'
 import type { FormBlankSummary } from '@/lib/fire-plan-blanks'
 import { RevisionHistory } from '@/components/customers/revision-history'
@@ -278,6 +279,16 @@ export function PlanTabView({
       }
     }
   }
+  /** 엑셀 고지 칩 → 그 서식으로 (2026-09-21).
+   *  ⚠ 이사 노드(1.1·1.4)는 이 트리에 **없다** — 최상위 탭으로 보내야 한다. 그 경우 `&form=`을
+   *    반드시 붙인다(TabFormTree가 딥링크로만 그 노드를 연다). 탭 전환은 `goTab`이 아니라
+   *    **전체 이동**이 정본이다(goTab 라우터 큐 고착 이력). 같은 탭 노드는 select()가 미저장
+   *    확인까지 태운다. */
+  function gotoNoticeForm(form: FirePlanFormKey) {
+    const tab = tabOfForm(form)
+    if (tab) { router.push(`/customers/${customerId}?tab=${tab}&form=${form}`); return }
+    select(form)
+  }
   function gotoMissing(label: string) {
     const t = CHIP_TARGET[label]
     const fieldId = CHIP_FIELD_ID[label]
@@ -389,10 +400,51 @@ export function PlanTabView({
           생성 바 **아래**에 그린다: 바 안에 넣으면 고지가 길 때 게이지·칩 줄이 통째로 밀린다. */}
       {xlsxError && <p className="text-form-sm text-red-600 bg-red-50 rounded-lg px-3 py-2 mb-3">{xlsxError}</p>}
       {xlsxNotice && (
-        <p data-testid="plan-bar-xlsx-notice"
-          className="text-form-xs text-amber-700 bg-amber-50 rounded-lg px-3 py-2 mb-3 whitespace-pre-wrap break-words">
-          엑셀 고지: {xlsxNotice}
-        </p>
+        // ⭐ 고지를 **클릭할 수 있는 조각**으로 쪼갠다 (2026-09-21). 종전엔 한 덩어리 `<p>`라,
+        //   「1.7.1이 비었다」를 읽고도 그 서식을 사용자가 직접 찾아가야 했다 — 바로 위 누락 칩은
+        //   눌러서 가는데 정작 엑셀이 지적한 자리는 못 갔다. 이제 고리가 닫힌다:
+        //   입력 → 엑셀 → 지적 → 클릭 → 그 칸 → 다시 엑셀.
+        // ⚠ 갈 곳을 못 찾은 조각은 **글자 그대로** 남는다(종전과 같은 모습) — 지어낸 목적지로
+        //   보내느니 안 보내는 게 낫다. 규칙·표는 lib/fire-plan-notice가 정본이다.
+        <div data-testid="plan-bar-xlsx-notice"
+          className="text-form-xs text-amber-700 bg-amber-50 rounded-lg px-3 py-2 mb-3 space-y-1">
+          <span className="font-medium">엑셀 고지 — 아래 칸이 비었거나 양식에 다 담기지 않았습니다</span>
+          <ul className="space-y-0.5">
+            {parseFirePlanNotice(xlsxNotice).map((part, i) => {
+              // 갈 곳을 찾는 길은 **둘**이고, 실제로 자주 걸리는 쪽은 아래(b)다.
+              //  (a) 시트 번호가 박힌 고지 — 넘침·자가치유(「선임현황(1.7.1) 2명 미표기」).
+              //      데이터가 많거나 좌표가 밀렸을 때만 나온다.
+              //  (b) **미입력 라벨** — 빈 고객의 고지는 16조각이 전부 이 꼴이다(실측).
+              //      그 라벨들은 바로 위 「누락 칩」이 이미 아는 것과 **같은 어휘**라
+              //      CHIP_TARGET/gotoMissing을 그대로 태운다(배선 두 벌 금지).
+              //      🚨 (b)가 없으면 흔한 경우에 칩이 **하나도** 안 생긴다 — 프로브가 잡았다.
+              const missTarget = !part.form && CHIP_TARGET[part.text] ? part.text : null
+              return (
+                <li key={i} className="flex items-start gap-1.5 break-words">
+                  {part.form ? (
+                    <button onClick={() => gotoNoticeForm(part.form!)}
+                      data-testid="xlsx-notice-chip"
+                      title={`클릭 → ${part.no} 서식으로 이동해 입력합니다`}
+                      className="inline-flex items-center h-5 px-1.5 shrink-0 rounded bg-amber-100 text-amber-800 text-form-2xs font-medium border border-amber-300 hover:bg-amber-200 transition-colors">
+                      {part.no} ↗
+                    </button>
+                  ) : missTarget ? (
+                    <button onClick={() => gotoMissing(missTarget)}
+                      data-testid="xlsx-notice-chip"
+                      title={`클릭 → ${CHIP_TARGET_LABEL[CHIP_TARGET[missTarget] ?? 'form11']}에서 입력`}
+                      className="inline-flex items-center h-5 px-1.5 shrink-0 rounded bg-amber-100 text-amber-800 text-form-2xs font-medium border border-amber-300 hover:bg-amber-200 transition-colors">
+                      {part.text} ↗
+                    </button>
+                  ) : (
+                    <span className="shrink-0 text-amber-500">·</span>
+                  )}
+                  {/* 라벨 칩은 글자가 칩 안에 이미 있다 — 옆에 또 적으면 같은 말이 두 번이다 */}
+                  {!missTarget && <span className="whitespace-pre-wrap">{part.text}</span>}
+                </li>
+              )
+            })}
+          </ul>
+        </div>
       )}
 
       {/* ══ 서식 전체 트리(기본) — ⚡ 빠른 입력을 최상단 노드로 통합. 토글 제거 (2026-08-05) ══ */}
