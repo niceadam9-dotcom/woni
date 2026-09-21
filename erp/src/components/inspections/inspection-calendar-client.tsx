@@ -27,6 +27,7 @@ import { hangulMatch } from '@/lib/hangul'
 import { kstDate, todayKst } from '@/lib/kst-date'
 import { CustomerFilterSearch } from '@/components/ui/customer-filter-search'
 import { AddressMapButton } from '@/components/ui/address-map-button'
+import { WorkbookXlsxButton } from '@/components/inspections/workbook-xlsx-button'
 import type { InspectionType, InspectionStatus, UserRole } from '@/types'
 import { inspectionTypeLabel } from '@/types'
 
@@ -59,6 +60,11 @@ export type CalendarInspection = {
    *  ① 링크의 목적지를 가른다: 미확인이면 설비 확인부터, 확인됐으면 바로 점검표로.
    *  판정은 `lib/facility-verify-gate` 한 곳 — 서버가 재 보내고 여기서 다시 세지 않는다. */
   facilitiesUnverified?: boolean
+  /** 결과보고서(별지 9/10/11호 + 갑지)가 **있는 건인가** — 하단 [보고서 엑셀]이 뜨는 유일한 조건.
+   *  판정은 서버의 `isSelfInspection(plan_type)` 한 곳이다. 여기서 다시 세지 않는다.
+   *  🚨 badge(`inspection_type`)로 가르면 안 된다 — 1단계짜리 정기 230건이 badge를
+   *    「작동」·「종합」으로 달고 있어 그 칩으로도 이 패널이 열린다(2026-09-21 실측). */
+  hasResultReport?: boolean
 }
 
 /** 정기(monthly)·일반관리(event) 계획 항목 — 6단계 없이 예정일 1건짜리 일정 */
@@ -2178,6 +2184,29 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
             {stepError && (
               <div className="px-5 py-3 bg-red-50 border-t border-red-100 shrink-0">
                 <p className="text-xs text-red-500">{stepError}</p>
+              </div>
+            )}
+
+            {/* 결과보고서 받기 — **떠나지 않고** 받는 자리(2026-09-21 사용자 요청).
+                종전엔 [N단계로 이동]으로 작업대까지 나가야 이 문서를 받을 수 있었고, 받고 나면
+                달력으로 되돌아와야 했다. 달력이 한 바퀴의 정본인데 문서만 밖에 있었다.
+
+                ⚠ **새 버튼을 만들지 않는다** — `WorkbookXlsxButton`을 그대로 쓴다. 이 버튼이
+                  `fetch`+`Blob`인 이유가 라우트의 `X-Workbook-Missing` 고지(무응답 항목이 ○(양호)로
+                  인쇄됨·사진 실패·불량 접힘)를 화면에 붙들기 위해서다. `<a href>`로 짜면 그 고지가
+                  새 탭과 함께 사라진다 — 종전 번들 패널 버튼이 정확히 그래서 고지가 **한 번도 닿은
+                  적이 없었다**. 이름도 `WORKBOOK_LABEL` 한 벌을 따른다(여기 글씨를 또 적지 않는다).
+
+                ⚠ 발행 가드(미입력이면 점검표로 보냄)는 **붙이지 않는다**. 그건 회차 카드 칩의 축이다.
+                  달력은 착륙 화면이라 현장 흐름을 끊지 않고, 대신 위 고지로 알린다.
+
+                ⚠ 줄은 flex-wrap이어야 한다 — 이 컴포넌트는 [버튼 + 고지/오류]를 함께 그린다. */}
+            {selectedInspection.hasResultReport && (
+              <div
+                data-testid="daypanel-workbook"
+                className="px-5 py-3 border-t border-line shrink-0 flex flex-wrap items-center gap-2"
+              >
+                <WorkbookXlsxButton inspectionId={selectedInspection.id} />
               </div>
             )}
 

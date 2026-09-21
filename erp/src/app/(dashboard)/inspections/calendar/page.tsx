@@ -3,6 +3,7 @@ import { getProfile, can } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { fetchAllRows, fetchAllRowsByIds } from '@/lib/supabase/paginate'
 import { activeStepsByInspection, isStepVisible } from '@/lib/active-steps'
+import { isSelfInspection } from '@/lib/inspection-step-status'
 import { facilityVerifyState, shouldWarnFacilitiesUnverified } from '@/lib/facility-verify-gate'
 import { InspectionCalendarClient } from '@/components/inspections/inspection-calendar-client'
 import type { CalendarInspection, CalendarPlanItem } from '@/components/inspections/inspection-calendar-client'
@@ -34,7 +35,10 @@ export default async function InspectionCalendarPage({
   // B안: 일반직원도 전체 조회 가능 — 기본 표시는 클라이언트에서 본인 담당만 체크
   const inspQuery = admin
     .from('inspections')
-    .select('id, customer_id, inspection_type, year, sequence_num, inspection_start_date, status, assigned_employee_id')
+    // plan_type — 사이드 패널의 [보고서 엑셀]이 뜨는 축(2026-09-21). 표시용 badge(inspection_type)로
+    // 가르면 안 된다: 1단계짜리 정기(monthly) 230건이 badge를 「작동」(174)·「종합」(56)으로 달고 있어
+    // 그 칩으로도 패널이 열린다. 결과보고서(별지 9/10/11호)가 **실제로 있는 축은 plan_type**이다.
+    .select('id, customer_id, inspection_type, plan_type, year, sequence_num, inspection_start_date, status, assigned_employee_id')
     .gte('year', currentYear - 1)
     .lte('year', currentYear + 1)
     .order('inspection_start_date')
@@ -79,7 +83,7 @@ export default async function InspectionCalendarPage({
   }
 
   type InspRow = {
-    id: string; customer_id: string; inspection_type: string; year: number
+    id: string; customer_id: string; inspection_type: string; plan_type: string | null; year: number
     sequence_num: number; inspection_start_date: string; status: string
     assigned_employee_id: string
   }
@@ -192,6 +196,13 @@ export default async function InspectionCalendarPage({
         customer_code: cust?.customer_code ?? '',
         customer_address: cust?.address ?? null,
         inspection_type: insp.inspection_type as InspectionType,
+        /* 결과보고서(별지 9/10/11호 + 갑지)가 **있는 건인가** — 사이드 패널 [보고서 엑셀]의 유일한 조건.
+           판정은 `isSelfInspection` 한 곳이고 클라이언트는 다시 세지 않는다(facilitiesUnverified와 같은 규약).
+           ⚠ `steps.length === 6`으로 가르면 안 된다 — 아래 steps는 **표시 축으로 걸러진 것**이라
+             불량 0이면 ⑤⑥이 빠져 4개다(실측 image-4가 그 경우였다).
+           ⚠ plan_type이 null이면 **있다고 본다**(isSelfInspection의 기울기) — 못 잰 것을 '없음'으로
+             접으면 받을 수 있어야 할 건에서 버튼이 조용히 사라진다. */
+        hasResultReport: isSelfInspection(insp.plan_type),
         year: insp.year,
         sequence_num: insp.sequence_num as 1 | 2,
         inspection_start_date: insp.inspection_start_date,

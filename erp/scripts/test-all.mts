@@ -565,6 +565,14 @@ const steps: Step[] = [
   //   ① 하드코딩된 「경고 7개」가 썩어 있었고 ② **검사가 실데이터 ⭐를 소프트 삭제**하고 있었다
   //   (자기가 심은 항목이 선택돼 있으리라 가정 — 항목이 늘자 거짓이 됐다). 둘 다 고쳐 등록한다.
   { name: '공통문구 전역 관리(E2E)',    cmd: 'npx tsx scripts/test-plan-text-library.mts', needServer: true },
+  // 달력 사이드 패널 [보고서 엑셀]이 **뜨는 조건**(2026-09-21) — 서버 불필요(판정식 + 배선).
+  // 🚨 급소는 「버튼이 있는가」가 아니라 **정기에서 꺼지는가**다. 화면 badge는 inspection_type인데
+  //   1단계짜리 정기 230건이 그 badge를 「작동」(174)·「종합」(56)으로 달고 있어(실측) 그 칩으로도
+  //   패널이 열린다. badge를 축으로 쓰면 결과보고서가 없는 230건에 버튼이 붙어 빈 문서를 받는다.
+  //   그래서 축은 plan_type(isSelfInspection)이고, 이 검사는 판정식을 **단계 행 수라는 독립 관측치**와
+  //   전건 대조한다(항진명제가 아니다). steps.length로는 못 가른다 — 표시 축이라 불량0이면 4다.
+  //   실화면 축은 `_probe-calendar-workbook-button.mts`(딥링크 5종 + 실제 클릭 다운로드).
+  { name: '달력 보고서엑셀 조건',       cmd: 'npx tsx scripts/test-calendar-workbook-button.mts' },
   // 발송 결과 확인 동선(S8-10) — 달력에서 보내고 결과는 문자 발송 화면에서 본다(Q-14·Q-15).
   // 링크가 약속한 화면에 **도착하지 못하는** 실패 셋이 전부 조용하다: 도착 화면 기본 필터가
   // not_sent라 방금 보낸 건이 걸러지고, 기간이 없으면 오늘~+30일 밖은 안 보이며,
@@ -795,6 +803,10 @@ const steps: Step[] = [
   // 단계 [입력] 링크 실주행 — 드로어 자동 오픈은 마운트 타이밍·RSC 커밋에 걸리기 쉬워
   // 소스 검사(위 순수·배선)로는 증명되지 않는다. 클릭해서 실제로 열리는지까지 본다
   { name: '단계 입력 링크(E2E)',         cmd: 'npx tsx scripts/test-step-input-link-e2e.mts', needServer: true },
+  // 고객 상세 탭 바 — 탭 9개의 자연 폭(실측 750~809px)이 본문 읽기 폭 768px을 넘어 회차·청구·수금·
+  // 이력이 둘째 줄로 접혔다(2026-09-21). 줄 수는 뱃지 길이(소방계획서 n/12·이력 MM-DD)에 달려 있어
+  // 소스만 봐서는 알 수 없다 — 고객 여럿 × 뷰포트 여럿을 실제로 재서 「한 줄」을 고정한다
+  { name: '고객 탭 바 한 줄(E2E)',       cmd: 'node scripts/test-customer-tab-onerow.mjs',    needServer: true },
   // 별지 미리보기 칸 — Pane이 높이를 자식에게 안 물려줘 iframe이 min-h(224px)에 갇히고
   // 칸 594px 중 322px이 죽어 있던 결함. 레이아웃 회귀는 눈으로만 알 수 있어 수치로 못 박는다
   { name: '미리보기 칸 높이·확대(E2E)',  cmd: 'npx tsx scripts/test-preview-pane.mts',        needServer: true },
