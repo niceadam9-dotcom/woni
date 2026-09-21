@@ -5,6 +5,7 @@
 // 실행: npx tsx scripts/test-plan-text-library.mts   (로컬 dev + 스테이징 DB)
 // @ts-expect-error mjs 헬퍼
 import { raw, BASE, check, summary, mkUser, delUser, mkCustomer, cleanupCustomer, launch, login } from './_e2e-helpers.mjs'
+import { PLAN_TEXT_SECTION_KEYS } from '../src/lib/plan-text-sections.ts'
 
 const EMAIL = `plan-text-lib-${Date.now().toString(36)}@test.local`
 const LIB = `${BASE}/fire-plans/library`
@@ -37,6 +38,36 @@ const seedLib = async (sectionKey: string, title: string, body: unknown, isDefau
   libIds.push(data.id)
   return data.id as string
 }
+/** 그 순간 **DB가 말하는 참값** — 기본문구(⭐)가 없는 섹션들.
+ *
+ *  🚨 종전에는 「training만 ⭐이고 나머지 7섹션은 없다」를 **숫자로 박아** 뒀다(`경고 7개`·`○ ≥6`).
+ *     그건 2026-08-19의 **전역 DB 스냅샷**이지 계약이 아니다. 2026-09-21 「기본 문구」 8섹션이
+ *     등록되자 emptyCount가 0이 되어 두 단언이 통째로 썩었고, 이 스위트가 **test-all 미등록
+ *     (고아)**이라 아무도 그 사실을 알려주지 않았다.
+ *     (같은 파일이 2026-08-19에도 전역 상태 의존으로 물렸다 — 그때는 유니크 위반 쪽만 고쳤다.)
+ *
+ *  계약은 「요약 바와 ○ 표시가 **실제로 기본이 없는 섹션 수**를 알린다」이다. 숫자를 박지 않고
+ *  DB에 물어 대조한다 — 어떤 전역 상태에서도 뜻이 같다. */
+const noDefaultSections = async (): Promise<string[]> => {
+  const { data } = await raw.from('plan_text_library')
+    .select('section_key').eq('is_default', true).eq('is_active', true)
+  const have = new Set((data ?? []).map((r: { section_key: string }) => r.section_key))
+  return [...PLAN_TEXT_SECTION_KEYS].filter(k => !have.has(k))
+}
+
+/** 화면의 ○/요약 바가 그 참값과 일치하는가 — 두 갈래(경고/초록) 중 옳은 쪽이 떠야 한다 */
+const checkEmptyBar = async (page: { locator: (s: string) => { count: () => Promise<number> }; isVisible: (s: string) => Promise<boolean> }, label: string) => {
+  const noDef = await noDefaultSections()
+  const badges = await page.locator('text=기본문구 없음 — 자동주입 대상 아님').count()
+  check(`${label}: ○ 표시 수 = 기본 없는 섹션 수 (${noDef.length})`,
+    badges === noDef.length, `배지 ${badges} vs DB ${noDef.length} [${noDef.join(',')}]`)
+  const bar = noDef.length > 0
+    ? await page.isVisible('text=기본문구가 없는 섹션')
+    : await page.isVisible('text=8섹션 모두 기본문구가 있습니다')
+  check(`${label}: 요약 바가 그 수를 반영 (${noDef.length > 0 ? '경고' : '초록'})`, bar, `noDef=${noDef.length}`)
+  return noDef.length
+}
+
 const libRow = async (id: string) => {
   const { data } = await raw.from('plan_text_library')
     .select('title, body, version, is_default, is_active').eq('id', id).maybeSingle()
@@ -63,7 +94,9 @@ try {
   // 라이브러리 시드 — training 2개(하나는 기본), brigadeTeams 1개.
   // 실데이터가 training ⭐기본을 쓰고 있으면 잠시 비켜 둔다(정리 단계에서 복원)
   await releaseExistingDefault('training')
-  const trainA = await seedLib('training', 'E2E 훈련 A(기본)', { scenario: 'A 시나리오', scenarioType: '', details: [] }, true)
+  // ⚠ trainA는 **아직 기본이 아니다**(종전엔 여기서 바로 is_default=true였다). 화면의 ⭐/○ 계약을
+  //   두 갈래 다 보려면 「기본 없음 → 기본 생김」 전이를 직접 만들어야 한다. 아래 1)에서 승격한다.
+  const trainA = await seedLib('training', 'E2E 훈련 A(기본)', { scenario: 'A 시나리오', scenarioType: '', details: [] })
   const trainB = await seedLib('training', 'E2E 훈련 B', { scenario: 'B 시나리오', scenarioType: '', details: [] })
   const teamsId = await seedLib('brigadeTeams', 'E2E 팀별임무', { command: '지휘 서술' })
   check('시드 — 라이브러리 3건', libIds.length === 3)
@@ -82,9 +115,24 @@ try {
   let rendered = 0
   for (const t of labels) if (await page.locator(`h2:text-is("${t}")`).count()) rendered += 1
   check('8섹션 전부 렌더', rendered === 8, `${rendered}/8`)
-  // training만 기본(⭐)이 있고 나머지 7섹션은 기본이 없다 → 요약 바가 그 수를 알린다
-  check('빈 기본문구 경고 — 7개', await page.isVisible('text=기본문구가 없는 섹션'), '요약 바')
-  check('섹션 헤더 ○ 표시(기본 없음)', (await page.locator('text=기본문구 없음 — 자동주입 대상 아님').count()) >= 6)
+
+  // ⭐ 이 화면의 최대 가치는 ⭐/○ 다 — 기본문구가 없는 섹션에서는 신규 고객 자동주입이 **조용히**
+  //   아무 일도 하지 않는다. 그래서 「몇 개가 비었는가」를 화면이 정확히 알리는지가 계약이다.
+  //   숫자를 박지 않고 DB 참값과 대조한다(위 noDefaultSections 주석 참조).
+  //   지금은 training의 실데이터 ⭐를 비켜 둔 채이고 trainA도 아직 기본이 아니다 → **경고 갈래**.
+  const emptyBefore = await checkEmptyBar(page, '기본 없음')
+  check('전제 — training이 ○ 목록에 있다', (await noDefaultSections()).includes('training'))
+
+  // training에 ⭐를 하나 달면 화면의 ○가 **정확히 하나** 줄어야 한다.
+  // ⭐⭐ 이 차분(差分) 단언이 이 블록의 알맹이다 — 전역에 기본이 몇 개든 뜻이 같고,
+  //    「화면이 늘 같은 수를 보여준다」는 식의 공허 통과가 원리적으로 불가능하다.
+  await raw.from('plan_text_library').update({ is_default: true }).eq('id', trainA)
+  await page.reload({ waitUntil: 'domcontentloaded' })
+  await page.waitForSelector('#sec-training', { timeout: 60000 })
+  await page.locator('#sec-training >> text=기본문구 없음 — 자동주입 대상 아님').waitFor({ state: 'detached', timeout: 30000 })
+  const emptyAfter = await checkEmptyBar(page, '기본 생김')
+  check('★ ⭐를 하나 달면 ○가 정확히 하나 준다',
+    emptyBefore - emptyAfter === 1, `${emptyBefore} → ${emptyAfter}`)
 
   // ── 2) 본문 저장 → version +1 ──
   const trainSec = page.locator('#sec-training')
@@ -146,6 +194,14 @@ try {
 
   // ── 8) 소프트 삭제 후에도 가져간 고객 입력 보존 ──
   const teamsSec = page.locator('#sec-brigadeTeams')
+  // 🚨🚨 **반드시 내가 심은 항목을 먼저 고른다.** 종전엔 이 두 줄이 없어 [삭제]가 그 섹션에
+  //   **그때 떠 있던** 항목을 지웠다. 자기가 심은 것이 선택돼 있으리라는 가정인데, 그건 섹션에
+  //   항목이 그것뿐일 때만 참이다. 2026-09-21 「기본 문구」가 등록되자 선택 기본값이 그쪽으로
+  //   바뀌었고, 이 검사가 **실데이터 ⭐「기본 문구」를 소프트 삭제하고 ⭐까지 떨어뜨렸다**
+  //   (수동 복구함). 검사가 실데이터를 부수면 그건 검사가 아니다.
+  await teamsSec.locator('select').selectOption(teamsId)
+  check('전제 — 삭제 대상이 내가 심은 항목', (await teamsSec.locator('select').inputValue()) === teamsId,
+    await teamsSec.locator('select').inputValue())
   page.once('dialog', d => d.accept())
   await teamsSec.locator('button:has-text("삭제")').click()
   await teamsSec.locator('text=삭제되었습니다').waitFor({ timeout: 30000 })
