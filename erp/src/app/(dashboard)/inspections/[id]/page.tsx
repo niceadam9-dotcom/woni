@@ -93,22 +93,31 @@ const STATUS_COLORS: Record<InspectionStatus, string> = {
 
 // InfoChip은 기본정보 카드와 함께 InspectionInfoPopover로 이관됐다 (C1 R5-5)
 
-/** 딥링크 계약 (달력·계획 패널의 [점검표 입력] → 이 페이지):
+/** 딥링크 계약 (달력·계획 패널의 단계 링크 → 이 페이지):
  *  `?step=1..6`  진입 시 펼칠 단계 — 작업대(InspectionWorkbench) 초기 선택
  *  `?sheet=auto` ① 점검표의 **첫 미완성 시트 드로어**를 자동으로 연다
  *  `#defects`    ⑤ 불량내역 앵커(기존) — step=5와 함께 써야 그 칸이 렌더된다
+ *  `?from=/…`    뒤로가기 복귀 경로 (2026-09-21 B-3) — 내부 경로만. 없으면 점검 달력으로.
+ *                점검표 전용 화면(sheet/page.tsx)이 쓰던 규약을 그대로 가져왔다.
  *  값이 이상하면 전부 조용히 무시하고 기본 동작으로 떨어진다 — 링크가 썩어도 페이지는 열려야 한다. */
 export default async function InspectionDetailPage({
   params, searchParams,
 }: {
   params: Promise<{ id: string }>
-  searchParams?: Promise<{ step?: string; sheet?: string }>
+  searchParams?: Promise<{ step?: string; sheet?: string; from?: string }>
 }) {
   const { id } = await params
   const sp = (await searchParams) ?? {}
   const stepParam = Number(sp.step)
   const initialStepNum = Number.isInteger(stepParam) && stepParam >= 1 && stepParam <= 6 ? stepParam : null
   const autoOpenSheet = sp.sheet === 'auto'
+  /* B-3 복귀 경로 — 내부 경로만 받는다('/' 시작·'//' 금지 = open redirect 차단).
+     판정 문장은 sheet/page.tsx:80과 같다(규칙을 두 벌로 만들지 않는다).
+     B-4: from이 없으면 **점검 달력**으로 돌아간다 — 목록보다 달력이 이 화면의 상류다
+     (달력이 단계별 링크로 여기를 여는 유일한 표면이고, 목록은 사이드바 한 번이면 닿는다). */
+  const fromRaw = (sp.from ?? '').trim()
+  const backHref = fromRaw.startsWith('/') && !fromRaw.startsWith('//') ? fromRaw : '/inspections/calendar'
+  const backLabel = fromRaw.startsWith('/') && !fromRaw.startsWith('//') ? '이전 화면으로' : '점검 달력으로'
   const profile = await getProfile()
   if (!profile) redirect('/login')
 
@@ -490,7 +499,14 @@ export default async function InspectionDetailPage({
     <div className="flex flex-col gap-3 lg:h-full lg:overflow-hidden">
       {/* 헤더 — 기본정보는 접이식으로 내렸다 (C1 R5-5 / D-1) */}
       <div className="relative flex shrink-0 items-center gap-3">
-        <Link href="/inspections" className="text-ink-sub hover:text-brand transition-colors">
+        {/* 🚨 2026-09-21 B-3·B-4 — 뒤로가기가 **어디서 왔는지**를 따른다.
+            종전엔 `/inspections` 고정이라, 점검 달력에서 단계를 눌러 들어온 사용자가 목록으로
+            떨어졌다(달력으로 돌아가려면 사이드바를 다시 짚어야 했다). 점검표 전용 화면은
+            이미 `?from=` 규약을 쓰고 있었는데(sheet/page.tsx) 작업대만 빠져 있던 자리다.
+            ⚠ 내부 경로만 받는다('/' 시작·'//' 금지 — open redirect 차단). 같은 판정을
+              sheet/page.tsx:80이 이미 하고 있고, 규칙을 두 벌로 만들지 않으려 문장까지 맞췄다. */}
+        <Link href={backHref} title={backLabel}
+          data-testid="workbench-back" className="text-ink-sub hover:text-brand transition-colors">
           <ChevronLeft className="size-5" />
         </Link>
         <div className="flex-1 min-w-0">

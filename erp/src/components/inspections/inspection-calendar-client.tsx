@@ -1,7 +1,7 @@
 ﻿'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, usePathname, useSearchParams } from 'next/navigation'
 import { Calendar, dateFnsLocalizer, Views, type View, type ToolbarProps } from 'react-big-calendar'
 import withDragAndDrop from 'react-big-calendar/lib/addons/dragAndDrop'
 import { format, parse, startOfWeek, getDay, addDays } from 'date-fns'
@@ -327,6 +327,9 @@ interface Props {
 // ─── Component ───────────────────────────────────────────────────────────────
 export function InspectionCalendarClient({ inspections, planItems = [], employees, currentUserId, currentUserRole, initialFilter = 'all', initialCustomerQuery = '', holidays = [], canMovePlan = false, canSendSms = false }: Props) {
   const router = useRouter()
+  // B-3 복귀 경로 재료 — 지금 보고 있는 달까지 포함해 되돌아가려고 쓴다(하이드레이션 안전)
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
 
   // 사전 안내 문자 — 날짜만 넘기고 서버가 대상을 계산한다(Q-14). 달력 쪽 상태는 이 하나뿐이다.
   const [smsSource, setSmsSource] = useState<SmsModalSource | null>(null)
@@ -665,6 +668,33 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
   const panelCompletedCount = selectedInspection?.steps.filter(s => s.status === 'completed').length ?? 0
   const panelTotalCount = selectedInspection?.steps.length ?? 0
   const panelProgressPct = panelTotalCount > 0 ? Math.round((panelCompletedCount / panelTotalCount) * 100) : 0
+
+  /** B-2 — 패널 하단 링크가 착지할 단계. **기한초과 먼저, 없으면 첫 미완**.
+   *  화면이 붉게 칠한 그 줄이 곧 사용자가 누르려던 자리다. 전부 완료면 null(기본 칸으로).
+   *  ⚠ `steps`는 서버가 **표시 축으로 이미 걸러** 보낸 목록이다(lib/active-steps) — 불량 0건이면
+   *    ⑤⑥이 아예 없다. 여기서 다시 판정하지 않는다. */
+  const panelEntryStep = (() => {
+    const ss = selectedInspection?.steps ?? []
+    const pending = ss.filter(s => s.status !== 'completed')
+    if (pending.length === 0) return null
+    const overdue = pending.filter(s => s.due_date !== null && s.due_date < today)
+    const pick = (overdue.length ? overdue : pending)
+      .reduce((a, b) => (a.step_num <= b.step_num ? a : b))
+    return pick.step_num
+  })()
+  /** 복귀 경로를 함께 싣는다(B-3) — 달력에서 들어간 사용자가 달력으로 돌아온다.
+   *  ⚠ 지금 보고 있는 **달 파라미터까지** 넘긴다: 그냥 `/inspections/calendar`로 보내면
+   *    다른 달을 보던 사용자가 이번 달로 튕긴다(돌아왔는데 자리가 다른 부류).
+   *  ⚠ `window.location`을 쓰지 않는다 — 서버 렌더와 값이 달라 하이드레이션이 어긋난다.
+   *    라우터 훅은 양쪽에서 같은 값을 준다. */
+  const panelEntryQuery = (() => {
+    const qs = searchParams.toString()
+    const back = `${pathname}${qs ? `?${qs}` : ''}`
+    const q = new URLSearchParams()
+    if (panelEntryStep) q.set('step', String(panelEntryStep))
+    q.set('from', back)
+    return `?${q.toString()}`
+  })()
 
   // ── 정기 칩 드래그 이동 (드롭=즉시 확정, 같은 달 한정, 2026-07-13 확정 설계) ──
   /** 단건(드래그·행 아이콘)과 일괄(데이 패널 선택 모드)이 **같은 확인 팝업**을 쓴다 —
@@ -1680,6 +1710,9 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
                           {/* 선택 모드에선 클릭을 막는다 — 이 버튼은 패널을 닫아버려 고른 선택이 날아간다 */}
                           <button
                             disabled={moveSelectMode}
+                            /* 데이 패널 → 회차 패널로 가는 **주 동선**이다(달력에서 작업대까지의 유일한 길).
+                               표식이 없으면 왕복 검사가 화면 구조를 추측해야 한다 — 그 추측이 곧 썩는다. */
+                            data-testid="daypanel-step-row"
                             onClick={() => { setDayPanelDate(null); setSelectedInspectionId(e.resource.inspectionId); setStepError(null) }}
                             className="flex-1 min-w-0 flex items-center gap-2 px-2 py-1.5 text-left disabled:opacity-50 disabled:cursor-default"
                           >
@@ -2051,7 +2084,10 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
                       <div className="shrink-0 flex flex-col items-stretch gap-1">
                         {inputLink && (
                           <Link
-                            href={inputLink.href}
+                            /* B-3 — 단계 링크에도 복귀 경로를 싣는다(패널 하단 링크와 같은 규약).
+                               왕복이 닫히지 않으면 「들어가는 길만 여섯 개」가 된다. 링크가
+                               이미 자기 쿼리를 들고 있을 수 있어 `?`/`&`를 보고 잇는다. */
+                            href={`${inputLink.href}${inputLink.href.includes('?') ? '&' : '?'}from=${encodeURIComponent(`${pathname}${searchParams.toString() ? `?${searchParams.toString()}` : ''}`)}`}
                             title={inputLink.title}
                             onClick={() => setSelectedInspectionId(null)}
                             className="flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-brand text-white hover:bg-brand-strong transition-colors whitespace-nowrap"
@@ -2089,11 +2125,19 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
             {/* 상세 페이지·소방계획서 링크 — 계획서는 착륙 화면(달력)에서 가장 잦은 목적지인데
                 종전엔 작업대를 경유해야 했다(4클릭 → 3클릭, 2026-08-28 동선 검토) */}
             <div className="px-5 py-3 border-t border-line shrink-0 flex items-center gap-4">
+              {/* 🚨 2026-09-21 B-2 — **지금 급한 단계로** 착지한다.
+                  종전엔 `/inspections/{id}` 고정이라 작업대의 기본 칸으로 떨어졌다. 패널에서
+                  「기한초과 2단계」를 보고 눌렀는데 스텝바에서 그 칸을 다시 찾아야 했다.
+                  우선순위는 **기한초과 → 첫 미완** — 화면이 붉게 칠한 그 줄이 곧 목적지다.
+                  ⚠ 판정 재료는 패널이 이미 그리는 값 그대로다(`steps`는 서버가 표시 축으로
+                    걸러 보낸 것 — lib/active-steps). 여기서 다시 세지 않는다. */}
               <Link
-                href={`/inspections/${selectedInspection.id}`}
+                href={`/inspections/${selectedInspection.id}${panelEntryQuery}`}
+                data-testid="daypanel-detail-link"
+                title={panelEntryStep ? `${panelEntryStep}단계로 바로 이동` : '작업대로 이동'}
                 className="text-xs text-brand hover:underline flex items-center gap-1"
               >
-                상세 페이지로 이동
+                {panelEntryStep ? `${panelEntryStep}단계로 이동` : '상세 페이지로 이동'}
                 <ChevronRight className="size-3" />
               </Link>
               <Link

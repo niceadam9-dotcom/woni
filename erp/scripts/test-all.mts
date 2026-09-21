@@ -717,6 +717,10 @@ const steps: Step[] = [
   //   '제출 전제'(228739aa에 폐지된 칸) · 「10호 미리보기에 이행계획 원문」(384bf7c 사항=결과참조로 반전).
   //   둘 다 **변경 전 트리에서도 빨갰다**(대조군 실측) — 등재하지 않으면 아무도 안 돌린다.
   { name: '작업대 한 화면(E2E)',        cmd: 'npx tsx scripts/test-inspection-workbench.mts', needServer: true },
+  // 왕복 동선(2026-09-21 2차) — 들어가는 길만 있고 **돌아오는 길이 없던** 자리를 닫았다.
+  //   달력 패널이 급한 단계로 보내고(?step=N), 복귀 경로를 보던 **달까지** 싣고(?from=),
+  //   작업대 뒤로가기가 그 경로로 돌아간다(없으면 목록이 아니라 달력으로).
+  { name: '달력↔작업대 왕복(E2E)',      cmd: 'npx tsx scripts/test-calendar-workbench-roundtrip.mts', needServer: true },
   // 최근 본 고객 스트립 — '기본 정렬은 그대로 둔다'가 이 기능의 설계 전제라 그것까지 고정한다
   { name: '최근 본 고객(E2E)',          cmd: 'npx tsx scripts/test-recent-customers.mts',           needServer: true },
   // 불량 전/후 사진 — 비공개 버킷에 public URL을 저장해 사진이 전부 안 뜨던 결함의 회귀 방어.
