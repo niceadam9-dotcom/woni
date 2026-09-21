@@ -6,7 +6,9 @@ import type { UserRole } from '@/types'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { loadFacilityFormData } from '@/lib/facility-form-data'
 import { facilitiesForSheet } from '@/lib/sheet-facility-map'
-import { ALL_STANDARD_CODES } from '@/lib/facility-codes'
+import { ALL_STANDARD_CODES, ETC_ITEMS } from '@/lib/facility-codes'
+import { sheetScope } from '@/lib/sheet-scope'
+import { getSheets } from '@/lib/sheet-catalog'
 import { PlanForm14 } from '@/components/customers/plan-form14'
 
 /** 점검 귀속 소방시설(1.4) 화면 (소방계획서_40 S3) — 점검표 입력 중 설치 누락을 발견했을 때
@@ -41,15 +43,36 @@ export default async function InspectionFacilitiesPage({
 
   const admin = createAdminClient()
   const { data: inspRaw } = await admin.from('inspections')
-    .select('id, year, sequence_num, customer_id, customers:customer_id (customer_name)')
+    // plan_type은 **기타 7종을 이 회차 것만 남기는** 데 쓴다(아래 etcCodes) — 없으면 7종이 다 뜬다
+    .select('id, year, sequence_num, customer_id, plan_type, customers:customer_id (customer_name, inspection_type)')
     .eq('id', id).maybeSingle()
   if (!inspRaw) notFound()
   const insp = inspRaw as unknown as {
-    id: string; year: number; sequence_num: number; customer_id: string
-    customers: { customer_name: string } | null
+    id: string; year: number; sequence_num: number; customer_id: string; plan_type: string | null
+    customers: { customer_name: string; inspection_type: string | null } | null
   }
 
   const { facilityBuildings, specsByBuilding } = await loadFacilityFormData(admin, insp.customer_id)
+
+  /* 🚨 2026-09-21 — 「기타」 7종을 **이 회차에 해당하는 것만** 남긴다.
+   *
+   *  7종은 한 묶음처럼 보이지만 속한 점검이 다르다(실측):
+   *    방화문·비상구·방염      → STD-31 「기타사항」  = **자체점검(v2025) 전용**
+   *    위험물·화기·가스·전기   → EXT-11~14          = **외관점검(v2022) 전용**
+   *  그래서 자체점검 회차에서 뒤 4종을 체크해도 **이 회차 점검표엔 그 시트가 없다** — 대상 축도
+   *  안 늘고 필수 입력에도 안 잡힌다. 3분리(2026-09-20) 때 이 화면은 「무변경 대조군」으로
+   *  일부러 안 건드렸는데, 2026-09-21 A로 **달력 ①이 여기로 바로 보내게 되면서** 전제가 깨졌다:
+   *  「설비를 확인하세요」라고 말하는 첫 관문에 무관한 항목이 절반 넘게 섞여 있었다(사용자 지적).
+   *
+   *  ⚠ 목록을 손으로 적지 않는다 — **시트 카탈로그에 묻는다**(버전 × 시트명). 손으로 적으면
+   *    서식이 갱신될 때 한쪽만 바뀌고, 그 갈라짐은 화면 어디에도 안 드러난다.
+   *  ⚠ 카탈로그 조회가 실패하면 **거르지 않는다**(종전 동작 = 7종). 보조 기능이 본 기능을 막지 않는다. */
+  const { version: etcVersion } = sheetScope(insp.plan_type, insp.customers?.inspection_type ?? null)
+  const etcCodes = await getSheets()
+    .then(sheets => ETC_ITEMS
+      .filter(it => sheets.some(s => s.version === etcVersion && s.sheet_name === it.sheetName))
+      .map(it => it.code))
+    .catch(() => undefined)
 
   const fromRaw = sp.from?.trim() ?? ''
   const backHref = fromRaw.startsWith('/') && !fromRaw.startsWith('//') ? fromRaw : `/inspections/${id}/sheet`
@@ -114,6 +137,7 @@ export default async function InspectionFacilitiesPage({
         canRegister={canRegister}
         specsByBuilding={specsByBuilding}
         inspectionCtx={{ id: insp.id, label: `${insp.year}년 ${insp.sequence_num}차` }}
+        etcCodes={etcCodes}
         linkFrom={selfUrl}
         focusCodes={focusCodes}
       />

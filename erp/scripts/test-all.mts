@@ -741,6 +741,9 @@ const steps: Step[] = [
   //   설치 필터가 풀려 시트 33개가 쏟아지던 자리(운주빌딩 실측)를 **입구에서 가른다**.
   //   막지 않고 순서를 준다 — 1.4 화면의 [점검표 입력]이 곧 「건너뛰기」를 겸한다.
   { name: '점검 한 바퀴(E2E)',          cmd: 'npx tsx scripts/test-inspection-one-lap.mts',         needServer: true },
+  // 「기타」 7종은 **속한 점검이 다르다**(STD-31 3종 = 자체점검 / EXT 4종 = 외관) — 회차 성격에
+  //   맞는 것만 보인다. 표본이 **둘**이어야 「그냥 3종만 그린다」와 구별된다.
+  { name: '기타 7종 회차 범위(E2E)',    cmd: 'npx tsx scripts/test-etc-scope-per-round.mts',        needServer: true },
   // 최근 본 고객 스트립 — '기본 정렬은 그대로 둔다'가 이 기능의 설계 전제라 그것까지 고정한다
   { name: '최근 본 고객(E2E)',          cmd: 'npx tsx scripts/test-recent-customers.mts',           needServer: true },
   // 불량 전/후 사진 — 비공개 버킷에 public URL을 저장해 사진이 전부 안 뜨던 결함의 회귀 방어.

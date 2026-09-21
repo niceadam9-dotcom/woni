@@ -83,7 +83,7 @@ type Building = {
 }
 type FacState = Record<string, { installed: boolean; note: string }>
 
-export function PlanForm14({ customerId, buildings, canManage, canRegister = false, specsByBuilding = {}, inspectionCtx, linkFrom, focusCodes, showMultiUse = false, multiUse = null, showEtc = true }: {
+export function PlanForm14({ customerId, buildings, canManage, canRegister = false, specsByBuilding = {}, inspectionCtx, linkFrom, focusCodes, showMultiUse = false, multiUse = null, showEtc = true, etcCodes }: {
   customerId: string; buildings: Building[]; canManage: boolean
   /** 소방계획서_26 S4 — 설비별 점검결과 입력 권한. 1.4의 canManage(customer_manage)와 축이 다르다:
    *  결과 쓰기 액션은 전부 inspection_register라 이 값이 없으면 배지·패널을 아예 그리지 않는다. */
@@ -114,6 +114,13 @@ export function PlanForm14({ customerId, buildings, canManage, canRegister = fal
    *  안 그러면 이 화면의 저장이 다른 카드가 방금 저장한 기타 행을 낡은 값으로 되살린다.
    *  점검 귀속 화면은 기본값 true = 7종 그대로(무변경 대조군 — 점검표 설치 축의 회차 귀속 입력구). */
   showEtc?: boolean
+  /** 그릴 「기타」 코드 — **주면 그것만** 그린다(2026-09-21). 점검 귀속 화면이 회차 성격으로 거른 결과다:
+   *  자체점검(v2025)엔 STD-31 3종, 외관(v2022)엔 EXT 4종. 7종은 한 묶음처럼 보이지만 **속한 점검이
+   *  다르다** — 자체점검에서 위험물·화기·가스·전기를 체크해도 이 회차 점검표엔 그 시트가 없다.
+   *  ⚠ 안 주면 7종 전부(종전 동작) — 고객 상세 쪽은 회차 개념이 없어 그대로 둔다.
+   *  ⚠ **저장 축은 안 좁힌다**: 대장은 고객 단위라, 여기서 안 보이는 코드의 기존 행은 건드리지 않는다.
+   *    보이지 않는 것을 지우면 외관 회차에서 체크해 둔 값이 자체점검 저장에 날아간다. */
+  etcCodes?: readonly string[]
 }) {
   const [bidx, setBidx] = useState(0)
   const b = buildings[bidx]
@@ -801,13 +808,16 @@ export function PlanForm14({ customerId, buildings, canManage, canRegister = fal
       <div className="rounded-xl border border-brand-line-soft bg-brand-tint px-4 py-2.5 space-y-1.5" data-testid="form14-etc">
         <div className="flex items-baseline gap-2 flex-wrap">
           <span className="text-form-sm font-semibold text-ink">기타</span>
+          {/* ⚠ 안내는 **그리는 것만** 말한다 — 거른 항목까지 읊으면 「왜 없지?」가 된다.
+              2026-09-21: 자체점검 회차에서 「위험물·화기·가스·전기」를 안내문만 보고 찾던 자리다. */}
           <span className="text-form-xs text-ink-meta">
-            ※ 소방시설(위 42종)이 아니라 피난·방화시설·방염과 위험물·화기·가스·전기 시설입니다 —
+            ※ 소방시설(위 42종)이 아니라 {etcCodes ? '이 회차에 해당하는 기타 시설' : '피난·방화시설·방염과 위험물·화기·가스·전기 시설'}입니다 —
             해당하면 ☑, <span className="font-semibold text-ink-sub">점검 결과(○·×·／)는 점검표에서</span> 입력합니다
           </span>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-5 gap-y-0.5">
-          {ETC_ITEMS.map(it => {
+          {/* etcCodes를 주면 그것만 — 회차 성격으로 거른 결과다(page.tsx가 시트 카탈로그에 물어 만든다) */}
+          {ETC_ITEMS.filter(it => !etcCodes || etcCodes.includes(it.code)).map(it => {
             const on = fac[it.code]?.installed ?? false
             const prog = etcSheetProgress[it.sheetName]
             const blank = prog ? prog.total - prog.responded : null

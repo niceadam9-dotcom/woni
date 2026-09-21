@@ -182,17 +182,29 @@ try {
     rows16.some(r => r.facility_code === TARGET), JSON.stringify(post16 ?? []))
 
   // ── ⑦ 링크 이동 — 지목한 점검표가 열린 채 도착하는가 ─────────────────────
+  /* ⚠ 2026-09-21 — 이 단언이 한 번 빨갛게 떴는데 **제품이 아니라 계측기(dev 캐시)** 탓이었다.
+   *  서버 액션 POST가 404를 받아 우측 패널이 「항목 로드 중…」에서 굳었고, 그 모습이 「항목이
+   *  없다」와 구별되지 않았다(.next/dev 부패 — 같은 함정 두 번째). 그래서 **전제 한 줄을 덧댄다**:
+   *  범위 안 항목(방화문)이 그려지는지 먼저 묻는다. 시트가 안 열린 것과 항목이 빠진 것이 갈린다.
+   *
+   *  ⚠ 방염은 **작동 회차에서도 그려지는 것이 맞다** — 범위 밖 항목은 지우지 않고 ●과 「／ 자동」을
+   *    달아 **입력 불가로** 싣는다(실측 확인). 「범위 밖이면 안 보인다」로 고쳐 쓸 뻔했다. 안 보이는
+   *    것은 **배지 쪽**(③의 종합점검 전용 칩)이지 점검표 쪽이 아니다 — 두 표면의 규칙이 다르다. */
   await page.goto(`${BASE}${href!}`)
   await page.waitForURL(/\/inspections\/[0-9a-f-]+\/sheet/, { timeout: 20_000 })
   await page.waitForSelector('text=점검표 입력 —', { timeout: 20_000 })
+  // 항목은 지연 로드다 — body를 즉시 읽으면 시트 제목만 있고 항목이 없다(공허 실패)
+  const doorShown = await page.locator('text=방화문 및 방화셔터의 관리 상태').first()
+    .waitFor({ timeout: 20_000 }).then(() => true).catch(() => false)
+  const flame = page.locator('text=방염대상물품').first()
+  const shown = await flame.waitFor({ timeout: 20_000 }).then(() => true).catch(() => false)
   const body = (await page.locator('body').textContent()) ?? ''
   check('「기타사항」 점검표가 열린 채 도착한다', body.includes('기타사항'),
     body.slice(0, 160).replace(/\s+/g, ' '))
-  // 항목은 지연 로드다 — body를 즉시 읽으면 시트 제목만 있고 항목이 없다(공허 실패)
-  const flame = page.locator('text=방염대상물품').first()
-  const shown = await flame.waitFor({ timeout: 20_000 }).then(() => true).catch(() => false)
-  check('방염 항목(31-B-*)이 열린 시트에 있다', shown,
-    shown ? '' : ((await page.locator('body').textContent()) ?? '').slice(0, 200).replace(/\s+/g, ' '))
+  check('전제 — 범위 안 항목(방화문 31-A-001)이 그려진다(시트 미로드와 항목 부재를 가른다)',
+    doorShown, body.slice(0, 200).replace(/\s+/g, ' '))
+  check('방염 항목(31-B-*)이 열린 시트에 있다(범위 밖이어도 ●·／ 자동으로 싣는다)', shown,
+    shown ? '' : body.slice(0, 200).replace(/\s+/g, ' '))
 } catch (e) {
   check(`예외: ${(e as Error).message}`, false)
 } finally {
