@@ -15,6 +15,7 @@ const HERE = dirname(fileURLToPath(import.meta.url))
 const ROOT = resolve(HERE, '..')
 const BTN = resolve(ROOT, 'src/components/inspections/workbook-xlsx-button.tsx')
 const CHIP = resolve(ROOT, 'src/components/customers/plan-annex-round-card.tsx')
+const PANEL = resolve(ROOT, 'src/components/inspections/bundle-generate-panel.tsx')
 
 const MUTANTS = [
   { id: 'M1', file: BTN, why: '라벨 값을 옛 「엑셀」로 되돌린다',
@@ -23,12 +24,15 @@ const MUTANTS = [
     from: '<FileSpreadsheet className="size-3" />} {WORKBOOK_LABEL}', to: '<FileSpreadsheet className="size-3" />} 엑셀로 받기' },
   { id: 'M3', file: CHIP, why: '🎯 칩이 상수 대신 **자기 글씨를 직접 적는다** — 결함이 처음 생긴 방식',
     from: '{WORKBOOK_LABEL}', to: "{'보고서 엑셀'}" },
+  { id: 'M5', file: PANEL, why: '🎯 5번째 표면(번들 패널)만 옛 이름으로 되돌린다 — 첫 판에서 실제로 놓쳤던 자리',
+    from: '{WORKBOOK_LABEL}', to: '엑셀로 받기' },
   { id: 'M4', file: BTN, why: '잘리는 고정 폭을 되살린다',
     from: 'className="inline-flex h-6 items-center justify-center gap-1 px-2 rounded',
     to: 'className="inline-flex h-6 w-[2.6rem] items-center justify-center gap-1 rounded' },
 ]
 
-const backup = new Map([[BTN, readFileSync(BTN, 'utf8')], [CHIP, readFileSync(CHIP, 'utf8')]])
+const backup = new Map([[BTN, readFileSync(BTN, 'utf8')], [CHIP, readFileSync(CHIP, 'utf8')],
+                        [PANEL, readFileSync(PANEL, 'utf8')]])
 const restore = () => { for (const [f, s] of backup) writeFileSync(f, s) }
 
 let killed = 0

@@ -55,6 +55,21 @@ check('회차 카드에 라벨 리터럴이 없다', !chipCode.includes("'보고
 const btnUses = [...btnCode.matchAll(/\{WORKBOOK_LABEL\}/g)].length
 check('버튼 컴포넌트의 두 표면(compact·default)이 모두 상수를 쓴다', btnUses === 2, `${btnUses}곳`)
 
+/* 🚨 **다섯 번째 표면** — 번들 생성 패널의 `<a href>`. 같은 라우트(`/workbook`)를 부르는데
+ *   종전엔 「엑셀로 받기」라 이름이 갈려 있었다. 첫 판에서 이걸 놓쳐 **넷만 고치고 「한 벌」이라
+ *   부를 뻔했다** — 표면 수를 세어 두는 이유가 이것이다.
+ *   ⚠ 이 표면은 `X-Workbook-Missing` 고지를 못 받는 경로다(`<a href>`라 새 탭에서 사라진다).
+ *     그건 **동작 축**이라 이번에 안 건드렸고, 여기서도 묻지 않는다. 다만 그 상태가 조용히
+ *     바뀌지 않도록 «아직 a href다»를 박아 둔다 — 누가 고치면 이 줄이 먼저 말해 준다. */
+const PANEL = 'components/inspections/bundle-generate-panel.tsx'
+const panelCode = codeOnly(read(PANEL))
+check('번들 패널(5번째 표면)이 상수를 import 한다',
+  /import\s*\{[^}]*\bWORKBOOK_LABEL\b[^}]*\}\s*from\s*'@\/components\/inspections\/workbook-xlsx-button'/.test(panelCode))
+check('번들 패널이 상수를 렌더에 쓴다', /\{WORKBOOK_LABEL\}/.test(panelCode))
+check('번들 패널에 「엑셀로 받기」 리터럴이 없다', !panelCode.includes('엑셀로 받기'))
+check('번들 패널은 여전히 <a href> 경로다(동작 축은 이번에 안 건드렸다)',
+  /<a href=\{`\/inspections\/\$\{inspectionId\}\/workbook`\}/.test(panelCode))
+
 /* ── ③ 역방향 — 옛 글씨가 사라졌는가 ── */
 console.log('\n③ 역방향 (옛 이름 소멸)')
 check('버튼에 「엑셀로 받기」가 없다', !btnCode.includes('엑셀로 받기'))

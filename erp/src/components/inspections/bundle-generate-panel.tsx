@@ -5,6 +5,8 @@ import { CheckCircle2, ChevronDown, FileSpreadsheet, Loader2, Package } from 'lu
 import { getBundleChecklistAction, generateBundleAction } from '@/app/(dashboard)/inspections/bundle-actions'
 import type { BundleChecklist, BundleGenResult } from '@/lib/bundle-status'
 import type { AnnexType } from '@/app/(dashboard)/inspections/report9-actions'
+// 라벨만 가져온다 — 이 표면은 `<a href>`라 버튼 컴포넌트를 안 쓰지만 **이름은 한 벌**이다
+import { WORKBOOK_LABEL } from '@/components/inspections/workbook-xlsx-button'
 
 /** [번들 생성] 원클릭 패널 (소방계획서_22 S13 — Q-13)
  *
@@ -105,12 +107,18 @@ export function BundleGeneratePanel({ inspectionId, disabled }: { inspectionId: 
                 <CheckCircle2 className="size-3" /> 번들 열기
               </a>
               {/* 소방계획서_27 — 고쳐 쓸 수 있는 엑셀(갑지 서식). PDF와 같은 값에서 출발하되
-                  담당자가 Excel에서 수정·보완한 뒤 인쇄한다. 생성물은 저장하지 않는다(D-5) */}
+                  담당자가 Excel에서 수정·보완한 뒤 인쇄한다. 생성물은 저장하지 않는다(D-5)
+                  ⚠ 이름은 `WORKBOOK_LABEL` 한 벌을 따른다(2026-09-21) — 같은 라우트를 부르는
+                    **다섯 번째 표면**이라, 여기만 「엑셀로 받기」로 두면 이름이 도로 갈린다.
+                  🚨 이 표면은 `<a href>`라 라우트가 보내는 `X-Workbook-Missing` 고지를 **못 받는다**
+                    (새 탭이라 그대로 사라진다 — `workbook-xlsx-button.tsx` 머리주석의 그 경로다).
+                    이번 변경은 **이름만** 맞춘 것이고 그 누락은 종전 그대로다. 고치려면
+                    WorkbookXlsxButton으로 갈아끼워야 하는데 그건 동작 축이라 따로 다룬다. */}
               <a href={`/inspections/${inspectionId}/workbook`}
-                title="갑지 서식 통합 워크북 — PDF와 달리 받은 뒤 고칠 수 있습니다"
+                title="결과보고서 엑셀 받기 — 갑지 서식 통합 워크북. PDF와 달리 받은 뒤 고칠 수 있습니다"
                 className="inline-flex items-center gap-1 rounded-lg border border-brand-line px-2.5 py-1 text-ink-sub hover:border-brand"
                 data-testid="workbook-download">
-                <FileSpreadsheet className="size-3" /> 엑셀로 받기
+                <FileSpreadsheet className="size-3" /> {WORKBOOK_LABEL}
               </a>
               <button onClick={load} disabled={isPending} className="text-form-2xs text-ink-meta underline">새로고침</button>
             </div>
