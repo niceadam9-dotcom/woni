@@ -548,9 +548,11 @@ const steps: Step[] = [
   { name: '갑지 워크북 다운로드(E2E)',      cmd: 'npx tsx scripts/test-workbook-e2e.mts',   needServer: true },
   { name: '클릭 예산(E2E)',           cmd: 'npx tsx scripts/test-click-budget.mts',     needServer: true },
   { name: 'EX-V1 음수전표(E2E)',      cmd: 'npx tsx scripts/test-ex-v1.mts',            needServer: true },
-  // 소방계획서_16 S6-4 — 점검표 축·트리 인라인 입력(Realtime 포함) 상시 회귀
+  // 소방계획서_16 S6-4 — 점검표 축 상시 회귀.
+  //   둘째 줄은 2026-09-21에 뜻이 뒤집혔다: 회차 탭 트리를 없앴으므로 「트리가 잘 그려지는가」가
+  //   아니라 **「없는가 + 그 트리가 올려 주던 미입력 수를 서버가 대신 싣는가 + 발행 가드가 서는가」**를 문다.
   { name: '점검표 범위 축(E2E)',        cmd: 'npx tsx scripts/test-sheet-scope-axis.mts',    needServer: true },
-  { name: '점검표 트리 인라인(E2E)',    cmd: 'npx tsx scripts/test-annex-sheet-inline.mts',  needServer: true },
+  { name: '회차 미입력 축·트리 부재(E2E)', cmd: 'npx tsx scripts/test-annex-sheet-blanks.mts', needServer: true },
   // 별지 서식이 소방계획서 탭 **안**에서 최상위 탭으로 갈라졌다(소방계획서_34). 4종을 함께 등재한다.
   //   앞의 둘은 34 이전부터 미등재라 조용히 썩고 있던 것 — 등재하지 않으면 아무도 안 돌린다(드로어 2종의 전례).
   //   신규 둘은 갈라진 탭이 소리 없이 무너지는 자리를 붙든다:

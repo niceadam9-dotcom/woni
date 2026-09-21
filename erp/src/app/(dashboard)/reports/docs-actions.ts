@@ -6,6 +6,9 @@ import { hangulMatch } from '@/lib/hangul'
 import { fetchAllRows } from '@/lib/supabase/paginate'
 import { CONTRACT_FILE_RE, findArchivedCertInspections, findMissingCerts, getDocTodo, hasCertFile, isCertFileName, SELF_INSPECTION_OR, type MissingCertRow, type DueReport9Row } from '@/lib/doc-status'
 import { GENERATED_DOC_KINDS } from '@/lib/doc-requirements'
+import { buildSheetOverviews } from '@/lib/sheet-overview'
+import { countBlanks, countRequiredItemBlanks, countCompBlanks } from '@/lib/sheet-blanks'
+import type { UserRole } from '@/types'
 
 /** 보고서 센터 데이터 액션 (소방계획서_5 S2) — ① 고객 문서 현황(R2)·④ 최근 문서(R5)·⑦ 누락 경고(R8)·행동 자동완성(R0-3).
  *  신규 테이블 없음(R2-e): fire_plans + storage 점검 폴더 + 업로드 슬롯 + inspection_defects 사진 쌍 통합 조회. */
@@ -57,6 +60,22 @@ export type InspectionDocs = {
    *  그리고 10·11호가 미리보기 목록에서 사라진다 — 같은 회차의 작업대는 ⑤⑥ 활성이라
    *  45차수가 닫으려던 '두 화면 갈라짐'이 그대로 재현된다. */
   allPassUnknown: boolean
+  /** 설치(√)인데 응답 0건인 설비 수 — 별지 결과칸이 **기본 ○(양호)**로 인쇄될 개수 (2026-09-02 정책).
+   *
+   *  🚨 2026-09-21 서버 축으로 이관. 종전에는 회차 카드 안의 점검표 트리가 클라이언트에서
+   *  `getInspectionSheetOverviewAction`을 불러 `onBlankCount`로 올려 줬다 — 그래서 **트리를 없애면
+   *  발행 가드의 분모가 통째로 0이 되어 조용히 통과**하는 구조였다(트리 로드 전 구간도 같은 구멍).
+   *  판정식은 옮기지 않았다: 아래 세 값은 트리가 쓰던 것과 **같은 순수 헬퍼**(lib/sheet-blanks)를
+   *  같은 overview에 적용한 결과다. 여기서 다시 세면 팝업과 카운터가 다른 말을 한다. */
+  sheetBlanks: number
+  /** 필수 미입력 항목 합(설치 시트·범위 내 무응답) — 자체점검 회차가 아니면 0 */
+  requiredBlanks: number
+  /** 그중 ●(종합 필수) — 고지 병기용. 작동 회차는 분모에서 이미 빠져 자동 0 */
+  compBlanks: number
+  /** 위 세 수를 믿을 수 없는가 — overview 조회 실패 (allPassUnknown과 같은 R-3 축).
+   *  ⚠ 0으로 떨어뜨리면 '미입력 없음'과 구별이 안 되고, 그 0이 곧 발행 가드 통과다.
+   *  소비자(발행 가드)는 이 축이 서면 **수를 말하지 않고 확인만** 받는다. */
+  sheetBlanksUnknown: boolean
   report4: DocGroupRef | null
   report9: DocGroupRef | null
   report10: DocGroupRef | null
@@ -97,10 +116,49 @@ type InspRow = {
   sheet_protocol?: 'legacy_na' | 'blank_unanswered' | null   // S9-1(149)
 }
 
+/** 점검표 미입력 3종 — 회차 카드의 발행 가드·미입력 경고가 쓰는 유일한 축 (2026-09-21 서버 이관).
+ *
+ *  `buildSheetOverviews`는 점검 N건과 무관하게 고정 6쿼리라 **회차 전체를 한 번에** 묻는다.
+ *  세 수는 트리가 쓰던 순수 헬퍼 그대로다 — 규칙을 복제하지 않는다(축이 갈라지면 팝업과
+ *  경고가 다른 수를 말한다). scope.isSpecial 게이트도 트리와 같다(자체점검만 항목 축이 있다).
+ *  조회가 실패하면 0이 아니라 **unknown**으로 올린다 — 0은 '미입력 없음'으로 읽혀 가드를 연다. */
+type SheetBlankCounts = { sheetBlanks: number; requiredBlanks: number; compBlanks: number; sheetBlanksUnknown: boolean }
+const BLANKS_UNKNOWN: SheetBlankCounts = { sheetBlanks: 0, requiredBlanks: 0, compBlanks: 0, sheetBlanksUnknown: true }
+
+async function loadSheetBlanks(
+  admin: ReturnType<typeof createAdminClient>,
+  inspectionIds: string[],
+  viewer: { id: string; role: UserRole },
+): Promise<Map<string, SheetBlankCounts>> {
+  const out = new Map<string, SheetBlankCounts>()
+  if (inspectionIds.length === 0) return out
+  const { overviews, error } = await buildSheetOverviews(admin, inspectionIds, viewer)
+  if (error) {
+    // 조용히 해제되면 아무도 모른다 — 폴백은 반드시 흔적을 남긴다(countInstalledRequiredBlanks와 같은 규약)
+    console.error(`[docs] 점검표 진행률 조회 실패 — 미입력 판정을 보류합니다:`, error)
+    for (const id of inspectionIds) out.set(id, BLANKS_UNKNOWN)
+    return out
+  }
+  for (const id of inspectionIds) {
+    const ov = overviews[id]
+    // overview가 없는 회차 = 시트 축 자체가 없는 회차(정기 등)다. 조회 실패는 위에서 갈렸으므로
+    // 여기 도달한 부재는 '미입력 0'이 맞다 — unknown으로 올리면 정기 회차마다 가드가 뜬다.
+    if (!ov) { out.set(id, { sheetBlanks: 0, requiredBlanks: 0, compBlanks: 0, sheetBlanksUnknown: false }); continue }
+    out.set(id, {
+      sheetBlanks: countBlanks(ov.sheets),
+      requiredBlanks: ov.scope.isSpecial ? countRequiredItemBlanks(ov.sheets) : 0,
+      compBlanks: ov.scope.isSpecial ? countCompBlanks(ov.sheets) : 0,
+      sheetBlanksUnknown: false,
+    })
+  }
+  return out
+}
+
 /** 점검 1건의 문서 상태 조립 — getCustomerDocsAction·getCustomerRoundsAction 공용 (소방계획서_8 H-1) */
 async function buildInspectionDocs(
   admin: ReturnType<typeof createAdminClient>, customerId: string, i: InspRow,
   archivedCerts?: Set<string>,
+  blanks?: SheetBlankCounts,
 ): Promise<InspectionDocs> {
   const prefix = `${customerId}/inspections/${i.id}`
   const [objRes, defRes, respRes, xRes] = await Promise.all([
@@ -137,6 +195,8 @@ async function buildInspectionDocs(
     },
     sheetX: xRes.count ?? 0,
     allPassUnknown,
+    // 호출부가 회차 전체를 한 번에 물어 넘긴다. 안 넘어오면 '안다'고 말하지 않는다(BLANKS_UNKNOWN)
+    ...(blanks ?? BLANKS_UNKNOWN),
     report4: latestGroup(objects, 'report4', prefix),
     report9: latestGroup(objects, 'report9', prefix),
     report10: latestGroup(objects, 'report10', prefix),
@@ -188,20 +248,25 @@ export type CustomerRounds = {
 /** 회차 1건 문서 상태 재조회 (소방계획서_20 S1) — 생성·업로드 후 전면 reload 대신 해당 회차만 패치.
  *  reload()는 미리보기 캐시 전체를 폐기해 펼친 회차 iframe이 전부 재렌더되던 비용(3+3N 왕복)을 없앤다. */
 export async function getRoundDocsAction(customerId: string, inspectionId: string): Promise<{ docs?: InspectionDocs; error?: string }> {
-  await requirePermission('inspection_register')
+  const profile = await requirePermission('inspection_register')
   const admin = createAdminClient()
   const { data: insp } = await admin.from('inspections')
     .select('id, year, sequence_num, inspection_type, status, plan_type, inspection_start_date, inspection_end_date')
     .eq('id', inspectionId).eq('customer_id', customerId).single()
   if (!insp) return { error: '점검 건을 찾을 수 없습니다.' }
   const row = insp as InspRow
-  const archivedCerts = await findArchivedCertInspections(admin, [row.id])
-  const docs = await buildInspectionDocs(admin, customerId, row, archivedCerts)
+  // ⚠ 미입력 수도 함께 새로 읽는다 — 이 경로는 생성·업로드 후 **카드 상태를 갈아끼우는** 자리라
+  //   여기서 빼면 패치된 카드의 발행 가드만 분모 0이 된다(부분 갱신이 만드는 구멍).
+  const [archivedCerts, blanks] = await Promise.all([
+    findArchivedCertInspections(admin, [row.id]),
+    loadSheetBlanks(admin, [row.id], { id: profile.id, role: profile.role as UserRole }),
+  ])
+  const docs = await buildInspectionDocs(admin, customerId, row, archivedCerts, blanks.get(row.id))
   return { docs }
 }
 
 export async function getCustomerRoundsAction(customerId: string): Promise<{ data?: CustomerRounds; error?: string }> {
-  await requirePermission('inspection_register')
+  const profile = await requirePermission('inspection_register')
   const admin = createAdminClient()
   const { data: cust } = await admin.from('customers')
     .select('id, customer_name, inspection_type').eq('id', customerId).single()
@@ -246,13 +311,18 @@ export async function getCustomerRoundsAction(customerId: string): Promise<{ dat
     : []
   const detailRows = [...activeRows, ...latestDone]
 
-  const [archivedCerts, docsList] = await Promise.all([
+  const [archivedCerts, blanks, docsList] = await Promise.all([
     findArchivedCertInspections(admin, detailRows.map(i => i.id)),
+    // 회차 N건을 **한 번에** 묻는다(고정 6쿼리) — 회차마다 부르면 그 수만큼 곱해진다
+    loadSheetBlanks(admin, detailRows.map(i => i.id), { id: profile.id, role: profile.role as UserRole }),
     // 통상 1~2건만 상세 조립
     Promise.all(detailRows.map(i => buildInspectionDocs(admin, customerId, i))),
   ])
   // archivedCerts는 활성 회차 상세에도 필요하다 — buildInspectionDocs를 병렬로 돌린 뒤 여기서 채운다
-  for (const d of docsList) d.certArchived = !d.cert && archivedCerts.has(d.inspectionId)
+  for (const d of docsList) {
+    d.certArchived = !d.cert && archivedCerts.has(d.inspectionId)
+    Object.assign(d, blanks.get(d.inspectionId) ?? BLANKS_UNKNOWN)
+  }
 
   const docsByInsp = new Map(docsList.map(d => [d.inspectionId, d]))
   const rounds = new Map<string, CustomerRound>()

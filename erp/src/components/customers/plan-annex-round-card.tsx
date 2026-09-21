@@ -5,7 +5,6 @@ import { ChevronDown, ChevronRight, Eye, PlayCircle, FileSpreadsheet, Loader2 } 
 import type { CustomerRound } from '@/app/(dashboard)/reports/docs-actions'
 import type { ComposeAnnexNo } from '@/components/inspections/annex-compose-panel'
 import { InspectionDocRows } from '@/components/reports/customer-docs'
-import { PlanAnnexSheetTree, PlanAnnexSheetHeader } from '@/components/customers/plan-annex-sheet-tree'
 import { inspectionNatureBadge } from '@/lib/inspection-nature'
 import { roundPill, type RoundPillKind } from '@/lib/annex-round-state'
 import { hasSheetDefect } from '@/lib/inspection-step-status'
@@ -14,12 +13,17 @@ import type { InspectionType, PlanType } from '@/types'
 import type { PreviewDoc } from '@/components/customers/plan-annex-full-preview'
 
 /** 회차 카드 1건 (소방계획서_8 H-2 → 소방계획서_20 S3에서 분리).
- *  본문 2블록: 별지 생성·확인(고정 6~8행, 회차 수명 대부분의 용무) → 점검표 진행(설비 수만큼 가변).
- *  화면 순서가 작업 순서(점검표 → 별지)와 반대인 이유(2026-08-28): 긴 가변 블록이 위에 오면
- *  별지 행들이 매번 스크롤 밖으로 밀린다. 대신 번호(①②)를 떼 순서 오독을 막고,
- *  미입력 경고는 별지 블록 제목에 복제한다 — [생성]을 누르기 전에 눈에 걸려야 한다(물분무 공란 사고 가드).
- *  ⚠ 블록 제목에 '점검표 입력' 문자열을 쓰지 말 것 —
- *     test-annex-interaction.mts가 그 문자열 개수로 회차 펼침 상태를 판정한다(PlanAnnexSheetHeader가 유일 출처). */
+ *  본문 1블록: **별지 생성·확인**만 남는다 — 회차 탭은 「문서」 축이다.
+ *
+ *  🚨 2026-09-21 사용자 확정 — 점검표 블록(머리줄 + 설비별 진행 트리)을 걷어냈다.
+ *  그 블록은 소방계획서_28에서 이미 **조회 전용**이 되어 있었는데(입력의 정본은
+ *  `/inspections/{id}/sheet` 한 곳), 라벨만 「점검표 입력」이라 여기가 입력면처럼 읽혔다.
+ *  입력 진입구는 작업대 ①·점검 상세·1.4 설비 대장 배지·별지 미비 목록·아래 발행 가드로 남아 있다.
+ *
+ *  ⚠ 함께 사라진 것을 **대체하지 않으면 안 되는 것이 하나** 있었다: 그 트리가
+ *  `onBlankCount`로 올려 주던 미입력 수가 발행 가드(blanksGuardThenGo)의 **유일한 분모**였다.
+ *  이제 서버가 회차와 함께 싣는다(docs-actions loadSheetBlanks) — 판정식은 같은 순수 헬퍼 그대로다.
+ *  미입력 경고는 종전처럼 별지 블록 제목에 둔다 — [생성]을 누르기 전에 눈에 걸려야 한다(물분무 공란 사고 가드). */
 
 const todayStr = () => new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10)
 const blockTitleCls = 'text-form-xs font-semibold text-ink-sub pt-1 pb-0.5'
@@ -57,7 +61,7 @@ export function statePill(r: CustomerRound): { label: string; cls: string } {
 
 export function PlanAnnexRoundCard({
   r, isOpen, alwaysOpen = false, inspectionType, customerName, canRegister, isPending, isStarting, entryFrom,
-  onToggle, onFullPreview, onPreviewSingle, onOpenFile, onGenerate, onUpload, onCompose, onSheetSaved, onStart, feedback,
+  onToggle, onFullPreview, onPreviewSingle, onOpenFile, onGenerate, onUpload, onCompose, onStart, feedback,
 }: {
   r: CustomerRound
   isOpen: boolean
@@ -78,7 +82,6 @@ export function PlanAnnexRoundCard({
   onGenerate: (inspectionId: string, kind: 'report4' | 'report9' | 'report10' | 'report11' | 'exterior', rowKey: string) => void
   onUpload: (inspectionId: string, slot: 'cert' | 'contract', file: File, rowKey: string) => void
   onCompose: (inspectionId: string, annexNo: ComposeAnnexNo) => void
-  onSheetSaved: (responded: number) => void
   onStart: () => void
   feedback: (key: string) => React.ReactNode
 }) {
@@ -92,20 +95,32 @@ export function PlanAnnexRoundCard({
   const label = `${r.year}년`
   // 소방계획서_27 — 갑지 통합 워크북 내려받기 상태(이 카드 안에서만 쓴다)
   const [xlsx, setXlsx] = useState<{ busy: boolean; msg: string; ok: boolean }>({ busy: false, msg: '', ok: true })
-  // 설치 설비 중 응답 0건 수 — 아래 점검표 트리가 조회한 값을 위 별지 블록 제목에 복제한다
-  const [sheetBlanks, setSheetBlanks] = useState(0)
-  // 39 §0 — 필수 미입력 항목(설치 시트·범위 내 무응답 전부)과 그중 ●(종합 필수). 트리가 함께 통지한다
-  const [reqBlanks, setReqBlanks] = useState({ items: 0, comp: 0 })
+  // 점검표 미입력 3종 — **서버가 회차와 함께 싣는다**(2026-09-21 이관). 종전에는 이 카드 안의
+  // 점검표 트리가 클라이언트에서 조회해 올려 줬고, 그래서 트리가 뜨기 전에는 가드가 조용히 통과했다.
+  const sheetBlanks = r.docs?.sheetBlanks ?? 0
+  const reqBlanks = { items: r.docs?.requiredBlanks ?? 0, comp: r.docs?.compBlanks ?? 0 }
+  const blanksUnknown = r.docs?.sheetBlanksUnknown ?? false
 
   /** 발행 가드(2026-09-02 사용자 결정 — image-43 후속) — 설치(√) 설비에 미입력이 있으면
    *  산출물(엑셀·전체 인쇄)을 만들기 전에 팝업으로 입력을 유도한다. 미입력분은 같은 날 정책으로
    *  **기본 ○(양호)로 인쇄**되므로, 모르고 발행하는 일이 없어야 한다.
    *  [확인] = 점검표 입력 화면으로 이동 · [취소] = 그대로 발행(유도이지 차단이 아니다 —
    *  급한 발행을 막으면 사용자는 가드를 우회할 다른 길을 찾는다).
-   *  ⚠ sheetBlanks는 아래 점검표 트리가 로드한 값이라 트리 로드 전(0)에는 가드가 조용히 통과한다 —
-   *    그 구간도 서버 고지 헤더(X-Workbook-Missing '점검표 미입력 N종')가 받은 뒤에 알린다.
+   *  ⚠ 분모는 **서버가 회차와 함께 실어 준 수**다(2026-09-21). 종전엔 같은 카드 안의 점검표
+   *    트리가 클라이언트에서 조회해 올려 줬고, 트리 로드 전 구간에는 가드가 조용히 통과했다.
+   *  ⚠ 조회 실패(sheetBlanksUnknown)는 0으로 떨어뜨리지 않는다 — 0은 '미입력 없음'과 구별되지
+   *    않아 그대로 가드 통과가 된다. 수를 모를 때는 **수를 말하지 않고 확인만** 받는다.
    *  이동은 전체 이동(location.assign) — 같은 경로 ?tab= Link가 서버를 안 깨우는 함정과 무관하게 확실한 축. */
   function blanksGuardThenGo(inspectionId: string): boolean {
+    if (blanksUnknown) {
+      const goAnyway = window.confirm(
+        '점검표 미입력 여부를 확인하지 못했습니다(진행률 조회 실패).\n'
+        + '미입력 설비가 있으면 점검결과가 기본 ○(양호)로 인쇄됩니다.\n\n'
+        + '[확인] 점검표 입력 화면으로 이동\n[취소] 그대로 발행')
+      if (!goAnyway) return true
+      window.location.assign(`/inspections/${inspectionId}/sheet${entryFrom ? `?from=${encodeURIComponent(entryFrom)}` : ''}`)
+      return false
+    }
     if (sheetBlanks <= 0 && reqBlanks.items <= 0) return true
     // 39 §0·S2-3/4 — 두 층을 함께 말한다: 설비 단위(응답 0 → 요약칸 기본 ○)와 항목 단위(필수 미입력
     // → 점검표 칸이 빈칸으로 인쇄). 해소 양갈래(입력 or 1.4 대장 체크 해제)도 여기서 알린다
@@ -264,15 +279,9 @@ export function PlanAnnexRoundCard({
                 isPending={isPending} open={onOpenFile} generate={onGenerate} upload={onUpload} feedback={feedback}
                 onCompose={onCompose}
                 onPreview={(_id, type) => onPreviewSingle(type)} />
-
-              <p className={`${blockTitleCls} mt-3`}>점검표 진행 <span className="font-normal text-ink-meta">— 현장 결과를 설비별로 입력</span></p>
-              {/* 📝 점검표 노드 (D-11 → 소방계획서_16 S4 → 소방계획서_28 조회 전용) — 머리줄 + 설비별 진행 트리 */}
-              <PlanAnnexSheetHeader inspectionId={r.docs.inspectionId}
-                responded={r.docs.sheetResponses} defects={r.docs.defects.total} from={entryFrom} />
-              <PlanAnnexSheetTree inspectionId={r.docs.inspectionId} canRegister={canRegister}
-                onSaved={onSheetSaved}
-                onBlankCount={(n, req, comp) => { setSheetBlanks(n); setReqBlanks({ items: req ?? 0, comp: comp ?? 0 }) }}
-                from={entryFrom} />
+              {/* 🚨 점검표 블록(머리줄 + 설비별 진행 트리)은 2026-09-21 사용자 확정으로 없앴다.
+                  여기에 다시 만들지 말 것 — 입력의 정본은 `/inspections/{id}/sheet` 한 곳이고,
+                  이 탭은 문서 축이다. 미입력 신호는 위 블록 제목 + 발행 가드가 대신 말한다. */}
             </>
           ) : (
             /* 미시작 — [작성 시작] 한 번으로 오늘이 점검 시작일로 자동 기록되고 점검표·별지가 열린다

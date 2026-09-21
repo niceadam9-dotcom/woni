@@ -4,10 +4,11 @@ import { useState } from 'react'
 import { Check, Loader2 } from 'lucide-react'
 import { buildSheetOutline } from '@/lib/sheet-outline'
 
-/** 점검표 항목 입력부 — 점검 상세(inspection-sheet-client)와 회차별 작성·조회 트리(plan-annex-sheet-tree) 공용.
+/** 점검표 항목 입력부 — 점검 상세(inspection-sheet-client)와 전용 입력 화면(sheet-entry-client) 공용.
  *
  *  같은 입력 UI를 화면마다 새로 만들면 빠른입력·불량 자동등록 같은 개선이 한쪽에만 적용된다
  *  (annex-compose-panel.tsx의 '화면 1개(이중 구현 금지)' 규약과 같은 이유). 여기가 단일 원천이다.
+ *  (호출부였던 회차 탭 트리는 _28에서 조회 전용이 됐고 2026-09-21에 없어졌다.)
  *
  *  화면이 소유하는 것 / 이 컴포넌트가 소유하는 것의 경계:
  *  - 헤더(뒤로가기·시트명·전체 정상 ○)는 화면마다 의미가 달라(목록 복귀 vs 접기) 호출부가 갖는다.

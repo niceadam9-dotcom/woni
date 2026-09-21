@@ -83,16 +83,8 @@ export function PlanAnnexSection({ customerId, canRegister = false, initialData 
   // 예정·지난 회차 접힘 섹션 폐지(2026-09-02) — 회차는 자동 판정 1건만. 시작도 모달 없이 즉시(오늘).
   const [isStarting, startStarting] = useTransition()
 
-  /** 점검표 인라인 저장 후 회차 머리줄의 응답 수만 갱신 — reload()는 미리보기 캐시를 통째로 버려
-   *  펼친 회차의 iframe이 전부 다시 렌더된다(68행). 부분 패치로 그 비용을 피한다. */
-  function patchSheetResponses(inspectionId: string, responded: number) {
-    setData(prev => prev && ({
-      ...prev,
-      rounds: prev.rounds.map(r => r.docs?.inspectionId === inspectionId
-        ? { ...r, docs: { ...r.docs, sheetResponses: responded } }
-        : r),
-    }))
-  }
+  // patchSheetResponses 폐지(2026-09-21) — 유일한 호출자였던 회차 카드의 점검표 트리를
+  // 없앴다. 응답 수를 그리는 자리가 이 화면에 더 없으므로 부분 패치할 값도 없다.
 
   /** 회차 1건 문서 상태만 재조회·패치 (소방계획서_20 S1) — 생성·업로드 후 전면 reload(3+3N 왕복) 대신.
    *  미리보기 캐시도 이 회차 키만 무효화해, 다른 펼친 회차의 iframe 재렌더를 막는다. */
@@ -284,7 +276,6 @@ export function PlanAnnexSection({ customerId, canRegister = false, initialData 
         onPreviewSingle={type => openSingle(r, type)}
         onOpenFile={open} onGenerate={generate} onUpload={upload}
         onCompose={(inspectionId, annexNo) => setCompose({ inspectionId, annexNo })}
-        onSheetSaved={responded => patchSheetResponses(r.docs!.inspectionId, responded)}
         onStart={() => startNow(r)}
         feedback={feedback} />
     )

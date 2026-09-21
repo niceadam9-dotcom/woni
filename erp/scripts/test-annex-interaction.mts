@@ -85,22 +85,31 @@ try {
   await page.waitForSelector('text=사용승인일 기준으로 ERP가 자동 판정')
   await page.waitForSelector(`text=${CUR_YEAR}년`)
   check('현재 회차 — 자동 판정 캡션', await page.isVisible('text=자동 판정'))
-  check('현재 회차 — 항상 펼침(점검표 행)', await page.isVisible('text=점검표 입력'))
+  // 🚨 2026-09-21 — 펼침 판정을 '점검표 입력' 문자열에서 **별지 블록 부제**로 갈아끼웠다.
+  //   점검표 블록(머리줄+트리)을 없앴으므로 그 문자열은 이 화면에 더 없다. 낡은 계약을 지우지
+  //   않고 같은 뜻(카드가 펼쳐져 본문이 보인다)을 지금 있는 마커로 다시 묻는다.
+  check('현재 회차 — 항상 펼침(별지 블록 본문)', await page.isVisible('text=입력된 점검표에서 자동 생성'))
   check('현재 회차 — 성격 배지 작동(자체)', await page.isVisible('text=작동(자체)'))
   check('현재 회차 — 별지 4호 [자동] 행', await page.isVisible('text=별지 4호 점검표'))
   check('폐지 — 지난 회차 섹션 없음', !(await page.isVisible('text=지난 회차')))
   check('폐지 — 과거 회차 카드 미노출', !(await page.isVisible(`text=${PREV_YEAR}년 1차`)))
-  check('현재 회차 — 문서 행 1세트뿐', (await page.locator('text=점검표 입력').count()) === 1)
+  check('현재 회차 — 문서 행 1세트뿐', (await page.locator('text=입력된 점검표에서 자동 생성').count()) === 1)
 
   // D-7 호버 퀵뷰는 소방계획서_20 S3에서 폐지 — 프리페치 지연화로 캐시가 비어 빈 팝업만 뜨던 기능.
   // 같은 일을 행 [보기](단일 문서 모달)가 하며, 아래 2-c에서 검증한다.
-  // 카드 본문 2블록(S3 → 2026-08-28 순서 반전) — 별지 블록이 위, 점검표 진행 트리가 아래.
-  // 제목 문자열이 아니라 부제로 잡는다('점검표 진행'은 오류 문구와 접두가 겹친다).
+  //
+  // 🚨 카드 본문은 **1블록**이다(2026-09-21 사용자 확정) — 점검표 진행 블록을 걷어냈다.
+  //   종전 2블록 순서 단언(별지가 위)은 그 블록이 있어야 성립하므로, 같은 자리를 **부재 단언**으로
+  //   갈아끼운다. 이게 없으면 "점검표 블록이 되살아나도 초록"인 구멍이 그대로 남는다.
   const annexTitle = page.locator('text=입력된 점검표에서 자동 생성').first()
-  const sheetTitle = page.locator('text=현장 결과를 설비별로 입력').first()
-  check('카드 2블록 — 별지 생성·확인 / 점검표 진행', await annexTitle.isVisible() && await sheetTitle.isVisible())
-  const [annexBox, sheetBox] = [await annexTitle.boundingBox(), await sheetTitle.boundingBox()]
-  check('블록 순서 — 별지 블록이 점검표 진행보다 위', !!annexBox && !!sheetBox && annexBox.y < sheetBox.y)
+  check('카드 1블록 — 별지 생성·확인', await annexTitle.isVisible())
+  check('🚨 점검표 진행 블록 없음(입력면은 /inspections/{id}/sheet 한 곳)',
+    !(await page.isVisible('text=현장 결과를 설비별로 입력')))
+  check('🚨 점검표 머리줄 없음 — 「점검표 입력」 라벨이 이 화면에 없다',
+    (await page.locator('text=점검표 입력').count()) === 0)
+  check('🚨 설비별 진행 트리 없음 — 시트 딥링크 0개',
+    (await page.locator('[data-testid^="annex-sheet-link-"]').count()) === 0
+    && (await page.locator('[data-testid="annex-sheet-entry-link"]').count()) === 0)
 
   // ── 2) 전체 미리보기(H-5c) — 요약 바·세로 연결 렌더·⑩⑪ 축약 ──
   await page.locator('text=🔍 전체 미리보기').first().click()

@@ -9,14 +9,15 @@ import { X } from 'lucide-react'
  *  이 컴포넌트는 **dirty를 모른다** — 개폐 판단(미저장 확인창·백드롭 허용 여부)은 오케스트레이터
  *  (inspection-sheet-client)가 소유하고, 여기는 셸(백드롭·패널·포커스 트랩·body 잠금)만 책임진다.
  *
- *  ⚠ 헤더 제목에 '점검표 입력' 문자열 금지 — plan-annex-sheet-tree.tsx:22-23 명시
- *  (test-annex-interaction.mts가 그 문자열로 다른 화면을 판정한다). 시트명만 쓴다.
+ *  (2026-09-21) 종전의 '점검표 입력' 문자열 금지 규약은 해제됐다 — 그 문자열로 회차 탭 펼침을
+ *  판정하던 검사가 자기 마커(별지 블록 제목)로 바뀌었고, 세던 대상(회차 카드 점검표 머리줄)
+ *  자체가 없어졌다. 그래도 제목은 **시트명**이 맞다 — 드로어가 무엇을 열었는지를 말해야 한다.
  *
  *  포털이라 workbench-panes 서브트리 밖이다 — 종전 `lg:has-[[data-sheet-open]]` 규약은 영영 매치되지
  *  않아 폐기됐다(Q-15). grid 재배치가 없으므로 닫을 때 레이아웃이 튀지 않는다(Q-4). */
 export function SheetDrawer({ open, title, headerRight, banner, toc, footer, children, onRequestClose, dismissOnBackdrop = true }: {
   open: boolean
-  /** 시트명 (예: '옥내소화전설비') — '점검표 입력' 금지 */
+  /** 시트명 (예: '옥내소화전설비') */
   title: ReactNode
   /** 헤더 우측 — 진행 요약·[／ 전체]·● 미저장 등 (오케스트레이터가 채운다) */
   headerRight?: ReactNode

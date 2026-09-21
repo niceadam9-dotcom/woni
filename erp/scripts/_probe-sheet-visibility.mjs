@@ -51,11 +51,12 @@ console.log('\n── ② 자동 열기(첫 미완성)도 같은 축을 쓴다 �
   check('설치 정보가 없는 고객은 필터가 풀린다', pickAutoOpenSheet(noFac)?.sheetId === 'd')
 }
 
-console.log('\n── ③ 네 호출부가 같은 함수를 쓰는가 (규칙 복사본 재발 방지) ──')
+// 호출부가 넷에서 **셋**으로 줄었다(2026-09-21) — 「별지 시트 트리」는 회차 탭에서 통째로 없앴다.
+// 규칙을 쓰는 자리가 사라진 것이지 규칙이 바뀐 게 아니다(남은 셋은 그대로 공용 함수를 쓴다).
+console.log('\n── ③ 세 호출부가 같은 함수를 쓰는가 (규칙 복사본 재발 방지) ──')
 const src = p => readFileSync(new URL(`../${p}`, import.meta.url), 'utf8')
 for (const [label, p] of [
   ['점검표 보드', 'src/components/inspections/sheet-group-board.tsx'],
-  ['별지 시트 트리', 'src/components/customers/plan-annex-sheet-tree.tsx'],
   ['자동 열기(스텝 링크)', 'src/lib/inspection-step-links.ts'],
   ['인쇄 번들 공란 리포트', 'src/app/(dashboard)/inspections/bundle-actions.ts'],
 ]) check(`${label} — 공용 규칙 사용`, src(p).includes('sheetShownWhenInstalledOnly'))
@@ -64,7 +65,6 @@ for (const [label, p] of [
 {
   const files = [
     'src/components/inspections/sheet-group-board.tsx',
-    'src/components/customers/plan-annex-sheet-tree.tsx',
     'src/lib/inspection-step-links.ts',
     'src/app/(dashboard)/inspections/bundle-actions.ts',
   ]
@@ -80,7 +80,6 @@ for (const [label, p] of [
 // STD-31 코드를 호출부에 다시 하드코딩하지 않았는가 (상수는 lib에만)
 {
   const hard = ['src/components/inspections/sheet-group-board.tsx',
-    'src/components/customers/plan-annex-sheet-tree.tsx',
     'src/app/(dashboard)/inspections/bundle-actions.ts']
     .filter(f => /sheetCode\s*===\s*'STD-31'/.test(src(f)))
   check("호출부에 'STD-31' 하드코딩이 남아 있지 않다", hard.length === 0, hard.join(', '))
