@@ -1006,14 +1006,20 @@ export function PlanForm14({ customerId, buildings, canManage, canRegister = fal
           <div className="flex items-center gap-2 px-4 py-3 border-b border-brand-line-soft shrink-0">
             <p className="text-form-base font-semibold text-ink shrink-0">설비 대장 — 세부 제원</p>
             <span className="text-form-2xs text-ink-meta truncate">체크(√)한 설비의 섹션이 자동으로 펼쳐집니다</span>
+            {/* 폭 토글·닫기 — 2026-09-21 사용자 요청으로 **2배 크게·진하게**.
+                ⚠ 글자는 `text-form-*` 사다리로는 2배가 안 나온다(2xs=12px인데 위로 21px까지뿐).
+                  그렇다고 px를 박으면 사용자의 글자 배율을 안 따라간다(`--fs-scale` 규약).
+                  그래서 **토큰 × 2 × 배율**을 calc로 준다 — 정확히 2배이면서 배율도 탄다.
+                ⚠ `h-form-6` 고정 높이는 뺐다 — 글자가 2배가 되면 그 높이에 갇혀 잘린다.
+                  padding으로 높이가 내용을 따라오게 한다. */}
             <button type="button" onClick={toggleSpecsWide} data-testid="specs-wide-toggle" aria-pressed={specsWide}
               title={specsWide ? '기본 폭으로 — 뒤 본문이 보입니다' : '넓게 — 표가 빽빽할 때. 선택은 이 브라우저에 기억됩니다'}
-              className="ml-auto shrink-0 inline-flex items-center gap-1 h-form-6 px-2 rounded-lg border border-brand-line text-form-2xs font-medium text-ink-sub hover:bg-brand-tint transition-colors">
-              {specsWide ? <Minimize2 className="size-3" /> : <Maximize2 className="size-3" />}
+              className="ml-auto shrink-0 inline-flex items-center gap-1.5 px-3 py-1 rounded-lg border-2 border-brand-line text-[calc(var(--fs-2)*2*var(--fs-scale))] font-bold text-ink hover:bg-brand-tint transition-colors">
+              {specsWide ? <Minimize2 className="size-6" strokeWidth={3} /> : <Maximize2 className="size-6" strokeWidth={3} />}
               {specsWide ? '기본 폭' : '넓게'}
             </button>
-            <button onClick={closeSpecs} data-testid="specs-close" className="shrink-0 text-ink-meta hover:text-ink-sub" aria-label="닫기">
-              <X className="size-4" />
+            <button onClick={closeSpecs} data-testid="specs-close" className="shrink-0 text-ink hover:text-brand transition-colors" aria-label="닫기">
+              <X className="size-8" strokeWidth={3} />
             </button>
           </div>
           <div className="flex-1 overflow-y-auto p-4">

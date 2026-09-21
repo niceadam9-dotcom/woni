@@ -1204,8 +1204,12 @@ export default async function CustomerDetailPage({
       <RecordRecentCustomer userId={profile.id} customerId={customer.id} customerName={customer.customer_name} />
       {/* 뒤로가기 + 헤더 */}
       <div className="flex items-center gap-3 max-w-3xl xl:max-w-none">
-        <Link href="/customers" className="text-ink-sub hover:text-brand transition-colors">
-          <ChevronLeft className="size-5" />
+        {/* 목록으로 — 2026-09-21 사용자 요청으로 **2배 크게·굵게**(size-5 20px → size-10 40px,
+            기본 굵기 2 → 3). 고객 사이를 오가며 제일 자주 누르는 자리인데 20px 실선 하나라
+            제목 옆에서 눈에 띄지 않았다. 색도 한 단계 진하게(ink-sub → ink). */}
+        <Link href="/customers" aria-label="고객 목록으로"
+          className="shrink-0 text-ink hover:text-brand transition-colors">
+          <ChevronLeft className="size-10" strokeWidth={3} />
         </Link>
         <div className="flex-1 flex items-center gap-3">
           <h1 className="text-form-xl-title font-bold text-ink">{customer.customer_name}</h1>
