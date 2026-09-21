@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { ChevronDown, ChevronRight, Eye, PlayCircle, FileSpreadsheet, Loader2 } from 'lucide-react'
 import type { CustomerRound } from '@/app/(dashboard)/reports/docs-actions'
 import type { ComposeAnnexNo } from '@/components/inspections/annex-compose-panel'
@@ -11,6 +11,7 @@ import { inspectionNatureBadge } from '@/lib/inspection-nature'
 import { roundPill, type RoundPillKind } from '@/lib/annex-round-state'
 import { hasSheetDefect } from '@/lib/inspection-step-status'
 import { openAnnexPdf } from '@/lib/annex-filename'
+import { takePendingDoc, writePendingDoc, type PendingDocKind } from '@/lib/pending-doc-intent'
 import type { InspectionType, PlanType } from '@/types'
 import type { PreviewDoc } from '@/components/customers/plan-annex-full-preview'
 
@@ -112,16 +113,26 @@ export function PlanAnnexRoundCard({
    *    트리가 클라이언트에서 조회해 올려 줬고, 트리 로드 전 구간에는 가드가 조용히 통과했다.
    *  ⚠ 조회 실패(sheetBlanksUnknown)는 0으로 떨어뜨리지 않는다 — 0은 '미입력 없음'과 구별되지
    *    않아 그대로 가드 통과가 된다. 수를 모를 때는 **수를 말하지 않고 확인만** 받는다.
-   *  이동은 전체 이동(location.assign) — 같은 경로 ?tab= Link가 서버를 안 깨우는 함정과 무관하게 확실한 축. */
-  function blanksGuardThenGo(inspectionId: string): boolean {
+   *  이동은 전체 이동(location.assign) — 같은 경로 ?tab= Link가 서버를 안 깨우는 함정과 무관하게 확실한 축.
+   *
+   *  ⚠ **`kind`를 받는 이유**(2026-09-21 사용자 요청): 이동하는 순간 「무엇을 하려다 왔는지」가
+   *    사라져, 입력을 마치고 돌아와도 같은 버튼을 다시 눌러야 했다. 이동 직전에 그 의도를
+   *    쪽지로 적어 두면(`writePendingDoc`) 돌아온 카드가 소비해 **이어서 발행**한다.
+   *    쪽지는 `location.assign` **앞**에서 적어야 한다 — 뒤에 두면 실행되지 않는다. */
+  function blanksGuardThenGo(inspectionId: string, kind: PendingDocKind): boolean {
+    /** 가드가 보낸 이동 — 의도를 쪽지로 넘기고 떠난다 */
+    function goToSheet(): false {
+      writePendingDoc(inspectionId, kind, Date.now())
+      window.location.assign(`/inspections/${inspectionId}/sheet${entryFrom ? `?from=${encodeURIComponent(entryFrom)}` : ''}`)
+      return false
+    }
     if (blanksUnknown) {
       const goAnyway = window.confirm(
         '점검표 미입력 여부를 확인하지 못했습니다(진행률 조회 실패).\n'
         + '미입력 설비가 있으면 점검결과가 기본 ○(양호)로 인쇄됩니다.\n\n'
-        + '[확인] 점검표 입력 화면으로 이동\n[취소] 그대로 발행')
+        + '[확인] 점검표 입력 화면으로 이동 (입력을 마치고 돌아오면 이어서 발행됩니다)\n[취소] 그대로 발행')
       if (!goAnyway) return true
-      window.location.assign(`/inspections/${inspectionId}/sheet${entryFrom ? `?from=${encodeURIComponent(entryFrom)}` : ''}`)
-      return false
+      return goToSheet()
     }
     if (sheetBlanks <= 0 && reqBlanks.items <= 0) return true
     // 39 §0·S2-3/4 — 두 층을 함께 말한다: 설비 단위(응답 0 → 요약칸 기본 ○)와 항목 단위(필수 미입력
@@ -133,10 +144,9 @@ export function PlanAnnexRoundCard({
     const go = window.confirm(
       `${lines.join('\n')}\n\n`
       + `점검표를 입력하거나, 실제 설치되지 않은 설비라면 1.4 설비 대장에서 체크를 해제하세요.\n\n`
-      + `[확인] 점검표 입력 화면으로 이동\n[취소] 그대로 발행`)
+      + `[확인] 점검표 입력 화면으로 이동 (입력을 마치고 돌아오면 이어서 발행됩니다)\n[취소] 그대로 발행`)
     if (!go) return true
-    window.location.assign(`/inspections/${inspectionId}/sheet${entryFrom ? `?from=${encodeURIComponent(entryFrom)}` : ''}`)
-    return false
+    return goToSheet()
   }
 
   /** 엑셀(갑지 워크북) 즉석 생성 — 저장하지 않으므로 받는 순간이 곧 생성이다.
@@ -145,9 +155,14 @@ export function PlanAnnexRoundCard({
    *  (권한 없음·템플릿 없음·앵커 불일치·주입 값 누락). 통째로 이동시키면 사용자는 회차 목록을 잃고
    *  날 JSON을 보게 된다. 받아서 성공일 때만 내려받고, 실패는 서버 문장 그대로 보여준다
    *  (print-pdf-client.tsx:18과 같은 규약 — 서버가 담아 보낸 안내를 버리지 않는다).
-   *  성공 응답의 `X-Workbook-Missing`은 조립 함수가 알린 공란 목록이다(S4-5). */
-  async function downloadWorkbook(inspectionId: string) {
-    if (!blanksGuardThenGo(inspectionId)) return   // 미입력 가드 — 확인 시 입력 화면으로 이동
+   *  성공 응답의 `X-Workbook-Missing`은 조립 함수가 알린 공란 목록이다(S4-5).
+   *
+   *  ⚠ `skipGuard`는 **가드가 보낸 사용자가 돌아온 경로** 전용이다(2026-09-21). 가드를 다시 걸면
+   *    미입력을 다 채우지 않고 돌아온 사람에게 같은 팝업이 또 떠서 [확인]→이동→복귀→팝업의
+   *    **왕복이 생긴다**. 한 번 안내했으면 족하고, 남은 미입력은 받은 직후 서버 고지
+   *    (`X-Workbook-Missing`)가 다시 말한다 — 조용히 넘어가는 게 아니다. */
+  async function downloadWorkbook(inspectionId: string, opts?: { skipGuard?: boolean }) {
+    if (!opts?.skipGuard && !blanksGuardThenGo(inspectionId, 'xlsx')) return   // 미입력 가드
     setXlsx({ busy: true, msg: '', ok: true })
     try {
       const res = await fetch(`/inspections/${inspectionId}/workbook`)
@@ -172,6 +187,31 @@ export function PlanAnnexRoundCard({
     }
   }
 
+  /** 가드가 보낸 사용자가 점검표를 마치고 돌아왔다 — 남긴 쪽지를 소비해 **이어서 발행**한다.
+   *
+   *  ⚠ **엑셀만 자동 실행한다.** [전체 인쇄]는 `window.open`이라 사용자 제스처 없이는 브라우저가
+   *    **반드시** 팝업으로 막는다 — 자동 실행하는 척하고 조용히 아무 일도 안 일어나는 것보다
+   *    [전체 인쇄 계속] 버튼을 내주는 쪽이 정직하다.
+   *  ⚠ 엑셀의 `a.click()`도 제스처 없는 내려받기라 **막힐 수 있다**(단일 파일이라 대개 통과하지만
+   *    보장은 아니다). 그래서 자동 실행과 **동시에** 배너를 띄운다 — [지금 받기] 한 번이
+   *    어떤 경우에도 통하는 보장 경로로 남는다. 배너 없이 자동 실행만 두면, 막혔을 때 사용자는
+   *    아무 일도 안 일어난 화면을 보게 된다.
+   *  ⚠ `resumeRef`로 카드 수명당 한 번만 — 리렌더마다 쪽지를 다시 집으려 들면 안 된다(쪽지는
+   *    이미 소비돼 없지만, 의도가 「한 번」임을 코드가 말해야 한다). */
+  const [resumed, setResumed] = useState<PendingDocKind | null>(null)
+  const resumeRef = useRef(false)
+  useEffect(() => {
+    if (resumeRef.current) return
+    const id = r.docs?.inspectionId
+    if (!id) return   // 미시작 회차 — 아직 발행할 것이 없다(쪽지도 소비하지 않는다)
+    resumeRef.current = true
+    const kind = takePendingDoc(id, Date.now())
+    if (!kind) return
+    setResumed(kind)
+    if (kind === 'xlsx') void downloadWorkbook(id, { skipGuard: true })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [r.docs?.inspectionId])
+
   return (
     <div className={`rounded-xl border ${isOpen ? 'border-brand-line' : 'border-brand-line-soft'} ${done ? 'bg-paper' : 'bg-surface'}`}>
       {/* 회차 헤더 — S3: 펼침만으로 미리보기를 렌더하지 않는다([보기]·[전체 미리보기]에서 로드) */}
@@ -193,8 +233,8 @@ export function PlanAnnexRoundCard({
         {r.docs && isOpen && hasBundlePdf(r.docs) && (
           <span role="button" tabIndex={0}
             title="이 회차의 생성된 별지 PDF를 한 번에 인쇄 — 종이 보관용 (소방계획서_18 S1)"
-            onClick={e => { e.stopPropagation(); if (blanksGuardThenGo(r.docs!.inspectionId)) window.open(`/inspections/${r.docs!.inspectionId}/print-bundle`, '_blank') }}
-            onKeyDown={e => { if (e.key === 'Enter') { e.stopPropagation(); if (blanksGuardThenGo(r.docs!.inspectionId)) window.open(`/inspections/${r.docs!.inspectionId}/print-bundle`, '_blank') } }}
+            onClick={e => { e.stopPropagation(); if (blanksGuardThenGo(r.docs!.inspectionId, 'bundle')) window.open(`/inspections/${r.docs!.inspectionId}/print-bundle`, '_blank') }}
+            onKeyDown={e => { if (e.key === 'Enter') { e.stopPropagation(); if (blanksGuardThenGo(r.docs!.inspectionId, 'bundle')) window.open(`/inspections/${r.docs!.inspectionId}/print-bundle`, '_blank') } }}
             className={chipCls}>
             🖨 전체 인쇄
           </span>
@@ -233,6 +273,34 @@ export function PlanAnnexRoundCard({
 
       {isOpen && (
         <div className="px-4 pb-3">
+          {/* 복귀 배너 — 가드가 보낸 사용자가 돌아왔음을 알리고, 자동 실행이 막혔을 때의 **보장 경로**를 준다.
+              엑셀 고지(round-workbook-msg)보다 위에 둔다: 「왜 갑자기 파일이 받아졌는지」를 먼저 말해야
+              그 아래 고지가 읽힌다. 닫기를 두는 이유는 이 안내가 일회성이기 때문이다. */}
+          {resumed && (
+            <div className="mb-1 flex items-center gap-2 rounded-lg bg-amber-50 px-2 py-1 text-form-xs text-amber-800"
+              data-testid="round-resume-banner">
+              <span>
+                점검표 입력을 마치고 돌아오셨습니다 —{' '}
+                {resumed === 'xlsx' ? '엑셀을 발행했습니다. 안 받아졌으면' : '이어서 인쇄하시려면'}
+              </span>
+              {resumed === 'xlsx' ? (
+                <button onClick={() => { if (!xlsx.busy) void downloadWorkbook(r.docs!.inspectionId, { skipGuard: true }) }}
+                  disabled={xlsx.busy}
+                  className="inline-flex items-center gap-1 h-6 px-2 rounded border border-amber-300 font-medium hover:bg-amber-100 disabled:opacity-50"
+                  data-testid="round-resume-xlsx">
+                  {xlsx.busy ? <Loader2 className="size-3 animate-spin" /> : <FileSpreadsheet className="size-3" />} 지금 받기
+                </button>
+              ) : (
+                <button onClick={() => window.open(`/inspections/${r.docs!.inspectionId}/print-bundle`, '_blank')}
+                  className="inline-flex items-center gap-1 h-6 px-2 rounded border border-amber-300 font-medium hover:bg-amber-100"
+                  data-testid="round-resume-bundle">
+                  🖨 전체 인쇄 계속
+                </button>
+              )}
+              <button onClick={() => setResumed(null)} title="닫기"
+                className="ml-auto rounded px-1 text-amber-500 hover:bg-amber-100">✕</button>
+            </div>
+          )}
           {/* 엑셀 내려받기 결과 — 헤더는 <button>이라 그 안에 안내를 키울 수 없어 본문 머리에 둔다 */}
           {xlsx.msg && (
             <p className={`mb-1 rounded-lg px-2 py-1 text-form-xs ${xlsx.ok ? 'bg-brand-tint text-ink-sub' : 'bg-red-50 text-red-600'}`}

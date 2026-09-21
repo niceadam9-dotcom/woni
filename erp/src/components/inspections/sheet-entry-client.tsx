@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from
 import Link from 'next/link'
 import { ArrowLeft, Loader2, RefreshCw } from 'lucide-react'
 import { SheetItemEditor, type SheetItem } from '@/components/inspections/sheet-item-editor'
+import { WorkbookXlsxButton } from '@/components/inspections/workbook-xlsx-button'
 import { useSheetAutosave } from '@/hooks/use-sheet-autosave'
 import { useSheetResponsesRealtime } from '@/hooks/use-sheet-responses-realtime'
 import {
@@ -458,7 +459,20 @@ export function SheetEntryClient({
             )}
           </p>
         </div>
-        <div className="ml-auto flex items-center gap-2" data-testid="sheet-entry-autosave" data-status={autosave.status}>{saveChip}</div>
+        {/* 2026-09-21 — 여기서 바로 [보고서 엑셀]을 받는다. 회차 탭의 발행 가드가 사용자를 여기로
+            보내므로, 입력을 마친 사람의 다음 용무는 대개 **그 엑셀**이다. 돌아가서 다시 누르게 하는
+            대신 여기서 받게 하면 왕복 자체가 사라지고, 사용자 제스처가 있어 내려받기가 안 막힌다.
+            ⚠ **글씨를 여기서 갈지 않는다.** 처음엔 「입력 마치고 엑셀 받기」로 두려 했는데, 그건
+              같은 문서에 두 번째 이름을 만드는 짓이다(WORKBOOK_LABEL 규약 · test-workbook-label).
+              「지금 받을 수 있다」는 **자리**가 말한다 — 점검표 화면 머리, 자동저장 칩 옆.
+            ⚠ canEdit으로 가리지 않는다 — 보기 전용 사용자도 문서는 받는다. 권한은 page.tsx가
+              라우트 진입에서 이미 inspection_register로 막았고, 워크북 라우트와 **같은 축**이다.
+            ⚠ 새 버튼을 만들지 않고 WorkbookXlsxButton을 쓴다 — X-Workbook-Missing 고지를 흘리지
+              않는 받기 경로(fetch+Blob)는 한 벌이어야 한다(그 파일 머리 주석의 규약). */}
+        <div className="ml-auto flex items-center gap-2">
+          <WorkbookXlsxButton inspectionId={inspectionId} variant="compact" />
+          <div className="flex items-center gap-2" data-testid="sheet-entry-autosave" data-status={autosave.status}>{saveChip}</div>
+        </div>
       </div>
 
       {canEdit && (
