@@ -310,22 +310,35 @@ export function InspectionWorkbench({
    *  보이므로 아예 내리고, 위 ⑤ 배너의 [① 점검표에서 불량 등록하기]가 유일한 출구가 되게 한다. */
   const force5Blocked = (k: StepKey) => xUnregistered && STEP_NUM[k] === 5
 
+  /** 연·월·일에서 `MM-DD`만 — 연도는 헤더(「2026년 1차」)가 이미 말한다. 스텝바는 6칸이 가로로
+   *  늘어서는 자리라 네 글자를 아끼는 것이 곧 줄바꿈을 막는 일이다. */
+  const mmdd = (iso: string | null | undefined) => (iso ?? '').slice(5, 10)
+
+  /** 스텝바 둘째 줄 — **마감 날짜와 D-day를 함께** 말한다 (2026-09-21 A-1).
+   *
+   *  🚨 종전에는 `D-16`처럼 **상대값만** 보여줘서 「며칠까지냐」를 사람이 암산해야 했다. 정작
+   *  같은 정보를 점검달력 패널은 `마감: 2026-10-07`처럼 **절대 날짜로만** 보여주고 있었다 —
+   *  두 화면이 같은 값을 반쪽씩 쥔 꼴이라, 서로 다른 날짜를 말해도 비교가 불가능했다.
+   *
+   *  🚨 마감의 원천은 이제 `inspection_steps.due_date` 하나다(달력 축 — page.tsx 주석 참조).
+   *  종전에는 ④⑥만 `data.submit9/11.due`(법정 산식)를 **우선**해 달력과 갈라졌다. 그 우선을
+   *  걷어냈으므로 여기서도 `st.due_date`를 그대로 읽는다 — `legal`은 제출 **기록**에만 쓴다. */
   const ddayText = (k: StepKey) => {
     const st = stepOf(k)
     // F-14: completed_at은 UTC라 split('T')[0]이면 00:00~09:00 KST에 완료한 단계가 어제로 보인다
-    if (st?.status === 'completed') return { text: `완료 ${kstDate(st.completed_at)}`, cls: 'text-green-600' }
-    // ④⑥ 기한은 법정 규칙(9호 = 점검 종료일+15일 / 11호 = 이행기간 종료)이 원천이고
-    // inspection_steps.due_date는 그 사본이라 어긋날 수 있다 — 지켜야 하는 날짜를 보여준다
-    const legal = k === 'submit9' ? data.submit9 : k === 'submit11' ? data.submit11 : null
+    if (st?.status === 'completed') return { text: `완료 ${mmdd(kstDate(st.completed_at))}`, cls: 'text-green-600' }
     const legalAt = k === 'submit9' ? submit9At : k === 'submit11' ? submit11At : null
-    if (legalAt) return { text: `제출 ${legalAt}`, cls: 'text-green-600' }
-    const due = legal?.due ?? st?.due_date ?? null
+    if (legalAt) return { text: `제출 ${mmdd(legalAt)}`, cls: 'text-green-600' }
+    const due = st?.due_date ?? null
     if (!due) return null
     const d = Math.round((new Date(due).getTime() - new Date(today).getTime()) / 86400000)
-    if (d < 0) return { text: `초과 ${-d}일 ⚠`, cls: 'text-red-600 font-semibold' }
+    if (d < 0) return { text: `마감 ${mmdd(due)} · 초과 ${-d}일 ⚠`, cls: 'text-red-600 font-semibold' }
     // S7-1 4차 — D-day는 '언제까지'를 말하는 값이다. 여유가 있을 때(8일 이상)만 이 가지로 오는데,
     // 그 경우에도 읽혀야 한다(빨강·앰버 가지는 이미 대비가 충분하다)
-    return { text: `D-${d}`, cls: d <= 3 ? 'text-red-600 font-semibold' : d <= 7 ? 'text-amber-600 font-semibold' : 'text-ink-meta' }
+    return {
+      text: `마감 ${mmdd(due)} · D-${d}`,
+      cls: d <= 3 ? 'text-red-600 font-semibold' : d <= 7 ? 'text-amber-600 font-semibold' : 'text-ink-meta',
+    }
   }
 
   /** S3-1 — router.refresh()를 **트랜지션 밖으로** 뺀다(제거가 아니라 이동).
@@ -571,7 +584,7 @@ export function InspectionWorkbench({
   /* 🚨 칸 수가 단계마다 다르다 — ④는 2칸(2026-09-11 사용자 A안), 나머지는 3칸.
        종전 「제출 전제」 칸은 서버가 보내는 detail·href를 **쓰지도 않고** 라벨 네 줄만 그렸는데
        폭은 셋 중 둘째로 넓었다(가장 적게 말하는 칸이 가장 넓었다). 전제는 둘째 칸 머리로 접고,
-       기산·기한과 [종료일 고치기]는 의미가 같은 자리인 「소방서 제출일」 옆으로 옮겼다.
+       기한·점검기간과 [기간 고치기]는 의미가 같은 자리인 「소방서 제출일」 옆으로 옮겼다.
      ⚠ 조정치 배열의 길이는 이 칸 수와 같아야 한다 — 저장값도 칸 수별로 따로 보관한다. */
   const stepKind: PaneKind = sel === 'submit9' ? 'duo'
     : sel === 'checklist' ? 'entry'
@@ -984,7 +997,7 @@ export function InspectionWorkbench({
               {/* 22 S13(Q-13) — 원클릭 번들: stale 자동 판정 + 병렬 생성 + 공란 사전 리포트 + 구성요소 체크리스트 */}
               {canManage && <BundleGeneratePanel inspectionId={inspectionId} disabled={isPending || busy || regenBlocked} />}
               {/* 제출일 ↔ 기한 — 2026-09-11 사용자 A안으로 **한 자리에 모았다**. 종전엔 제출일은
-                  이 칸, 기산 근거와 [종료일 고치기]는 첫째 칸이라 「언제까지인가」와 「왜 그 날짜인가」가
+                  이 칸, 기산 근거와 [기간 고치기]는 첫째 칸이라 「언제까지인가」와 「왜 그 날짜인가」가
                   화면 양끝에 흩어져 있었다. 의미가 같은 값은 같은 자리에 둔다. */}
               <div className="space-y-1 border-t border-brand-line-soft pt-2">
                 <div className="flex items-center gap-1.5 flex-wrap">
@@ -1008,25 +1021,28 @@ export function InspectionWorkbench({
                        ⚠ 아래 기산 줄이 같은 날짜를 근거까지 붙여 말하므로, 그 줄이 없을 때만 띄운다 —
                          나란히 두 번 말하면 어느 쪽이 정본인지 흐려진다. */
                     : !hasAnchorRow && data.submit9.due && (
-                      <span className="text-form-2xs text-ink-meta">기한 {data.submit9.due} (점검 종료일 +15일)</span>
+                      <span className="text-form-2xs text-ink-meta">기한 {data.submit9.due} (확정일 +15영업일)</span>
                     )}
                 </div>
-                {/* R5-8 기산 근거 — '기한이 왜 이 날짜인지'를 여기서 보고 여기서 고친다.
-                    종료일이 없으면 시작일이 기산일이다(page.tsx due9 규칙과 동일).
-                    🚨 [종료일 고치기]는 **살아 있는 화면에서 유일한 입구**다(timeline-client는 렌더되지
-                      않는 죽은 UI). 이 버튼을 지우면 기한 자체를 고칠 방법이 사라지고, 기한이 틀리면
-                      법정 15일 판정이 통째로 어긋난다 — 칸을 없앨 때 반드시 함께 옮겨야 하는 이유다. */}
+                {/* 🚨 2026-09-21 — 기산 줄의 **뜻이 바뀌었다**. 종전에는 「종료일 + 15일 = 기한」이라
+                    적었는데, 마감일 정본이 달력 축(확정일 기준 영업일 산식)으로 통일되면서 그 문장이
+                    거짓이 됐다. 기한은 이제 점검 기간에서 파생되지 않는다 — 그래서 산식을 그대로
+                    말하고, 점검 기간은 **따로** 보여준다(여전히 고칠 수 있어야 하는 값이라 남긴다).
+                    ⚠ [기간 고치기]는 살아 있는 화면에서 점검 기간을 고치는 **유일한 입구**다
+                      (timeline-client는 렌더되지 않는 죽은 UI). 지우지 말 것 — 다만 이제 이 버튼은
+                      기한을 움직이지 않는다. 기한을 옮기려면 점검일(확정일)을 옮겨야 한다. */}
                 {hasAnchorRow && (
                   <div className="flex flex-wrap items-center gap-1.5 text-form-2xs text-ink-meta">
                     <span>
-                      기산: {data.period!.end
-                        ? <>종료일 <b className="text-ink-sub">{data.period!.end}</b></>
-                        : <>시작일 <b className="text-ink-sub">{data.period!.start}</b> <span className="text-amber-600">(종료일 미지정 — 다일 점검이면 종료일을 넣어야 기한이 맞습니다)</span></>
-                      } + 15일 = 기한 <b className="text-ink-sub">{data.submit9.due ?? '—'}</b>
+                      기한 <b className="text-ink-sub">{data.submit9.due ?? '—'}</b> (확정일 +15영업일) · 점검기간{' '}
+                      {data.period!.end
+                        ? <b className="text-ink-sub">{data.period!.start} ~ {data.period!.end}</b>
+                        : <><b className="text-ink-sub">{data.period!.start}</b> <span className="text-amber-600">(종료일 미지정 — 다일 점검이면 종료일을 넣어주세요)</span></>
+                      }
                     </span>
                     {canManage && !anchorEdit && (
                       <button onClick={() => { setAnchorEnd(data.period?.end ?? ''); setAnchorEdit(true) }}
-                        className="underline hover:text-brand">종료일 고치기</button>
+                        className="underline hover:text-brand">기간 고치기</button>
                     )}
                     {canManage && anchorEdit && (
                       <span className="inline-flex items-center gap-1">

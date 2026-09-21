@@ -14,6 +14,7 @@ import { facilitiesForSheet, foldSheetGroupStats, type SheetGroupStat } from '@/
 import { sheetItemGroupRef } from '@/lib/sheet-scope'
 import { getLatestSpecialInspection } from '@/lib/latest-inspection'
 import { combinedRangeError } from '@/lib/date-range'
+import { recalcStepDatesForInspection } from '@/lib/plan-step-dates'
 import { assembleOfficial } from '@/lib/annex-cover-official'
 import { loadAnnexInputs, fstr } from '@/lib/report9-assemble'
 import {
@@ -425,5 +426,18 @@ export async function saveAnnexInputsAction(
       { onConflict: 'inspection_id,annex_no' },
     )
   if (error) return { error: `별지 입력값 저장 실패: ${error.message}` }
+
+  /* 🚨 2026-09-21 — 총 이행기간(10·20일)을 고치면 ⑤⑥ 마감일을 **다시 계산한다**.
+   *
+   *  그전에는 이 경로가 아예 없었다. ⑤ 마감은 `computeStepDates`가 「④ + 9일」로 10일을
+   *  하드코딩해 만든 값이라, 사용자가 20일(철거·교체)을 골라도 저장만 되고 마감일은 10일
+   *  기준으로 남았다 — ⑥은 ⑤+10영업일이라 **함께 열흘 당겨졌다**(실측 20일 1건 전부 어긋남).
+   *  `recalcStepDueDates`는 **점검 종료일**만 기준으로 돌아서 이 변경을 볼 수 없다.
+   *  ⚠ 실패해도 저장은 되돌리지 않는다 — 입력값은 이미 사용자 것이고, 마감일은 파생이다.
+   *    대신 조용히 넘기지 않고 로그를 남긴다(다음 확정·시작 때 같은 산식으로 다시 맞춰진다). */
+  if (annexNo === 'report10' && 'totalDays' in fields) {
+    const { error: dueErr } = await recalcStepDatesForInspection(admin, inspectionId)
+    if (dueErr) console.error(`[별지10호] 총 이행기간 변경 후 ⑤⑥ 마감 재계산 실패 insp=${inspectionId}:`, dueErr)
+  }
   return {}
 }

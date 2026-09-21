@@ -88,15 +88,24 @@ try {
     await page.locator('div[title="클릭 또는 파일을 이 칸에 끌어다 놓으세요"]').count() === 0)
   await go('ownerReport', '수신 정보')
   check('③ 전환 — 수신 정보 칸', true)
-  await go('submit9', '제출 전제')
-  check('④ 전환 — 제출 전제 칸', true)
+  // 🚨 2026-09-21 갈아끼움 — 종전 마커 '제출 전제'는 **2026-09-11에 폐지된 칸**이다(228739aa).
+  //   이 검사가 test-all에 미등재라 아무도 돌리지 않았고, 그래서 열흘 넘게 썩은 채 남아 있었다
+  //   (「등재하지 않으면 아무도 안 돌린다」 — 드로어 2종의 전례). 이번에 함께 등재했다.
+  //   새 마커는 ④ **칸 제목**이다 — 폐지될 수 있는 하위 칸이 아니라 칸 자체라 더 오래 산다.
+  await go('submit9', '별지 9·10호 생성·제출')
+  check('④ 전환 — 생성·제출 칸', true)
   const inlineOk = await page.waitForSelector('[data-annex-fields="report9"]', { timeout: 60000 })
     .then(() => true).catch(() => false)
   check('④ 고유값 인라인(R6-6) — 슬라이드 패널 아님', inlineOk)
   check('④ 3단 작성 패널 미사용', (await page.locator('[data-annex-panel]').count()) === 0)
-  // R5-8 기산 근거 — 기한을 보는 자리에서 왜 그 날짜인지 보이고 거기서 고칠 수 있어야 한다
-  check('④ 기산 근거 표시(R5-8)', await page.isVisible('text=/기산: 종료일/'))
-  check('④ 기산일 인라인 수정 진입점', await page.isVisible('button:has-text("종료일 고치기")'))
+  /* R5-8 기산 근거 — 기한을 보는 자리에서 왜 그 날짜인지 보이고 거기서 고칠 수 있어야 한다.
+     🚨 2026-09-21 마감 축 통일로 **문장의 뜻이 바뀌었다**: 기한은 더 이상 점검 종료일에서
+        파생되지 않는다(달력과 같은 확정일 기준 영업일 산식). 그래서 종전 단언
+        「기산: 종료일 …」·[종료일 고치기]를 **지우지 않고 갈아끼운다** — 같은 계약(근거가 보이고
+        거기서 고칠 수 있다)을 지금의 문구로 다시 묻는다. */
+  check('④ 기한을 확정일 기준으로 말한다(R5-8 갱신)', await page.isVisible('text=/확정일 \\+15영업일/'))
+  check('④ 점검기간을 함께 보여준다', await page.isVisible('text=/점검기간/'))
+  check('④ 점검기간 인라인 수정 진입점', await page.isVisible('button:has-text("기간 고치기")'))
   const over4 = await mainOverflow(page)
   check('④에서도 페이지 스크롤 0', over4 <= 1, `main 넘침 ${over4}px`)
 
@@ -127,12 +136,22 @@ try {
   check('(음성) ⑤ 행에 날짜 입력칸이 없다',
     (await page.locator(`[data-defect-row="${defectId}"] input[placeholder="YYYY-MM-DD"]`).count()) === 0)
 
-  // 미리보기는 디바운스 후 다시 그려진다 — 내용에 방금 넣은 계획이 실려야 한다
-  const previewHasPlan = await page.waitForFunction(`(() => {
+  /* 🚨 2026-09-21 계약 반전 — 종전 단언은 「미리보기 내용에 방금 넣은 계획('밸브 교체')이 실린다」였다.
+     그 계약은 `384bf7c`(별지10호 사항=**결과참조**)에서 뒤집혔다: 10호 「사항」 칸은 이제 자동 문구
+     (결과참조/이상없음/해당없음)만 찍고 `action_plan` 원문을 인쇄하지 않는다 — `report1011.ts`에
+     그 필드가 아예 없다. 그래서 이 단언은 **변경 전 트리에서도 빨갛다**(대조군 실측 — 이 차수가
+     깬 것이 아니다). 미등재 검사라 아무도 돌리지 않아 그대로 썩어 있었다.
+     지우지 않고 **반대 방향으로 갈아끼운다**: 살아남은 계약은 「미리보기가 그려진다」와
+     「이행계획 원문은 문서로 새지 않는다」 둘이다. */
+  const previewBody = await page.waitForFunction(`(() => {
     const f = document.querySelector('iframe[title="별지 10호 미리보기"]')
-    return !!f && (f.getAttribute('srcdoc') || '').includes('밸브 교체')
-  })()`, undefined, { timeout: 60000 }).then(() => true).catch(() => false)
-  check('⑤ 10호 미리보기 갱신(R6-4)', previewHasPlan)
+    const s = f && f.getAttribute('srcdoc')
+    return s && s.length > 200 ? s : false
+  })()`, undefined, { timeout: 60000 }).then(h => h.jsonValue() as Promise<string>).catch(() => '')
+  check('⑤ 10호 미리보기가 그려진다(R6-4)', previewBody.length > 200, `${previewBody.length}자`)
+  check('🚨 ⑤ 이행계획 원문은 10호에 인쇄되지 않는다(384bf7c 사항=결과참조)',
+    !previewBody.includes('밸브 교체'),
+    previewBody.slice(0, 200).replace(/\s+/g, ' '))
 
   const { data: filesAfter } = await raw.storage.from('fire-plans').list(`${custA}/inspections/${inspA}`)
   check('미리보기는 파일을 만들지 않는다(Gotenberg 미호출)', (filesAfter ?? []).length === beforeCount,

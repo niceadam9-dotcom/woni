@@ -82,14 +82,18 @@ export type TimelineData = {
   /** S9-1(149) — 점검표 입력 규약. null=미상(149 도입 전 생성) → 응답 있으면 재생성 차단 */
   sheetProtocol?: 'legacy_na' | 'blank_unanswered' | null
   submit11: { due: string | null; dday: number | null; submittedAt: string | null }
-  /** ⑤ 보수·증빙의 실질 마감 = **이행기간 종료일**(2026-09-10).
+  /** ⑤ 보수·증빙.
    *
-   *  ④⑥은 이미 법정 산식(`lib/annex-due`)을 원천으로 쓰는데 ⑤만 `inspection_steps.due_date`로
-   *  떨어져 있었다 — 그 값은 트리거가 만든 **사본**이라 공휴일 표가 교정되기 전 값으로 굳은 건이
-   *  실측 19/26건 있다. 정작 ⑤가 지켜야 하는 날짜(이행기간 종료일)는 `repairEndISO()`가
-   *  page.tsx에서 **이미 계산하고 있었고**, ⑥ 기한을 내는 데만 쓰고 화면엔 안 내려줬다.
-   *  ⚠ 비어 있을 수 있다: 이행기간도 없고 불량별 종료일도 없으면 `null`(= 아직 기한이 없다). */
-  repair?: { due: string | null }
+   *  🚨 2026-09-21 사용자 확정으로 축이 뒤집혔다. 종전 주석은 「⑤만 `inspection_steps.due_date`라는
+   *  **사본**으로 떨어져 있었다」였는데, 그 칸이 **정본**이 됐다 — 달력이 보는 바로 그 값이고,
+   *  운영 하늘촌 2026-1의 6단계가 그 산식과 정확히 일치한다(사용자: 「달력이 로직이 맞다」).
+   *  `due`는 이제 ①~⑥ 전부 같은 칸에서 온다.
+   *
+   *  `periodEnd`는 **기산 근거**다(이행기간 종료일 = `repairEndISO`). 마감과 근거는 다른 값이라
+   *  따로 싣는다 — 하나로 뭉치면 「마감이 왜 이 날짜인지」를 화면이 말할 수 없고, 그 혼동이
+   *  이번 결함(④⑥이 다른 산식을 쓰던 것)의 뿌리였다.
+   *  ⚠ 둘 다 비어 있을 수 있다: 마감은 단계 행이 없을 때, 근거는 이행기간·불량 종료일이 모두 없을 때. */
+  repair?: { due: string | null; periodEnd?: string | null }
   defects: { total: number; planned: number; done: number; photoPairs: number }
   consentOk: boolean                    // ③ 송달 동의+이메일 보유
   // §4-E H-28: 여정 스텝퍼 통합 — inspection_steps 마감·완료 흡수, ⑤ 전/후 갤러리, 제출 보고서 파일

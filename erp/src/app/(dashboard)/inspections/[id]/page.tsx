@@ -405,15 +405,29 @@ export default async function InspectionDetailPage({
     const holidaySet = new Set((holidayRes.data ?? []).map(h => String((h as { date: string }).date).slice(0, 10)))
     const ddayOf = (due: string | null) => due
       ? Math.round((new Date(due).getTime() - new Date(today).getTime()) / 86400000) : null
-    // 산식은 `lib/annex-due`가 단일 원천이다 — 화면에 적으면 검사가 닿지 않아 조용히 낡는다
-    const due9 = report9DueISO(endDate, holidaySet)
+    /* 🚨 2026-09-21 사용자 확정 — **마감일의 정본은 `inspection_steps.due_date` 하나다**(달력 축).
+     *
+     *  그전에는 ④⑥만 `lib/annex-due`의 법정 산식(9호=점검 **종료일**+15영업일 / 11호=보수완료일
+     *  +10영업일)을 **우선**했고 ⑤는 이행기간 종료일을 썼다. 달력은 `inspection_steps.due_date`
+     *  (확정일 기준 영업일 산식)만 본다 — **기산점이 아예 달라서** 같은 회차를 두 화면이 다른
+     *  날짜로 말하고 있었다(실측 스테이징: ④ 33건 중 5건 불일치, ⑥ 2건 중 2건, 최대 23일 차이).
+     *  한쪽은 D-day만, 한쪽은 날짜만 보여준 탓에 **비교가 불가능해 아무도 눈치채지 못했다**.
+     *
+     *  어느 쪽이 맞는지는 **운영 하늘촌 2026-1**이 갈랐다 — 6단계 전부 `computeStepDates`와 일치
+     *  (사용자: 「마감은 점검달력이 로직이 맞습니다 · 달력과 점검업무가 반드시 일치해야 합니다」).
+     *  → 여섯 단계를 달력과 **같은 칸**에서 읽는다. 폴백을 두지 않는다: 폴백이 곧 두 번째 축이고,
+     *    값이 없으면 달력도 「마감일 없음」이라 하므로 두 화면은 여전히 같은 말을 한다.
+     *  ⚠ `lib/annex-due`는 지우지 않는다 — `repairEndISO`(이행기간 종료일)는 ⑤ 기산 **근거 표시**이자
+     *    ⑥ 완료 조건이라 마감일 축과 별개로 살아 있어야 한다. 기한 계산에만 쓰지 않는다.
+     *  ⚠ 두 화면 일치는 `test-due-axis-parity.mts`가 전수로 지킨다(사람 눈에 맡기지 않는다). */
+    const dueByStep = new Map(steps.map(s => [s.step_num, s.due_date ?? null]))
+    const due9 = dueByStep.get(4) ?? null
+    const due11 = dueByStep.get(6) ?? null
     const annex10Fields = (annex10Res.data?.fields ?? {}) as Record<string, unknown>
     const repairEnd = repairEndISO({
       totalPeriod: typeof annex10Fields.totalPeriod === 'string' ? annex10Fields.totalPeriod : '',
       actionEnds: defects.map(d => d.action_end),
     })
-    // 불량 0건이면 repairEnd가 ''이라 null이 된다 — 그게 곧 ⑥ 해당없음이다
-    const due11 = report11DueISO(repairEnd, holidaySet)
     const photoPairs = defects.filter(d => d.photo_url && d.after_photo_url).length
     timelineData = {
       steps: stepDocs({ isSpecial: true }), // D-4: ①~⑥ 상시 — ⑤⑥ 해당없음 흐림은 클라이언트가 defects로 판정
@@ -446,10 +460,12 @@ export default async function InspectionDetailPage({
         due: due11, submittedAt: (iRec.report11_submitted_at as string | null) ?? null,
         dday: (iRec.report11_submitted_at as string | null) ? null : ddayOf(due11),
       },
-      // ⑤의 실질 마감은 **이행기간 종료일**이다 — 이미 위에서 ⑥ 기한을 내려고 구한 값을
-      // 화면에도 넘긴다(종전엔 ⑤만 inspection_steps.due_date라는 사본으로 떨어졌다).
-      // 빈 문자열은 '기한 없음'이므로 null로 정규화한다 — ''를 그대로 보내면 화면이 날짜로 읽는다.
-      repair: { due: repairEnd || null },
+      /* ⑤도 달력과 같은 칸에서 읽는다(2026-09-21 전면 통일). 종전 주석은 「⑤의 실질 마감은
+         이행기간 종료일이다 — 종전엔 ⑤만 inspection_steps.due_date라는 **사본**으로 떨어졌다」였는데,
+         그 '사본'이 사용자 확정으로 **정본**이 됐다(하늘촌 6/6 일치가 근거).
+         이행기간 종료일은 버리지 않고 `periodEnd`로 함께 넘긴다 — ⑤ 화면이 '왜 이 날짜인지'를
+         말하는 **기산 근거**다. 마감과 근거는 다른 값이고, 섞으면 이번 결함이 되풀이된다. */
+      repair: { due: dueByStep.get(5) ?? null, periodEnd: repairEnd || null },
       defects: {
         total: defects.length,
         planned: defects.filter(d => d.action_plan || d.action_start).length,

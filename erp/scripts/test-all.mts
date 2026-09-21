@@ -707,6 +707,16 @@ const steps: Step[] = [
   // 작업대 스텝바 여정 — 폐지된 test-fire-s2-s3의 실질 승계자. 구 6단계 체크리스트 카드가
   // **제거됐다는 것을 음성으로 단언**한다(:110·:183). 살아 있는데 미등재였다.
   { name: '작업대 스텝바 여정(E2E)',   cmd: 'npx tsx scripts/test-h28-journey-stepper.mts',  needServer: true },
+  // 🚨 마감일 축(2026-09-21 사용자 지시 「달력과 점검업무가 반드시 일치해야 합니다」).
+  //   앞은 **순수 함수**라 서버가 필요 없다 — 운영 하늘촌 2026-1 6단계를 표본으로 고정하고
+  //   총 이행기간 10/20일이 ⑤⑥을 움직이는지 본다(종전엔 10일이 하드코딩돼 있었다).
+  //   뒤는 두 화면이 **같은 값**을 말하는지 전수 대조(소스 축 + 받은 화면 축).
+  { name: '6단계 마감 산식',            cmd: 'npx tsx scripts/test-step-dates.mts' },
+  { name: '마감 축 일치 달력↔작업대(E2E)', cmd: 'npx tsx scripts/test-due-axis-parity.mts',    needServer: true },
+  // 🚨 미등재라 **열흘 넘게 썩어 있던** 검사를 함께 등재한다(2026-09-21). 낡은 마커 둘을 갈아끼웠다:
+  //   '제출 전제'(228739aa에 폐지된 칸) · 「10호 미리보기에 이행계획 원문」(384bf7c 사항=결과참조로 반전).
+  //   둘 다 **변경 전 트리에서도 빨갰다**(대조군 실측) — 등재하지 않으면 아무도 안 돌린다.
+  { name: '작업대 한 화면(E2E)',        cmd: 'npx tsx scripts/test-inspection-workbench.mts', needServer: true },
   // 최근 본 고객 스트립 — '기본 정렬은 그대로 둔다'가 이 기능의 설계 전제라 그것까지 고정한다
   { name: '최근 본 고객(E2E)',          cmd: 'npx tsx scripts/test-recent-customers.mts',           needServer: true },
   // 불량 전/후 사진 — 비공개 버킷에 public URL을 저장해 사진이 전부 안 뜨던 결함의 회귀 방어.
