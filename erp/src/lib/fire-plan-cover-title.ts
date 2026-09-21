@@ -33,8 +33,26 @@ export const COVER_WIDTH_PT = 570.75
 
 /** 폭 여유 — PDF 글꼴 대체(Noto)·자간 차이를 흡수한다. 넘쳐 잘리는 쪽이 조금 작은 쪽보다 나쁘다 */
 const SAFETY = 0.94
-/** 상한 — 이보다 키우면 띠 높이가 한 쪽을 위협한다(사진 상자 330pt와 공존해야 한다) */
-const MAX_PT = 96
+/**
+ * 상한 — **사용자 지시 2차(2026-09-21): 96pt는 너무 컸다.**
+ *
+ * 1차 지시는 「최소 몇 배로 키워라」였고 그래서 폭이 허락하는 최대(96pt)까지 키웠다.
+ * 그런데 짧은 이름은 상한을 그대로 받아(용문3 = 96pt 두 줄) 제목이 폭의 79%를 먹고
+ * 사진과 맞먹는 덩치가 됐다(image-26 실측). 표지의 주역은 사진이지 글자가 아니다.
+ *
+ * 54pt인 근거: 실측상 **가장 짧은 이름이 한 줄로 들어가는 최대치**가 54pt다. 여기서 끊으면
+ * 짧은 이름은 두 줄로 안 갈라져 깔끔하고, 원본 HWP(32pt)보다는 확실히 크다.
+ */
+const MAX_PT = 54
+
+/**
+ * 한 줄을 고집할 최소 크기 — 이보다 작아지면 **줄을 나눠서 키우는 쪽**이 낫다.
+ *
+ * ⭐ 이 상수가 「짧은 이름은 한 줄」을 만든다. 종전 규칙은 «글자가 가장 커지는 후보»만 봤고,
+ *   그러면 용문3이 한 줄 53pt 대신 두 줄 54pt를 골랐다 — 1pt 더 크자고 제목을 갈랐던 것이다.
+ *   이제는 **줄이 적은 후보부터** 보고, 읽을 만한 크기(36pt)가 나오면 거기서 멈춘다.
+ */
+const ONE_LINE_MIN_PT = 36
 /** 하한 — 이보다 작으면 표지 제목 구실을 못 한다. 여기 걸리는 이름은 세 줄로 넘긴다 */
 const MIN_PT = 24
 /** 줄 높이 배수 · 칸 위아래 여백(pt) */
@@ -69,8 +87,16 @@ export function splitCoverTitle(title: string): string[] {
   return [m[1].trim(), m[2].trim()]
 }
 
-/** 띠 높이 상한(pt) — 사진 상자 330pt·정보 블록과 함께 **한 쪽**(838pt) 안에 있어야 한다 */
-const MAX_ROW_PT = 300
+/**
+ * 띠 높이 상한(pt) — 사진 상자(400pt)·정보 블록과 함께 **한 쪽**(838pt) 안에 있어야 한다.
+ * 표지 고정 행 합이 533pt이므로 여기 상한은 838-533 = **305pt**를 넘으면 안 된다.
+ *
+ * ⚠ 상한 54pt에서는 띠가 최대 214pt(3줄)라 이 값에 **닿지 않는다** — 그래서 변이로도 안 잡힌다.
+ *   닿지 않는다고 지우면 안 된다: 제목 상한이나 사진 높이를 키우는 순간 이게 유일한 제동이다.
+ *   대신 `test-cover-title-size` ④가 **이 상한 자체**를 한 쪽 예산에 대고 직접 문다(export 이유).
+ */
+export const COVER_TITLE_MAX_ROW_PT = 300
+const MAX_ROW_PT = COVER_TITLE_MAX_ROW_PT
 
 /** 긴 줄을 둘로 접는다 — 띄어쓰기가 있으면 **가운데에 가장 가까운 공백**에서(자연스러운 자리),
  *  없으면 글자 수 절반에서. 접는 목적은 「가장 긴 줄」을 줄여 글자를 키우는 것이다. */
@@ -101,19 +127,36 @@ export function coverTitleLayout(title: string, widthPt: number = COVER_WIDTH_PT
   const sizeFor = (ls: string[]) => Math.min(usable / Math.max(...ls.map(coverTitleEm), 0.5), MAX_PT)
   const heightFor = (ls: string[], pt: number) => Math.round(ls.length * pt * LINE_FACTOR + PAD_PT)
 
-  // 후보 ① 양식이 정한 경계 그대로 · ② 이름 줄을 한 번 더 접기(두 줄일 때만 뜻이 있다)
-  const candidates: string[][] = [base]
-  if (base.length === 2) candidates.push([...foldLine(base[0]), base[1]])
+  /* 후보를 **줄 수가 적은 순서로** 세운다(2026-09-21 2차 지시 「짧은 이름은 한 줄」):
+   *   ① 통째로 한 줄  ② 양식이 정한 경계(`] ` 뒤)  ③ 이름 줄을 한 번 더 접기
+   * ⚠ 종전엔 ①이 아예 없었고 «가장 커지는 후보»만 골랐다. 그래서 용문3이 한 줄 53pt를 두고
+   *   두 줄 54pt를 택했다 — **1pt 더 크자고 제목을 갈랐다.** 사람이 보기엔 갈린 쪽이 더 나쁘다. */
+  const oneLine = [title.trim()]
+  const candidates: string[][] = [oneLine]
+  if (base.length === 2) {
+    candidates.push(base)
+    candidates.push([...foldLine(base[0]), base[1]])
+  }
 
-  let best = base
+  let best: string[] | null = null
   let bestPt = 0
+  /* 줄이 적은 후보부터 보고, **읽을 만한 크기가 나오면 거기서 멈춘다**(더 큰 걸 찾아 헤매지 않는다) */
   for (const ls of candidates) {
     const pt = sizeFor(ls)
     if (heightFor(ls, pt) > MAX_ROW_PT) continue      // 띠가 한 쪽을 위협하면 후보에서 뺀다
-    if (pt > bestPt) { best = ls; bestPt = pt }
+    if (pt >= ONE_LINE_MIN_PT) { best = ls; bestPt = pt; break }
+  }
+  /* 아무 후보도 기준을 못 넘으면(이름이 아주 길다) 종전대로 **가장 커지는 후보**를 고른다 —
+   * 이때는 「적은 줄」을 고집할 여유가 없다. 넘쳐 잘리는 것보다 줄이 느는 편이 낫다. */
+  if (!best) {
+    for (const ls of candidates) {
+      const pt = sizeFor(ls)
+      if (heightFor(ls, pt) > MAX_ROW_PT) continue
+      if (pt > bestPt) { best = ls; bestPt = pt }
+    }
   }
   // 전 후보가 높이에 걸리면(상한을 아주 낮게 잡은 경우) 원래 나눔으로 되돌아간다
-  if (bestPt === 0) { best = base; bestPt = sizeFor(base) }
+  if (!best) { best = base; bestPt = sizeFor(base) }
 
   const fontPt = Math.max(Math.floor(bestPt), MIN_PT)
   const rowHeightPt = Math.min(Math.max(heightFor(best, fontPt), MIN_ROW_PT), MAX_ROW_PT)
