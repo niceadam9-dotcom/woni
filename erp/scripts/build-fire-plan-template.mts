@@ -647,6 +647,30 @@ const DARK_FACE = '#000000'
  */
 const COVER_TITLE_FONT: FontSpec = { name: 'HY헤드라인M', sizePt: 32 }
 
+/* ── 표지 확장 (2026-09-21 사용자 확정 「사진 표지」) ─────────────────────────
+ *  치수는 실측에서 나왔다: 표지 폭 = 60열 × 1.8자 = 108자 = **570.7pt**,
+ *  한 쪽 본문 높이 한도 = `PAGE_BODY_PT`(838pt). 기존 3행이 169pt를 쓰므로
+ *  아래 덧붙이는 합(18+330+18+30×2=456)을 더해도 625pt로 **한 쪽 안**이다.
+ *  제목 행이 런타임에 132→최대 300pt까지 커져도 793pt로 여전히 한 쪽이다. */
+const FP_COVER_SHEET = '표지'
+/** 사진 상자 높이(pt) — 표지 폭(570.7pt)에 대해 약 4:3이 되도록 */
+const COVER_PHOTO_PT = 330
+/** 블록 사이 여백 줄 높이(pt) */
+const COVER_GAP_PT = 18
+/** 정보 블록 한 줄 높이(pt) */
+const COVER_INFO_PT = 30
+/** 사진이 없을 때 남는 안내 — **이 글자가 곧 서식이다**(그림이 앉으면 비운다).
+ *  ⚠ 자구를 멋대로 꾸미지 말 것: 가운뎃점(`·`)이나 대괄호 안 여백을 넣으면 `classifyAlign`이
+ *    **문장**으로 보고 좌정렬을 요구해 사진 상자가 가운데를 잃는다(실측으로 잡혔다).
+ *    1.5.2의 `[해당 층 평면도]`와 같은 꼴을 지킨다. */
+const COVER_PHOTO_LABEL = '[대상물 전경 위성사진]'
+/** 정보 블록 — [라벨, 값칸 원문(토큰)]. 라벨은 앵커의 라벨칸이 되므로 시트에서 **유일**해야 한다.
+ *  ⚠ 「용도」를 여기 두지 않는다 — 이미 표지 머리(A1)에 있고, 둘이면 자가치유가 후보 2곳에서 멈춘다. */
+const COVER_INFO_ROWS: ReadonlyArray<readonly [string, string]> = [
+  ['소재지', '{{address}}'],
+  ['작성', '{{issued}}'],
+]
+
 /** 아무것도 그리지 않는 스타일 — 채움도 테두리도 없다(참조 화면 image-14). */
 const BLANK_STYLE: CellStyle = {
   left: 'none', right: 'none', top: 'none', bottom: 'none', fill: null, align: 'center',
@@ -887,6 +911,62 @@ for (const sec of SECTIONS) {
       if (v === '1') { start = r; want = 2 }
     }
     if (start >= 0 && want - 1 >= 3) m.numberedRuns.push({ startRow: start, rows: want - 1 })
+  }
+
+  /* ── 표지 확장 (2026-09-21 사용자 확정 「사진 표지」) ─────────────────────────────
+   *
+   *  종전 표지는 **A4 한 장 중 위 20%(169pt)만** 쓰고 나머지가 빈 면이었다 — 내용은
+   *  「용도 ☐ …」 한 줄과 제목 한 줄이 전부였고, 위성·항공 사진은 1.3에만 들어갔다.
+   *  여기서 그 아래에 **사진 상자**와 **정보 블록**을 덧붙여 한 장을 채운다.
+   *
+   *  ⚠ **덧붙이기만 한다.** 기존 3행(용도 격자·제목 배너)의 좌표를 건드리지 않는 것이 규약이다 —
+   *    `cover_title`(A3·라벨 A1)·`cover_purpose`(M1·라벨 A1) 두 앵커가 그 좌표에 물려 있고,
+   *    라우트는 앵커가 어긋나면 **500으로 끊는다**. 새 칸은 전부 아래에 새 행으로 만든다.
+   *
+   *  ⚠ 제목 행 높이(132pt)는 여기서 키우지 않는다 — **런타임이 고객 이름 길이에 맞춰** 글자
+   *    크기와 함께 정한다(`fire-plan-cover-title`). 템플릿은 고객을 모르므로 고정 크기로는
+   *    짧은 이름(꽉 채우려면 114pt)과 긴 이름(23pt라야 안 넘침)을 동시에 만족시킬 수 없다. */
+  if (sec.name === FP_COVER_SHEET) {
+    const full = (r: number) => `${cellRef(r, 0)}:${cellRef(r, nCols - 1)}`
+    const push = (r: number, text: string, style: CellStyle, ref?: string) => {
+      for (let k = 0; k < nCols; k++) cells.push({ row: r, col: k, text: k === 0 ? text : '', style })
+      if (text && ref) m.labels[ref] = text
+    }
+    const blank: CellStyle = { ...BLANK_STYLE }
+    const boxed: CellStyle = { left: 'thin', right: 'thin', top: 'thin', bottom: 'thin', fill: null, align: 'center' }
+
+    // 제목과 사진 사이 숨 — 얇은 여백 한 줄
+    push(row, '', blank); heights.push(COVER_GAP_PT); row++
+
+    // 사진 상자 — 안내 글자가 곧 서식이다(그림이 앉으면 `clearPlaceholder`가 비운다)
+    const photoRow = row
+    push(photoRow, COVER_PHOTO_LABEL, boxed, cellRef(photoRow, 0))
+    merges.push(full(photoRow)); heights.push(COVER_PHOTO_PT); row++
+
+    push(row, '', blank); heights.push(COVER_GAP_PT); row++
+
+    /* 정보 블록 — 라벨(A:L) + 값(M:BH). 라벨 글자가 **앵커의 라벨칸**이 되고,
+     * 값 칸은 토큰 씨앗으로 둔다(템플릿에서는 공란 — S7-2 백지 불변식). */
+    const LABEL_COLS = 12
+    for (const [label, token] of COVER_INFO_ROWS) {
+      const lRef = cellRef(row, 0), vRef = cellRef(row, LABEL_COLS)
+      // 라벨은 **가운데** — 이 워크북의 정렬 교리(`fire-plan-align`: 라벨=center, 문장=left)를
+      // 따른다. 보기 좋으라고 여기만 좌정렬하면 정렬 검사에 예외가 둘 늘고, 예외 목록은
+      // 진짜 어긋남이 숨는 자리가 된다(test-fire-plan-xlsx가 실제로 잡았다).
+      const lStyle: CellStyle = { ...BLANK_STYLE, align: 'center', bottom: 'thin' }
+      const vStyle: CellStyle = { ...BLANK_STYLE, align: 'left', bottom: 'thin' }
+      for (let k = 0; k < nCols; k++) {
+        cells.push({ row, col: k, text: k === 0 ? label : '', style: k < LABEL_COLS ? lStyle : vStyle })
+      }
+      m.labels[lRef] = label
+      // 값 칸은 공란이되 원문(토큰)은 manifest가 든다 — `fillTemplate`이 조립에 쓴다
+      m.tokenCells[vRef] = token
+      tokenCellCount++
+      merges.push(`${lRef}:${cellRef(row, LABEL_COLS - 1)}`)
+      merges.push(`${vRef}:${cellRef(row, nCols - 1)}`)
+      heights.push(COVER_INFO_PT)
+      row++
+    }
   }
 
   m.rows = row

@@ -11,9 +11,9 @@
   },
   "asset": {
     "file": "templates/fire-plan-workbook.xlsx",
-    "sha256": "890b560579ef82154e855f5d4db54ad8cb76f4ead64773d99354ec49024d10c0",
-    "contentSha256": "8774be3616538692a375e8c47ce4da129ab7332654173d4bbcb09c9e9702e18b",
-    "bytes": 1741272,
+    "sha256": "dd7ced2260f5a7fec00ebe67ed9a92d8024f0ff4d7ce97da5c8dec7adc9f3dd1",
+    "contentSha256": "6855a35243480c257d688f1e0200936c06b7ec9b97206d90c721145c5ddaeb93",
+    "bytes": 1755790,
     "styles": 161
   },
   "scrubNeedles": [
@@ -35,16 +35,19 @@
         0,
         1
       ],
-      "rows": 3,
+      "rows": 8,
       "cols": 60,
-      "merges": 8,
+      "merges": 13,
       "bannerRows": [
         2
       ],
       "labels": {
         "A1": "용도",
         "M1": "☐",
-        "M2": " "
+        "M2": " ",
+        "A5": "[대상물 전경 위성사진]",
+        "A7": "소재지",
+        "A8": "작성"
       },
       "boxes": {
         "M1": "☐"
@@ -52,7 +55,9 @@
       "restoredBoxes": {},
       "bulletCells": {},
       "tokenCells": {
-        "A3": "[ {{customer_name}} ] 소방계획서"
+        "A3": "[ {{customer_name}} ] 소방계획서",
+        "M7": "{{address}}",
+        "M8": "{{issued}}"
       },
       "scrubbed": {},
       "sampleBlanked": {

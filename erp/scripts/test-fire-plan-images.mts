@@ -178,7 +178,9 @@ const fullAssets = [
   { name: 'img_b.png', data: new Uint8Array(srcs.building) },
 ]
 const plan = planFirePlanImages(fullImages, fullAssets, av.anchors)
-check('상자 5칸이 모두 배정됐다', plan.targets.length === 5, `${plan.targets.length}칸`)
+/* 2026-09-21 「사진 표지」로 **표지 상자가 늘어 6칸**이 됐다(종전 5칸).
+   구계약(5칸)은 지우지 않고 새 수로 갈아끼운다 — 이 수가 줄면 어딘가의 상자가 조용히 죽은 것이다. */
+check('상자 6칸이 모두 배정됐다(표지 신설 포함)', plan.targets.length === 6, `${plan.targets.length}칸`)
 {
   const at = (sheet: string, cell: string) => plan.targets.find(t => t.sheet === sheet && t.cell === cell)
   // ⭐ 바이트 동일성으로 판정 — 「그 상자에 무언가 들어갔다」가 아니라 「**그 그림**이 들어갔다」
@@ -192,9 +194,15 @@ check('상자 5칸이 모두 배정됐다', plan.targets.length === 5, `${plan.t
   check('진입장소 사진 → 1.3 진입경로!A4', same(at(FP_SHEET.F1_3_ROUTE, 'A4')?.data, srcs.entry))
   check('평면도 1장째 → 1.5.2!A4', same(at(FP_SHEET.F1_5_2, 'A4')?.data, srcs.evac0))
   check('평면도 2장째 → 1.5.2!A6', same(at(FP_SHEET.F1_5_2, 'A6')?.data, srcs.evac1))
-  // 자리표 비우기는 **1.5.2 두 칸뿐**이다(나머지 상자엔 안내 글자가 없다)
+  // 표지 상자도 같은 사진을 받는다 — 표지는 얼굴, 1.3은 위치 설명이라 **둘 다** 앉는 것이 의도다
+  check('표지 건물 사진 → 표지!A5 (2026-09-21 신설)', same(at(FP_SHEET.COVER, 'A5')?.data, srcs.cover))
+  /* 자리표 비우기 — 종전엔 1.5.2 두 칸뿐이었으나 표지 상자가 안내 글자
+     (`[ 대상물 전경 · 위성사진 ]`)를 가지므로 **세 칸**이 됐다. 그림이 앉으면 그 글자를 지워야
+     사진 밑에 글자가 남지 않는다(그림이 없으면 남는다 — 그 안내가 곧 서식이다). */
   const bc = plan.blankCells.map(c => `${c.sheet}!${c.cell}`).sort()
-  check('자리표 비우기 = 1.5.2 두 칸', bc.length === 2 && bc.every(s => s.startsWith(FP_SHEET.F1_5_2)), bc.join(' · '))
+  check('자리표 비우기 = 1.5.2 두 칸 + 표지 한 칸',
+    bc.length === 3 && bc.filter(s => s.startsWith(FP_SHEET.F1_5_2)).length === 2
+      && bc.includes(`${FP_SHEET.COVER}!A5`), bc.join(' · '))
   // 음성축 — 밀린 위치도는 **조용히** 사라지지 않는다(문서엔 흔적이 안 남으므로 고지가 유일한 창구)
   check('밀린 위치도가 고지된다',
     plan.notes.some(n => n.includes('위치도') && n.includes('표지 건물 사진') && n.includes('미표기')),
@@ -218,8 +226,9 @@ check('상자 5칸이 모두 배정됐다', plan.targets.length === 5, `${plan.t
   // 둘 다 없으면 그 상자만 비고 나머지는 그대로 — 「없으면 아무거나」가 아니다
   const neither = fullImages.filter(i => i.kind !== 'cover' && i.kind !== 'map')
   const p = planFirePlanImages(neither, fullAssets, av.anchors)
-  check('표지·위치도 둘 다 없으면 그 상자는 비고 나머지 4칸은 채워진다',
-    p.targets.length === 4 && !p.targets.some(t => t.sheet === FP_SHEET.F1_3_LOC),
+  check('표지·위치도 둘 다 없으면 그 두 상자(1.3·표지)는 비고 나머지 4칸은 채워진다',
+    p.targets.length === 4
+      && !p.targets.some(t => t.sheet === FP_SHEET.F1_3_LOC || t.sheet === FP_SHEET.COVER),
     `${p.targets.length}칸`)
 }
 {
@@ -230,7 +239,7 @@ check('상자 5칸이 모두 배정됐다', plan.targets.length === 5, `${plan.t
    *   그 조각을 그대로 갖고 있어, 넘침 고지를 통째로 지워도 초록이 된다(M9가 실증).
    *   무엇이 몇 칸 때문에 밀렸는지까지 물어야 그 줄을 잰다. */
   check('평면도 3장 → 2칸 + 넘침 고지',
-    p.targets.length === 5 && p.notes.some(n => n.includes('평면도') && n.includes('1장 미표기') && n.includes('양식 상자')),
+    p.targets.length === 6 && p.notes.some(n => n.includes('평면도') && n.includes('1장 미표기') && n.includes('양식 상자')),
     p.notes.join(' | '))
 }
 {
@@ -247,7 +256,7 @@ check('상자 5칸이 모두 배정됐다', plan.targets.length === 5, `${plan.t
 /* ══════════════════════ [4] 삽입(embed) — 산출물 바이트 ══════════════════════ */
 console.log('\n[4] 삽입 — 산출물 구조와 픽셀')
 const out = await embedFirePlanImages(templateBytes, plan.targets)
-check('앉힌 그림 5장', out.placed === 5, `${out.placed}장 · notes=${out.notes.join(' | ') || '없음'}`)
+check('앉힌 그림 6장(2026-09-21 표지 신설 포함)', out.placed === 6, `${out.placed}장 · notes=${out.notes.join(' | ') || '없음'}`)
 const zo = await JSZip.loadAsync(out.bytes)
 const paths = await sheetPaths(zo)
 {
@@ -255,15 +264,16 @@ const paths = await sheetPaths(zo)
   // ⚠ JSZip은 `xl/media/` **폴더 엔트리**도 목록에 넣는다 — 거르지 않으면 장수가 하나 부풀어
   //   「그림당 1장」이 영영 안 맞는다(이 검사가 처음 빨강이던 이유다)
   const media = Object.keys(zo.files).filter(n => n.startsWith('xl/media/') && !zo.files[n].dir).sort()
-  // 상자는 5칸이지만 시트는 셋(1.3 진입경로가 두 칸을 갖는다) → drawing 3장·media 5장
-  check('drawing 파트 3장(시트당 1장)', draws.length === 3, draws.join(' '))
-  check('media 파트 5장(그림당 1장)', media.length === 5, `${media.length}장`)
+  /* 상자는 6칸인데 시트는 넷(1.3 진입경로가 두 칸을 갖는다) → drawing 4장·media 6장.
+     2026-09-21 「사진 표지」로 표지 시트가 하나 늘었다 — 종전 3장·5장에서 갈아끼움. */
+  check('drawing 파트 4장(시트당 1장)', draws.length === 4, draws.join(' '))
+  check('media 파트 6장(그림당 1장)', media.length === 6, `${media.length}장`)
   check('media는 전부 .jpeg', media.every(n => n.endsWith('.jpeg')), media.join(' '))
 
   const ct = await zo.file('[Content_Types].xml')!.async('string')
   check('[Content_Types]에 jpeg Default', /<Default\s+Extension="jpeg"/.test(ct))
   const ov = [...ct.matchAll(/<Override\s+PartName="\/xl\/drawings\/drawing\d+\.xml"/g)].length
-  check('[Content_Types]에 drawing Override 3건', ov === 3, `${ov}건`)
+  check('[Content_Types]에 drawing Override 4건', ov === 4, `${ov}건`)
 }
 
 /* 시트별 — drawing 배선·좌표·기하·픽셀 */

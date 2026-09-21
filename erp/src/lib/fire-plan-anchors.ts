@@ -123,6 +123,10 @@ const FIXED_SEEDS: Seed[] = [
   //   **용도는 고객별 값**임이 드러났다. 토큰이 없어 씨앗에는 안 잡히던 자리다(S4-2 §구멍).
   //   빌드가 라벨을 비워 상자만 남겼고, 값 축이 `☐ {용도}`로 다시 조립한다.
   { field: 'cover_purpose', sheet: FP_SHEET.COVER, cell: 'M1', labelCell: 'A1' },
+  // 표지 정보 블록 (2026-09-21 「사진 표지」) — 제목·사진 아래 두 줄. 라벨칸이 곧 자기 줄의 라벨이라
+  // 자가치유가 줄 단위로 따라 움직인다(제목처럼 남의 라벨에 얹히지 않는다).
+  { field: 'cover_address', sheet: FP_SHEET.COVER, cell: 'M7', labelCell: 'A7' },
+  { field: 'cover_issued', sheet: FP_SHEET.COVER, cell: 'M8', labelCell: 'A8' },
 
   // ── 서식 1.1 건축물 일반현황 ──
   { field: 'customer_name', sheet: FP_SHEET.F1_1, cell: 'L4', labelCell: 'A4' },
@@ -1853,6 +1857,10 @@ export type FirePlanImageBox = Seed & {
 export const FIRE_PLAN_IMAGE_BOXES: FirePlanImageBox[] = [
   /* 「건축물 위치」 칸은 **표지 건물 사진**이다(위치도 약도가 아니다) — 우선순위는 PDF와 공유하는
      `LOCATION_BOX_KINDS`가 정한다. 여기에 배열을 베껴 적으면 두 표면이 갈라진다. */
+  /* 표지 사진 (2026-09-21 사용자 확정 「사진 표지」) — 1.3과 **같은 우선순위 배열**을 쓴다.
+     같은 장이 표지와 1.3에 함께 앉는 것은 의도다: 표지는 얼굴이고 1.3은 위치 설명이다.
+     ⚠ 라벨칸을 상자 자신(A5)으로 잡아도 되는 이유 — 표지엔 같은 문구가 하나뿐이다(1.5.2와 다르다). */
+  { field: 'img_cover',        kinds: LOCATION_BOX_KINDS, index: 0, sheet: FP_SHEET.COVER,      cell: 'A5', labelCell: 'A5', clearPlaceholder: true },
   { field: 'img_location_map', kinds: LOCATION_BOX_KINDS, index: 0, sheet: FP_SHEET.F1_3_LOC,   cell: 'A3', labelCell: 'A2' },
   { field: 'img_route',        kinds: ['route'], index: 0, sheet: FP_SHEET.F1_3_ROUTE, cell: 'A2', labelCell: 'A1' },
   { field: 'img_entry',        kinds: ['entry'], index: 0, sheet: FP_SHEET.F1_3_ROUTE, cell: 'A4', labelCell: 'A3' },

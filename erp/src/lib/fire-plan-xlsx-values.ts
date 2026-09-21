@@ -270,6 +270,14 @@ export function buildFirePlanValues(d: FirePlanGenData): Map<string, CellValue> 
   // 용도 — 상자는 **체크하지 않는다**. 양식도 강순기도 이 칸의 상자는 비어 있고 라벨만 바뀐다
   // (선택지 목록이 아니라 '용도를 적는 칸'이라 체크할 대상이 없다).
   v.set('cover_purpose', checkCell('표지', 'M1', false, purposeCover(d.purpose)))
+  // 표지 정보 블록 (2026-09-21 「사진 표지」) — 원문이 `{{address}}`·`{{issued}}` 한 토큰뿐이라
+  // 조립 결과는 값 그대로다. 그래도 `fillTemplate`을 태우는 것은 규약이다: 양식이 나중에
+  // `소재지 : {{address}}`처럼 리터럴을 붙여도 코드가 옛 문구를 들고 있지 않게 된다.
+  v.set('cover_address', fillTemplate('표지', 'M7', { address: txt(d.address) }))
+  // 작성 = 「2026년 · 업체명」. 업체명이 없으면 연도만 남는다(가운뎃점이 떠 있지 않게 조립에서 뺀다).
+  v.set('cover_issued', fillTemplate('표지', 'M8', {
+    issued: [`${d.year}년`, txt(d.companyName)].filter(Boolean).join(' · '),
+  }))
 
   // ── 서식 1.1 ──
   v.set('customer_name', txt(d.buildingName))

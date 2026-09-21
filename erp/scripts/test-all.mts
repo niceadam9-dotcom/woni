@@ -255,6 +255,11 @@ const steps: Step[] = [
   // 물을 이유가 없었다). 그 전제에 난 유일한 구멍이 표지 제목(HY헤드라인M 32pt)이라 여기서
   // 따로 문다: 그 자리에 있는가 + 다른 데로 번지지 않았는가.
   { name: '소방계획서 표지 제목 글꼴', cmd: 'npx tsx scripts/test-cover-title-font.mts' },
+  // 위 검사는 **템플릿**의 글꼴을 본다. 사용자가 받는 크기는 라우트가 고객 이름 길이에 맞춰
+  // 다시 정하므로(2026-09-21 「사진 표지」), 산출물 쪽은 실제 생성 파일을 열어 따로 문다:
+  // 이름마다 크기가 갈리는가 · 어느 줄도 안 넘치는가 · 띠가 줄 수를 감당하는가 ·
+  // 🚨 styles의 count가 맞는가(어긋나면 **Excel만** 복구창) · 사진과 정보 블록이 앉는가.
+  { name: '소방계획서 표지(사진·제목 자동크기)', cmd: 'npx tsx scripts/_probe-cover-title.mts', needServer: true },
   // 소방계획서 **절↔시트 대장**(`lib/fire-plan-sections`) — 워크북 50시트가 모두 어느 화면엔가
   // 속하는가. 위 자산 검사가 「시트 안이 맞는가」라면 여기는 **「시트가 화면에 닿는가」**다.
   // ⚠ 목차가 종전엔 세 곳(plan-tab-view의 CH1_FORMS·VALID_SEL, [id]/page.tsx의 formStatus 키)에
@@ -626,6 +631,11 @@ const steps: Step[] = [
   { name: '선임일 유실 방지(E2E)',       cmd: 'node scripts/test-selected-at-preserve.mjs',    needServer: true },
   { name: '별지 상호작용(E2E)',         cmd: 'npx tsx scripts/test-annex-interaction.mts',    needServer: true },
   { name: '별지 탭 승격(프로브)',        cmd: 'npx tsx scripts/_probe-annex-tab.mts',          needServer: true },
+  // 트리·탭 키보드 왕복(2026-09-21) — 화살표 이동 · Enter로 상세 진입 · ESC로 복귀 ·
+  // **roving tabindex**(선택된 것만 Tab 대상이라 트리를 한 번에 빠져나온다: 종전 실측 13번 → 1번) ·
+  // 🚨 미저장 확인창의 키보드(포커스가 창 안에 들어가는가 · ESC로 닫히는가 · Tab이 안 새는가).
+  //    셋 다 실측으로 잡은 결함이라 대조군 없이 두면 조용히 되돌아간다.
+  { name: '트리·탭 키보드 왕복(프로브)',  cmd: 'npx tsx scripts/_probe-tree-keyboard.mts',      needServer: true },
   { name: '별지 같은경로 이동(프로브)',   cmd: 'npx tsx scripts/_probe-annex-samepath-nav.mts', needServer: true },
   // 별지서식 직행 3동선(달력 데이 패널 · 최근 본 고객 칩 · 고객 상세 헤더) — 30 S4-4.
   // 종전 판정: "9/9는 **커버리지 구멍 위의 초록**이었다 — 목적지를 변조해도 초록이었다."

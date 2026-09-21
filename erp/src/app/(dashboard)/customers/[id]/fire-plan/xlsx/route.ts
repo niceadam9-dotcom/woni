@@ -10,6 +10,8 @@ import { brigadeRowOverflow, buildFirePlanValues, attendanceOverflow, constructi
 import { FIRE_PLAN_MANIFEST } from '@/lib/fire-plan-xlsx-manifest'
 import { embedFirePlanImages, planFirePlanImages } from '@/lib/fire-plan-xlsx-images'
 import { applyFirePlanCheckboxes } from '@/lib/fire-plan-checkbox-controls'
+import { applyFirePlanCoverTitle } from '@/lib/fire-plan-cover-title'
+import { FP_SHEET } from '@/lib/fire-plan-anchors'
 
 /** 소방계획서 엑셀(xlsx) — 소방계획서_42 S6-1.
  *
@@ -83,16 +85,33 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
         { error: `주입 대상 누락 ${unmapped.length}칸`, detail: unmapped.slice(0, 12).map(a => `${a.sheet}!${a.cell}`) },
         { status: 500 })
     }
+    /* 표지 「소재지」 — 값이 없으면 **라벨도 지운다**(2026-09-21).
+       실측: 활성 고객 307명 중 **292명(95%)이 주소가 비어 있다**. 값만 비우면 표지에
+       「소재지」 네 글자가 빈 줄 위에 덩그러니 남아, 없는 사실을 있는 것처럼 보이게 한다.
+       채워진 고객에서는 라벨이 그대로 뜬다 — 있는 것만 말한다. */
+    const coverAddrLabel = data.address?.trim()
+      ? null
+      : check.anchors.find(a => a.field === 'cover_address')?.labelCell ?? null
+
     const result = await injectWorkbook(templateBytes, [
       ...targets,
       // 그림이 앉는 상자의 '여기 붙이시오' 안내는 지운다 — 그림 밑에 글자가 남는다
       ...imgPlan.blankCells.map(c => ({ sheet: c.sheet, cell: c.cell, value: null })),
+      ...(coverAddrLabel ? [{ sheet: FP_SHEET.COVER, cell: coverAddrLabel, value: null }] : []),
     ])
     if (result.missed.length) {
       return NextResponse.json(
         { error: `소방계획서 값 주입 실패 ${result.missed.length}칸 — 미착지가 있으면 내보내지 않습니다.`, detail: result.missed.slice(0, 12) },
         { status: 500 })
     }
+
+    // ④-b 표지 제목 — 고객 이름 길이에 맞춰 **가장 크게** 앉힌다(2026-09-21 사용자 지시).
+    //     반드시 주입 **뒤**다: 칸이 공란이면 잴 제목이 없다. 템플릿에 고정 크기를 박을 수 없는
+    //     이유(이름마다 들어가는 최대 크기가 23~54pt로 갈린다)는 `fire-plan-cover-title` 머리말에.
+    //     좌표는 **앵커에서 얻는다** — 자가치유로 제목 칸이 옮겨졌으면 그 자리를 따라가야 한다.
+    //     실패해도 **문서는 나간다**(제목이 종전 크기로 남을 뿐) — 사유는 아래 고지에 싣는다.
+    const titleCell = check.anchors.find(a => a.field === 'cover_title')?.cell ?? 'A3'
+    const coverTitle = await applyFirePlanCoverTitle(result.bytes, FP_SHEET.COVER, titleCell)
 
     // ⑤ 체크박스 — 상자 글자(`□`/`■`)를 **클릭 가능한 양식 컨트롤**로 바꾼다.
     //    받는 사람이 엑셀에서 직접 체크·해제하게 하는 것이 목적이고, 체크 상태는 바로 위 주입이
@@ -101,7 +120,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
     //      `insertDrawingTag`가 `<legacyDrawing` 앞에 끼우도록 이미 짜여 있다. 뒤집으면
     //      **LibreOffice는 통과하고 Excel만** 복구 대화상자를 띄운다(우리 LO 검사로는 안 잡힌다).
     //    달지 못한 칸은 상자 글자를 그대로 두므로 **오늘과 같은 상태**다 — 끊지 않고 고지로 낸다.
-    const checkboxes = await applyFirePlanCheckboxes(result.bytes)
+    const checkboxes = await applyFirePlanCheckboxes(coverTitle.bytes)
 
     // ⑥ 사진·도면 — 법정 서식이 비워 둔 상자에 앉힌다. 한 장이 깨져도 문서는 나간다(사유는 고지에).
     const embedded = await embedFirePlanImages(checkboxes.bytes, imgPlan.targets)
@@ -120,6 +139,9 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
           ...check.healed.map(h => `서식 좌표 자가치유: ${h}`),
           // 사진 상자도 같은 1순위다 — 치유됐다는 건 그림이 원래 자리에 안 붙었다는 뜻이다
           ...imgCheck.healed.map(h => `사진 상자 좌표 자가치유: ${h}`),
+          // 표지 제목 대형화가 불발했으면 **조용히 넘기지 않는다** — 제목만 종전 크기로 남는데
+          // 문서는 멀쩡해 보여서 아무도 신고하지 않는다(조용한 누락 금지, 위 ⑤와 같은 축).
+          ...(coverTitle.result.applied ? [] : [`표지 제목 크기 조정 불발: ${coverTitle.result.notes.join(' / ') || '사유 미상'}`]),
           ...(zoneRowOverflow(data) ? [`구역별 세부현황 ${zoneRowOverflow(data)}개 구역 미표기(양식 고정 행 상한)`] : []),
           // 3.3은 같은 구역을 19행까지 싣는다 — 1.2.1(8행)에서 잘린 구역이 여기엔 남으므로 따로 센다
           ...(evac3RowOverflow(data) ? [`피난인원현황 ${evac3RowOverflow(data)}개 구역 미표기(양식 고정 행 상한)`] : []),
