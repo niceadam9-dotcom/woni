@@ -11,10 +11,10 @@
   },
   "asset": {
     "file": "templates/fire-plan-workbook.xlsx",
-    "sha256": "9c89bdb0783193fb325f5ba666d3311682b6bb759f089a5672e00d65fb9905d3",
-    "contentSha256": "34db4a1453b079eda0be342e5c9d92b876773884b37f851abc8e42914cdf6c8b",
-    "bytes": 1739858,
-    "styles": 160
+    "sha256": "890b560579ef82154e855f5d4db54ad8cb76f4ead64773d99354ec49024d10c0",
+    "contentSha256": "8774be3616538692a375e8c47ce4da129ab7332654173d4bbcb09c9e9702e18b",
+    "bytes": 1741272,
+    "styles": 161
   },
   "scrubNeedles": [
     "김흥준",

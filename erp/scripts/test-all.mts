@@ -246,6 +246,10 @@ const steps: Step[] = [
   //   데려간 채 HEAD에 실렸어도(42 R-7 실사고) 회귀 그물이 조용했다. 여기가 붉으면 자산·앵커·
   //   manifest 셋 중 하나가 갈라진 것 — build-fire-plan-template 재실행부터 볼 것.
   { name: '소방계획서 워크북 자산',    cmd: 'npx tsx scripts/test-fire-plan-xlsx.mts' },
+  // 표지 제목 글꼴 — 위 자산 검사는 **정렬**만 묻고 글꼴·크기는 안 본다(전 칸 10pt가 전제라
+  // 물을 이유가 없었다). 그 전제에 난 유일한 구멍이 표지 제목(HY헤드라인M 32pt)이라 여기서
+  // 따로 문다: 그 자리에 있는가 + 다른 데로 번지지 않았는가.
+  { name: '소방계획서 표지 제목 글꼴', cmd: 'npx tsx scripts/test-cover-title-font.mts' },
   // 소방계획서 **절↔시트 대장**(`lib/fire-plan-sections`) — 워크북 50시트가 모두 어느 화면엔가
   // 속하는가. 위 자산 검사가 「시트 안이 맞는가」라면 여기는 **「시트가 화면에 닿는가」**다.
   // ⚠ 목차가 종전엔 세 곳(plan-tab-view의 CH1_FORMS·VALID_SEL, [id]/page.tsx의 formStatus 키)에

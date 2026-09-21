@@ -32,6 +32,25 @@ import type { BorderKind } from '@/lib/hwpx-table'
  *  분류 규칙은 `fire-plan-align.ts`(생성기 `_gs-book50.mts`와 한 벌)가 정한다. */
 export type HAlign = 'left' | 'center' | 'right'
 
+/**
+ * 칸 하나의 글꼴 덮어쓰기 — **예외를 위한 문**이다.
+ *
+ * 이 워크북은 전 칸을 «맑은 고딕 10pt» 한 벌로 쓴다(`xlsx-wrap-height`의 `EM_PX`가 그
+ * 전제 위에 서 있다). 원본 hwpx가 칸마다 다른 크기를 갖는데도 한 벌로 뭉갠 것은 의도된
+ * 선택이지, 못 읽어서가 아니다 — 크기를 칸마다 따라가면 줄바꿈 예산이 칸마다 갈라진다.
+ *
+ * 그래서 여기를 쓰는 칸은 **손으로 꼽을 수 있어야** 한다. 지금은 표지 제목 하나다
+ * (`build-fire-plan-template.mts`의 `COVER_TITLE_FONT`). 늘릴 때는 그 칸이 줄바꿈
+ * 자동 확장(`neededRowHeights`)의 대상이 아닌지 먼저 확인할 것 — 그 계산은 10pt로 잰다.
+ */
+export interface FontSpec {
+  /** 글꼴 이름. 없으면 본문 글꼴(맑은 고딕) */
+  name?: string
+  /** 글자 크기(pt). 없으면 본문 크기(10) */
+  sizePt?: number
+  bold?: boolean
+}
+
 export interface CellStyle {
   left: BorderKind
   right: BorderKind
@@ -41,6 +60,8 @@ export interface CellStyle {
   fill: string | null
   /** 수평 정렬 — 라벨은 대개 center, 체크·문장·토큰 칸은 left, 단위만 칸은 right(B-12) */
   align: HAlign
+  /** 본문 글꼴을 벗어나는 예외 칸만 — 글자색은 여기가 아니라 바탕 밝기가 정한다 */
+  font?: FontSpec
 }
 
 /* ────────────────────────── 바탕 밝기 (한 벌 자) ────────────────────────── */
@@ -156,16 +177,27 @@ function argb(hex: string): string {
   return h.length === 6 ? `FF${h}` : h.length === 8 ? h : 'FFFFFFFF'
 }
 
+/** 본문 글꼴 — 전 칸이 이 한 벌을 쓴다(`CellStyle.font`로 덮지 않는 한). */
+const BODY_FACE = '맑은 고딕'
+const BODY_PT = 10
+
+/** 한 벌의 `<font>` XML. `color`는 바탕 밝기가 정하고(`isDarkFill`), 나머지는 `FontSpec`이 정한다. */
+function fontXml(color: 'dark' | 'light', f?: FontSpec): string {
+  const c = color === 'light' ? '<color rgb="FFFFFFFF"/>' : '<color theme="1"/>'
+  return `<font><sz val="${f?.sizePt ?? BODY_PT}"/>${f?.bold ? '<b/>' : ''}${c}`
+    + `<name val="${escXml(f?.name ?? BODY_FACE)}"/><family val="2"/><charset val="129"/></font>`
+}
+
 /** fontId 0 = 본문(검정), 1 = 어두운 바탕용(흰색). `isDarkFill`이 칸마다 둘 중 하나를 고른다.
- *  ⚠ 굵기·크기·글꼴은 둘이 **같아야** 한다 — 다르면 머리띠만 글자 크기가 달라진다. */
-const FONTS = [
-  '<font><sz val="10"/><color theme="1"/><name val="맑은 고딕"/><family val="2"/><charset val="129"/></font>',
-  '<font><sz val="10"/><color rgb="FFFFFFFF"/><name val="맑은 고딕"/><family val="2"/><charset val="129"/></font>',
-]
+ *  ⚠ 굵기·크기·글꼴은 둘이 **같아야** 한다 — 다르면 머리띠만 글자 크기가 달라진다.
+ *  그 둘을 벗어나는 칸(표지 제목)은 `CellStyle.font`로 **자기 글꼴을 들고 오고**, 아래
+ *  `styleIndex`가 그때마다 새 `<font>`를 표에 덧붙인다(기본 두 벌은 그대로 0·1에 남는다). */
+const BASE_FONTS = [fontXml('dark'), fontXml('light')]
 
 interface StyleTables {
   borders: string[]
   fills: string[]
+  fonts: string[]
   xfs: string[]
   /** 스타일 키 → cellXfs 인덱스 */
   index: Map<string, number>
@@ -179,13 +211,20 @@ function newStyleTables(): StyleTables {
       '<fill><patternFill patternType="none"/></fill>',
       '<fill><patternFill patternType="gray125"/></fill>',
     ],
+    fonts: [...BASE_FONTS],
     xfs: [],
     index: new Map(),
   }
 }
 
+/** `CellStyle.font` → 스타일 키 조각. 없으면 빈 문자열이라 **종전 키와 글자 그대로 같다**
+ *  (글꼴을 안 쓰는 칸의 cellXfs 인덱스가 이 변경으로 밀리지 않는다). */
+function fontKey(f?: FontSpec): string {
+  return f ? `|${f.name ?? ''}/${f.sizePt ?? ''}/${f.bold ? 'b' : ''}` : ''
+}
+
 function styleIndex(t: StyleTables, s: CellStyle): number {
-  const key = `${borderKey(s)}|${s.fill ?? '-'}|${s.align}`
+  const key = `${borderKey(s)}|${s.fill ?? '-'}|${s.align}${fontKey(s.font)}`
   const hit = t.index.get(key)
   if (hit !== undefined) return hit
 
@@ -205,7 +244,13 @@ function styleIndex(t: StyleTables, s: CellStyle): number {
   // left/right는 indent=1 — 글자가 테두리에 붙지 않게. 생성기(_gs-book50)의 정렬 XML과 같은 모양이다(B-12).
   const align = `<alignment horizontal="${s.align}" vertical="center" wrapText="1"${s.align === 'center' ? '' : ' indent="1"'}/>`
   // 어두운 바탕엔 흰 글씨. 채움에서 파생하므로 위 `key`(채움 포함)가 이미 이 갈래를 가른다.
-  const fontId = isDarkFill(s.fill) ? 1 : 0
+  const color = isDarkFill(s.fill) ? 'light' : 'dark'
+  let fontId = color === 'light' ? 1 : 0
+  if (s.font) {
+    const xml = fontXml(color, s.font)
+    fontId = t.fonts.indexOf(xml)
+    if (fontId < 0) { t.fonts.push(xml); fontId = t.fonts.length - 1 }
+  }
   t.xfs.push(
     `<xf numFmtId="0" fontId="${fontId}" fillId="${fIdx}" borderId="${bIdx}" xfId="0"`
     + ` applyFont="1" applyFill="${s.fill ? 1 : 0}" applyBorder="1" applyAlignment="1">${align}</xf>`,
@@ -218,7 +263,7 @@ function styleIndex(t: StyleTables, s: CellStyle): number {
 function stylesXml(t: StyleTables): string {
   return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">`
-    + `<fonts count="${FONTS.length}">${FONTS.join('')}</fonts>`
+    + `<fonts count="${t.fonts.length}">${t.fonts.join('')}</fonts>`
     + `<fills count="${t.fills.length}">${t.fills.join('')}</fills>`
     + `<borders count="${t.borders.length}">${t.borders.join('')}</borders>`
     + `<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>`

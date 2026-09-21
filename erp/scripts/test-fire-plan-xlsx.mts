@@ -987,6 +987,11 @@ console.log('\n[8] 정렬 축 — 분류가 styles.xml에 실렸는가 (B-12)')
     if (t) sheetPath.set(m[1].replace(/&amp;/g, '&'), `xl/${t}`)
   }
 
+  /** 좌정렬 규약에서 **의도적으로** 빠진 토큰 칸 — 손으로 꼽을 수 있어야 한다.
+   *  늘어난다면 그건 규약이 바뀐 것이니 여기와 `COVER_TITLE_FONT` 주석을 함께 고칠 것. */
+  const CENTER_TOKEN_CELLS = new Set(['표지!A3'])
+  const centerTokenSeen: string[] = []
+
   const cnt = { banner: 0, check: 0, unit: 0, prose: 0, token: 0, center: 0, proseCol: 0 }
   const bad: Record<keyof typeof cnt, string[]> = { banner: [], check: [], unit: [], prose: [], token: [], center: [], proseCol: [] }
   for (const s of FIRE_PLAN_MANIFEST.sheets) {
@@ -1007,8 +1012,18 @@ console.log('\n[8] 정렬 축 — 분류가 styles.xml에 실렸는가 (B-12)')
      * 판정에 필요한 hwpx 열·병합폭·borderFill이 여기엔 없어 라벨만으로는 재현할 수 없다.
      * ⚠ 이 집합을 빼면 «⑥이 고친 24칸»을 「가운데여야 하는데 좌」로 읽어 제품이 옳은데 붉어진다. */
     const proseCol = new Set(s.proseColumnCells)
-    // 토큰 칸 — 템플릿에서 공란이지만 스타일은 남아 런타임 주입 값이 좌정렬을 받는다(배너 토큰도 좌)
-    for (const ref of Object.keys(s.tokenCells)) judge(ref, 'token', 'left')
+    /* 토큰 칸 — 템플릿에서 공란이지만 스타일은 남아 런타임 주입 값이 좌정렬을 받는다(배너 토큰도 좌).
+     *
+     * ⚠ **표지 제목은 예외이고, 그건 계약이다.** 사용자 지시(2026-09-21)로 납품본 HWP
+     *   「강순기건물 소방계획서」와 같게 맞췄다 — 그 원본이 가운데·HY헤드라인M 32pt다
+     *   (`build-fire-plan-template.mts`의 `COVER_TITLE_FONT`, `test-cover-title-font.mts`).
+     *   그래서 이 칸을 **건너뛰지 않고 반대 방향으로 물린다**: 좌로 되돌아가면 여기가 붉어진다.
+     *   건너뛰면 「가운데로 바꿨다」가 아무 데서도 안 지켜진다. */
+    for (const ref of Object.keys(s.tokenCells)) {
+      const centered = CENTER_TOKEN_CELLS.has(`${s.name}!${ref}`)
+      if (centered) centerTokenSeen.push(`${s.name}!${ref}`)
+      judge(ref, 'token', centered ? 'center' : 'left')
+    }
     for (const [ref, label] of Object.entries(s.labels)) {
       if (bannerRows.has(rowOf(ref))) { judge(ref, 'banner', 'left'); continue }
       const want = classifyAlign(label, { proseColumn: proseCol.has(ref) })
@@ -1025,8 +1040,14 @@ console.log('\n[8] 정렬 축 — 분류가 styles.xml에 실렸는가 (B-12)')
     bad.unit.slice(0, 4).join(' · ') || `${cnt.unit}칸`)
   check(`문장 칸 전건 좌`, cnt.prose >= 30 && bad.prose.length === 0,
     bad.prose.slice(0, 4).join(' · ') || `${cnt.prose}칸`)
-  check(`토큰 칸 전건 좌(분모 = manifest 전수)`, cnt.token === totalTokens && totalTokens >= 50 && bad.token.length === 0,
+  check(`토큰 칸 전건 규정 정렬 — 좌, 표지 제목만 가운데(분모 = manifest 전수)`,
+    cnt.token === totalTokens && totalTokens >= 50 && bad.token.length === 0,
     bad.token.slice(0, 4).join(' · ') || `${cnt.token}/${totalTokens}칸`)
+  // 예외가 **실재하는지**도 묻는다 — 집합이 비면 위 단언은 「전건 좌」로 조용히 되돌아간다
+  check(`가운데 토큰 예외가 그 자리에 실재`,
+    centerTokenSeen.length === CENTER_TOKEN_CELLS.size
+    && centerTokenSeen.every(r => CENTER_TOKEN_CELLS.has(r)),
+    `${centerTokenSeen.join(', ') || '0칸'} vs 선언 ${[...CENTER_TOKEN_CELLS].join(', ')}`)
   check(`배너 줄 전건 좌`, cnt.banner >= 30 && bad.banner.length === 0,
     bad.banner.slice(0, 4).join(' · ') || `${cnt.banner}줄`)
   check(`나머지 라벨은 가운데(다수)`, cnt.center >= 500 && bad.center.length === 0,

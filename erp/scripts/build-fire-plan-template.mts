@@ -24,7 +24,8 @@ import {
   type HwpxTable, type HwpxCell, type HwpxBorderFill,
 } from '../src/lib/hwpx-table.ts'
 import {
-  buildXlsx, cellRef, isDarkFill, type BuildSheet, type BuildCell, type CellStyle, type HAlign,
+  buildXlsx, cellRef, isDarkFill,
+  type BuildSheet, type BuildCell, type CellStyle, type FontSpec, type HAlign,
 } from '../src/lib/xlsx-build.ts'
 import { classifyAlign, isPlainProse } from '../src/lib/fire-plan-align.ts'
 import { measureLines, neededRowHeights, PAGE_BODY_PT } from '../src/lib/xlsx-wrap-height.ts'
@@ -144,7 +145,9 @@ const PAGE_SPILL_KNOWN = ['2.4 개별임무카드', '2.5 지휘통제팀']
  *    하나라도 어긋나면 실패한다. 양식이 개정되면 조용히 다른 서식이 나가는 대신 빌드가 선다.
  */
 type Part =
-  | { kind: 'banner'; table: number }
+  /** `title` — 머리띠가 아니라 **표지 제목**이다. 좌정렬·본문 10pt 대신 가운데·제목 글꼴을 받는다.
+   *  (`COVER_TITLE_FONT` 주석에 강순기 원본 실측치와 그 근거가 있다) */
+  | { kind: 'banner'; table: number; title?: true }
   /** `blankEmptyCols` — 원문에 글자가 **한 칸도 없는 열**은 아예 안 그린다(채움·테두리 없음).
    *
    *  ⚠ 칸 단위가 아니라 **열 단위**다. 칸으로 지우면 글자 있는 열의 빈 칸까지 뚫려 상자가
@@ -170,7 +173,7 @@ const CHAPTER1: SectionDef[] = [
   // 용도 상자(#0)는 2행×4열인데 원문이 글자를 실은 열은 앞의 **두 열**뿐이고(`용도` · `☐ 복합
   // 건축물`) 뒤 두 열은 hwpx에서도 통째로 공란이다 — 값 축(cover_purpose)도 M1 하나만 쓴다.
   // 그 두 열에 연보라 채움과 점선이 그려져 표지 위쪽에 빈 격자가 떠 있었다(사용자 지적 image-15).
-  { name: '표지', no: null, parts: [{ kind: 'grid', table: 0, rc: [2, 4], blankEmptyCols: true }, { kind: 'banner', table: 1 }] },
+  { name: '표지', no: null, parts: [{ kind: 'grid', table: 0, rc: [2, 4], blankEmptyCols: true }, { kind: 'banner', table: 1, title: true }] },
   { name: '개정이력', no: null, parts: [{ kind: 'grid', table: 2, rc: [12, 6] }] },
 
   { name: '1.1 건축물 일반현황', no: '1.1', parts: [{ kind: 'banner', table: 3 }, { kind: 'banner', table: 4 }, { kind: 'grid', table: 5, rc: [25, 10] }] },
@@ -623,6 +626,27 @@ interface SheetManifest {
  *  여기서는 **바탕만** 검정으로 옮긴다 — 두 규칙이 같은 자(`isDarkFill`)를 쓴다. */
 const DARK_FACE = '#000000'
 
+/**
+ * 표지 제목 `[ {{customer_name}} ] 소방계획서`의 글꼴 — 사용자 지시(2026-09-21):
+ * **납품본 「강순기건물 소방계획서」와 같게**.
+ *
+ * 추측이 아니라 그 HWP에서 **직접 읽은 값**이다(`_probe-hwp-cover-fmt.mjs`가
+ * DocInfo의 CHAR_SHAPE·PARA_SHAPE를 풀어 찍었다):
+ *
+ *     "[ 강순기 건물 ] 소방계획서"   정렬=가운데 · HY헤드라인M / 32pt
+ *     "용도"                        정렬=가운데 · 맑은 고딕 / 11pt
+ *     "☐ 근린생활시설"              정렬=양쪽   · 맑은 고딕 / 10pt·9pt
+ *
+ * ⚠ **제목 한 칸만 옮긴다.** 용도 칸의 11pt·9pt는 사용자가 「제목만」으로 확정해 종전
+ *   10pt를 그대로 둔다 — 1pt 차는 안 보이고, 옮기면 「전 칸 10pt」 규약에 예외가 둘 더 는다.
+ *
+ * 🚨 이 글꼴은 **PDF엔 없다.** 산출물 PDF는 gotenberg(LibreOffice/Debian) 컨테이너가 찍는데
+ *   HY헤드라인M은 한컴 글꼴이라 거기 없고 Noto 계열로 대체된다 — 굵기가 빠진 32pt로 나간다.
+ *   사용자가 그 맞바꿈을 알고 「원본 그대로」를 골랐다(엑셀을 여는 PC엔 설치돼 있다).
+ *   굵게를 얹으면 PDF는 굵어지지만 엑셀에서 이미 두꺼운 글꼴에 가짜굵게가 덧입혀진다.
+ */
+const COVER_TITLE_FONT: FontSpec = { name: 'HY헤드라인M', sizePt: 32 }
+
 /** 아무것도 그리지 않는 스타일 — 채움도 테두리도 없다(참조 화면 image-14). */
 const BLANK_STYLE: CellStyle = {
   left: 'none', right: 'none', top: 'none', bottom: 'none', fill: null, align: 'center',
@@ -734,7 +758,7 @@ for (const sec of SECTIONS) {
     return text
   }
 
-  const emitBanner = (idx: number, row: number) => {
+  const emitBanner = (idx: number, row: number, isTitle = false) => {
     const bt = tables[idx]
     // ⚠ **행 먼저, 그다음 열**로 정렬한다. 열로만 정렬하면 여러 행짜리 머리 블록(서식 2.3의
     //   #50·#52)에서 아래 행의 왼쪽 칸이 위 행의 오른쪽 칸보다 앞서 붙어 문장이 뒤섞인다.
@@ -742,8 +766,10 @@ for (const sec of SECTIONS) {
     const raw = bt.cells
       .slice().sort((a, b) => (a.row - b.row) || (a.col - b.col))
       .map(c => c.text.trim()).filter(Boolean).join('  ')
-    // B-12 — 머리띠는 좌정렬(생성기 S10-2와 동일: 「서식 1.6」 배지 뒤에서 왼쪽으로 흐른다)
-    const style = styleOf(fills.get(bt.cells[0]?.borderFillId ?? 0), 'left')
+    // B-12 — 머리띠는 좌정렬(생성기 S10-2와 동일: 「서식 1.6」 배지 뒤에서 왼쪽으로 흐른다).
+    // 표지 제목만 예외로 가운데·제목 글꼴 — 원본 실측이 근거다(`COVER_TITLE_FONT`).
+    const base = styleOf(fills.get(bt.cells[0]?.borderFillId ?? 0), isTitle ? 'center' : 'left')
+    const style: CellStyle = isTitle ? { ...base, font: COVER_TITLE_FONT } : base
     const text = processText(raw, cellRef(row, 0), () => null)
     for (let k = 0; k < nCols; k++) cells.push({ row, col: k, text: k === 0 ? text : '', style })
     if (nCols > 1) merges.push(`${cellRef(row, 0)}:${cellRef(row, nCols - 1)}`)
@@ -752,7 +778,7 @@ for (const sec of SECTIONS) {
   }
 
   let row = 0
-  for (const b of before) emitBanner(b.table, row++)
+  for (const b of before) emitBanner(b.table, row++, b.title)
 
   const gridTop = row
   // 격자가 여럿이면 순서대로 **세로로 쌓는다**(#55~#60 개별임무카드). 하나뿐이면 종전과 같다.
@@ -846,7 +872,7 @@ for (const sec of SECTIONS) {
     }
   }
 
-  for (const b of after) emitBanner(b.table, row++)
+  for (const b of after) emitBanner(b.table, row++, b.title)
 
   // 반복 행 예산 파생(S4-3) — 0열이 1,2,3…으로 이어지는 구간
   {
