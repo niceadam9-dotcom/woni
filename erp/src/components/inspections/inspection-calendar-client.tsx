@@ -713,17 +713,32 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
       .reduce((a, b) => (a.step_num <= b.step_num ? a : b))
     return pick.step_num
   })()
-  /** 복귀 경로를 함께 싣는다(B-3) — 달력에서 들어간 사용자가 달력으로 돌아온다.
+  /** 달력으로 되돌아올 **복귀 주소** — 패널에서 나가는 링크들이 **여기 한 곳에서** 받는다(B-3).
+   *
    *  ⚠ 지금 보고 있는 **달 파라미터까지** 넘긴다: 그냥 `/inspections/calendar`로 보내면
    *    다른 달을 보던 사용자가 이번 달로 튕긴다(돌아왔는데 자리가 다른 부류).
    *  ⚠ `window.location`을 쓰지 않는다 — 서버 렌더와 값이 달라 하이드레이션이 어긋난다.
-   *    라우터 훅은 양쪽에서 같은 값을 준다. */
+   *    라우터 훅은 양쪽에서 같은 값을 준다.
+   *
+   *  🚨 2026-09-21 — `searchParams`**만으로는 모자란다.** `cust`·`insp`는 위 두 effect가
+   *    `replaceState`로 쓰는 값이라 **라우터를 거치지 않아** `useSearchParams`에 안 잡힌다.
+   *    그래서 여기서 지금 상태로 덮어쓴다.
+   *    실측으로 잡힌 결함: 단계 줄의 [입력] 링크는 이 보정을 **자기 자리에서** 했는데
+   *    패널 하단 링크에는 빠져 있어, **하단으로 들어간 사용자만** 돌아왔을 때 우측바가 닫혀
+   *    있었다(같은 패널의 두 링크가 규약이 갈렸다 · `cust`는 양쪽 다 흘리고 있었다).
+   *  ⚠ 그래서 합치는 지점을 **하나로** 둔다 — 두 벌이면 한쪽만 고쳐져 또 갈라진다. */
+  const calendarBackHref = useMemo(() => {
+    const sp = new URLSearchParams(searchParams.toString())
+    if (custQuery) sp.set('cust', custQuery); else sp.delete('cust')
+    if (selectedInspectionId) sp.set('insp', selectedInspectionId); else sp.delete('insp')
+    const qs = sp.toString()
+    return `${pathname}${qs ? `?${qs}` : ''}`
+  }, [searchParams, pathname, custQuery, selectedInspectionId])
+
   const panelEntryQuery = (() => {
-    const qs = searchParams.toString()
-    const back = `${pathname}${qs ? `?${qs}` : ''}`
     const q = new URLSearchParams()
     if (panelEntryStep) q.set('step', String(panelEntryStep))
-    q.set('from', back)
+    q.set('from', calendarBackHref)
     return `?${q.toString()}`
   })()
 
@@ -2125,14 +2140,9 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
                                🚨 복귀 경로에 **열린 패널(`insp`)을 실어야** 한다(2026-09-21 사용자 요청:
                                  「돌아가면 단계별 클릭 사이드 화면이어야 한다」). 이게 없으면 달력까지는
                                  오지만 패널이 닫혀 있어, 사용자가 날짜→단계를 처음부터 다시 짚는다.
-                               ⚠ `searchParams`(라우터가 아는 주소)에는 `insp`가 없을 수 있다 —
-                                 그건 위 effect가 `replaceState`로 쓰는 값이라 라우터를 거치지 않는다.
-                                 그래서 **여기서 지금 열린 패널로 덮어쓴다**(둘을 합치는 지점이 여기다). */
-                            href={`${inputLink.href}${inputLink.href.includes('?') ? '&' : '?'}from=${encodeURIComponent((() => {
-                              const sp = new URLSearchParams(searchParams.toString())
-                              sp.set('insp', selectedInspection.id)
-                              return `${pathname}?${sp.toString()}`
-                            })())}`}
+                               ⚠ 그 조립은 **`calendarBackHref` 한 곳**이 한다(위 정의) — 종전엔 여기서
+                                 직접 `insp`를 덮어썼고, 그래서 패널 하단 링크만 보정을 못 받았다. */
+                            href={`${inputLink.href}${inputLink.href.includes('?') ? '&' : '?'}from=${encodeURIComponent(calendarBackHref)}`}
                             title={inputLink.title}
                             data-testid="calendar-step-input"
                             /* 🚨 여기서 패널을 닫지 않는다(2026-09-21). 닫으면 위 effect가 주소에서
