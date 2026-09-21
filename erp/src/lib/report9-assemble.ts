@@ -28,6 +28,7 @@ import type { SpecMap } from '@/lib/doc-templates/spec-sections'
 import { getAllSheetItems, getSheets, type SheetCatalogItem } from '@/lib/sheet-catalog'
 import { isMultiUseApplicable, isMultiUseNone } from '@/lib/multi-use'
 import { ETC_CODES } from '@/lib/facility-codes'
+import { etcKeyOfItemCode, type EtcKey } from '@/lib/etc-sheet-map'
 import { resolveFireSafetyManager, type ContactLite } from '@/lib/fire-safety-manager'
 import { formatTel } from '@/lib/format-contact'
 import { sortBuildingsForPrint, FORM9_MAX_BUILDINGS } from '@/lib/primary-building'
@@ -521,15 +522,10 @@ export async function assembleReport9(
   // B-3(소방계획서_19 K-3): '기타' 3항목(방화문·자동방화셔터 / 비상구·피난통로 / 방염) —
   // 31번 '기타사항' 점검표(STD-31) 응답을 명시 매핑으로 반영(T-3 교훈 — 퍼지 금지).
   // 롤업 규칙 = rollUpForm3Results 계열: X 있으면 ×, 아니면 O 있으면 ○, 전부 N이면 ／, 무응답이면 종전 ☐+공란.
-  const ETC_ITEM_MAP: Record<string, 'door' | 'exit' | 'flame'> = {
-    '31-A-001': 'door',   // 방화문 및 방화셔터의 관리 상태 …
-    '31-A-002': 'exit',   // 비상구 및 피난통로 확보 적정 여부 …
-    '31-B-001': 'flame',  // 선처리 방염대상물품 …
-    '31-B-002': 'flame',  // 후처리 방염대상물품 …
-  }
-  const etcAgg: Record<'door' | 'exit' | 'flame', Array<'O' | 'X' | 'N'>> = { door: [], exit: [], flame: [] }
+  // 2026-09-21 — 매핑 표는 lib/etc-sheet-map 단일 원천으로 이관(화면 배지·체크 축이 같은 표를 쓴다).
+  const etcAgg: Record<EtcKey, Array<'O' | 'X' | 'N'>> = { door: [], exit: [], flame: [] }
   for (const r of responses) {
-    const g = ETC_ITEM_MAP[r.item_code]
+    const g = etcKeyOfItemCode(r.item_code)
     if (g && ['O', 'X', 'N'].includes(r.result)) etcAgg[g].push(r.result)
   }
   const etcRoll = (rs: Array<'O' | 'X' | 'N'>): 'O' | 'X' | 'N' | undefined =>

@@ -17,6 +17,7 @@ import {
   FORM4_ROWS, FORM4_ETC_ROWS, isForm4Installed, form4InstallField, form4VerdictField, form4VerdictMarks,
 } from '@/lib/xlsx-form4'
 import { FIRE_SUB_ITEMS } from '@/lib/facility-codes'
+import { ETC_LEDGER_CODE } from '@/lib/etc-sheet-map'
 import { isoToSerial, type InjectTarget, type CellValue } from '@/lib/xlsx-inject'
 
 export type WorkbookSource = {
@@ -356,12 +357,16 @@ export function buildWorkbookValues(src: WorkbookSource): Map<string, CellValue>
       entries.push([form4VerdictField(r), m ? resultMark(m) : (on ? resultMark('O') : '/')])
     }
   }
-  // 현황 '기타' 3행(방화문·비상구·방염) — etcMarks(31번 기타사항 롤업) 배선(2026-09-02).
-  // PDF etcItem(report9.ts)과 같은 규칙: ○/×면 체크+마크, 무응답은 'N' 폴백(빈 체크+／ —
-  // 2026-08-20 사용자 확정 그대로). PDF만 찍고 엑셀은 비어 있던 D-7 갈라짐을 닫는다.
+  // 현황 '기타' 3행(방화문·비상구·방염) — PDF etcItem(report9.ts)과 **같은 규칙**(D-7).
+  // 🚨 2026-09-21 정정 — 체크는 **대장 축**이다(종전엔 체크까지 etcMarks에서 뽑아, 대장에
+  //   ☑ 해 둔 설비가 문서에선 빈 상자였다). 위 FORM4_ROWS 40종과 같은 축을 쓰게 됐다.
+  //   결과는 종전 그대로 점검표 롤업·무응답 ／(2026-08-20 확정) — 두 축을 섞지 않는다.
+  const etcLedger = new Set(p.ledgerCodes ?? src.installedCodes)
   for (const r of FORM4_ETC_ROWS) {
     const mk = p.etcMarks?.[r.key] ?? 'N'
-    entries.push([`f4i_${r.cell}`, ck(mk === 'O' || mk === 'X')], [`f4v_${r.verdictCell}`, resultMark(mk)])
+    entries.push(
+      [`f4i_${r.cell}`, ck(etcLedger.has(ETC_LEDGER_CODE[r.key]))],
+      [`f4v_${r.verdictCell}`, resultMark(mk)])
   }
   // 보조 점검인력 7행(S3-5 2차) — 허브 B·C·D·E 열. 없는 행은 명시적 공란(S3-4).
   // 8명 이상은 허브 서식상 실을 수 없다 — 라우트가 missing 헤더로 알린다(S8-2 규약과 같은 축)

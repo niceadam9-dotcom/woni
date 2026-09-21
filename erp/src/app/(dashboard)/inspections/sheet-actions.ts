@@ -12,6 +12,7 @@ import { buildSheetOverviews, canEditInspection, type SheetOverview } from '@/li
 import { specNaReasons, type SpecRow } from '@/lib/sheet-spec-na'
 import { getAllSheetItems, getSheetItems, getSheets, type SheetCatalogItem } from '@/lib/sheet-catalog'
 import { findPrevRoundSource } from '@/lib/prev-round-source'
+import { ETC_KEYS, ETC_SHEET_ITEM_CODES, type EtcKey } from '@/lib/etc-sheet-map'
 import { autoCheckFacilitiesFromSheetAction } from './facility-autocheck-actions'
 // ⚠ 타입은 `'use server'` 파일이 아니라 **일반 모듈**에서 가져온다(위 파일 주석의 500 사고)
 import type { AutoCheckResult } from '@/lib/facility-autocheck'
@@ -125,6 +126,60 @@ export async function getInspectionSheetOverviewAction(inspectionIds: string[], 
     { withGroups: opts?.withGroups ?? false })
   if (error) return { error }
   return { overviews }
+}
+
+/** 「기타」 3종의 **항목 단위** 진행 — 보고서 탭 「기타 점검대상」 배지 전용 (2026-09-21).
+ *
+ *  왜 시트 단위로는 안 되나: 기타 3종은 한 시트(STD-31)를 나눠 쓴다. 그래서 시트 진행률을 세 칸에
+ *  같이 붙이면 **방화문 하나만 입력해도 비상구까지 「입력 완료」**로 보인다(실측 용문3 — 사용자가
+ *  「체크했는데 왜 결과가 없나」로 읽은 직접 원인). 중분류(groups)로도 안 갈라진다 —
+ *  31-A가 방화문과 비상구를 한 묶음으로 들고 있다.
+ *
+ *  `outOfScope` = 작동 회차의 종합 전용(●). 서식 각주 「●는 종합점검의 경우에만 해당한다」 —
+ *  **미입력이 아니라 이 회차의 점검 항목이 아닌 것**이다. 화면이 그걸 말해야 「입력 완료」라는
+ *  거짓 신호도, 「왜 안 채워지나」라는 오해도 사라진다. 판정은 isItemInScope 한 곳(전용 입력
+ *  화면·완료 게이트·문서 조립과 같은 함수) — 여기서 다시 세지 않는다. */
+export async function getEtcSheetProgressAction(inspectionId: string): Promise<{
+  error?: string
+  progress?: Record<EtcKey, { total: number; responded: number; outOfScope: number }>
+}> {
+  await requirePermission('inspection_register')
+  const admin = createAdminClient()
+  const scopeCtx = await loadScope(admin, inspectionId)
+  if (!scopeCtx) return { error: '점검 건을 찾을 수 없습니다.' }
+  const { scope } = scopeCtx
+
+  let sheets: Awaited<ReturnType<typeof getSheets>>
+  let allItems: SheetCatalogItem[]
+  try {
+    [sheets, allItems] = await Promise.all([getSheets(), getAllSheetItems()])
+  } catch (e) {
+    // 배지는 보조 정보다 — 카탈로그가 죽어도 체크 입력 본연은 돌아야 한다(패널이 조용히 생략)
+    return { error: e instanceof Error ? e.message : '점검표 카탈로그 조회 실패' }
+  }
+  // 시트 코드를 박아 두지 않는다 — 이 회차 버전의 시트에 속한 항목만 남기고 코드로 찾는다
+  const versionSheetIds = new Set(sheets.filter(s => s.version === scope.version).map(s => s.id))
+  const byCode = new Map<string, SheetCatalogItem>()
+  for (const it of allItems) if (versionSheetIds.has(it.sheet_id)) byCode.set(it.item_code, it)
+
+  const wanted = ETC_KEYS.flatMap(k => [...ETC_SHEET_ITEM_CODES[k]])
+  const { data: respRaw } = await admin.from('inspection_sheet_responses')
+    .select('item_code').eq('inspection_id', inspectionId).in('item_code', wanted)
+  const answered = new Set(((respRaw ?? []) as Array<{ item_code: string }>).map(r => r.item_code))
+
+  const progress = {} as Record<EtcKey, { total: number; responded: number; outOfScope: number }>
+  for (const key of ETC_KEYS) {
+    let total = 0, responded = 0, outOfScope = 0
+    for (const code of ETC_SHEET_ITEM_CODES[key]) {
+      const item = byCode.get(code)
+      if (!item) continue                       // 이 버전 서식에 없는 항목(외관 축 등) — 세지 않는다
+      if (!isItemInScope(item, scope)) { outOfScope++; continue }
+      total++
+      if (answered.has(code)) responded++
+    }
+    progress[key] = { total, responded, outOfScope }
+  }
+  return { progress }
 }
 
 // 시트 항목 카탈로그(3층 축 + 42703 폴백 + 4축 정렬)는 lib/sheet-catalog.ts로 옮겼다(2026-08-20).

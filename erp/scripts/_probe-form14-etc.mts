@@ -92,16 +92,37 @@ try {
   const txt = (await block.textContent()) ?? ''
   check('안내가 "결과는 점검표에서"를 말한다', txt.includes('점검 결과') && txt.includes('점검표에서'))
 
-  // ── ② 음성 대조 — 미체크면 입력 링크가 없다 ──────────────────────────────
-  check(`미체크 상태에선 '${TARGET}' 링크 없음`,
-    await page.locator(`[data-testid="etc-link-${TARGET}"]`).count() === 0)
+  // ── ② 음성 대조 — 미체크면 배지 자체가 없다 ──────────────────────────────
+  check(`미체크 상태에선 '${TARGET}' 배지 없음`,
+    await page.locator(`[data-testid="etc-link-${TARGET}"]`).count() === 0
+    && await page.locator(`[data-testid="etc-scope-${TARGET}"]`).count() === 0)
 
-  // ── ③ 체크 → 링크 등장 → 딥링크 계약 ────────────────────────────────────
+  // ── ③ 체크 → 배지 등장 → 딥링크 계약 ────────────────────────────────────
+  // 🚨 2026-09-21 계약 갱신: 체크하면 생기는 것은 **배지**이고, 그게 링크인지는 **이 회차의 범위**가
+  //   정한다. 방염(31-B-001/002)은 서식에서 ●(종합 전용)이라 작동 회차에서는 입력할 칸이 없고,
+  //   그때는 링크 대신 「종합점검 전용」 칩이 뜬다(없는 화면으로 보내지 않는다). 종전 단언은
+  //   「링크가 생긴다」로 못박혀 있어 이 변경을 정확히 물었다 — 지우지 않고 **두 갈래로 갈아끼운다**.
   await block.locator(`[data-testid="etc-check-${TARGET}"]`).click()
   const link = page.locator(`[data-testid="etc-link-${TARGET}"]`)
-  await link.waitFor({ timeout: 15_000 })
-  const href = await link.getAttribute('href')
-  check('체크하면 점검표 링크가 생긴다', !!href, href ?? '(없음)')
+  const scopeChip = page.locator(`[data-testid="etc-scope-${TARGET}"]`)
+  await Promise.race([
+    link.waitFor({ timeout: 15_000 }).catch(() => {}),
+    scopeChip.waitFor({ timeout: 15_000 }).catch(() => {}),
+  ])
+  const isLink = (await link.count()) > 0
+  const isScope = (await scopeChip.count()) > 0
+  check('체크하면 배지가 생긴다(링크 또는 종합점검 전용)', isLink || isScope, `link=${isLink} scope=${isScope}`)
+  if (isScope) {
+    // 범위 밖 갈래 — 뜻을 말하는가, 그리고 **링크가 아닌가**(입력 못 하는 화면으로 보내면 안 된다)
+    check(`'${TARGET}'는 종합점검 전용(●)임을 말한다`,
+      ((await scopeChip.innerText()) ?? '').trim() === '종합점검 전용', await scopeChip.innerText())
+    check(`'${TARGET}' 범위 밖일 때는 링크가 아니다`, !isLink)
+  }
+  // 목적지 계약은 **두 갈래 공통**이다 — 링크면 href, 칩이면 data-sheet-href.
+  // (갈래마다 다른 계약을 두면 한쪽이 조용히 썩는다 — 아래 ⑦ 이동도 이 값을 쓴다)
+  const href = isLink
+    ? await link.getAttribute('href')
+    : await scopeChip.getAttribute('data-sheet-href')
   check('딥링크 계약 — /sheet?facility=&from=',
     !!href && /\/inspections\/[0-9a-f-]+\/sheet\?facility=/.test(href) && href.includes('from='), href ?? '')
   check('복귀(from)가 보고서 탭 기타 노드를 가리킨다', !!href && decodeURIComponent(href).includes('tab=reports'), href ?? '')

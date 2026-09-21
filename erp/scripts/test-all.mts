@@ -553,6 +553,9 @@ const steps: Step[] = [
   //   아니라 **「없는가 + 그 트리가 올려 주던 미입력 수를 서버가 대신 싣는가 + 발행 가드가 서는가」**를 문다.
   { name: '점검표 범위 축(E2E)',        cmd: 'npx tsx scripts/test-sheet-scope-axis.mts',    needServer: true },
   { name: '회차 미입력 축·트리 부재(E2E)', cmd: 'npx tsx scripts/test-annex-sheet-blanks.mts', needServer: true },
+  // 「기타」 3종의 두 축(2026-09-21) — 체크=대장 / 결과·진행=점검표. **표본이 둘**이어야 한다:
+  //   작동 회차만으로는 시트 단위/항목 단위가 같은 답을 내 변이가 통과한다(실증 — M-b 생존).
+  { name: '기타 3종 두 축(E2E)',        cmd: 'npx tsx scripts/test-etc-axis.mts',           needServer: true },
   // 별지 서식이 소방계획서 탭 **안**에서 최상위 탭으로 갈라졌다(소방계획서_34). 4종을 함께 등재한다.
   //   앞의 둘은 34 이전부터 미등재라 조용히 썩고 있던 것 — 등재하지 않으면 아무도 안 돌린다(드로어 2종의 전례).
   //   신규 둘은 갈라진 탭이 소리 없이 무너지는 자리를 붙든다:

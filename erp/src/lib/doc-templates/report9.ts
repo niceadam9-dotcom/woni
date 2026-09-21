@@ -11,6 +11,7 @@ import { renderDocument, pageHeader, pageFooter, esc, val, ck, resultMark } from
 import { renderSpecSections, specNoteTable, type SpecMap } from './spec-sections'
 import { annexLabel, annexHasItem, type AnnexForm } from './annex-labels'
 import { EVAC_FORM3_GROUPS, FIRE_SUB_ITEMS, evacTypesFromSpecs } from '../facility-codes'
+import { ETC_LEDGER_CODE, type EtcKey } from '../etc-sheet-map'
 import { distributeSubMarks } from '../sheet-facility-map'
 // 서식이 담는 동 수 — 조회(대표동 선정)와 인쇄(넘침 고지)가 **같은 수**를 봐야 하므로
 // 의존성 없는 `primary-building`에 두고 양쪽이 가져간다(사본 금지)
@@ -820,9 +821,17 @@ export function facilityResultSection(
   // 있었고 여기는 그냥 응답이 없는 것이다. 즉 이 ／는 "점검해 보니 해당없음"이 아니라
   // "표기 규약상 빈칸을 남기지 않는다"에 가깝다. 31번 점검표를 채우면 그 값(○/×)이 항상 이긴다.
   // (실측 2026-08-20: STD-31 시트 응답이 스테이징 전체 0건 — 자체점검 39건 모두 이 경로로 인쇄됐다)
-  const etcItem = (key: 'door' | 'exit' | 'flame', label: string): P3Item => {
+  // 🚨 2026-09-21 정정 — **체크는 대장 축이다**. 종전에는 체크까지 etcMarks(점검표 응답)에서
+  //   뽑아, 대장(1.4 「기타 점검대상」)에 ☑ 해 둔 방화문·비상구가 문서에는 빈 상자로 나갔다
+  //   (실측 용문3: 대장 2종 체크·문서 3칸 전부 빈 상자). facility-codes.ts ETC_ITEMS가 이미
+  //   못박아 둔 계약 그대로다 — **「체크 = 이 대상물에 해당한다」, 「결과(○/×/／) = 점검표」 두 축**.
+  //   소방시설 40종도 같은 규칙(체크=facilityChecks 대장, 결과=롤업)이라 축이 하나로 모인다.
+  // ⚠ 결과칸 규칙은 **건드리지 않았다** — 무응답이면 종전대로 ／(2026-08-20 사용자 확정:
+  //   빈칸을 남기지 않는다). 작동점검 회차에서 비상구·방염(● 종합 전용)이 무응답인 것은
+  //   미입력이 아니라 **그 회차의 점검 항목이 아닌 것**이라, ／가 사실에 가장 가깝다.
+  const etcItem = (key: EtcKey, label: string): P3Item => {
     const r = d.etcMarks?.[key] ?? 'N'
-    return { html: ` ${ck(r === 'O' || r === 'X')}${esc(label)}`, mark: resultMark(r) }
+    return { html: ` ${ck(ledger.has(ETC_LEDGER_CODE[key]))}${esc(label)}`, mark: resultMark(r) }
   }
 
   const left1 = p3Table([
