@@ -13,6 +13,7 @@ import dynamic from 'next/dynamic'
 import type { ComposeAnnexNo } from '@/components/inspections/annex-compose-panel'
 import { PlanAnnexRoundCard } from '@/components/customers/plan-annex-round-card'
 import { hasSheetDefect } from '@/lib/inspection-step-status'
+import { currentRoundOf, todayKst } from '@/lib/customer-rounds'
 import type { PreviewDoc, FullPreviewState } from '@/components/customers/plan-annex-full-preview'
 
 // 조건부로만 뜨는 무거운 모달 2종은 지연 로드 — 탭에 들어오기만 한 사용자는 내려받지 않는다.
@@ -31,35 +32,13 @@ const PlanAnnexFullPreview = dynamic(
  *  미시작이면 [작성 시작] 한 번으로 오늘이 점검 시작일로 기록되며 열린다(H-3 규칙 재사용).
  *  문서 행은 InspectionDocRows·AnnexComposePanel 재사용 — 저장 경로 동일(annex_inputs=inspection_id). */
 
-const todayStr = () => new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10)
+const todayStr = todayKst   // KST 오늘 — 식은 lib/customer-rounds가 정본
 
 function roundKey(r: CustomerRound) { return `${r.year}-${r.sequenceNum}` }
 
-/** 현재 회차 자동 판정 (2026-09-02 사용자 확정 — "회차는 ERP가 알아서").
- *
- *  사용자는 회차를 고르지도 관리하지도 않는다 — 이 화면은 **지금 문서 작업의 대상인 회차 1건**만
- *  자동으로 정해 그 문서·점검표를 보여준다. 판정 순서:
- *   ① 진행 중 — 입력 중인 점검이 곧 현재.
- *   ② 시기가 도래한 미시작(예정일 ≤ 오늘) — [작성 시작]으로 열린다.
- *   ③ **최근 완료** — 다음 회차 시기 전까지는 방금 끝낸 회차의 산출물(엑셀·별지)이 현재 문서다.
- *     (이게 빠지면 점검 완료 직후 엑셀 버튼이 사라진다 — 서림사 실사고. 서버가 이 1건의 docs를 함께 싣는다)
- *   ④ 미래 미시작 중 최근접 — 아직 아무 이력이 없는 신규 고객의 [작성 시작] 진입점.
- *  연도·차수·종합/작동은 롤링 생성기의 사용승인일 법정 축, 최초점검은 60일 규칙 — 문서에 자동 기입.
- *  예정·지난 회차 목록 UI는 폐지 — 일정 관리는 점검 달력·점검계획 화면이 담당한다. */
-function currentRoundOf(rounds: CustomerRound[]): CustomerRound | null {
-  const today = todayStr()
-  const dateKey = (r: CustomerRound) => r.plannedDate ?? `${r.year}-${String(r.sequenceNum * 6).padStart(2, '0')}`
-  const active = rounds.filter(r => r.state !== 'completed')
-  const started = active.filter(r => r.state !== 'planned')
-    .sort((a, b) => dateKey(a).localeCompare(dateKey(b)))
-  if (started.length > 0) return started[0]
-  const planned = active.filter(r => r.state === 'planned')
-    .sort((a, b) => dateKey(a).localeCompare(dateKey(b)))
-  if (planned[0] && dateKey(planned[0]) <= today) return planned[0]
-  // rounds는 (연,차) 내림차순 — 완료 중 첫 건이 최신. docs는 서버가 이 경우에만 실어 보낸다.
-  const latestDone = rounds.find(r => r.state === 'completed' && r.docs)
-  return latestDone ?? planned[0] ?? null
-}
+/** 현재 회차 자동 판정 — 규칙은 `lib/customer-rounds`가 **정본**이다(2026-09-21).
+ *  [보고서] 탭이 같은 회차의 머리줄·[별지 엑셀]을 내주어야 해서 꺼냈다 — 여기 손목록을
+ *  되살리면 두 탭이 서로 다른 회차의 문서를 내주게 된다. */
 
 export function PlanAnnexSection({ customerId, canRegister = false, initialData = null }: {
   customerId: string

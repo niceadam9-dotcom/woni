@@ -14,6 +14,8 @@ import { EditInspectionTypeClient } from '@/components/customers/edit-inspection
 import { EditCustomerInfoClient } from '@/components/customers/edit-customer-info-client'
 import { FirePlanViewClient } from '@/components/customers/fire-plan-view'
 import { FirePlanXlsxButton } from '@/components/customers/fire-plan-xlsx-button'
+import { WorkbookXlsxButton } from '@/components/inspections/workbook-xlsx-button'
+import { currentRoundOf, downloadableInspectionId, roundLabel } from '@/lib/customer-rounds'
 import { FirePlanInfoPanel } from '@/components/customers/fire-plan-info-panel'
 import { PlanTabView, type FormStatusMap } from '@/components/customers/plan-tab-view'
 import { sectionsOfForm, tabOfForm, type FirePlanStatusKey } from '@/lib/fire-plan-sections'
@@ -941,9 +943,19 @@ export default async function CustomerDetailPage({
   //   껍데기가 없어(space-y-3만), 이 래퍼 없이 꺼내면 회차 카드가 배경 위에 테두리 없이 맨몸으로 뜬다.
   // 서버 프리페치(2026-09-02 성능): ?tab=annex로 진입할 때만 회차를 서버에서 미리 실어
   // "회차를 불러오는 중…" 클라이언트 왕복을 없앤다. 다른 탭 진입 시엔 비용 0(종전과 동일).
-  const annexInitial = initialTab === 'annex' && can(profile.role as UserRole, 'inspection_register')
+  // ⭐ [보고서] 탭도 같은 조회를 쓴다(2026-09-21) — 그 탭 머리줄이 「어느 회차 문서인가」와
+  //   [별지 엑셀]을 내주려면 회차가 필요하다. 조회는 **한 번만** 돈다(두 탭이 같은 변수를 읽는다).
+  //   ⚠ 조건을 `true`로 넓히지 말 것 — 지금은 두 탭에 들어갈 때만 비용을 문다. 상시로 바꾸면
+  //     기본정보만 보고 나가는 고객까지 전원이 이 왕복을 문다(2026-09-02 성능 결정의 취지).
+  const needRounds = (initialTab === 'annex' || initialTab === 'reports')
+    && can(profile.role as UserRole, 'inspection_register')
+  const annexInitial = needRounds
     ? await getCustomerRoundsAction(customer.id).then(r => r.data ?? null).catch(() => null)
     : null
+  // 보고서 탭 머리줄이 가리킬 회차 — 회차 탭과 **같은 판정**을 쓴다(lib/customer-rounds 정본).
+  // 두 탭이 서로 다른 회차의 문서를 내주면 사용자는 그걸 화면만 보고는 알 수 없다.
+  const reportsRound = initialTab === 'reports' ? currentRoundOf(annexInitial?.rounds ?? []) : null
+  const reportsInspectionId = downloadableInspectionId(reportsRound)
   const annexTab = (
     <div className="bg-surface rounded-xl border border-line shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-5">
       {/* 소방계획서 엑셀 (소방계획서_47) — 회차 탭에서도 바로 받게 한다.
@@ -967,8 +979,46 @@ export default async function CustomerDetailPage({
   // 동일 규약(TabFormTree). 사용자 확정: 별지 전용 입력이 늘면 이 트리에 노드를 추가한다.
   const reportsTab = (
     <div className="bg-surface rounded-xl border border-line shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-5 space-y-4">
+      {/* 받기 머리줄 (2026-09-21 사용자 요청 「입력 후 엑셀 생성을 쉽게」) — 소방계획서 탭 생성 바와
+          같은 규약이다: **입력한 자리에서 받는다**. 종전엔 이 자리가 「문서 생성·확인은 [회차] 탭에서
+          합니다」라는 안내문이어서, 입력을 마친 사람을 다른 탭으로 보내고 있었다.
+          ⚠ 별지는 **회차 문서**다(소방계획서와 다르다) — 어느 회차 것인지 반드시 같이 적는다.
+            회차 이름이 없으면 받은 파일이 1차인지 2차인지 화면에서 알 수 없다. */}
+      <div className="flex items-center gap-2 flex-wrap pb-3 border-b border-brand-line-soft">
+        {reportsRound ? (
+          <span data-testid="reports-round-label" className="text-form-sm font-semibold text-ink">
+            📑 {roundLabel(reportsRound)}
+            {reportsRound.plannedDate && (
+              <span className="ml-1.5 text-form-xs font-normal text-ink-meta">예정 {reportsRound.plannedDate.slice(5)}</span>
+            )}
+          </span>
+        ) : (
+          <span className="text-form-sm font-semibold text-ink">📑 별지 보고서</span>
+        )}
+        {reportsInspectionId ? (
+          <>
+            {/* 주 = 갑지 통합 워크북. 별지가 한 통으로 나오는 산출물이라 이게 「별지 엑셀」의 정체다.
+                로직은 회차 탭·점검 목록과 **같은 한 벌**(workbook-xlsx-button) — 복제하지 않는다. */}
+            <WorkbookXlsxButton inspectionId={reportsInspectionId} />
+            {/* 보조 = 생성된 별지 PDF 묶음. 라우트가 없는 문서는 알아서 건너뛴다 */}
+            <a href={`/inspections/${reportsInspectionId}/print-bundle`} target="_blank" rel="noopener noreferrer"
+              data-testid="reports-print-bundle"
+              title="이 회차의 생성된 별지 PDF를 한 번에 인쇄 — 종이 보관용"
+              className="inline-flex items-center gap-1 h-form-8 px-3 rounded-lg border border-brand-line text-form-sm text-ink-sub hover:bg-brand-tint hover:text-brand transition-colors">
+              🖨 PDF 묶음
+            </a>
+          </>
+        ) : (
+          // 미시작 회차는 `docs`가 null이라 **받을 산출물 자체가 없다**. 비활성 버튼을 보여 주면
+          // 눌러 보고 아무 일도 안 일어나므로, 무엇을 해야 받을 수 있는지를 적고 그리로 보낸다.
+          <span data-testid="reports-no-round" className="text-form-xs text-ink-meta">
+            아직 시작한 회차가 없어 받을 별지가 없습니다 —{' '}
+            <Link href={`/customers/${customer.id}?tab=annex`} className="text-brand hover:underline">[회차] 탭에서 작성 시작</Link>
+          </span>
+        )}
+      </div>
       <p className="text-form-xs text-ink-meta rounded-lg bg-brand-tint border border-brand-line-soft px-3 py-1.5">
-        별지 전용 입력 — 여기 값은 별지 보고서에만 실립니다(소방계획서에는 인쇄되지 않음) · 문서 생성·확인은 [회차] 탭에서 합니다.
+        별지 전용 입력 — 여기 값은 별지 보고서에만 실립니다(소방계획서에는 인쇄되지 않음) · 회차별 문서 현황·개별 생성은 [회차] 탭에서 봅니다.
       </p>
       <TabFormTree tabKey="reports" groupLabel="📑 별지 입력" initialForm={reportsInitialForm}
         nodes={[

@@ -255,6 +255,11 @@ const steps: Step[] = [
   // ⚠ 목차가 종전엔 세 곳(plan-tab-view의 CH1_FORMS·VALID_SEL, [id]/page.tsx의 formStatus 키)에
   //   각자 있었다. 여기가 붉으면 그 셋 중 하나가 대장과 갈라진 것 — 딥링크가 조용히 깨진다.
   { name: '소방계획서 절↔시트 대장',   cmd: 'npx tsx --conditions=react-server scripts/test-fire-plan-sections.mts' },
+  // 「지금 문서 작업의 대상인 회차」 판정(`lib/customer-rounds`) — 2026-09-21 [보고서] 탭이
+  // 같은 회차의 [별지 엑셀]을 내주게 되면서 회차 탭에서 꺼낸 규칙이다. 두 탭이 **서로 다른
+  // 회차**를 고르면 받은 파일이 1차인지 2차인지 화면만 보고는 알 수 없다(조용한 오배송).
+  // 🚨 「최근 완료」 갈래가 빠지면 점검을 끝낸 직후 엑셀 버튼이 사라진다(서림사 실사고).
+  { name: '현재 회차 판정',            cmd: 'npx tsx --conditions=react-server scripts/test-customer-rounds.mts' },
   // xlsx **리더**(`lib/xlsx-read-sheet`) — 서식 미리보기의 바닥. 병합·열폭·행높이·테두리를
   // 자산에서 직접 읽는다(manifest엔 병합이 **개수만** 있어 못 쓴다). 여기가 틀리면 미리보기가
   // 실제 엑셀과 다른 그림을 그리는데, 그건 기능이 아니라 **거짓말**이다.

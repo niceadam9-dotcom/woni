@@ -123,6 +123,41 @@ try {
   } else {
     check('④ 대조군 워크북 생성', false, String(res2.status()))
   }
+
+  // ── ⑤ 보고서 탭 받기 머리줄 (2026-09-21 사용자 요청 「입력 후 엑셀 생성을 쉽게」) ──
+  //  종전에는 이 자리가 「문서 생성·확인은 [회차] 탭에서 합니다」라는 **안내문**이라, 입력을
+  //  마친 사람을 다른 탭으로 보냈다. 입력한 자리에서 받게 한다(소방계획서 탭 생성 바와 같은 규약).
+  //  ⚠ 별지는 회차 문서라 **어느 회차인지 같이 적는가**가 핵심 계약이다 — 없으면 받은 파일이
+  //    1차인지 2차인지 화면만 보고는 알 수 없다.
+  // ⚠ 이 탭은 회차 조회를 **서버에서** 한 번 더 돈다(머리줄이 어느 회차인지 말해야 하므로).
+  //   느려서 실패하는 것과 깨져서 실패하는 것을 구별해야 하니 **걸린 시간을 찍는다** —
+  //   기본 goto 타임아웃(15초)에 걸리면 둘을 못 가른다.
+  const t0 = Date.now()
+  await page.goto(`${BASE}/customers/${op.customerId}?tab=reports&form=etc`, { timeout: 120000 })
+  await page.waitForSelector('[data-testid="reports-round-label"]', { timeout: 60000 })
+  console.log(`  ⏱ 보고서 탭(회차 있음) 로드 ${Date.now() - t0}ms`)
+  const roundText = (await page.locator('[data-testid="reports-round-label"]').innerText()).trim()
+  check('⑤ 회차가 있으면 머리줄이 어느 회차인지 말한다', /\d{4}년 \d차/.test(roundText), roundText)
+  check('⑤ [별지 엑셀] 주 버튼', await page.isVisible('[data-testid="workbook-xlsx"]'))
+  check('⑤ [PDF 묶음] 보조 버튼', await page.isVisible('[data-testid="reports-print-bundle"]'))
+  check('⑤ 역방향 — 「[회차] 탭에서 합니다」 안내문 폐지',
+    !(await page.isVisible('text=문서 생성·확인은 [회차] 탭에서 합니다')))
+  check('⑤ 회차가 있을 땐 미시작 안내를 띄우지 않는다',
+    (await page.locator('[data-testid="reports-no-round"]').count()) === 0)
+
+  // ⑤-b 미시작 갈래 — 회차가 없는 고객은 **받을 산출물 자체가 없다**. 비활성 버튼을 보여 주면
+  //   눌러 보고 아무 일도 안 일어나므로, 무엇을 해야 받는지 적고 그리로 보낸다.
+  const bareId = await mkCustomer({ customer_name: 'ZZ회차없음E2E', created_by: userId, inspection_type: '일반관리' })
+  custIds.push(bareId)
+  const t1 = Date.now()
+  await page.goto(`${BASE}/customers/${bareId}?tab=reports&form=etc`, { timeout: 120000 })
+  await page.waitForSelector('[data-testid="reports-no-round"]', { timeout: 60000 })
+  console.log(`  ⏱ 보고서 탭(회차 없음) 로드 ${Date.now() - t1}ms`)
+  check('⑤-b 회차 없음 — 안내가 뜬다', await page.isVisible('[data-testid="reports-no-round"]'))
+  check('🚨 ⑤-b 회차 없음 — 눌러도 소용없는 엑셀 버튼을 보여 주지 않는다',
+    (await page.locator('[data-testid="workbook-xlsx"]').count()) === 0)
+  check('⑤-b 회차 없음 — PDF 묶음 링크도 없다',
+    (await page.locator('[data-testid="reports-print-bundle"]').count()) === 0)
 } catch (e) {
   check('예외 없음', false, String(e))
 } finally {
