@@ -7,9 +7,16 @@
  *    엉뚱한 그림이 들어가도 초록이다. 그래서 종류마다 **다른 단색**으로 그림을 지어
  *    산출물 media를 디코드해 **평균색**으로 「무엇이 들어갔나」를 묻는다.
  *
- *  ⭐ **자는 따로 든다.** 상자 크기·좌표를 제품 코드(`readGeometry`)로 재면 그 파서가 틀려도
- *    초록이다(계측기가 변경의 일부면 대조가 성립하지 않는다). 이 파일은 시트 XML을
- *    **자기 파서로** 다시 읽는다.
+ *  ⭐ **파서는 따로 든다.** 상자 좌표·병합을 제품 코드(`readGeometry`)로 재면 그 파서가 틀려도
+ *    초록이다. 이 파일은 시트 XML을 **자기 파서로** 다시 읽는다.
+ *
+ *  🚨 **그런데 「자를 따로 든다」는 2026-09-21까지 절반만 참이었다.** 파서는 독립이었지만
+ *    px 환산 산식을 제품에서 **베껴 왔고**, 그 산식이 틀려 있었다(열마다 +5px → 60열 상자를
+ *    1080px로 읽음). 그래서 「그림이 상자 안에서 가운데」가 **초록인 채로** 표지 사진이
+ *    160px 밀려 나갔다(사용자가 두 번 지적). 같은 자로 재면 틀린 것을 틀렸다고 말할 수 없다.
+ *    → 지금은 환산을 `xlsx-geometry` 한 벌로 공유한다. 환산은 **규격이 정한 하나**뿐이라
+ *      여기서 또 다른 산식을 만들면 이번엔 제품이 맞는데 검사가 붉어진다.
+ *      진짜 독립 축은 산식이 아니라 **산출물을 열어 앵커를 되푸는 것**이고, [4]가 그 일을 한다.
  *
  *  실행: npx tsx --conditions=react-server scripts/test-fire-plan-images.mts
  *  ⚠ `--conditions=react-server`가 없으면 `server-only` 표식에 걸려 **한 줄도 못 돈다**
@@ -28,6 +35,7 @@ import {
 import { embedFirePlanImages, planFirePlanImages } from '../src/lib/fire-plan-xlsx-images.ts'
 // PDF 축 — 같은 표본을 두 조립기에 먹여 「두 표면이 갈라지지 않았는가」를 여기서 함께 잰다
 import { buildFirePlanHtml, type FirePlanGenData } from '../src/lib/fire-plan-template.ts'
+import { colWidthToPx, rowHeightToPx } from '../src/lib/xlsx-geometry.ts'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const XLSX_PATH = resolve(HERE, '../templates/fire-plan-workbook.xlsx')
@@ -65,10 +73,16 @@ function rulerBox(xml: string, cell: string) {
     const rr = Number(/\sr="(\d+)"/.exec(tag)?.[1] ?? 0)
     if (rr) h.set(rr, Number(/\sht="([\d.]+)"/.exec(tag)?.[1] ?? defH))
   }
+  /* 🚨 **여기에 산식을 베껴 적지 않는다** — 제품과 같은 `xlsx-geometry`를 쓴다.
+   *   종전엔 이 줄이 제품과 같은 틀린 산식(`round(w*7+5)`, 열마다 +5px)을 **복제**하고 있었고,
+   *   그래서 「그림이 상자 안에서 가운데」가 **초록인 채로** 표지 사진이 160px 밀려 나갔다
+   *   (2026-09-21 사용자 지적 2회). 같은 자로 재면 틀린 것을 틀렸다고 말할 수 없다.
+   *   ⭐ 그렇다고 여기서 **독립 산식**을 또 만들면 이번엔 제품이 맞는데 검사가 붉어진다 —
+   *     환산은 규격이 정한 하나뿐이므로 «한 벌 공유»가 옳고, 진짜 독립 축은 산출물을 여는 것이다. */
   const colSizes: number[] = []
-  for (let i = box.c1; i <= box.c2; i++) colSizes.push(Math.round((w.get(i) ?? defW) * 7 + 5))
+  for (let i = box.c1; i <= box.c2; i++) colSizes.push(colWidthToPx(w.get(i) ?? defW))
   const rowSizes: number[] = []
-  for (let i = box.r1; i <= box.r2; i++) rowSizes.push(Math.round((h.get(i) ?? defH) * 4 / 3))
+  for (let i = box.r1; i <= box.r2; i++) rowSizes.push(rowHeightToPx(h.get(i) ?? defH))
   const sum = (a: number[]) => a.reduce((x, y) => x + y, 0)
   return { ...box, colSizes, rowSizes, w: sum(colSizes), h: sum(rowSizes) }
 }

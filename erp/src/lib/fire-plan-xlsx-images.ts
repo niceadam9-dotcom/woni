@@ -9,6 +9,7 @@ import { escXml, sheetFileMap } from '@/lib/xlsx-inject'
 import type { Anchor } from '@/lib/xlsx-anchors'
 import { FIRE_PLAN_IMAGE_BOXES, imageBoxDescr } from '@/lib/fire-plan-anchors'
 import { imageKindLabel, pickFirstKind } from '@/lib/fire-plan-image-kinds'
+import { colWidthToPx, rowHeightToPx } from '@/lib/xlsx-geometry'
 
 /** 소방계획서 엑셀 — **기존 시트의 빈 상자에 사진·도면을 앉힌다** (2026-09-14)
  *
@@ -70,9 +71,12 @@ export type EmbedResult = {
 
 const colNum = (s: string) => s.split('').reduce((n, ch) => n * 26 + (ch.charCodeAt(0) - 64), 0)
 
-/** 엑셀 열 폭(문자 단위) → px. `defect-photo-embed`와 **같은 산식**이어야 두 시트의 그림이 다르게 놓이지 않는다 */
-const colPx = (w: number) => Math.round(w * 7 + 5)
-const rowPx = (pt: number) => Math.round(pt * 4 / 3)
+/* 🚨 격자 → px 환산은 **`xlsx-geometry`가 유일한 자**다(2026-09-21). 여기에 산식을 다시 적지 말 것.
+ *   종전엔 `round(w*7+5)`를 이 파일과 `defect-photo-embed`가 각자 들고 있었는데, 그 산식이
+ *   **열마다 +5px**을 더해 60열 상자를 1080px(실제 780px)로 읽었다 — 표지 사진이 160px 밀려
+ *   앉고 16:9는 오른쪽으로 넘쳤다. 사유와 규격식은 그 파일 머리주석에 있다. */
+const colPx = colWidthToPx
+const rowPx = rowHeightToPx
 
 type SheetGeom = {
   colW: (col: number) => number

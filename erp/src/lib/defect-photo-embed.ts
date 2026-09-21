@@ -4,6 +4,7 @@ import sharp from 'sharp'
 import { escXml } from '@/lib/xlsx-inject'
 import { extractStoragePath } from '@/lib/defect-photos'
 import type { SheetPart } from '@/lib/xlsx-sheet-surgery'
+import { colWidthToPx, rowHeightToPx } from '@/lib/xlsx-geometry'
 
 /** 갑지 워크북 「불량사진」 시트 (소방계획서_46)
  *
@@ -89,7 +90,10 @@ type Prepared = { jpeg: Uint8Array; w: number; h: number }
 type Slot = { kind: 'before' | 'after'; img: Prepared | null }
 type Block = { no: number; caption: string; slots: [Slot, Slot]; texts: [string, string] }
 
-const px = { colW: (w: number) => Math.round(w * 7 + 5), rowH: (pt: number) => Math.round(pt * 4 / 3) }
+/* 격자 → px 환산은 `xlsx-geometry` 한 벌을 쓴다(2026-09-21) — 종전엔 이 파일과
+ * `fire-plan-xlsx-images`가 같은 틀린 산식을 각자 들고 있었다. 여긴 2열만 병합해 오차가 5px라
+ * 눈에 안 띄었고, 미세 격자 60열을 쓰는 저쪽에서 터졌다. 산식을 여기 다시 적지 말 것. */
+const px = { colW: colWidthToPx, rowH: rowHeightToPx }
 
 /** 한 사진을 상자에 맞춰 놓을 때의 EMU — **가로세로비를 바꾸지 않는다**(늘리면 증빙이 왜곡된다) */
 function fitBox(img: Prepared): { cx: number; cy: number; colOff: number; rowOff: number } {
