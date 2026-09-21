@@ -321,6 +321,32 @@ export function planTextBodyEquals(a: unknown, b: unknown): boolean {
   return JSON.stringify(sortKeys(a)) === JSON.stringify(sortKeys(b))
 }
 
+/** 편집기 스펙이 선언한 칸 순서 — **미리보기 대표 칸의 단일 원천**.
+ *
+ *  🚨 body 객체의 키 순서를 믿으면 안 된다. **Postgres jsonb는 키를 「길이 → 바이트순」으로
+ *     재정렬해 돌려주므로**, `Object.values(...)`의 첫 값은 「선언상 첫 칸」이 아니라
+ *     「jsonb가 앞으로 민 칸」이다. 여기가 화면에 그대로 샜다(2026-09-21 실측, 7건 중 2건):
+ *       · brigadeTeams — 키 순서가 rescue, command, … 라 지휘통제 대신 **응급구조**가 떴다
+ *       · constructionLog — date, note, company, content, … 라 공사내용 대신 **비고**가 떴다
+ *     나머지 4건(fireworkLog·promoLog·recoveryLog·단일키 2건)은 **우연히** 맞았을 뿐이다.
+ *     그래서 「값을 집는 순서」를 객체가 아니라 editor 스펙에서 가져온다. */
+function declaredPreviewKeys(sectionKey: string): string[] {
+  const ed = PLAN_TEXT_SECTIONS[sectionKey]?.editor ?? []
+  const rec = ed.find(f => f.kind === 'record')
+  if (rec && rec.kind === 'record') return rec.entries.map(e => e.key)
+  // key 없는 rows = body 자체가 행 배열(기록부 4종). key 있는 rows(training.details)는 대상이 아니다
+  const row = ed.find(f => f.kind === 'rows' && !f.key)
+  if (row && row.kind === 'rows') return row.cols.map(c => c.key)
+  return []
+}
+
+/** 선언 순서로 첫 비어있지 않은 값 — 선언 축이 없는 섹션은 종전대로 객체 순서로 떨어진다 */
+function firstDeclared(sectionKey: string, src: Dict): string {
+  const keys = declaredPreviewKeys(sectionKey)
+  const ordered = keys.length > 0 ? keys.map(k => s(src[k])) : Object.values(src).map(s)
+  return ordered.find(t => t.trim()) ?? ''
+}
+
 /** 리스트 미리보기 40자 — 이름만으로 항목을 구분 못 하는 문제 보완 (§4-1) */
 export function planTextPreview(sectionKey: string, body: unknown): string {
   const b = body as Dict
@@ -332,10 +358,10 @@ export function planTextPreview(sectionKey: string, body: unknown): string {
       // Object.values로도 우연히 맞지만, 키가 늘면 엉뚱한 값이 미리보기에 뜬다
       case 'vulnerableMethods': return s(b.method)
       case 'brigadeTeams':
-        return Object.values(dict(b)).map(s).find(t => t.trim()) ?? ''
+        return firstDeclared(sectionKey, dict(b))
       default: {
         const r = rows(b)[0]
-        return r ? Object.values(r).find(t => t.trim()) ?? '' : ''
+        return r ? firstDeclared(sectionKey, r as Dict) : ''
       }
     }
   })()
