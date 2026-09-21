@@ -4,6 +4,23 @@ import { useState } from 'react'
 import { FileSpreadsheet, Loader2 } from 'lucide-react'
 import { DocNoticeToast } from '@/components/ui/doc-notice-toast'
 
+/**
+ * 이 문서가 화면에 뜨는 **유일한 이름**(2026-09-21 사용자 지시).
+ *
+ * 종전에는 같은 산출물이 표면마다 다른 글씨였다 — 회차 카드는 「엑셀」, 보고서 탭·작업대는
+ * 「엑셀로 받기」, 점검 목록은 「엑셀」. 옆자리 [소방계획서 엑셀]만 이름이 붙어 있어서,
+ * 정작 **무엇의 엑셀인지 갈라야 하는 쪽이 이름 없이** 떠 있었다(회차 탭엔 둘이 나란히 뜬다).
+ *
+ * 「보고서」로 정한 것은 그게 **탭 이름과 같아** 사용자가 이미 아는 말이기 때문이다.
+ * 「결과보고서」는 정확하지만 칩 자리에 길고, 「별지」는 갑지까지 든 문서라 오히려 좁다.
+ *
+ * ⚠ 회차 카드 칩은 이 컴포넌트를 **쓰지 않는다** — 발행 가드(미입력이면 점검표로 보낸다)가
+ *   붙어 손으로 짜여 있다. 그래서 그쪽은 이 상수를 import해서 쓴다. 글씨를 거기 또 적지 말 것:
+ *   두 벌이 되는 순간 한쪽만 고쳐져 «같은 문서, 화면마다 다른 이름»이라는 종전 상태로 돌아간다.
+ *   `test-workbook-label`이 그 분기를 문다.
+ */
+export const WORKBOOK_LABEL = '보고서 엑셀'
+
 /** 갑지 통합 워크북(엑셀) 받기 — 생성물 목록의 **머리 자리** 창구.
  *
  *  배경(2026-09-10 사용자 요청): 이 버튼은 원래 [번들 생성] 패널 안에 있었다(bundle-generate-panel).
@@ -69,8 +86,11 @@ export function WorkbookXlsxButton({ inspectionId, disabled, variant = 'default'
       <>
         <button onClick={download} disabled={busy || disabled} data-testid="workbook-xlsx"
           title="결과보고서 엑셀 받기 — 갑지 서식 통합 워크북. 받은 뒤 고쳐 쓰실 수 있습니다 (저장되지 않습니다)"
-          className="inline-flex h-6 w-[2.6rem] items-center justify-center rounded border border-emerald-200 text-form-2xs font-medium text-emerald-700 transition-colors hover:bg-emerald-50 disabled:opacity-50">
-          {busy ? <Loader2 className="size-3 animate-spin" /> : '엑셀'}
+          /* ⚠ 고정 폭 `w-[2.6rem]`을 **버렸다**(2026-09-21) — 「엑셀」 두 글자에 맞춘 폭이라
+             `WORKBOOK_LABEL`이 들어가면 잘린다. 목록 행 정렬은 그래도 안 흔들린다: 라벨이 한 벌이라
+             **모든 행이 같은 글씨 = 같은 폭**이다(고정 폭이 하던 일을 이제 라벨의 단일성이 한다). */
+          className="inline-flex h-6 items-center justify-center gap-1 px-2 rounded border border-emerald-200 text-form-2xs font-medium text-emerald-700 transition-colors hover:bg-emerald-50 disabled:opacity-50">
+          {busy ? <Loader2 className="size-3 animate-spin" /> : <><FileSpreadsheet className="size-3" /> {WORKBOOK_LABEL}</>}
         </button>
         <DocNoticeToast notice={notice} error={error}
           onClose={() => { setNotice(''); setError('') }} />
@@ -81,9 +101,9 @@ export function WorkbookXlsxButton({ inspectionId, disabled, variant = 'default'
   return (
     <>
       <button onClick={download} disabled={busy || disabled} data-testid="workbook-xlsx"
-        title="갑지 서식 통합 워크북 — PDF와 달리 받은 뒤 고쳐 쓰실 수 있습니다 (저장되지 않습니다)"
+        title="결과보고서 엑셀 받기 — 갑지 서식 통합 워크북. 받은 뒤 고쳐 쓰실 수 있습니다 (저장되지 않습니다)"
         className="inline-flex items-center gap-1 h-6 px-2 rounded border border-emerald-200 text-form-xs text-emerald-700 hover:bg-emerald-50 disabled:opacity-50">
-        {busy ? <Loader2 className="size-3 animate-spin" /> : <FileSpreadsheet className="size-3" />} 엑셀로 받기
+        {busy ? <Loader2 className="size-3 animate-spin" /> : <FileSpreadsheet className="size-3" />} {WORKBOOK_LABEL}
       </button>
       {error && (
         <p className="mt-1 w-full rounded-lg bg-red-50 px-2 py-1.5 text-form-xs text-red-600">{error}</p>

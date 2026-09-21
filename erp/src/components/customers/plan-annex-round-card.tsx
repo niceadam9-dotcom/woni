@@ -4,6 +4,8 @@ import { useState } from 'react'
 import { ChevronDown, ChevronRight, Eye, PlayCircle, FileSpreadsheet, Loader2 } from 'lucide-react'
 import type { CustomerRound } from '@/app/(dashboard)/reports/docs-actions'
 import type { ComposeAnnexNo } from '@/components/inspections/annex-compose-panel'
+// 라벨만 가져온다 — 이 칩은 발행 가드 때문에 버튼 컴포넌트 자체는 못 쓰지만 **이름은 한 벌**이다
+import { WORKBOOK_LABEL } from '@/components/inspections/workbook-xlsx-button'
 import { InspectionDocRows } from '@/components/reports/customer-docs'
 import { inspectionNatureBadge } from '@/lib/inspection-nature'
 import { roundPill, type RoundPillKind } from '@/lib/annex-round-state'
@@ -204,13 +206,16 @@ export function PlanAnnexRoundCard({
             안 그러면 눌러 봐야 403 JSON이다. */}
         {r.docs && isOpen && canRegister && (
           <span role="button" tabIndex={xlsx.busy ? -1 : 0}
-            title="이 회차를 갑지 서식 엑셀로 받기 — PDF와 달리 받은 뒤 고쳐 쓸 수 있습니다"
+            title="이 회차 결과보고서 엑셀 받기 — 갑지 서식 통합 워크북. PDF와 달리 받은 뒤 고쳐 쓸 수 있습니다"
             onClick={e => { e.stopPropagation(); if (!xlsx.busy) void downloadWorkbook(r.docs!.inspectionId) }}
             onKeyDown={e => { if (e.key === 'Enter') { e.stopPropagation(); if (!xlsx.busy) void downloadWorkbook(r.docs!.inspectionId) } }}
             className={`${chipCls} inline-flex items-center gap-1 ${xlsx.busy ? 'opacity-50 cursor-default' : ''}`}
             data-testid="round-workbook-download">
             {xlsx.busy ? <Loader2 className="size-3 animate-spin" /> : <FileSpreadsheet className="size-3" />}
-            엑셀
+            {/* ⚠ 글씨를 여기 적지 않는다 — 이 칩은 WorkbookXlsxButton을 못 쓰지만(발행 가드가 붙어
+                손으로 짜여 있다) **이름은 그 한 벌을 따른다**. 바로 옆이 [소방계획서 엑셀]이라
+                여기가 맨 「엑셀」이면 무엇의 엑셀인지 갈리지 않는다(2026-09-21 사용자 지시). */}
+            {WORKBOOK_LABEL}
           </span>
         )}
         <span className={`ml-auto text-form-2xs font-medium px-2 py-0.5 rounded-full shrink-0 ${pill.cls}`}>{pill.label}</span>
