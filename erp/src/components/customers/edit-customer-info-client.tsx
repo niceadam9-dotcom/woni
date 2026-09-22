@@ -8,7 +8,7 @@ import { useDaumPostcode, type DaumPostcodeData } from '@/hooks/use-daum-postcod
 import { DateInput, isCompleteDate } from '@/components/ui/date-input'
 import { AnchorChangePreview, LegalScheduleBadge, anchorPreviewWorthShowing } from './anchor-change-preview'
 import { todayKst } from '@/lib/kst-date'
-import { resolveAnchor, anchorSourceLabel } from '@/lib/plan-anchor'
+import { resolveAnchor, anchorSourceLabel, isProvisionalAnchor } from '@/lib/plan-anchor'
 import { AddressDuplicateDialog } from './address-duplicate-dialog'
 import type { Customer } from '@/types'
 
@@ -317,11 +317,12 @@ export function EditCustomerInfoClient({ customer, typeSlot, annualLabel, lastCh
           ⚠ planAnchorManual이 undefined면 레거시로 해석한다 — 코드가 실제로 하는 그대로여야
             배지가 거짓말을 하지 않는다. */}
       {(() => {
-        const r = resolveAnchor({
+        const anchorInput = {
           use_approval_date: form.use_approval_date || null,
           plan_anchor_date: form.plan_anchor_date || null,
           plan_anchor_manual: planAnchorManual,
-        })
+        }
+        const r = resolveAnchor(anchorInput)
         if (!r.date) return null
         const m = Number(r.date.slice(5, 7))
         const isComp = inspectionSubType === '종합'
@@ -337,6 +338,7 @@ export function EditCustomerInfoClient({ customer, typeSlot, annualLabel, lastCh
             <LegalScheduleBadge
               months={months} anchorSource={anchorSourceLabel(r.source)} anchorDate={r.date}
               divergent={r.divergent} initialDueDate={stillOpen ? due : null}
+              provisional={isProvisionalAnchor(anchorInput)}
             />
           </div>
         )

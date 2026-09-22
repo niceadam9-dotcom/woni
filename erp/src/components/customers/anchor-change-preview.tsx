@@ -150,13 +150,18 @@ export function AnchorChangePreview({
 
 /** 상시 배지 — 고객 상세에 늘 보인다. 별지 9호 표기와 같은 성격이다(늘 보이니 잘못을 눈치챈다).
  *  순수 계산이라 서버 왕복이 없다. */
-export function LegalScheduleBadge({ months, anchorSource, anchorDate, divergent, initialDueDate }: {
+export function LegalScheduleBadge({ months, anchorSource, anchorDate, divergent, initialDueDate, provisional }: {
   months: Array<{ seq: number; month: number; planType: string }>
   anchorSource: string
   anchorDate: string | null
   divergent: boolean
   /** 최초점검 기한 — 지났거나 없으면 null */
   initialDueDate?: string | null
+  /** 기산점이 **잠정인가** — 사용승인일이 없어 점검일자가 대신 들어앉은 상태(`isProvisionalAnchor`).
+   *  🚨 사람이 일부러 고른 예외(`plan_anchor_manual=true`)와 **다른 상황**인데 종전엔 둘 다
+   *    「기산점 점검일자」로만 보여 구별이 안 됐다 — 그래서 「사용승인일을 아직 못 받은 고객」을
+   *    찾을 방법이 이 제품에 없었다(실측 56명·활성의 18%). */
+  provisional?: boolean
 }) {
   if (!anchorDate) return null
   return (
@@ -168,6 +173,14 @@ export function LegalScheduleBadge({ months, anchorSource, anchorDate, divergent
         </b>
       </span>
       <span className="text-ink-meta">기산점 {anchorSource} {anchorDate}</span>
+      {/* 잠정이면 **법정 시기라는 말 자체가 아직 참이 아니다** — 그 사실을 같은 줄에서 말한다.
+          일정은 이미 생성돼 굴러가고 있으므로 경고가 아니라 「아직 안 받았다」는 표시다. */}
+      {provisional && (
+        <span data-testid="anchor-provisional" className="text-amber-700 font-medium"
+              title="사용승인일이 없어 점검일자로 잠정 배치된 상태입니다. 사용승인일을 넣으면 법정 자리로 자동 재배치됩니다.">
+          ⚠ 잠정 — 사용승인일 미입력
+        </span>
+      )}
       {divergent && <span className="text-orange-600">⚠ 점검일자와 달이 다름</span>}
       {initialDueDate && (
         <span className="text-orange-700 dark:text-orange-400 font-medium">

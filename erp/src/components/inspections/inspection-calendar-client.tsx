@@ -1328,18 +1328,40 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
             {holiday}
           </button>
         ) : <span />}
-        <button
-          type="button"
-          onClick={e => { e.stopPropagation(); setDayPanelDate(iso); setDaySearch('') }}
-          title="이 날짜의 전체 일정 보기"
-          className="rbc-button-link"
-          style={{ color }}
-        >
-          {label}
-        </button>
+        <span className="flex items-center gap-0.5 shrink-0">
+          <button
+            type="button"
+            onClick={e => { e.stopPropagation(); setDayPanelDate(iso); setDaySearch('') }}
+            title="이 날짜의 전체 일정 보기"
+            className="rbc-button-link"
+            style={{ color }}
+          >
+            {label}
+          </button>
+          {/* 칸에서 바로 고객 등록 (2026-09-22 사용자 요청).
+              🚨 종전엔 등록 입구가 **데이 패널 안에만** 있었고, 그 패널은 날짜 숫자를 눌러야 열렸다
+                (툴팁도 「이 날짜의 전체 일정 보기」). 즉 **달력 표면에 등록이 가능하다는 신호가 0**이라,
+                패널 버튼 색을 아무리 올려도 패널을 안 연 사람에겐 아무 변화가 없다.
+              ⚠ 숨기지 않는다 — `opacity-0 group-hover`로 감추면 호버가 없는 환경(터치)과
+                호버할 생각을 안 한 사람에겐 **없는 것과 같다**. 흐리게 두되 늘 있다.
+              ⚠ 전파를 끊는다 — 안 끊으면 칸 클릭이 데이 패널까지 같이 연다.
+              ⛔ `onSelectSlot`이 아니라 **버튼**이다: 슬롯 선택을 켜면 R8b 드래그 제스처와 충돌한다. */}
+          {canCreateCustomer && (
+            <button
+              type="button"
+              data-testid="calendar-cell-new-customer"
+              aria-label={`${iso} 이 날짜로 고객 등록`}
+              onClick={e => { e.stopPropagation(); e.preventDefault(); openNewCustomer(iso) }}
+              title="이 날짜를 점검일자로 하여 새 고객을 등록합니다"
+              className="opacity-40 hover:opacity-100 focus:opacity-100 text-brand transition-opacity bg-transparent border-0 p-0 leading-none cursor-pointer"
+            >
+              <Plus className="size-3.5" />
+            </button>
+          )}
+        </span>
       </div>
     )
-  }, [holidayMap])
+  }, [holidayMap, canCreateCustomer, openNewCustomer])
 
   // 이번달 요약 스탯 — 현재 필터 기준 표시 달의 단계+계획 건수 (툴바 표시)
   const monthStats = useMemo(() => {
@@ -1979,7 +2001,10 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
                         data-testid="daypanel-new-customer"
                         disabled={moveSelectMode}
                         onClick={() => { const dt = dayPanelDate; setDayPanelDate(null); openNewCustomer(dt) }}
-                        className="text-form-xs font-medium text-brand border border-brand-line rounded-lg px-2 py-0.5 hover:bg-brand-tint transition-colors inline-flex items-center gap-1 whitespace-nowrap disabled:opacity-40"
+                        /* 형제 셋(사전안내·전체완료·날짜이동)과 **같은 테두리 스타일이라 묻혀 있었다**
+                           (2026-09-22 사용자 지적). 저쪽은 이미 있는 일정을 다루고 이것만 **새로 만든다** —
+                           범주가 다르니 무게도 달라야 한다. 채움은 이 줄에서 **하나뿐**이어야 뜻이 산다. */
+                        className="text-form-xs font-medium bg-brand text-white rounded-lg px-2.5 py-1 hover:opacity-90 transition-opacity inline-flex items-center gap-1 whitespace-nowrap disabled:opacity-40"
                         title={moveSelectMode ? '날짜 이동 선택 중에는 사용할 수 없습니다' : '이 날짜를 점검일자로 하여 새 고객을 등록합니다'}>
                         <Plus className="size-3" /> 이 날짜로 고객 등록
                       </button>

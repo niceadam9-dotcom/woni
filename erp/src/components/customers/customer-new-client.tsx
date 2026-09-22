@@ -690,6 +690,22 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
                   건축물대장 사용승인일 {ledgerRef.current.use_approval_date} 적용
                 </button>
               )}
+              {/* 이 칸이 **무엇을 정하는지** 그 자리에서 말한다 (2026-09-22 사용자 요청).
+                  종전엔 아무 말도 없어서, 위 [점검일자]를 찍은 사용자는 자기가 고른 날짜로
+                  일정이 잡히는 줄 알았다 — 실측 65%가 사용승인일에 밀려 다른 날에 앉았고
+                  90명은 아예 달이 달랐다. 어느 칸이 이기는지를 입력 중에 보여준다.
+                  ⚠ 막지 않는다. 사용승인일을 **못 내는** 건물이 실재한다(군부대·쉼터 등 —
+                    건축물대장 조회가 실패하는 건들). 막으면 그 고객은 등록 자체가 안 된다. */}
+              {isCompleteDate(form.use_approval_date) ? (
+                <p data-testid="new-anchor-legal" className="text-form-2xs text-ink-meta mt-1.5 leading-relaxed">
+                  이 날짜 기준으로 <b className="text-ink-sub">종합·작동·정기</b>가 잡힙니다 — 법정 기산점입니다.
+                </p>
+              ) : (
+                <p data-testid="new-anchor-provisional" className="text-form-2xs text-amber-700 mt-1.5 leading-relaxed">
+                  ⚠ 사용승인일이 없어 <b>점검일자로 잠정 배치</b>됩니다.
+                  일정은 <b>그대로 생성</b>되고(종합·작동·정기), 나중에 사용승인일을 넣으면 <b>법정 자리로 자동 재배치</b>됩니다.
+                </p>
+              )}
             </Field>
           </div>
           {form.assigned_employee_id && (

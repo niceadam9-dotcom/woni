@@ -139,6 +139,9 @@ export default async function CustomersPage({
           <option value="any">입력 미완료</option>
           <option value="plan">계획서 미완료</option>
           <option value="doc">문서 미비만</option>
+          {/* 잠정 기산점만 (2026-09-22) — 사용승인일을 아직 못 받아 점검일자로 임시 배치된 고객.
+              종전엔 「기본정보」 한 덩어리에 뭉쳐 있어 무엇이 빠졌는지 고를 수 없었다. */}
+          <option value="approval">잠정 기산점만</option>
         </select>
         <select name="per_page" defaultValue={String(pageSize)}
           className="h-9 rounded-lg border border-brand-line bg-surface px-3 text-sm text-ink outline-none focus:border-brand transition">
@@ -241,6 +244,16 @@ export default async function CustomersPage({
                         {canCreate ? (
                           <InlineCustomerFieldClient customerId={c.id} field="use_approval_date" value={c.use_approval_date} />
                         ) : (c.use_approval_date ?? '-')}
+                        {/* 빈 칸이 `-`로만 남으면 그게 **무엇을 뜻하는지** 알 수 없다 — 이 칸이 비면
+                            법정 기산점이 없어 점검일자로 임시 배치된 상태다(일정은 이미 굴러간다).
+                            판정은 서버가 `isProvisionalAnchor`로 한 벌 — 여기서 다시 세지 않는다. */}
+                        {c.provisionalAnchor && (
+                          <span data-testid="customer-row-provisional"
+                                title="사용승인일이 없어 점검일자로 잠정 배치된 상태입니다. 사용승인일을 넣으면 법정 자리로 자동 재배치됩니다."
+                                className="ml-1.5 align-middle text-form-2xs font-medium px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-700 whitespace-nowrap">
+                            잠정
+                          </span>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-xs text-ink-sub">
                         {canCreate ? (

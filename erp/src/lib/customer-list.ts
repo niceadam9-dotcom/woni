@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { computeFirePlanReadiness } from '@/lib/fire-plan-readiness'
 import { fetchAllRowsByIds } from '@/lib/supabase/paginate'
 import { hasSheetDefect } from '@/lib/inspection-step-status'
+import { isProvisionalAnchor } from '@/lib/plan-anchor'
 import type { InspectionType } from '@/types'
 
 /** 고객 목록 공용 조회 (서버 전용) — 목록 페이지와 상세 [◀ 이전|다음 ▶] 네비가 같은 필터·정렬을 공유한다.
@@ -12,7 +13,7 @@ export type CustomerListFilter = {
   /** '종합' | '작동' | '일반관리'(레거시 — 일반 전체) | '일반종합' | '일반작동' (2026-08-05 종류 세분화) */
   type?: string
   active?: string   // 'active'(기본) | 'inactive' | 'all'
-  inc?: string      // '' | 'any'(입력 미완료) | 'plan'(계획서 미완료, §6-D-5)
+  inc?: string      // '' | 'any'(입력 미완료) | 'plan'(계획서 미완료, §6-D-5) | 'doc'(문서 미비만) | 'approval'(잠정 기산점 — 사용승인일 미입력)
 }
 
 export type CustomerListBuilding = {
@@ -40,6 +41,12 @@ export type CustomerListItem = {
   planDone: number; planTotal: number
   /** 미완료 영역 (탭 뱃지 §4 기준): 기본정보·건물·관계인·계획서·청구 */
   incompleteAreas: string[]
+  /** 기산점이 **잠정인가** — 사용승인일이 없어 점검일자가 대신 들어앉은 상태 (2026-09-22).
+   *  🚨 `!use_approval_date`로 **여기서 다시 적지 않는다**: 사람이 일부러 고른 예외
+   *    (`plan_anchor_manual=true`)는 잠정이 아니라 확정이라, 둘을 가르는 규칙이 두 벌이 되면
+   *    목록과 고객 화면이 다른 말을 한다. 판정은 `lib/plan-anchor`의 `isProvisionalAnchor` 한 벌.
+   *  ⚠ 이 값이 참이어도 **일정은 이미 생성돼 있다** — 「계획 없음」이 아니라 「법정 축이 아직 아님」이다. */
+  provisionalAnchor: boolean
   /** 당해 연도 문서 보유 현황 (§4-B-2) — 목록 "문서" 컬럼·"문서 미비만" 필터 */
   docStrip: CustomerDocStrip
 }
@@ -112,6 +119,7 @@ export async function fetchCustomerList(
   let query = admin
     .from('customers')
     .select(`id, customer_code, customer_name, contract_date, use_approval_date, plan_anchor_date,
+      plan_anchor_manual,
       inspection_type, inspection_sub_type, address, is_active, assigned_employee_id, assigned_source, created_at,
       region_si, region_myeon, region_ri,
       manager_selected_at, building_grade, insurance_joined, op_hours_weekday,
@@ -281,6 +289,11 @@ export async function fetchCustomerList(
       buildings,
       planDone: readiness.done, planTotal: readiness.total,
       incompleteAreas,
+      provisionalAnchor: isProvisionalAnchor({
+        use_approval_date: (r.use_approval_date as string | null) ?? null,
+        plan_anchor_date: (r.plan_anchor_date as string | null) ?? null,
+        plan_anchor_manual: (r.plan_anchor_manual as boolean | null) ?? null,
+      }),
       docStrip: docStripOf(r.id as string),
     }
   })
@@ -288,6 +301,10 @@ export async function fetchCustomerList(
   // 미완료 필터 (조회 후 판정 — 대상 규모가 작아 JS 필터로 충분)
   if (f.inc === 'any') return items.filter(i => i.incompleteAreas.length > 0)
   if (f.inc === 'plan') return items.filter(i => i.planDone < i.planTotal)
+  /* 잠정 기산점만 (2026-09-22) — 「사용승인일을 아직 못 받은 고객」 목록이 이 제품에 없었다.
+     종전엔 사용승인일·점검일자·담당자가 **한 덩어리**로 '기본정보'에 뭉쳐 있어(위 264줄),
+     미완료로 걸러도 무엇이 빠졌는지 알 수 없었다. 실측 56명(활성의 18%)이 여기 걸린다. */
+  if (f.inc === 'approval') return items.filter(i => i.provisionalAnchor)
   // 문서 미비만 (§4-B-2) — 스트립에 warn 1개 이상
   if (f.inc === 'doc') return items.filter(i => {
     const d = i.docStrip
