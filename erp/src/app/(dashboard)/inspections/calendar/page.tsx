@@ -5,6 +5,7 @@ import { fetchAllRows, fetchAllRowsByIds } from '@/lib/supabase/paginate'
 import { activeStepsByInspection, isStepVisible } from '@/lib/active-steps'
 import { isSelfInspection } from '@/lib/inspection-step-status'
 import { dateChangeVerdict } from '@/lib/inspection-date-change'
+import { closedVerdict } from '@/lib/inspection-closed'
 import { facilityVerifyState, shouldWarnFacilitiesUnverified } from '@/lib/facility-verify-gate'
 import { InspectionCalendarClient } from '@/components/inspections/inspection-calendar-client'
 import type { CalendarInspection, CalendarPlanItem } from '@/components/inspections/inspection-calendar-client'
@@ -222,6 +223,12 @@ export default async function InspectionCalendarPage({
         /* 점검일자를 옮길 수 있는가 — 1단계만 완료면 허용, 2단계 이상 완료면 거부(2026-09-22 사용자 확정).
            ⚠ 위 allStepsMap(**거르기 전**)을 넘긴다. steps(표시 축)를 넘기면 숨겨진 ⑤⑥ 완료를 못 본다. */
         dateChange: dateChangeVerdict(allStepsMap.get(insp.id) ?? []),
+        /* R7 — 한 바퀴가 **끝났는가**(2026-09-22 사용자 확정). 달력은 여태 「얼마나 했나」만 말하고
+           「끝났다」는 말을 한 번도 하지 않았다 — 진행률 100%는 수치지 상태가 아니다.
+           ⚠ `dateChange`와 **같은 함정, 같은 처방**이다: allStepsMap(거르기 전 의무 축)을 넘긴다.
+             아래 steps(표시 축)로 세면 불량 0일 때 ⑤⑥이 빠져 4/4가 되고, 숨겨진 미완을
+             「종료됨」으로 그린다. 의무 집합도 activeCal.map(의무) — visibleMap(표시)이 아니다. */
+        closed: closedVerdict(allStepsMap.get(insp.id) ?? [], activeCal.map.get(insp.id)),
         year: insp.year,
         sequence_num: insp.sequence_num as 1 | 2,
         inspection_start_date: insp.inspection_start_date,

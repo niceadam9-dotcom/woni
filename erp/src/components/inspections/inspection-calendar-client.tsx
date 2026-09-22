@@ -93,6 +93,11 @@ export type CalendarInspection = {
    *    **숨겨진 단계의 완료를 못 보고 날짜 변경을 통과시킨다**. 판정식은
    *    `lib/inspection-date-change` 한 벌이고 서버 액션도 같은 함수를 쓴다. */
   dateChange?: { allowed: boolean; reason?: string; blockedBy?: number }
+  /** 한 바퀴가 **끝났는가**(R7) — 서버가 **의무 축**으로 판정해 실어 보낸다.
+   *  🚨 여기서 `steps`로 다시 세면 안 된다(dateChange와 **같은 함정**): 그건 표시 축이라
+   *    불량 0이면 ⑤⑥이 빠져 4/4가 되고, **숨겨진 미완을 「종료됨」으로** 그린다.
+   *    판정식은 `lib/inspection-closed` 한 벌이다. */
+  closed?: { closed: boolean; closedAt?: string | null; remaining?: number }
 }
 
 /** 정기(monthly)·일반관리(event) 계획 항목 — 6단계 없이 예정일 1건짜리 일정 */
@@ -730,6 +735,14 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
   const selectedInspection = useMemo(
     () => selectedInspectionId ? (inspections.find(i => i.id === selectedInspectionId) ?? null) : null,
     [selectedInspectionId, inspections]
+  )
+
+  /** R7 — **종료된 회차 id 집합**. 데이 패널 목록이 회차 패널을 열지 않고도 「끝났다」를 말하게 한다.
+   *  날짜를 짚었을 때 그날 걸린 일이 아직 할 일인지 이미 끝난 일인지가 **한눈에** 갈려야 한다.
+   *  ⚠ 판정은 서버가 의무 축으로 준 `closed` 하나다 — 여기서 `steps`로 다시 세지 않는다. */
+  const closedInspectionIds = useMemo(
+    () => new Set(inspections.filter(i => i.closed?.closed).map(i => i.id)),
+    [inspections]
   )
 
   const panelCompletedCount = selectedInspection?.steps.filter(s => s.status === 'completed').length ?? 0
@@ -1983,6 +1996,16 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
                           >
                             <span className="size-2.5 rounded-sm shrink-0" style={{ backgroundColor: e.resource.color }} />
                             <span className="text-xs text-ink flex-1 min-w-0 truncate">{e.title}</span>
+                            {/* R7 — 이 회차는 이미 한 바퀴가 끝났다. 줄을 지우지 않고 **표식만** 붙인다:
+                                끝난 일도 그날 있었던 일이라 달력에서 사라지면 안 된다. */}
+                            {closedInspectionIds.has(e.resource.inspectionId) && (
+                              <span
+                                data-testid="daypanel-row-closed"
+                                className="shrink-0 text-form-2xs font-medium px-1.5 py-0.5 rounded-full bg-green-50 text-green-700"
+                              >
+                                종료됨
+                              </span>
+                            )}
                             <ChevronRight className="size-3.5 text-ink-faint shrink-0" />
                           </button>
                           <AddressMapButton customerName={e.resource.customerName} address={e.resource.customerAddress} iconOnly className="mr-2" />
@@ -2379,6 +2402,20 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
                   <span className={`text-form-2xs font-medium px-1.5 py-0.5 rounded-full ${TYPE_COLORS[selectedInspection.inspection_type]}`}>
                     {inspectionTypeLabel(selectedInspection.inspection_type)}
                   </span>
+                  {/* R7 — 「종료됨」(2026-09-22 사용자 확정). 유형 badge 바로 옆에 둔다:
+                      이 패널에서 가장 먼저 답해야 하는 물음이 「이거 끝난 건가」다.
+                      ⚠ 값은 서버가 의무 축으로 판정한 `closed` 하나다 — 여기서 steps로 다시 세지 않는다. */}
+                  {selectedInspection.closed?.closed && (
+                    <span
+                      data-testid="daypanel-closed"
+                      className="text-form-2xs font-medium px-1.5 py-0.5 rounded-full bg-green-50 text-green-700 inline-flex items-center gap-1"
+                    >
+                      <Check className="size-3" />
+                      종료됨
+                      {/* 「언제 끝났나」 — 없으면 말하지 않는다(과거 행은 completed_at이 빌 수 있다) */}
+                      {selectedInspection.closed.closedAt && ` · ${selectedInspection.closed.closedAt.slice(0, 10)}`}
+                    </span>
+                  )}
                   <span className="text-xs text-ink-sub">{selectedInspection.year}년 {selectedInspection.sequence_num}차</span>
                   <ChevronRight className="size-3 text-ink-faint" />
                   <span className="text-xs text-ink-sub">시작 {selectedInspection.inspection_start_date}</span>
