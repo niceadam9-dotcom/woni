@@ -796,7 +796,10 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
   >(null)
   const [newFormError, setNewFormError] = useState('')
   /** 등록 직후 달력에 남기는 띠 — 이동하지 않으므로 「무엇이 생겼는지」를 여기서 말해야 한다 */
-  const [created, setCreated] = useState<{ customerId: string; customerName: string; anchorDate: string } | null>(null)
+  const [created, setCreated] = useState<
+    { customerId: string; customerName: string; anchorDate: string
+      anchorApplied: boolean; startedInspectionId?: string } | null
+  >(null)
 
   /** 폼이 요구하는 서버 데이터는 **모달을 열 때** 받는다 — 달력 초기 로드에 얹지 않는다 */
   const openNewCustomer = useCallback((date: string) => {
@@ -1630,13 +1633,40 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
                 폼 state로 고르면 대장 자동값·부분 실패와 어긋난다. 그래서 여기선 고객 id만 넘긴다. */}
           {created && (
             <div data-testid="calendar-created-banner"
-                 className="flex items-center gap-2 rounded-lg bg-green-50 border border-green-200 px-3 py-2 text-sm text-green-800">
+                 className="flex items-center gap-2 flex-wrap rounded-lg bg-green-50 border border-green-200 px-3 py-2 text-sm text-green-800">
               <Check className="size-4 shrink-0 text-green-600" />
-              <span><strong>{created.customerName}</strong> 등록 완료 — 점검일자 {created.anchorDate}</span>
+              {/* 🚨 두 갈래를 **서버가 준 anchorApplied로** 가른다. 화면이 날짜를 다시 비교해
+                  추측하면 서버의 실제 결과(예: 적용 대상 회차가 없어 실패)와 어긋난다. */}
+              {created.anchorApplied ? (
+                <span data-testid="created-started">
+                  <strong>{created.customerName}</strong> 등록 완료 — {created.anchorDate}에 <b>1~4단계</b>가 생겼습니다
+                </span>
+              ) : (
+                <span data-testid="created-planned">
+                  <strong>{created.customerName}</strong> 등록 완료 — {created.anchorDate}에 <b>계획</b>이 잡혔습니다
+                  <span className="text-green-700"> (1~4단계는 점검 당일에 열립니다)</span>
+                </span>
+              )}
+              {/* 화면을 **떠나지 않고** 그 자리로 간다 — 이게 「달력에 머문다」의 실체다 */}
+              {created.anchorApplied && created.startedInspectionId ? (
+                <button
+                  data-testid="created-open-step1"
+                  onClick={() => { setSelectedInspectionId(created.startedInspectionId!); setStepError(null) }}
+                  className="ml-auto shrink-0 text-xs text-green-700 font-medium hover:underline flex items-center gap-0.5">
+                  1단계 열기 <ChevronRight className="size-3" />
+                </button>
+              ) : (
+                <button
+                  data-testid="created-open-plan"
+                  onClick={() => { setDayPanelDate(created.anchorDate); setDaySearch('') }}
+                  className="ml-auto shrink-0 text-xs text-green-700 font-medium hover:underline flex items-center gap-0.5">
+                  계획 확인 <ChevronRight className="size-3" />
+                </button>
+              )}
               <Link
                 href={`/customers/${created.customerId}?created=1&onboarding=1&from=${encodeURIComponent(calendarBackHref)}`}
                 data-testid="created-fill-rest"
-                className="ml-auto shrink-0 text-xs text-green-700 font-medium hover:underline flex items-center gap-0.5">
+                className="shrink-0 text-xs text-green-700 font-medium hover:underline flex items-center gap-0.5">
                 나머지 채우기 <ChevronRight className="size-3" />
               </Link>
               <button onClick={() => setCreated(null)} className="shrink-0 text-green-700 hover:text-green-900">

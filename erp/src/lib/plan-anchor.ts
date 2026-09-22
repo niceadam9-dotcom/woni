@@ -200,3 +200,16 @@ export function anchorSourceLabel(source: AnchorSource): string {
     : source === 'first' ? '최초 점검일'
     : '없음'
 }
+
+/** 점검일자가 **이미 지났거나 오늘인가** — 「1~4단계가 지금 생기는가」를 가르는 유일한 축.
+ *
+ *  🚨 이 파일(순수·무의존)에 둔 이유(2026-09-22): **등록 폼(클라이언트)도 같은 판정을 해야 한다.**
+ *    달력에서 날짜를 짚어 등록하면 미래 날짜를 고를 수 있게 되는데, 미래면 계획 항목만 생기고
+ *    단계는 안 생긴다(`applyPastAnchorInspection`). 그 사실을 등록 **전에** 말해 주려면 폼이
+ *    같은 식을 써야 하는데, `inspection-start.ts`는 `next/cache`를 들여와 클라이언트가 못 쓴다.
+ *    식을 두 벌로 적으면 「생긴다고 했는데 안 생기는」 어긋남이 곧바로 생긴다.
+ *  ⚠ 경계는 **오늘 포함**(`<=`)이다 — 오늘 점검하고 그날 등록하는 것이 가장 흔한 흐름이다
+ *    (실측: 최근 20건의 점검일자−등록일이 대부분 0일). */
+export function isPastAnchor(anchorDate: string, today: string): boolean {
+  return anchorDate <= today
+}

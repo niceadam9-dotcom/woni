@@ -116,6 +116,12 @@ export async function createCustomerAction(
   /** 중복으로 막혔을 때의 기존 고객 — 화면이 [기존 고객 보기]로 안내한다 */
   duplicateCustomer?: NameDuplicateCustomer
   duplicateCustomerId?: string
+  /** 점검일자가 과거·오늘이라 **1차 점검이 즉시 시작됐는가**(= 1~4단계가 달력에 생겼는가).
+   *  미래 날짜면 false — 계획 항목만 생기고 단계는 점검 당일에 열린다.
+   *  🚨 화면이 이 값으로 안내를 가른다. 없으면 「단계가 생겼다」를 지어내게 된다(2026-09-22). */
+  anchorApplied?: boolean
+  /** 즉시 시작된 경우의 점검 id — 달력이 **화면을 떠나지 않고** 그 회차 패널을 연다 */
+  startedInspectionId?: string
 }> {
   const profile = await requirePermission('customer_manage')
   const admin = createAdminClient()
@@ -394,10 +400,14 @@ export async function createCustomerAction(
   )
 
   // 하나라도 실패하면 등록 자체를 실패로 보고해야 한다 — 조용히 반쪽 등록되는 것이 더 나쁘다
-  await Promise.all([contactsTask, logTask, buildingTask, planTask])
+  const [, , , planResult] = await Promise.all([contactsTask, logTask, buildingTask, planTask])
 
   revalidatePath('/customers')
-  return { customerId }
+  return {
+    customerId,
+    anchorApplied: planResult.anchorApplied,
+    startedInspectionId: planResult.startedInspectionId,
+  }
 }
 
 /** V9-1/V9-9: 신규 고객 등록 시 점검계획일(수동 최우선) 기반 점검계획 항목 자동 생성
@@ -411,7 +421,7 @@ async function _autoCreatePlanItemsForNewCustomer(
     plan_anchor_date: string; assigned_employee_id: string | null
   },
   createdBy: string,
-) {
+): Promise<{ anchorApplied: boolean; startedInspectionId?: string }> {
   const anchorDate = new Date(info.plan_anchor_date)
   const now        = new Date()
   const targetYear = anchorDate.getFullYear() >= now.getFullYear()
@@ -430,11 +440,15 @@ async function _autoCreatePlanItemsForNewCustomer(
     // 재발하므로 서버 로그에 남긴다(이 경우 회차는 법정 자리로 남고 크론 창 안이면 자동 시작).
     console.error('[신규등록] 과거 점검일자 즉시 시작 실패:', applied.error)
   }
-  if (applied.applied) {
-    revalidatePath('/inspections')
-    revalidatePath('/inspections/calendar')
-    revalidatePath('/inspections/sms')
-  }
+  /* 🚨 2026-09-22 — 종전엔 `applied.applied === false`를 **버렸다**. 달력에서 등록하면
+     사용자가 미래 날짜를 고를 수 있고, 그때는 계획 항목만 생기고 단계는 안 생긴다.
+     화면이 「1~4단계가 생겼다」와 「계획만 잡혔다」를 가르려면 이 사실이 올라와야 한다.
+     ⚠ revalidate는 **양쪽 다** 돈다 — 미래 등록도 계획 칩으로 달력에 실리는데,
+       종전엔 applied일 때만 돌아 그 칩이 바로 안 보였다(그 구멍도 여기서 메운다). */
+  revalidatePath('/inspections')
+  revalidatePath('/inspections/calendar')
+  revalidatePath('/inspections/sms')
+  return { anchorApplied: applied.applied, startedInspectionId: applied.inspectionId }
 }
 
 // (소방계획서_6 W-26) 일반관리 event 생성·동기화 헬퍼(_ensureMonthPlan·_createGeneralEventItem·

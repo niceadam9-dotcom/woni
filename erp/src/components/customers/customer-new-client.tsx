@@ -12,6 +12,8 @@ import { useDaumPostcode } from '@/hooks/use-daum-postcode'
 import { DateInput, isCompleteDate } from '@/components/ui/date-input'
 import { ComboInput } from '@/components/ui/combo-input'
 import { formatPhoneKR } from '@/components/ui/fields'
+import { isPastAnchor } from '@/lib/plan-anchor'
+import { todayKst } from '@/lib/kst-date'
 import type { InspectionType } from '@/types'
 
 function extractBuildingName(fullAddress: string): string {
@@ -47,7 +49,13 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
   /** 넘기면 등록 후 **이 콜백만** 부른다(화면 이동 없음) — 달력이 제자리에 머물기 위한 문.
    *  ⚠ 안 넘기면 종전대로 `/customers/{id}?created=1&onboarding=1`로 이동한다.
    *    기존 `/customers/new` 페이지의 동선은 한 글자도 바뀌지 않는다. */
-  onCreated?: (r: { customerId: string; customerName: string; anchorDate: string }) => void
+  onCreated?: (r: {
+    customerId: string; customerName: string; anchorDate: string
+    /** 1차 점검이 즉시 시작됐는가(= 1~4단계가 생겼는가) — **서버가 준 값**을 그대로 넘긴다.
+     *  화면이 날짜를 다시 비교해 추측하면 서버의 실제 결과와 어긋난다. */
+    anchorApplied: boolean
+    startedInspectionId?: string
+  }) => void
 }) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
@@ -370,6 +378,8 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
           customerId: result.customerId!,
           customerName: form.customer_name.trim(),
           anchorDate: form.plan_anchor_date,
+          anchorApplied: result.anchorApplied === true,
+          startedInspectionId: result.startedInspectionId,
         })
         return
       }
@@ -516,6 +526,17 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
               onToggleManual={setAnchorManual}
               canOverride
             />
+            {/* 미래 날짜면 **지금은 단계가 안 생긴다**는 사실을 등록 전에 말한다 (2026-09-22).
+                막지 않는다 — 달력에서 앞당겨 잡는 것은 정상 동선이고, 막으면 그 자리에서
+                할 수 없는 일을 요구받는다(`inspection-step-links.ts:37`의 확립된 기울기).
+                ⚠ 판정은 **서버와 같은 순수 함수**(`isPastAnchor`)로 한다 — 두 벌로 적으면
+                  「생긴다고 했는데 안 생기는」 어긋남이 곧바로 생긴다. */}
+            {isCompleteDate(form.plan_anchor_date)
+              && !isPastAnchor(form.plan_anchor_date, todayKst()) && (
+              <p data-testid="anchor-future-note" className="text-form-2xs text-amber-700 mt-1.5">
+                이 날짜는 <b>계획</b>으로 잡힙니다 — 1~4단계는 점검 당일에 열립니다.
+              </p>
+            )}
           </Field>
         </div>
 

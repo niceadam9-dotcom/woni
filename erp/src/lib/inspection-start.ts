@@ -4,6 +4,7 @@ import type { InspectionType } from '@/types'
 import { planTypeSub, isInitialByLaw } from '@/lib/inspection-round'
 import { resolveStepDates, isSixStepPlanType } from '@/lib/plan-step-dates'
 import { todayKst } from '@/lib/kst-date'
+import { isPastAnchor } from '@/lib/plan-anchor'
 
 type Admin = ReturnType<typeof createAdminClient>
 
@@ -83,7 +84,7 @@ export async function applyPastAnchorInspection(
   anchorDate: string,
   actorId: string,
 ): Promise<{ applied: boolean; inspectionId?: string; error?: string }> {
-  if (anchorDate > todayKst()) return { applied: false }
+  if (!isPastAnchor(anchorDate, todayKst())) return { applied: false }
 
   // 1차 = 아직 시작 전인 자체점검 중 법정 자리가 가장 이른 것 (올해+내년 롤링 중 올해 1차)
   const { data: itemRaw } = await admin
