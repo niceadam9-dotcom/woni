@@ -175,3 +175,54 @@ export function fixableParts(parts: readonly WorkbookNoticePart[]): WorkbookNoti
 export function capParts(parts: readonly WorkbookNoticePart[]): WorkbookNoticePart[] {
   return parts.filter(p => p.kind === 'cap')
 }
+
+/** 목적지 → 실제 주소. **여기 한 곳**에서만 만든다.
+ *
+ *  ⚠ 점검 쪽 목적지는 `stepInputLink`를 그대로 태운다 — 단계별 입력면의 정본이고,
+ *    거기 주소를 여기 베껴 적으면 한쪽만 고쳐지는 순간 「채우러 갔는데 그 칸이 없는」 화면이 된다.
+ *  ⚠ `from`은 **호출부가 붙인다**(달력·작업대가 각자 다른 곳으로 돌아간다).
+ */
+export function workbookFixHref(
+  target: WorkbookFixTarget,
+  ids: { inspectionId: string; customerId: string },
+  stepInputLink: (inspectionId: string, stepNum: number) => { href: string } | null,
+): string {
+  const { inspectionId: i, customerId: c } = ids
+  const step = (n: number) => stepInputLink(i, n)?.href ?? `/inspections/${i}?step=${n}`
+  switch (target) {
+    case 'sheet':      return step(1)                         // 점검표 입력 전용 페이지
+    case 'defects':    return step(5)                         // 불량 조치 + 사진
+    case 'crew':       return step(2)                         // ②「참여 인력」 — 참여자는 그 슬롯 하나다
+    case 'period':     return step(4)                         // 기한·점검기간이 ④에 모여 있다
+    case 'annex':      return step(4)                         // 별지 9호 입력도 ④
+    case 'facilities': return `/customers/${c}?tab=facilities&form=1.4`
+    case 'buildings':  return `/customers/${c}?tab=buildings`
+    case 'contacts':   return `/customers/${c}?tab=contacts`
+    case 'reports':    return `/customers/${c}?tab=reports&form=duty`
+    case 'plan':       return `/customers/${c}?tab=plan`
+    case 'assets':     return `/customers/${c}?tab=plan&form=1.3`  // 지도·사진은 서식 1.3 안에 있다
+    case 'info':       return `/customers/${c}?tab=info`
+    case 'org':        return '/settings'                     // 본사 정보(직원 자격은 /admin/users)
+  }
+}
+
+/** 화면이 그릴 **네 덩이**로 가른다 — 분리 규칙은 JSX가 아니라 여기에 둔다.
+ *
+ *  🚨 컴포넌트 안에서 `filter`로 갈랐더니 변이(`caps = []`)가 그대로 살아남았다 —
+ *    JSX에 그 글자가 남아 있어 **모양만 보는 단언이 초록**이었다(2026-09-22).
+ *    규칙이 순수 함수로 나와 있어야 실제 동작을 단언할 수 있다.
+ *  ⚠ `org`를 `fixable`에서 **빼는** 것이 요점이다: 회사·직원 축은 실측상 31/31에 상시로 떠서
+ *    회차와 같은 무게로 그리면 정작 이번에 채울 것을 가린다. */
+export function splitNoticeParts(parts: readonly WorkbookNoticePart[]): {
+  fixable: WorkbookNoticePart[]
+  org: WorkbookNoticePart[]
+  caps: WorkbookNoticePart[]
+  rest: WorkbookNoticePart[]
+} {
+  return {
+    fixable: parts.filter(p => p.kind === 'fixable' && p.scope !== 'org'),
+    org: parts.filter(p => p.kind === 'fixable' && p.scope === 'org'),
+    caps: parts.filter(p => p.kind === 'cap'),
+    rest: parts.filter(p => p.kind === 'unknown'),
+  }
+}

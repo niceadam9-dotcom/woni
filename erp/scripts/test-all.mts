@@ -603,6 +603,11 @@ const steps: Step[] = [
   //   ④는 라우트 고지 블록의 **지문을 박아** 막는다 — 문구가 바뀌면 여기서 멈춰 선다.
   // 표본은 스테이징 자체점검 31건 전수 실물(_fixtures/workbook-notice-samples.json · 조각 438개).
   { name: '보고서 고지 분류',           cmd: 'npx tsx scripts/test-workbook-notice.mts' },
+  // 달력 고지 → 채우러 가기 → 자동 재발행(2026-09-22) — 서버 불필요(순수 + 배선).
+  // 🚨 급소 넷: ①쪽지는 **이동 「앞」**에서 써야 한다(뒤는 실행 안 됨 — round-card가 같은 자리에서
+  //   물렸다) ②목적지 주소를 베끼면 안 된다(점검 쪽은 stepInputLink가 정본) ③복귀 경로(from=)가
+  //   없으면 왕복이 안 닫힌다 ④달력에 window.confirm 발행 가드를 이식하면 안 된다(패널이 명시 금지).
+  { name: '달력 고지 왕복 배선',        cmd: 'npx tsx scripts/test-calendar-workbook-notice.mts' },
   // 발송 결과 확인 동선(S8-10) — 달력에서 보내고 결과는 문자 발송 화면에서 본다(Q-14·Q-15).
   // 링크가 약속한 화면에 **도착하지 못하는** 실패 셋이 전부 조용하다: 도착 화면 기본 필터가
   // not_sent라 방금 보낸 건이 걸러지고, 기간이 없으면 오늘~+30일 밖은 안 보이며,

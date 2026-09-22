@@ -19,6 +19,9 @@ import { InspectionSmsModal, type SmsModalSource } from '@/components/sms/inspec
 import { completeStepAction, bulkCompleteStepsAction, bulkStartCompletePlanItemsAction } from '@/app/(dashboard)/inspections/actions'
 import { moveMonthlyPlanItemAction, previewInspectionDateChangeAction, changeInspectionDateAction } from '@/app/(dashboard)/inspections/plan-date-actions'
 import { getCustomerNewFormDataAction } from '@/app/(dashboard)/customers/actions'
+import { parseWorkbookNotice, workbookFixHref, type WorkbookNoticePart } from '@/lib/workbook-notice'
+import { takePendingDoc, writePendingDoc } from '@/lib/pending-doc-intent'
+import { DocNoticeList } from '@/components/ui/doc-notice-list'
 /* 등록 폼은 877줄 + 우편번호 스크립트를 쓴다 — 달력 초기 번들에 얹지 않고 **열 때** 받는다.
    ssr:false는 폼이 lazy 초기값에서 localStorage를 읽기 때문이다(클라이언트에서만 마운트). */
 const CustomerNewClient = dynamic(
@@ -35,7 +38,7 @@ import { hangulMatch } from '@/lib/hangul'
 import { kstDate, todayKst } from '@/lib/kst-date'
 import { CustomerFilterSearch } from '@/components/ui/customer-filter-search'
 import { AddressMapButton } from '@/components/ui/address-map-button'
-import { WorkbookXlsxButton } from '@/components/inspections/workbook-xlsx-button'
+import { WorkbookXlsxButton, WORKBOOK_LABEL } from '@/components/inspections/workbook-xlsx-button'
 import type { InspectionType, InspectionStatus, UserRole } from '@/types'
 import { inspectionTypeLabel } from '@/types'
 
@@ -802,6 +805,30 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
   >(null)
 
   /** 폼이 요구하는 서버 데이터는 **모달을 열 때** 받는다 — 달력 초기 로드에 얹지 않는다 */
+  /* ── 문서 고지를 **채우러 가는 입구**로 (2026-09-22) ───────────────────────
+     라우트는 이미 무엇이 비었는지 말한다. 종전엔 읽기 전용 토스트로 흘러가고 끝났다.
+     이제 조각별로 목적지를 달아 주고, 채우고 돌아오면 **자동으로 다시 발행**한다.
+     ⚠ 발행 가드(window.confirm)는 여전히 안 붙인다 — 이 패널의 방침이다(문서 줄 주석 참조).
+       문서는 이미 받았고, 이건 다음 발행을 위한 안내다. */
+  const [wbNotice, setWbNotice] = useState<WorkbookNoticePart[]>([])
+  const [wbError, setWbError] = useState('')
+  /** 채우고 돌아왔다 — 쪽지를 소비했으면 「지금 받기」를 띄운다 */
+  const [resumedDoc, setResumedDoc] = useState(false)
+  const resumeRef = useRef<string | null>(null)
+
+  /* 회차가 바뀌면 이전 회차의 고지를 들고 있으면 안 된다 — 남의 빈칸을 이 회차 것으로 읽게 된다.
+     그리고 **채우고 돌아온 경우**(?insp= 복귀) 쪽지를 소비해 [지금 받기]를 띄운다.
+     ⚠ 자동 다운로드는 브라우저가 막을 수 있어 **배너가 보장 경로**다
+       (`plan-annex-round-card.tsx:196` 실측 교훈 — 자동만 두면 막혔을 때 아무 일도 안 일어난다). */
+  useEffect(() => {
+    setWbNotice([]); setWbError(''); setResumedDoc(false)
+    const id = selectedInspectionId
+    if (!id) { resumeRef.current = null; return }
+    if (resumeRef.current === id) return      // 이 회차에 대해선 이미 소비했다
+    resumeRef.current = id
+    if (takePendingDoc(id, Date.now())) setResumedDoc(true)
+  }, [selectedInspectionId])
+
   const openNewCustomer = useCallback((date: string) => {
     setNewCustomerDate(date)
     setCreated(null)
@@ -2505,9 +2532,34 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
             {selectedInspection.hasResultReport && (
               <div
                 data-testid="daypanel-workbook"
-                className="px-5 py-3 border-t border-line shrink-0 flex flex-wrap items-center gap-2"
+                className="px-5 py-3 border-t border-line shrink-0 flex flex-wrap items-center gap-2 max-h-[40vh] overflow-y-auto"
               >
-                <WorkbookXlsxButton inspectionId={selectedInspection.id} />
+                <WorkbookXlsxButton
+                  inspectionId={selectedInspection.id}
+                  onNotice={raw => setWbNotice(parseWorkbookNotice(raw))}
+                  onError={setWbError}
+                />
+                {resumedDoc && (
+                  <p data-testid="daypanel-workbook-resume" className="text-form-2xs text-brand">
+                    입력을 마치고 돌아오셨습니다 — 위 [{WORKBOOK_LABEL}]을 다시 누르면 반영된 문서를 받습니다.
+                  </p>
+                )}
+                {wbError && <p className="text-form-2xs text-red-600 w-full">{wbError}</p>}
+                <DocNoticeList
+                  parts={wbNotice}
+                  hrefOf={p => {
+                    if (!p.target) return null
+                    const base = workbookFixHref(
+                      p.target,
+                      { inspectionId: selectedInspection.id, customerId: selectedInspection.customer_id },
+                      stepInputLink,
+                    )
+                    return `${base}${base.includes('?') ? '&' : '?'}from=${encodeURIComponent(calendarBackHref)}`
+                  }}
+                  /* 🚨 쪽지는 **이동 앞에서** 쓴다. `router.push` 뒤에 두면 실행되지 않는다
+                     (`plan-annex-round-card.tsx:121`의 교훈). Link의 onClick은 이동 전에 돈다. */
+                  onNavigate={() => writePendingDoc(selectedInspection.id, 'xlsx', Date.now())}
+                />
               </div>
             )}
 

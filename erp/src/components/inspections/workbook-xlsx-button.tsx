@@ -41,14 +41,24 @@ export const WORKBOOK_LABEL = '보고서 엑셀'
  *  지시로 **글씨 「엑셀」**로 바꿨다(고객 목록 쪽과 같은 축). 고지를 버튼 아래에 그리면 행 높이가
  *  튀므로 고지는 body 포털 토스트로 뺀다.
  *  **받는 방식(fetch+Blob)은 갈라지지 않는다** — 표면만 다르고 로직은 이 한 벌뿐이다. */
-export function WorkbookXlsxButton({ inspectionId, disabled, variant = 'default' }: {
+export function WorkbookXlsxButton({ inspectionId, disabled, variant = 'default', onNotice, onError }: {
   inspectionId: string
   disabled?: boolean
   variant?: 'default' | 'compact'
+  /** 넘기면 고지를 **바깥이** 그린다 — 달력 패널이 칩(채우러 가기)으로 바꿔 그리려고 쓴다.
+   *  ⚠ 안 넘기면 종전대로 이 컴포넌트가 토스트로 띄운다(기존 4개 호출부 무변경).
+   *    `FirePlanXlsxButton`이 이미 쓰는 모양과 같은 규약이다 — 두 문서 버튼이 갈라지지 않게. */
+  onNotice?: (raw: string) => void
+  onError?: (msg: string) => void
 }) {
   const [busy, setBusy] = useState(false)
-  const [notice, setNotice] = useState('')
-  const [error, setError] = useState('')
+  const [selfNotice, setSelfNotice] = useState('')
+  const [selfError, setSelfError] = useState('')
+  const owns = !onNotice && !onError          // 고지를 내가 그리는가
+  const notice = owns ? selfNotice : ''
+  const error = owns ? selfError : ''
+  const setNotice = (v: string) => (onNotice ? onNotice(v) : setSelfNotice(v))
+  const setError = (v: string) => (onError ? onError(v) : setSelfError(v))
 
   async function download() {
     setError(''); setNotice(''); setBusy(true)
