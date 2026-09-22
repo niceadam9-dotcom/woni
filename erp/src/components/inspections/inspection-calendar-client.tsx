@@ -1,6 +1,7 @@
 ﻿'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react'
+import dynamic from 'next/dynamic'
 import { useRouter, usePathname, useSearchParams } from 'next/navigation'
 import { Calendar, dateFnsLocalizer, Views, type View, type ToolbarProps } from 'react-big-calendar'
 import withDragAndDrop from 'react-big-calendar/lib/addons/dragAndDrop'
@@ -12,11 +13,18 @@ import Link from 'next/link'
 import {
   CalendarDays, Check, X, AlertTriangle, Loader2,
   Users, Building2, ChevronRight, ChevronLeft,
-  SlidersHorizontal, Info, Search, PlayCircle, ExternalLink, PenLine, MessageSquare,
+  SlidersHorizontal, Info, Search, PlayCircle, ExternalLink, PenLine, MessageSquare, Plus,
 } from 'lucide-react'
 import { InspectionSmsModal, type SmsModalSource } from '@/components/sms/inspection-sms-modal'
 import { completeStepAction, bulkCompleteStepsAction, bulkStartCompletePlanItemsAction } from '@/app/(dashboard)/inspections/actions'
 import { moveMonthlyPlanItemAction, previewInspectionDateChangeAction, changeInspectionDateAction } from '@/app/(dashboard)/inspections/plan-date-actions'
+import { getCustomerNewFormDataAction } from '@/app/(dashboard)/customers/actions'
+/* 등록 폼은 877줄 + 우편번호 스크립트를 쓴다 — 달력 초기 번들에 얹지 않고 **열 때** 받는다.
+   ssr:false는 폼이 lazy 초기값에서 localStorage를 읽기 때문이다(클라이언트에서만 마운트). */
+const CustomerNewClient = dynamic(
+  () => import('@/components/customers/customer-new-client').then(m => m.CustomerNewClient),
+  { ssr: false, loading: () => <p className="text-xs text-ink-meta p-4">등록 폼을 불러오는 중…</p> },
+)
 // 여러 건 날짜 이동은 문자 발송 화면이 쓰는 액션을 **그대로 태운다** — 같은 달·미시작·1단계 완료
 // 가드가 그 경로에만 있으므로 여기서 복제하면 두 곳이 갈라진다(sms-actions.ts:391-394의 교훈)
 import { bulkMovePlanDatesAction } from '@/app/(dashboard)/inspections/sms-actions'
@@ -339,10 +347,12 @@ interface Props {
   canMovePlan?: boolean
   /** 사전 안내 문자 발송 권한 (inspection_sms_send) — 소방계획서_24 S9 */
   canSendSms?: boolean
+  /** 달력에서 고객 등록 권한 (customer_manage) — 2026-09-22. 버튼 자체를 가린다 */
+  canCreateCustomer?: boolean
 }
 
 // ─── Component ───────────────────────────────────────────────────────────────
-export function InspectionCalendarClient({ inspections, planItems = [], employees, currentUserId, currentUserRole, initialFilter = 'all', initialCustomerQuery = '', initialInspectionId = '', holidays = [], canMovePlan = false, canSendSms = false }: Props) {
+export function InspectionCalendarClient({ inspections, planItems = [], employees, currentUserId, currentUserRole, initialFilter = 'all', initialCustomerQuery = '', initialInspectionId = '', holidays = [], canMovePlan = false, canSendSms = false, canCreateCustomer = false }: Props) {
   const router = useRouter()
   // B-3 복귀 경로 재료 — 지금 보고 있는 달까지 포함해 되돌아가려고 쓴다(하이드레이션 안전)
   const pathname = usePathname()
@@ -775,6 +785,37 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
     | null
   >(null)
   const [isChangingDate, startChangingDate] = useTransition()
+
+  /* ── 달력에서 고객 등록 (2026-09-22 사용자 요청) ──────────────────────────
+     등록은 **이미 달력 일정을 만든다**(`_autoCreatePlanItemsForNewCustomer` — 롤링 계획 +
+     과거·오늘이면 1차 즉시 시작). 그래서 여기서 등록하면 그 자리에 칩이 바로 뜬다.
+     날짜를 짚어 들어왔으면 그 날짜가 **점검일자**로 프리필된다 — 달력의 단위가 곧 그 칸이다. */
+  const [newCustomerDate, setNewCustomerDate] = useState<string | null>(null)
+  const [newFormData, setNewFormData] = useState<
+    { employees: Array<{ id: string; name: string; position: string | null }>; defaultRegionSi: string; purposes: string[] } | null
+  >(null)
+  const [newFormError, setNewFormError] = useState('')
+  /** 등록 직후 달력에 남기는 띠 — 이동하지 않으므로 「무엇이 생겼는지」를 여기서 말해야 한다 */
+  const [created, setCreated] = useState<{ customerId: string; customerName: string; anchorDate: string } | null>(null)
+
+  /** 폼이 요구하는 서버 데이터는 **모달을 열 때** 받는다 — 달력 초기 로드에 얹지 않는다 */
+  const openNewCustomer = useCallback((date: string) => {
+    setNewCustomerDate(date)
+    setCreated(null)
+    setNewFormError('')
+    setNewFormData(prev => {
+      if (prev) return prev                       // 한 번 받아 두면 다시 받지 않는다
+      void getCustomerNewFormDataAction().then(res => {
+        if (res.error) { setNewFormError(res.error); return }
+        setNewFormData({
+          employees: res.employees ?? [],
+          defaultRegionSi: res.defaultRegionSi ?? '',
+          purposes: res.purposes ?? [],
+        })
+      })
+      return prev
+    })
+  }, [])
 
   const openDateChange = useCallback((inspectionId: string, from: string) => {
     setDateChange({ inspectionId, from, to: from, loading: false })
@@ -1323,6 +1364,18 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
               <MessageSquare className="size-3.5" /> 사전안내 문자
             </button>
           )}
+          {/* 툴바 등록 — 날짜를 안 짚고 들어오므로 **오늘**로 프리필한다.
+              실측상 점검일자는 315건 중 314건이 과거이고 최근 20건은 등록일과 같은 날이었다 */}
+          {canCreateCustomer && (
+            <button
+              data-testid="calendar-new-customer"
+              onClick={() => openNewCustomer(today)}
+              title="새 고객을 등록합니다 (점검일자는 오늘로 시작 — 폼에서 바꿀 수 있습니다)"
+              className="h-8 px-3 rounded-lg border border-line bg-surface text-xs font-medium text-ink-sub hover:bg-paper flex items-center gap-1.5 transition-colors"
+            >
+              <Plus className="size-3.5" /> 고객 등록
+            </button>
+          )}
           {/* 고객명 검색 — 달력에 실린 고객에서 바로 고른다(서버 왕복 없음). 뷰 모드와 무관하게 적용 */}
           <CustomerFilterSearch
             customers={uniqueCustomers.map(c => ({ id: c.id, name: c.name, sub: c.code }))}
@@ -1571,6 +1624,27 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
             </div>
           )}
 
+          {/* 등록 완료 띠 (2026-09-22) — 달력에 **머물기로** 했으므로(사용자 확정) 이동 대신
+              여기서 무엇이 생겼는지 말하고, 다음 걸음 두 개를 링크로 준다.
+              ⚠ 「나머지 채우기」의 목적지 탭은 **서버(lib/onboarding-steps)가 첫 미완 탭으로** 정한다 —
+                폼 state로 고르면 대장 자동값·부분 실패와 어긋난다. 그래서 여기선 고객 id만 넘긴다. */}
+          {created && (
+            <div data-testid="calendar-created-banner"
+                 className="flex items-center gap-2 rounded-lg bg-green-50 border border-green-200 px-3 py-2 text-sm text-green-800">
+              <Check className="size-4 shrink-0 text-green-600" />
+              <span><strong>{created.customerName}</strong> 등록 완료 — 점검일자 {created.anchorDate}</span>
+              <Link
+                href={`/customers/${created.customerId}?created=1&onboarding=1&from=${encodeURIComponent(calendarBackHref)}`}
+                data-testid="created-fill-rest"
+                className="ml-auto shrink-0 text-xs text-green-700 font-medium hover:underline flex items-center gap-0.5">
+                나머지 채우기 <ChevronRight className="size-3" />
+              </Link>
+              <button onClick={() => setCreated(null)} className="shrink-0 text-green-700 hover:text-green-900">
+                <X className="size-4" />
+              </button>
+            </div>
+          )}
+
           {/* 퇴사자 담당 재배정 안내 */}
           {orphanCount > 0 && (
             <div className="flex items-center gap-2 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-sm text-amber-800">
@@ -1747,6 +1821,18 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
                         className="text-form-xs font-medium text-brand border border-brand-line rounded-lg px-2 py-0.5 hover:bg-brand-tint transition-colors inline-flex items-center gap-1 whitespace-nowrap"
                         title="이 날짜에 방문하는 고객에게 사전 안내 문자를 보냅니다">
                         <MessageSquare className="size-3" /> 사전안내 문자
+                      </button>
+                    )}
+                    {/* 이 날짜로 고객 등록 (2026-09-22) — 달력의 단위가 곧 점검일자 칸이라
+                        짚은 날짜가 그대로 프리필된다. 등록하면 그 자리에 칩이 바로 뜬다. */}
+                    {canCreateCustomer && (
+                      <button
+                        data-testid="daypanel-new-customer"
+                        disabled={moveSelectMode}
+                        onClick={() => { const dt = dayPanelDate; setDayPanelDate(null); openNewCustomer(dt) }}
+                        className="text-form-xs font-medium text-brand border border-brand-line rounded-lg px-2 py-0.5 hover:bg-brand-tint transition-colors inline-flex items-center gap-1 whitespace-nowrap disabled:opacity-40"
+                        title={moveSelectMode ? '날짜 이동 선택 중에는 사용할 수 없습니다' : '이 날짜를 점검일자로 하여 새 고객을 등록합니다'}>
+                        <Plus className="size-3" /> 이 날짜로 고객 등록
                       </button>
                     )}
                     {bulkTotal > 0 && (
@@ -2065,6 +2151,44 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
           </div>
         )
       })()}
+
+      {/* ── 고객 등록 모달 (2026-09-22) ─────────────────────────────
+          ⚠ **폼을 복제하지 않는다.** `CustomerNewClient`를 그대로 띄운다 — 그 안에 필수 6칸 판정,
+            고객코드 자동생성 대기, 주소·고객명 중복검사, 건축물대장 자동조회가 다 들어 있다.
+            「달력용 간단 폼」을 새로 짜면 두 벌이 되고 한쪽만 고쳐진다.
+          ⚠ 우편번호 레이어는 body에 z-index 9999로 붙으므로(use-daum-postcode) 이 모달(z-[60])
+            위에 정상적으로 뜬다 — 착수 전 실측으로 확인했다. */}
+      {newCustomerDate && (
+        <div className="fixed inset-0 bg-black/30 dark:bg-black/60 z-[60] flex items-start justify-center p-4 overflow-y-auto"
+             onClick={() => setNewCustomerDate(null)}>
+          <div data-testid="calendar-new-customer-modal"
+               className="bg-surface rounded-xl shadow-2xl w-full max-w-5xl my-6 p-5 space-y-4"
+               onClick={e => e.stopPropagation()}>
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="font-semibold text-ink">고객 등록</p>
+                <p className="text-xs text-ink-sub mt-0.5">
+                  점검일자 <b>{newCustomerDate}</b>로 시작합니다 — 폼에서 바꿀 수 있습니다.
+                </p>
+              </div>
+              <button onClick={() => setNewCustomerDate(null)} className="text-ink-meta hover:text-ink-sub">
+                <X className="size-5" />
+              </button>
+            </div>
+            {newFormError && <p className="text-xs text-red-600">{newFormError}</p>}
+            {!newFormData && !newFormError && <p className="text-xs text-ink-meta">등록 폼을 준비하는 중…</p>}
+            {newFormData && (
+              <CustomerNewClient
+                employees={newFormData.employees}
+                defaultRegionSi={newFormData.defaultRegionSi}
+                purposes={newFormData.purposes}
+                initialAnchorDate={newCustomerDate}
+                onCreated={r => { setNewCustomerDate(null); setCreated(r); router.refresh() }}
+              />
+            )}
+          </div>
+        </div>
+      )}
 
       {/* ── 점검일자 변경 모달 (2026-09-22) ───────────────────────
           패널(z-50) 위에 떠야 하므로 z-[80] — 이동 확인 팝업과 같은 층. */}

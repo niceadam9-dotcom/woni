@@ -13,6 +13,8 @@ import { todayKst } from '@/lib/kst-date'
 // `anchorChanged`는 이 파일의 지역 변수명과 겹쳐 별칭으로 들여온다(변수를 함수로 덮으면 조용히 항상-false가 된다)
 import { anchorChanged as anchorChangedFn } from '@/lib/plan-anchor'
 import { recalcIsInitialForCustomer } from '@/lib/inspection-initial'
+import { getCompanyProfile } from '@/lib/company-profile'
+import { listBuildingPurposes } from '@/lib/building-purposes'
 import { syncStartedRowSubTypes } from '@/lib/inspection-row-sync'
 import { reconcileSpecialSlots, planReconcile } from '@/lib/reconcile-special-slots'
 import { anchorSourceLabel, resolveAnchor, plannedDateFor, desiredSlotsFor, desiredSlotsInYear, anchorDayOf } from '@/lib/plan-anchor'
@@ -2430,4 +2432,35 @@ export async function applyDefaultAssigneeAction(): Promise<{ applied?: number; 
   revalidatePath('/customers')
   revalidatePath('/customers/regional-assign')
   return { applied: targets.length }
+}
+
+// ── 점검달력에서 고객 등록 (2026-09-22 사용자 요청 — 달력 한 바퀴) ─────────────────
+/** 등록 폼이 요구하는 서버 데이터 3종 — **모달이 열릴 때** 부른다.
+ *
+ *  ⚠ 달력 초기 로드에 얹지 않는다. 달력은 이미 7개 조회(점검·단계·고객·건물·직원·공휴일·계획)를
+ *    돌리는 무거운 화면이고, 등록을 하지 않는 대다수 방문에도 비용이 붙는다.
+ *    폼 컴포넌트 자체도 `next/dynamic`으로 지연 로드하므로 **달력 초기 번들·쿼리 증가가 0**이다.
+ *
+ *  ⚠ 값의 출처는 `/customers/new` 페이지와 **같은 함수들**이다(getCompanyProfile·listBuildingPurposes).
+ *    여기서 따로 조회하면 두 등록 화면이 다른 기본 지역·다른 용도 목록을 보게 된다. */
+export async function getCustomerNewFormDataAction(): Promise<{
+  error?: string
+  employees?: Array<{ id: string; name: string; position: string | null }>
+  defaultRegionSi?: string
+  purposes?: string[]
+}> {
+  await requirePermission('customer_manage')
+  const admin = createAdminClient()
+  const [{ data: employeesRaw }, company, purposes] = await Promise.all([
+    admin.from('profiles').select('id, name, position')
+      .eq('is_active', true).eq('is_system', false).order('name'),
+    getCompanyProfile(),
+    listBuildingPurposes(),
+  ])
+  return {
+    employees: (employeesRaw ?? []) as Array<{ id: string; name: string; position: string | null }>,
+    // 폼의 region_si는 시/군/구 단위(예: 양평군) — company_profile.default_region_myeon이 그 값
+    defaultRegionSi: company?.default_region_myeon ?? '',
+    purposes,
+  }
 }

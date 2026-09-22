@@ -36,11 +36,18 @@ type Employee = { id: string; name: string; position: string | null }
 type ContactForm = { name: string; phone: string; email: string }
 const emptyContact = (): ContactForm => ({ name: '', phone: '', email: '' })
 
-export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = [] }: {
+export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = [], initialAnchorDate = '', onCreated }: {
   employees: Employee[]
   defaultRegionSi?: string
   /** 049 building_purposes — 관리자 > 건물 용도 관리 목록. datalist 제안(대장 자동값·신규 용도도 허용) */
   purposes?: string[]
+  /** 점검달력에서 날짜를 짚어 열었을 때의 점검일자 프리필 (2026-09-22).
+   *  아래 `useState` **lazy 초기값에만** 쓴다 — effect로 덮으면 미리보기가 두 번 돌고 수정값을 밀어낸다. */
+  initialAnchorDate?: string
+  /** 넘기면 등록 후 **이 콜백만** 부른다(화면 이동 없음) — 달력이 제자리에 머물기 위한 문.
+   *  ⚠ 안 넘기면 종전대로 `/customers/{id}?created=1&onboarding=1`로 이동한다.
+   *    기존 `/customers/new` 페이지의 동선은 한 글자도 바뀌지 않는다. */
+  onCreated?: (r: { customerId: string; customerName: string; anchorDate: string }) => void
 }) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
@@ -80,7 +87,10 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
     customer_name: '',
     contract_date: '',
     use_approval_date: '',
-    plan_anchor_date: '',
+    /* 점검달력에서 날짜를 짚어 들어오면 그 날짜로 시작한다(2026-09-22).
+       ⚠ **lazy 초기값에만** 꽂는다. `useEffect`로 나중에 덮으면 ①법정 일정 미리보기가 두 번 돌고
+         ②사용자가 이미 고친 값을 덮는다. 프리필은 시작점이지 강제가 아니다 — 폼에서 바꿀 수 있다. */
+    plan_anchor_date: initialAnchorDate,
     inspection_type: '종합' as InspectionType,
     // 일반관리 자체점검 종류 (소방계획서_6 W-1) — 일반관리도 종합/작동 선택, 다수 기본값 '작동'(D-2)
     general_sub_type: '작동' as '종합' | '작동',
@@ -352,6 +362,17 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
       // ⚠ router.refresh()를 뒤에 붙이지 않는다 — push가 이미 새 경로의 RSC를 받아오는데
       // refresh가 같은 페이지를 한 번 더 받아 **상세 화면 로딩이 두 번** 일어났다.
       // 목록 캐시는 액션의 revalidatePath('/customers')가 이미 무효화한다.
+      /* 달력에서 열렸으면 **이동하지 않는다**(2026-09-22 사용자 확정 — 「달력에 머문다」).
+         그 경우 「나머지 채우기」는 달력이 링크로 제안하고, 어느 탭을 열지는 종전과 같이
+         **서버(lib/onboarding-steps)가 첫 미완 탭으로** 정한다. 폼 state로 고르지 않는다. */
+      if (onCreated) {
+        onCreated({
+          customerId: result.customerId!,
+          customerName: form.customer_name.trim(),
+          anchorDate: form.plan_anchor_date,
+        })
+        return
+      }
       router.push(`/customers/${result.customerId}?created=1&onboarding=1`)
     })
   }

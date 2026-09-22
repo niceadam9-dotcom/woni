@@ -277,6 +277,9 @@ export default async function InspectionCalendarPage({
       holidays={holidays}
       canMovePlan={can(profile.role as UserRole, 'inspection_plan_manage')}
       canSendSms={can(profile.role as UserRole, 'inspection_sms_send')}
+      // 달력에서 고객을 등록할 수 있는가 — 버튼 **자체를** 가린다(안 그러면 눌러 봐야 서버가 던진다).
+      // 권한 축은 등록 액션과 같은 `customer_manage`.
+      canCreateCustomer={can(profile.role as UserRole, 'customer_manage')}
     />
   )
 }
