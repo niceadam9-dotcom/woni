@@ -39,7 +39,11 @@ export default async function InspectionCalendarPage({
     // plan_type — 사이드 패널의 [보고서 엑셀]이 뜨는 축(2026-09-21). 표시용 badge(inspection_type)로
     // 가르면 안 된다: 1단계짜리 정기(monthly) 230건이 badge를 「작동」(174)·「종합」(56)으로 달고 있어
     // 그 칩으로도 패널이 열린다. 결과보고서(별지 9/10/11호)가 **실제로 있는 축은 plan_type**이다.
-    .select('id, customer_id, inspection_type, plan_type, year, sequence_num, inspection_start_date, status, assigned_employee_id')
+    // inspection_end_date·inspection_days — 데이 패널의 **점검기간 한 줄**(R3, 2026-09-22).
+    // 시작일만 싣고 있어 패널은 「9/14 시작」까지만 말했다: 다일 점검이 며칠짜리인지, 언제 끝나는지가
+    // 달력 어디에도 없었다. 종료일은 2단계(배치신고) 기산점이고(마이그레이션 121 —
+    // add_working_days(COALESCE(end_date, start_date), 5)) 일수는 **별지 9호에 그대로 인쇄된다**.
+    .select('id, customer_id, inspection_type, plan_type, year, sequence_num, inspection_start_date, inspection_end_date, inspection_days, status, assigned_employee_id')
     .gte('year', currentYear - 1)
     .lte('year', currentYear + 1)
     .order('inspection_start_date')
@@ -86,6 +90,10 @@ export default async function InspectionCalendarPage({
   type InspRow = {
     id: string; customer_id: string; inspection_type: string; plan_type: string | null; year: number
     sequence_num: number; inspection_start_date: string; status: string
+    /** 다일 점검 종료일 — NULL이면 당일(마이그레이션 079). 지어내 채우지 않는다 */
+    inspection_end_date: string | null
+    /** 점검 소요일수(1~5) — **저장된 값**이다. 기간에서 다시 센 값과 어긋날 수 있다(아래 R3 주석) */
+    inspection_days: number | null
     assigned_employee_id: string
   }
 
@@ -217,6 +225,12 @@ export default async function InspectionCalendarPage({
         year: insp.year,
         sequence_num: insp.sequence_num as 1 | 2,
         inspection_start_date: insp.inspection_start_date,
+        /* 점검기간 한 줄(R3) — **원재료 그대로** 넘긴다. 일수를 여기서 세어 보내지 않는 이유는
+           화면이 「저장된 일수」와 「기간에서 센 일수」를 **둘 다** 알아야 하기 때문이다:
+           둘이 어긋난 이력이 실제로 있었고(2026-09-21 실측 — 다일 3건 중 3건 전부 저장값이 1),
+           서버가 한쪽으로 접어 보내면 그 어긋남이 화면에서 영영 안 보인다. */
+        inspection_end_date: insp.inspection_end_date,
+        inspection_days: insp.inspection_days,
         status: insp.status as InspectionStatus,
         assigned_employee_id: insp.assigned_employee_id,
         assigned_employee_name: empName(insp.assigned_employee_id),

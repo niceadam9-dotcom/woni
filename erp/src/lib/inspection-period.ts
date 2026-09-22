@@ -43,6 +43,32 @@ export function endFromDays(start?: string | null, days?: number | null): string
   return addCalendarDays(start, (days as number) - 1)
 }
 
+/** 화면 한 줄로 읽을 **점검기간 요약** (2026-09-22 — 점검달력 R3).
+ *
+ *  🚨 **저장된 일수를 그냥 찍지 않는다.** `inspection_days`와 실제 기간이 어긋난 행이 실재한다
+ *    (2026-09-21 실측: 다일 3건 중 **3건 전부** 기간은 3·4·8일인데 저장값은 1). 위 수리는
+ *    앞으로 들어올 값만 고치지 **과거 행을 되돌리지 않는다**. 그래서 본문은 기간에서 다시 센 값을
+ *    쓰고, 저장값이 다르면 `mismatch`로 그 사실을 내보낸다 — 감추면 화면과 별지 9호가
+ *    다른 말을 하는데 아무도 모른다.
+ *
+ *  ⚠ 순수 함수로 둔 이유: 컴포넌트 안에 인라인으로 두면 `mismatch = false`로 바꿔 놔도 소스
+ *    단언이 초록이다(변이 M14가 실제로 그렇게 뚫었다). 여기 있으면 값으로 셀 수 있다. */
+export function periodSummary(
+  start?: string | null, end?: string | null, storedDays?: number | null,
+): { text: string; days: number | null; storedDays: number | null; mismatch: boolean } {
+  const days = daysFromRange(start, end)
+  const stored = Number.isFinite(storedDays as number) ? (storedDays as number) : null
+  // 「어긋났다」는 **둘 다 있을 때만** 할 수 있는 말이다 — 한쪽이 없으면 비교할 근거가 없다
+  const mismatch = days !== null && stored !== null && stored !== days
+  const text = !start || !YMD.test(start)
+    ? '—'
+    // 종료일이 있고 실제로 여러 날일 때만 범위로 적는다 — 당일인데 「9/14 ~ 9/14」는 소음이다
+    : end && days !== null && days > 1
+      ? `${start} ~ ${end} · ${days}일`
+      : `${start} · 당일`
+  return { text, days, storedDays: stored, mismatch }
+}
+
 /** 저장 전 판정 — 문제면 **사람이 읽을 문장**, 괜찮으면 null.
  *
  *  ⚠ 순서가 뜻을 만든다: 「거꾸로다」를 먼저 말한다. 5일 초과를 먼저 말하면 9/21~9/14 같은

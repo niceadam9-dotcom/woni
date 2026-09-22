@@ -40,6 +40,9 @@ import { planRowInspectionEntry } from '@/lib/calendar-plan-row'
 import { layoutPlanChips } from '@/lib/calendar-chips'
 import { hangulMatch } from '@/lib/hangul'
 import { kstDate, todayKst } from '@/lib/kst-date'
+/** 일수는 **여기서 세지 않는다** — 별지 9호에 인쇄되는 값과 같은 셈법(양끝 포함)이어야 한다.
+ *  이 저장소에서 날짜 사본은 세 벌까지 갔고 조용히 어긋났다(lib/inspection-period 머리 주석). */
+import { periodSummary } from '@/lib/inspection-period'
 import { CustomerFilterSearch } from '@/components/ui/customer-filter-search'
 import { AddressMapButton } from '@/components/ui/address-map-button'
 import { WorkbookXlsxButton, WORKBOOK_LABEL } from '@/components/inspections/workbook-xlsx-button'
@@ -67,6 +70,11 @@ export type CalendarInspection = {
   year: number
   sequence_num: 1 | 2
   inspection_start_date: string
+  /** 다일 점검 종료일 — **NULL이면 당일**(마이그레이션 079의 표기). 빈 값을 시작일로 메우지 않는다:
+   *  「당일이라 비었다」와 「다일인데 안 적혔다」는 다른 사실이고, 메우면 둘이 구별 불가능해진다. */
+  inspection_end_date?: string | null
+  /** **저장된** 점검 소요일수(1~5). 기간에서 다시 센 값과 어긋날 수 있어 화면이 둘을 맞대 본다(R3) */
+  inspection_days?: number | null
   status: InspectionStatus
   assigned_employee_id: string
   assigned_employee_name: string
@@ -727,6 +735,22 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
   const panelCompletedCount = selectedInspection?.steps.filter(s => s.status === 'completed').length ?? 0
   const panelTotalCount = selectedInspection?.steps.length ?? 0
   const panelProgressPct = panelTotalCount > 0 ? Math.round((panelCompletedCount / panelTotalCount) * 100) : 0
+
+  /* ── R3 — 1단계 점검기간 한 줄 (2026-09-22 사용자 요청) ────────────────────────────
+     패널은 여태 「9/14 시작」까지만 말했다. **며칠짜리인지, 언제 끝나는지**가 달력 어디에도
+     없어서, 다일 점검을 보던 사용자는 종료일을 확인하러 점검 상세까지 갔다.
+
+     🚨 저장된 일수를 **그냥 찍지 않는다** — `inspection_days`가 실제 기간과 어긋난 행이 실재하고
+       (2026-09-21 실측: 다일 3건 중 **3건 전부**) 그 값은 별지 9호에 그대로 인쇄된다.
+     ⚠ 셈도 문장도 **여기서 만들지 않는다** — `periodSummary`(lib/inspection-period) 한 벌이다.
+       인라인으로 두면 「어긋남을 본다」는 약속을 `false`로 바꿔 놔도 소스 단언이 초록이다
+       (변이 M14가 실제로 그렇게 뚫었다). 순수 함수로 밀어 두면 그 약속을 값으로 셀 수 있다. */
+  const period = periodSummary(
+    selectedInspection?.inspection_start_date,
+    selectedInspection?.inspection_end_date,
+    selectedInspection?.inspection_days,
+  )
+
 
   /** B-2 — 패널 하단 링크가 착지할 단계. **기한초과 먼저, 없으면 첫 미완**.
    *  화면이 붉게 칠한 그 줄이 곧 사용자가 누르려던 자리다. 전부 완료면 null(기본 칸으로).
@@ -2410,6 +2434,38 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
                   )}
                 </div>
               </div>
+            )}
+
+            {/* R3 — 점검기간 **접힌 한 줄** (2026-09-22 사용자 요청).
+                기본이 접힘인 이유: 이 패널은 이미 진행률·점검일자·7단계·보고서·소방계획서·링크가
+                세로로 쌓여 있다. 기간은 **평소엔 한 줄이면 충분하고**, 어긋났을 때만 펼쳐 읽으면 된다.
+                ⚠ 축은 위 [점검일자]와 같은 `hasResultReport`(자체점검 = 별지 9호가 있는 건)다.
+                  정기(monthly)는 종료일 개념 자체가 없어 늘 「당일」이라 한 줄이 소음이 된다. */}
+            {selectedInspection.hasResultReport && (
+              <details data-testid="daypanel-period" className="group px-5 py-2 border-b border-brand-line-soft shrink-0">
+                <summary className="flex items-center gap-2 text-xs cursor-pointer list-none [&::-webkit-details-marker]:hidden">
+                  <ChevronRight className="size-3 text-ink-faint shrink-0 transition-transform group-open:rotate-90" />
+                  <span className="text-ink-sub shrink-0">점검기간</span>
+                  <span data-testid="daypanel-period-text" className="font-medium text-ink truncate">{period.text}</span>
+                  {/* 접힌 채로도 **어긋남은 보여야 한다** — 펼쳐야만 보이면 아무도 안 본다 */}
+                  {period.mismatch && (
+                    <span data-testid="daypanel-period-mismatch" className="ml-auto shrink-0 text-form-2xs text-amber-700">
+                      저장값 {period.storedDays}일
+                    </span>
+                  )}
+                </summary>
+                <div className="mt-1.5 pl-5 space-y-1 text-form-2xs text-ink-meta leading-relaxed">
+                  <p>종료일은 <span className="font-medium text-ink-sub">2단계(배치신고) 기산점</span>입니다 — 그 다음 5영업일이 마감입니다.</p>
+                  <p>일수는 <span className="font-medium text-ink-sub">별지 9호</span>에 그대로 인쇄됩니다.</p>
+                  {period.mismatch && (
+                    <p data-testid="daypanel-period-mismatch-why" className="text-amber-700">
+                      ⚠ 기간으로 세면 {period.days}일인데 저장된 일수는 {period.storedDays}일입니다.
+                      이대로 별지 9호를 발행하면 <span className="font-medium">같은 종이에서 기간과 일수가 서로를 부정</span>합니다 —
+                      점검 기간을 다시 저장하면 맞춰집니다.
+                    </p>
+                  )}
+                </div>
+              </details>
             )}
 
             {/* 7단계 목록 */}
