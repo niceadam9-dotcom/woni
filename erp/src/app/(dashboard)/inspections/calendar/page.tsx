@@ -4,6 +4,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { fetchAllRows, fetchAllRowsByIds } from '@/lib/supabase/paginate'
 import { activeStepsByInspection, isStepVisible } from '@/lib/active-steps'
 import { isSelfInspection } from '@/lib/inspection-step-status'
+import { dateChangeVerdict } from '@/lib/inspection-date-change'
 import { facilityVerifyState, shouldWarnFacilitiesUnverified } from '@/lib/facility-verify-gate'
 import { InspectionCalendarClient } from '@/components/inspections/inspection-calendar-client'
 import type { CalendarInspection, CalendarPlanItem } from '@/components/inspections/inspection-calendar-client'
@@ -155,7 +156,14 @@ export default async function InspectionCalendarPage({
     const activeCal = await activeStepsByInspection(admin, inspIds, 'inspection-calendar')
 
     const stepsMap = new Map<string, StepRow[]>()
+    /* 🚨 점검일자 변경 가부는 **거르기 전 전 단계**(의무 축)로 판정한다 — 아래 stepsMap은
+       표시 축이라 불량 0이면 ⑤⑥이 빠진다. 그 축으로 세면 **숨겨진 단계의 완료를 못 보고
+       날짜 변경을 통과시킨다**(2026-09-22). 판정식은 `lib/inspection-date-change` 한 벌이고
+       서버 액션도 같은 함수를 쓴다 — 화면과 서버가 다른 답을 내지 않는다. */
+    const allStepsMap = new Map<string, StepRow[]>()
     for (const s of stepsRes.rows as StepRow[]) {
+      if (!allStepsMap.has(s.inspection_id)) allStepsMap.set(s.inspection_id, [])
+      allStepsMap.get(s.inspection_id)!.push(s)
       if (!isStepVisible(activeCal, s.inspection_id, s.step_num)) continue
       if (!stepsMap.has(s.inspection_id)) stepsMap.set(s.inspection_id, [])
       stepsMap.get(s.inspection_id)!.push(s)
@@ -203,6 +211,9 @@ export default async function InspectionCalendarPage({
            ⚠ plan_type이 null이면 **있다고 본다**(isSelfInspection의 기울기) — 못 잰 것을 '없음'으로
              접으면 받을 수 있어야 할 건에서 버튼이 조용히 사라진다. */
         hasResultReport: isSelfInspection(insp.plan_type),
+        /* 점검일자를 옮길 수 있는가 — 1단계만 완료면 허용, 2단계 이상 완료면 거부(2026-09-22 사용자 확정).
+           ⚠ 위 allStepsMap(**거르기 전**)을 넘긴다. steps(표시 축)를 넘기면 숨겨진 ⑤⑥ 완료를 못 본다. */
+        dateChange: dateChangeVerdict(allStepsMap.get(insp.id) ?? []),
         year: insp.year,
         sequence_num: insp.sequence_num as 1 | 2,
         inspection_start_date: insp.inspection_start_date,

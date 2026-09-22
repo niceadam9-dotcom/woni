@@ -16,7 +16,7 @@ import {
 } from 'lucide-react'
 import { InspectionSmsModal, type SmsModalSource } from '@/components/sms/inspection-sms-modal'
 import { completeStepAction, bulkCompleteStepsAction, bulkStartCompletePlanItemsAction } from '@/app/(dashboard)/inspections/actions'
-import { moveMonthlyPlanItemAction } from '@/app/(dashboard)/inspections/plan-date-actions'
+import { moveMonthlyPlanItemAction, previewInspectionDateChangeAction, changeInspectionDateAction } from '@/app/(dashboard)/inspections/plan-date-actions'
 // 여러 건 날짜 이동은 문자 발송 화면이 쓰는 액션을 **그대로 태운다** — 같은 달·미시작·1단계 완료
 // 가드가 그 경로에만 있으므로 여기서 복제하면 두 곳이 갈라진다(sms-actions.ts:391-394의 교훈)
 import { bulkMovePlanDatesAction } from '@/app/(dashboard)/inspections/sms-actions'
@@ -65,6 +65,11 @@ export type CalendarInspection = {
    *  🚨 badge(`inspection_type`)로 가르면 안 된다 — 1단계짜리 정기 230건이 badge를
    *    「작동」·「종합」으로 달고 있어 그 칩으로도 이 패널이 열린다(2026-09-21 실측). */
   hasResultReport?: boolean
+  /** 점검일자를 옮길 수 있는가 — **서버가 의무 축(거르기 전 전 단계)으로** 판정해 실어 보낸다.
+   *  🚨 여기서 `steps`로 다시 세면 안 된다: 그건 표시 축이라 불량 0이면 ⑤⑥이 빠져 있어
+   *    **숨겨진 단계의 완료를 못 보고 날짜 변경을 통과시킨다**. 판정식은
+   *    `lib/inspection-date-change` 한 벌이고 서버 액션도 같은 함수를 쓴다. */
+  dateChange?: { allowed: boolean; reason?: string; blockedBy?: number }
 }
 
 /** 정기(monthly)·일반관리(event) 계획 항목 — 6단계 없이 예정일 1건짜리 일정 */
@@ -758,6 +763,40 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
     | null
   >(null)
   const [isMoving, startMoving] = useTransition()
+
+  /* ── 점검일자 변경 (2026-09-22) ──────────────────────────────────────
+     계획 이동(moveConfirm)과 **다른 축**이라 상태를 따로 둔다: 저쪽은 미시작 계획을 옮기고,
+     이쪽은 **이미 시작된 점검**의 기산일을 옮겨 1~6단계 마감을 통째로 다시 깐다.
+     한 상태로 합치면 확인 문구·거부 규칙이 섞여 「어느 쪽 규칙으로 막혔나」를 못 가른다. */
+  const [dateChange, setDateChange] = useState<
+    | { inspectionId: string; from: string; to: string
+        rows?: Array<{ stepNum: number; nameKo: string; from: string | null; to: string | null; done: boolean }>
+        blocked?: string; error?: string; loading: boolean }
+    | null
+  >(null)
+  const [isChangingDate, startChangingDate] = useTransition()
+
+  const openDateChange = useCallback((inspectionId: string, from: string) => {
+    setDateChange({ inspectionId, from, to: from, loading: false })
+  }, [])
+
+  /** 날짜를 고르면 **저장 전에** 무엇이 바뀌는지 서버에 묻는다.
+   *  ⚠ 마감일을 화면에서 계산하지 않는다 — 공휴일·영업일 보정은 `resolveStepDates`가 정본이고
+   *    여기서 흉내 내면 미리보기와 실제 저장값이 갈린다(그 어긋남은 저장한 뒤에야 보인다). */
+  const previewDateChange = useCallback((to: string) => {
+    setDateChange(d => (d ? { ...d, to, rows: undefined, blocked: undefined, error: undefined, loading: true } : d))
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(to)) { setDateChange(d => (d ? { ...d, loading: false } : d)); return }
+    const id = dateChange?.inspectionId
+    if (!id) return
+    void previewInspectionDateChangeAction(id, to).then(res => {
+      setDateChange(d => {
+        if (!d || d.inspectionId !== id || d.to !== to) return d   // 늦게 온 응답이 최신 선택을 덮지 않게
+        if (res.error) return { ...d, loading: false, error: res.error }
+        if (!res.allowed) return { ...d, loading: false, blocked: res.reason ?? '변경할 수 없습니다' }
+        return { ...d, loading: false, rows: res.rows }
+      })
+    })
+  }, [dateChange?.inspectionId])
 
   const draggableAccessor = useCallback((event: object) => {
     const e = event as CalEvent
@@ -2027,6 +2066,85 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
         )
       })()}
 
+      {/* ── 점검일자 변경 모달 (2026-09-22) ───────────────────────
+          패널(z-50) 위에 떠야 하므로 z-[80] — 이동 확인 팝업과 같은 층. */}
+      {dateChange && (
+        <div className="fixed inset-0 bg-black/20 dark:bg-black/60 z-[80] flex items-center justify-center p-4"
+             onClick={() => !isChangingDate && setDateChange(null)}>
+          <div data-testid="anchor-date-modal"
+               className="bg-surface rounded-xl shadow-2xl w-full max-w-md p-5 space-y-3 max-h-[90vh] overflow-y-auto"
+               onClick={e => e.stopPropagation()}>
+            <p className="font-semibold text-ink">점검일자 고치기</p>
+            <p className="text-xs text-ink-sub">
+              점검을 한 사실은 그대로 남습니다 — 고치는 것은 <b>언제 했다고 적었는가</b>입니다.
+              저장하면 <b>1~6단계 마감일이 이 날짜 기준으로 다시 계산</b>됩니다.
+            </p>
+
+            <label className="block text-xs text-ink-sub">
+              새 점검일자
+              <input
+                type="date"
+                data-testid="anchor-date-input"
+                value={dateChange.to}
+                onChange={e => previewDateChange(e.target.value)}
+                className="mt-1 w-full h-9 px-2 rounded-lg border border-brand-line bg-paper text-sm text-ink"
+              />
+            </label>
+
+            {dateChange.loading && <p className="text-xs text-ink-meta">재계산 미리보기를 받는 중…</p>}
+            {dateChange.blocked && (
+              <p data-testid="anchor-date-modal-blocked" className="text-xs text-amber-700">{dateChange.blocked}</p>
+            )}
+            {dateChange.error && <p className="text-xs text-red-600">{dateChange.error}</p>}
+
+            {/* 재계산 미리보기 — 저장 전에 **무엇이 바뀌는지** 보여준다.
+                마감일은 서버(resolveStepDates)가 계산한 값 그대로다(화면에서 흉내 내지 않는다). */}
+            {dateChange.rows && dateChange.rows.length > 0 && (
+              <div data-testid="anchor-date-preview" className="rounded-lg border border-brand-line-soft overflow-hidden">
+                <table className="w-full text-form-2xs">
+                  <thead className="bg-brand-tint text-ink-sub">
+                    <tr><th className="text-left px-2 py-1">단계</th><th className="text-left px-2 py-1">지금</th><th className="text-left px-2 py-1">바뀜</th></tr>
+                  </thead>
+                  <tbody>
+                    {dateChange.rows.map(r => (
+                      <tr key={r.stepNum} className="border-t border-brand-line-soft">
+                        <td className="px-2 py-1 text-ink">
+                          {r.stepNum}단계{r.done && <span className="ml-1 text-green-600">✓</span>}
+                        </td>
+                        <td className="px-2 py-1 text-ink-meta">{r.from ?? '—'}</td>
+                        <td className={`px-2 py-1 ${r.from !== r.to ? 'text-brand font-medium' : 'text-ink-meta'}`}>{r.to ?? '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            <div className="flex justify-end gap-2 pt-1">
+              <button onClick={() => setDateChange(null)} disabled={isChangingDate}
+                      className="h-8 px-3 rounded-lg border border-brand-line text-xs text-ink-sub hover:bg-brand-tint disabled:opacity-40">
+                취소
+              </button>
+              <button
+                data-testid="anchor-date-save"
+                disabled={isChangingDate || dateChange.loading || !dateChange.rows || dateChange.to === dateChange.from}
+                onClick={() => {
+                  const { inspectionId, to } = dateChange
+                  startChangingDate(async () => {
+                    const res = await changeInspectionDateAction(inspectionId, to)
+                    if (res.error) { setDateChange(d => (d ? { ...d, error: res.error } : d)); return }
+                    setDateChange(null)
+                    router.refresh()
+                  })
+                }}
+                className="h-8 px-3 rounded-lg bg-brand text-white text-xs font-medium hover:opacity-90 disabled:opacity-40 inline-flex items-center gap-1">
+                {isChangingDate ? <Loader2 className="size-3.5 animate-spin" /> : '이 날짜로 고치기'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── 슬라이드 패널 backdrop ────────────────────────────── */}
       {selectedInspectionId && (
         <div
@@ -2076,6 +2194,35 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
                 />
               </div>
             </div>
+
+            {/* 점검일자 — 고치는 자리 (2026-09-22 사용자 요청).
+                🚨 여태 **이 경로가 없었다**. 1단계가 완료되면 계획 쪽 재확정이 거부하면서
+                  「날짜는 점검 상세에서 변경해주세요」라고 안내했는데 **점검 상세에 그런 칸이 없었다** —
+                  실제 정정은 스크립트로 해 왔다(2026-09-20 「해오름 9/12→9/18」).
+                ⚠ 가부는 서버가 준 `dateChange`를 그대로 쓴다. 여기서 `steps`로 다시 세지 않는다
+                  (표시 축이라 불량 0이면 ⑤⑥이 빠져 숨겨진 완료를 못 본다). */}
+            {selectedInspection.hasResultReport && (
+              <div data-testid="daypanel-anchor-date" className="px-5 py-2.5 border-b border-brand-line-soft shrink-0">
+                <div className="flex items-center gap-2 text-xs">
+                  <span className="text-ink-sub shrink-0">점검일자</span>
+                  <span className="font-medium text-ink">{selectedInspection.inspection_start_date}</span>
+                  {selectedInspection.dateChange?.allowed ? (
+                    <button
+                      data-testid="anchor-date-edit"
+                      onClick={() => openDateChange(selectedInspection.id, selectedInspection.inspection_start_date)}
+                      className="ml-auto shrink-0 text-form-xs font-medium text-brand border border-brand-line rounded-lg px-2 py-0.5 hover:bg-brand-tint transition-colors">
+                      고치기
+                    </button>
+                  ) : (
+                    /* 막혔으면 **왜 막혔는지**를 그 자리에 적는다 — 버튼만 지우면 사용자는
+                       「왜 나만 안 되나」를 물을 곳이 없다 */
+                    <span data-testid="anchor-date-blocked" className="ml-auto text-form-2xs text-amber-700 text-right leading-tight">
+                      {selectedInspection.dateChange?.reason ?? '변경할 수 없습니다'}
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* 7단계 목록 */}
             <div className="flex-1 overflow-y-auto">

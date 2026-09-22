@@ -5,6 +5,8 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { requirePermission } from '@/lib/auth'
 import { startInspectionCore, syncInspectionStepDates, syncInspectionVisitDate, isStepOneCompleted } from '@/lib/inspection-start'
 import { resolveStepDates } from '@/lib/plan-step-dates'
+import { recalcStepDueDates } from '@/lib/inspection-step-sync'
+import { dateChangeVerdict } from '@/lib/inspection-date-change'
 
 // ── 점검일 적용·이동 액션 (구 inspection-plans/actions.ts에서 이관, 2026-09-12) ──
 //
@@ -45,7 +47,10 @@ export async function confirmPlanItemStageOneAction(
   // 1단계 완료 후 날짜 변경 금지 — 종전에는 updatePlanItemAction에만 있어서
   // 인라인 달력(canManage만 검사)이 우회했다. 확정 함수가 막아야 전 경로가 막힌다 (S12-3)
   if (itemInfo.inspection_id && await isStepOneCompleted(admin, itemInfo.inspection_id)) {
-    return { error: '이미 점검일(1단계)이 완료된 점검입니다 — 날짜는 점검 상세에서 변경해주세요.' }
+    // 🚨 2026-09-22 — 종전 문구는 「날짜는 **점검 상세에서** 변경해주세요」였는데 **그런 경로가 없었다**.
+    //   제품이 없는 곳을 가리켜, 실제 정정은 스크립트로 해 왔다(2026-09-20 「해오름 9/12→9/18」).
+    //   이제 그 자리가 생겼다 → `changeInspectionDateAction`(점검달력 회차 패널 [점검일자 고치기]).
+    return { error: '이미 점검일(1단계)이 완료된 점검입니다 — 점검달력에서 그 회차를 열고 [점검일자 고치기]로 변경해주세요.' }
   }
 
   // 정기(monthly)는 **그 달 안에서만** 옮긴다 — 월 단위 의무라 다른 달로 넘기면 그 달이 비고
@@ -163,5 +168,143 @@ export async function moveMonthlyPlanItemAction(
   } as Record<string, unknown>)
 
   revalidatePath(`/customers/${item.customer_id}`)
+  return {}
+}
+
+// ── 시작된 점검의 점검일자 변경 (2026-09-22 사용자 요청 — 점검달력 한 바퀴) ──────────────
+//
+// 🚨 **이 경로는 여태 없었다.** 위 `confirmPlanItemStageOneAction`은 1단계가 완료되면 거부하면서
+//   「날짜는 점검 상세에서 변경해주세요」라고 안내하는데, **점검 상세에 그런 경로가 없다**.
+//   그래서 실제 정정은 스크립트로 해 왔다(2026-09-20 「해오름 9/12→9/18」). 그 안내가 가리키던
+//   자리를 여기서 만든다 — 그리고 위 문구도 이 함수를 가리키도록 고친다.
+//
+// 산식은 **다시 짜지 않는다**: `resolveStepDates`(마감일) · `syncInspectionStepDates`(단계 반영) ·
+// `syncInspectionVisitDate`(방문일·종료일 보정)를 그대로 쓴다. 재확정 경로와 같은 정본이라
+// 「계획에서 옮긴 날짜」와 「점검에서 옮긴 날짜」가 다른 마감일을 낳지 않는다.
+
+/** 변경 가부 + 재계산 미리보기 — 화면이 저장 전에 「무엇이 바뀌는지」를 보여주기 위한 조회 전용. */
+export async function previewInspectionDateChangeAction(
+  inspectionId: string,
+  newDate: string,
+): Promise<{
+  error?: string
+  allowed?: boolean
+  reason?: string
+  blockedBy?: number
+  /** 1~6단계 현재 마감일 · 새 마감일 (표시 축이 아니라 **의무 축 전 단계**) */
+  rows?: Array<{ stepNum: number; nameKo: string; from: string | null; to: string | null; done: boolean }>
+}> {
+  await requirePermission('inspection_plan_manage')
+  const admin = createAdminClient()
+
+  const { data: stepsRaw } = await admin
+    .from('inspection_steps')
+    .select('step_num, name_ko, status, due_date')
+    .eq('inspection_id', inspectionId)
+    .order('step_num')
+  const steps = (stepsRaw ?? []) as Array<{ step_num: number; name_ko: string; status: string; due_date: string | null }>
+
+  const verdict = dateChangeVerdict(steps)
+  if (!verdict.allowed) return { allowed: false, reason: verdict.reason, blockedBy: verdict.blockedBy }
+
+  const { dates, error: stepErr } = await resolveStepDates(admin, newDate)
+  if (stepErr || !dates) return { error: stepErr ?? '공휴일 조회에 실패했습니다.' }
+
+  return {
+    allowed: true,
+    rows: steps.map(s => ({
+      stepNum: s.step_num,
+      nameKo: s.name_ko,
+      from: s.due_date,
+      to: dates[s.step_num - 1] ?? null,
+      done: s.status === 'completed',
+    })),
+  }
+}
+
+/** 점검일자 변경 적용 — 1단계만 완료면 허용, 2단계 이상 완료면 거부(사용자 확정 2026-09-22).
+ *
+ *  ⚠ 완료된 1단계의 `completed_at`은 **건드리지 않는다**. 점검을 한 사실은 남는다 —
+ *    우리가 고치는 것은 「언제 했다고 적었는가」이지 「했는가」가 아니다. */
+export async function changeInspectionDateAction(
+  inspectionId: string,
+  newDate: string,
+): Promise<{ error?: string; blockedBy?: number }> {
+  await requirePermission('inspection_plan_manage')
+  const admin = createAdminClient()
+
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(newDate)) return { error: '날짜 형식이 올바르지 않습니다.' }
+
+  // 🚨 판정은 **의무 축 전 단계**로 한다 — 표시 축(불량 0이면 ⑤⑥ 숨김)으로 세면
+  //    숨겨진 단계의 완료를 못 보고 통과시킨다.
+  const { data: stepsRaw } = await admin
+    .from('inspection_steps')
+    .select('step_num, name_ko, status')
+    .eq('inspection_id', inspectionId)
+  const steps = (stepsRaw ?? []) as Array<{ step_num: number; name_ko: string; status: string }>
+
+  const verdict = dateChangeVerdict(steps)
+  if (!verdict.allowed) return { error: verdict.reason, blockedBy: verdict.blockedBy }
+
+  const { dates, error: stepErr } = await resolveStepDates(admin, newDate)
+  if (stepErr || !dates) return { error: stepErr ?? '공휴일 조회에 실패했습니다.' }
+
+  // 계획 항목도 같이 민다 — 달력의 계획 칩·문자 화면이 그 값을 읽으므로, 여기만 고치면
+  // 「점검은 새 날짜, 계획은 옛 날짜」로 갈라진다(syncInspectionVisitDate가 생긴 것과 같은 이유).
+  const { data: itemRaw } = await admin
+    .from('inspection_plan_items')
+    .select('id')
+    .eq('inspection_id', inspectionId)
+    .maybeSingle()
+  const planItemId = (itemRaw as { id: string } | null)?.id
+  if (planItemId) {
+    const [s1, s2, s3, s4, s5, s6] = dates
+    await admin.from('inspection_plan_items').update({
+      scheduled_date: newDate,
+      step1_date: s1, step2_date: s2, step3_date: s3, step4_date: s4, step5_date: s5, step6_date: s6,
+    } as Record<string, unknown>).eq('id', planItemId)
+  }
+
+  /* 🚨 **마감일의 기준일은 「종료일이 있으면 종료일, 없으면 시작일」**이다(2026-09-22 실측으로 잡음).
+     다일 점검은 `updateInspectionMultidayAction`이 **종료일 기준**으로 마감을 깔아 둔다
+     (`recalcStepDueDates` — 32건 중 4건이 그 상태였다). 여기서 시작일 기준으로만 다시 깔면
+     그 조정이 조용히 지워진다. 그래서 종료일을 **같은 일수만큼 함께 밀고**, 기준일도 종료일로 잡는다.
+     ⚠ 재계산은 DB 정본(`recalc_inspection_steps`, p_include_completed=TRUE)을 쓴다 —
+       완료 행을 건너뛰면 한 점검 안에서 단계마다 기준일이 갈린다. */
+  const { data: curRaw } = await admin
+    .from('inspections')
+    .select('inspection_start_date, inspection_end_date')
+    .eq('id', inspectionId)
+    .single()
+  const cur = curRaw as { inspection_start_date: string | null; inspection_end_date: string | null } | null
+  const oldStart = cur?.inspection_start_date ?? null
+  const oldEnd = cur?.inspection_end_date ?? null
+
+  await syncInspectionVisitDate(admin, inspectionId, newDate)
+
+  let baseDate = newDate
+  if (oldEnd && oldStart) {
+    // 일수를 보존한 채 종료일을 함께 민다 (종료일 - 시작일 간격 유지)
+    const gap = Math.round(
+      (Date.parse(`${oldEnd}T00:00:00Z`) - Date.parse(`${oldStart}T00:00:00Z`)) / 86_400_000)
+    if (gap > 0) {
+      const shifted = new Date(Date.parse(`${newDate}T00:00:00Z`) + gap * 86_400_000)
+        .toISOString().slice(0, 10)
+      await admin.from('inspections')
+        .update({ inspection_end_date: shifted } as Record<string, unknown>).eq('id', inspectionId)
+      baseDate = shifted
+    }
+  }
+
+  if (baseDate !== newDate) {
+    await recalcStepDueDates(admin, inspectionId, baseDate)
+  } else {
+    // 1일 점검 — 계획 항목에 깔아 둔 산식값(위 dates)과 같은 축으로 맞춘다
+    await syncInspectionStepDates(admin, inspectionId, dates)
+  }
+
+  revalidatePath('/inspections')
+  revalidatePath('/inspections/calendar')
+  revalidatePath('/inspections/sms')
   return {}
 }
