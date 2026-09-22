@@ -38,7 +38,7 @@ type Employee = { id: string; name: string; position: string | null }
 type ContactForm = { name: string; phone: string; email: string }
 const emptyContact = (): ContactForm => ({ name: '', phone: '', email: '' })
 
-export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = [], initialAnchorDate = '', onCreated }: {
+export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = [], initialAnchorDate = '', returnHref = '' }: {
   employees: Employee[]
   defaultRegionSi?: string
   /** 049 building_purposes — 관리자 > 건물 용도 관리 목록. datalist 제안(대장 자동값·신규 용도도 허용) */
@@ -46,16 +46,12 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
   /** 점검달력에서 날짜를 짚어 열었을 때의 점검일자 프리필 (2026-09-22).
    *  아래 `useState` **lazy 초기값에만** 쓴다 — effect로 덮으면 미리보기가 두 번 돌고 수정값을 밀어낸다. */
   initialAnchorDate?: string
-  /** 넘기면 등록 후 **이 콜백만** 부른다(화면 이동 없음) — 달력이 제자리에 머물기 위한 문.
-   *  ⚠ 안 넘기면 종전대로 `/customers/{id}?created=1&onboarding=1`로 이동한다.
-   *    기존 `/customers/new` 페이지의 동선은 한 글자도 바뀌지 않는다. */
-  onCreated?: (r: {
-    customerId: string; customerName: string; anchorDate: string
-    /** 1차 점검이 즉시 시작됐는가(= 1~4단계가 생겼는가) — **서버가 준 값**을 그대로 넘긴다.
-     *  화면이 날짜를 다시 비교해 추측하면 서버의 실제 결과와 어긋난다. */
-    anchorApplied: boolean
-    startedInspectionId?: string
-  }) => void
+  /** 등록을 마치고 **돌아갈 자리** — URL `?from=`이 원천이다 (2026-09-22 사용자 요청:
+   *  「입력 다 하고 다시 사이드바 화면으로 복귀 — 만약 사이드바에서 왔다면」).
+   *  ⚠ 비어 있으면 종전대로 `/customers/{id}?created=1&onboarding=1`로 간다. 「사이드바에서
+   *    왔는가」를 여기서 판정하지 않는다 — 보낸 쪽이 주소에 적어 줬거나 안 적어 줬거나 둘 뿐이다.
+   *  ⚠ 값 검증(내부 경로인가)은 **페이지가** 한다 — 여기로 오는 건 이미 걸러진 값이다. */
+  returnHref?: string
 }) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
@@ -370,19 +366,11 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
       // ⚠ router.refresh()를 뒤에 붙이지 않는다 — push가 이미 새 경로의 RSC를 받아오는데
       // refresh가 같은 페이지를 한 번 더 받아 **상세 화면 로딩이 두 번** 일어났다.
       // 목록 캐시는 액션의 revalidatePath('/customers')가 이미 무효화한다.
-      /* 달력에서 열렸으면 **이동하지 않는다**(2026-09-22 사용자 확정 — 「달력에 머문다」).
-         그 경우 「나머지 채우기」는 달력이 링크로 제안하고, 어느 탭을 열지는 종전과 같이
-         **서버(lib/onboarding-steps)가 첫 미완 탭으로** 정한다. 폼 state로 고르지 않는다. */
-      if (onCreated) {
-        onCreated({
-          customerId: result.customerId!,
-          customerName: form.customer_name.trim(),
-          anchorDate: form.plan_anchor_date,
-          anchorApplied: result.anchorApplied === true,
-          startedInspectionId: result.startedInspectionId,
-        })
-        return
-      }
+      /* 달력에서 왔으면 **보낸 자리로 돌려보낸다**(2026-09-22 사용자 요청). 데이 패널이 열린 채
+         떠났으면 그 주소에 `day=`가 실려 있어 **그 사이드바가 다시 열린다**.
+         ⚠ 방금 만든 고객의 계획·단계 칩은 그 목록에 이미 들어 있다 — 서버가 새로 그리기 때문이다.
+         ⚠ 여기서 `refresh()`를 덧붙이지 않는다(위 주석과 같은 이유 — push가 이미 RSC를 받는다). */
+      if (returnHref) { router.push(returnHref); return }
       router.push(`/customers/${result.customerId}?created=1&onboarding=1`)
     })
   }

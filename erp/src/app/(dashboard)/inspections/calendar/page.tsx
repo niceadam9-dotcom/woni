@@ -14,7 +14,7 @@ import type { InspectionType, InspectionStatus, UserRole } from '@/types'
 export default async function InspectionCalendarPage({
   searchParams,
 }: {
-  searchParams: Promise<{ filter?: string; cust?: string; insp?: string }>
+  searchParams: Promise<{ filter?: string; cust?: string; insp?: string; day?: string }>
 }) {
   const profile = await getProfile()
   if (!profile) redirect('/login')
@@ -30,6 +30,11 @@ export default async function InspectionCalendarPage({
   // 돌아오면 달력만 남고 사용자가 단계를 처음부터 다시 찾아 들어가야 했다.
   // 형식 검증만 여기서(uuid 꼴이 아니면 무시) — 실재 여부는 클라이언트가 목록에서 찾는다.
   const initialInspectionId = /^[0-9a-f-]{36}$/i.test(params.insp ?? '') ? params.insp! : ''
+  // 데이 패널(우측 사이드바) 복원 — URL ?day= (2026-09-22 사용자 요청). 고객 등록이 모달에서
+  // `/customers/new` **페이지**로 바뀌면서 이 패널도 화면을 떠났다 돌아오는 자리가 됐다:
+  // 「입력 다 하고 다시 사이드바 화면으로 복귀 — 만약 사이드바에서 왔다면」.
+  // 형식 검증만 여기서(YYYY-MM-DD가 아니면 무시) — 그 날짜에 일정이 없으면 빈 패널이 열린다(그게 옳다).
+  const initialDayPanelDate = /^\d{4}-\d{2}-\d{2}$/.test(params.day ?? '') ? params.day! : ''
 
   const admin = createAdminClient()
   const currentYear = new Date().getFullYear()
@@ -295,6 +300,7 @@ export default async function InspectionCalendarPage({
       initialFilter={initialFilter}
       initialCustomerQuery={initialCustomerQuery}
       initialInspectionId={initialInspectionId}
+      initialDayPanelDate={initialDayPanelDate}
       holidays={holidays}
       canMovePlan={can(profile.role as UserRole, 'inspection_plan_manage')}
       canSendSms={can(profile.role as UserRole, 'inspection_sms_send')}

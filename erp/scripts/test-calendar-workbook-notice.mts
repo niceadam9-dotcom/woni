@@ -80,45 +80,66 @@ console.log('\n— ★ 네 덩이가 **섞이지 않는가** (동작으로 단�
     [...g.fixable, ...g.caps, ...g.org, ...g.rest].every(p => p.kind !== 'info'))
 }
 
-console.log('\n— ①③④ 배선')
+/* ─────────────────────────────────────────────────────────────────────────────
+   🚨 2026-09-22 **계약 교대 — 달력은 보고서 고지를 그리지 않는다.**
+
+   사용자 지시: 「보고서엑셀 클릭시 『채우면 다음 발행에 반영됩니다』 내용 모두 없애 달라」.
+   실측이 그 판단을 뒷받침한다 — 자체점검 31건 **전건**에 고지가 떴다. 예외가 아니라 상시라,
+   400px 사이드바에서 버튼 한 번에 칩 묶음·상한 목록·회사 접이줄·복귀 띠가 화면을 덮었다.
+
+   종전 단언 여덟(①쪽지·③from·②workbookFixHref·복귀 띠…)은 **지우지 않고 음성으로 갈아끼운다.**
+   그 배선이 되살아나면 사용자가 뺀 화면이 조용히 돌아오는 것이므로 여기서 멈춰 서야 한다.
+   ⚠ 위쪽 **분류 축(순수 함수)은 그대로 둔다** — 소방계획서 칩이 `splitNoticeParts`를 계속
+     쓰고(`doc-notice-list.tsx`), 보고서 쪽 분류표도 라우트 문구 변화를 잡는 값이 있다.
+   ───────────────────────────────────────────────────────────────────────────── */
+console.log('\n— ①③ 달력 배선: 보고서 고지는 **그리지 않는다**')
 {
   const client = codeOnly(readFileSync(new URL('../src/components/inspections/inspection-calendar-client.tsx', import.meta.url), 'utf8'))
   const list = codeOnly(readFileSync(new URL('../src/components/ui/doc-notice-list.tsx', import.meta.url), 'utf8'))
   const btn = codeOnly(readFileSync(new URL('../src/components/inspections/workbook-xlsx-button.tsx', import.meta.url), 'utf8'))
 
-  ok('버튼이 고지를 바깥으로 넘길 수 있다(onNotice)', /onNotice\?:\s*\(raw: string\) => void/.test(btn))
-  ok('★ 안 넘기면 종전대로 자기가 그린다 (기존 호출부 무변경)',
+  ok('버튼이 고지를 바깥으로 넘길 수 있다(onNotice — 다른 화면이 쓴다)',
+    /onNotice\?:\s*\(raw: string\) => void/.test(btn))
+  /* 🚨 급소 — **버튼이 자기 고지를 대신 그리면 안 된다.** `owns = !onNotice && !onError`이므로
+     달력처럼 `onError`만 넘기면 owns=false가 되어 양쪽 다 안 그린다. 이 식이 무너지면
+     고지를 뺀 자리에 버튼 자신의 토스트가 그대로 되살아난다(겉보기엔 아무것도 안 바꾼 듯 초록). */
+  ok('★ owns 판정이 onError만으로도 꺼진다 (버튼이 대신 그리지 않는다)',
     /const owns = !onNotice && !onError/.test(btn) && /owns \? selfNotice/.test(btn))
-  ok('달력이 고지를 받아 분류한다', /onNotice=\{raw => setWbNotice\(parseWorkbookNotice\(raw\)\)\}/.test(client))
 
-  ok('★ ① 쪽지를 **Link의 onClick**(이동 앞)에서 쓴다', /onNavigate=\{\(\) => writePendingDoc\(/.test(client))
-  ok('★ ① 목록이 onNavigate를 **이동 전에** 부른다 (Link onClick)',
-    /onClick=\{\(\) => onNavigate\?\.\(p\)\}/.test(list))
-  ok('음성 — 쪽지를 router.push 뒤에서 쓰지 않는다', !/router\.push\([\s\S]{0,120}?writePendingDoc/.test(client))
-
-  /* ⚠ `from=…calendarBackHref`는 이 파일 **여러 곳**에 있다(단계 [입력]·나머지 채우기).
-     앵커 없이 찾으면 칩에서 떼어내도 다른 곳에 걸려 초록이다(변이 M3가 그렇게 뚫었다).
-     `hrefOf` 블록 **안쪽**을 물어야 한다 — 같은 부류를 이번 작업에서 네 번째 밟았다. */
-  ok('★ ③ 칩 주소에 복귀 경로가 붙는다', () => {
-    const i = client.indexOf('hrefOf={p => {')
-    if (i < 0) return false
-    const block = client.slice(i, client.indexOf('onNavigate=', i))
-    return /from=\$\{encodeURIComponent\(calendarBackHref\)\}/.test(block)
-  }, '(hrefOf 블록 안에 from=이 없다)')
-  ok('★ ② 주소를 베껴 적지 않고 workbookFixHref를 쓴다',
-    /workbookFixHref\(\s*p\.target/.test(client) && !/tab=facilities&form=1\.4/.test(client))
-
-  ok('돌아오면 쪽지를 소비해 [지금 받기]를 띄운다',
-    /takePendingDoc\(id, Date\.now\(\)\)\) setResumedDoc\(true\)/.test(client)
-    && /daypanel-workbook-resume/.test(client))
-  ok('★ 쪽지 소비는 회차 수명당 한 번', /if \(resumeRef\.current === id\) return/.test(client))
-  ok('회차가 바뀌면 이전 고지를 버린다 (남의 빈칸을 이 회차 것으로 읽지 않는다)',
-    /setWbNotice\(\[\]\); setWbError\(''\); setResumedDoc\(false\)/.test(client))
+  /* 달력 쪽 보고서 줄 **안쪽**을 본다 — 파일 전체에 `DocNoticeList`를 물으면 바로 아래
+     소방계획서 줄(남겨 둔 축)에 걸려 영영 빨강이다. 축을 갈라 묻는다. */
+  const wbBlock = (() => {
+    const i = client.indexOf('data-testid="daypanel-workbook"')
+    if (i < 0) return ''
+    const j = client.indexOf('data-testid="daypanel-fireplan"', i)
+    return client.slice(i, j > 0 ? j : i + 2_000)
+  })()
+  ok('보고서 줄이 여전히 있다 (버튼 자체를 없앤 게 아니다)',
+    wbBlock.length > 0 && /<WorkbookXlsxButton/.test(wbBlock))
+  ok('★ 그 줄이 고지 목록을 그리지 않는다', !/DocNoticeList/.test(wbBlock), wbBlock.slice(0, 400))
+  ok('★ 달력이 보고서 고지를 받지도 않는다 (onNotice 미전달 = owns도 꺼짐)',
+    !/onNotice=\{raw => setWbNotice/.test(client) && !/parseWorkbookNotice/.test(client))
+  ok('★ 「채우러 가기」 목적지 조립이 달력에서 사라졌다',
+    !/workbookFixHref/.test(client))
+  ok('★ 「입력 마치고 돌아왔다」 복귀 띠·쪽지가 사라졌다',
+    !/daypanel-workbook-resume/.test(client)
+    && !/writePendingDoc|takePendingDoc|resumedDoc/.test(client))
+  /* ⚠ **오류는 남는다.** 고지는 「받았는데 빈칸이 있다」지만 오류는 「못 받았다」다.
+     같이 걷어 내면 다운로드 실패가 조용해진다 — 고지 제거의 가장 그럴듯한 과잉이다. */
+  ok('★ 오류 표시는 남아 있다 (고지와 오류는 다른 축이다)',
+    /onError=\{setWbError\}/.test(client) && /\{wbError &&/.test(client))
+  ok('회차가 바뀌면 이전 회차의 것을 버린다', /setWbError\(''\); setFpNotice\(\[\]\); setFpError\(''\)/.test(client))
 
   ok('★ ④ 달력에 window.confirm 발행 가드를 이식하지 않았다', !/window\.confirm/.test(client))
+
+  console.log('\n— 목록 컴포넌트는 살아 있다 (소방계획서 칩이 쓴다)')
+  ok('목록이 onNavigate를 **이동 전에** 부른다 (Link onClick)',
+    /onClick=\{\(\) => onNavigate\?\.\(p\)\}/.test(list))
   ok('두 덩이를 **나눠** 그린다(자리)', /doc-notice-caps/.test(list) && /채울 수 없습니다/.test(list))
   ok('★ 분리 규칙이 순수 함수에 있다 (JSX 안 filter면 모양만 보는 단언이 못 잡는다)',
     /splitNoticeParts\(parts\)/.test(list) && !/parts\.filter\(/.test(list))
+  ok('★ 달력의 소방계획서 고지는 **그대로 남았다** (보고서 축만 뺐다)',
+    /data-testid="daypanel-fireplan"/.test(client) && /parts=\{fpNotice\}/.test(client))
 }
 
 console.log(`\n결과: ${pass} 통과 / ${fail} 실패`)

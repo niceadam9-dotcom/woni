@@ -68,18 +68,23 @@ console.log('\n— ② 결과가 화면까지 올라온다')
     const guard = fn.indexOf('if (applied.applied)')
     return rev > 0 && guard === -1        // applied일 때만 도는 가드가 없어야 한다
   })
-  ok('폼이 서버 값을 그대로 넘긴다 (다시 판정하지 않는다)',
-    /anchorApplied: result\.anchorApplied === true/.test(form))
   ok('★ 등록 전 안내가 **같은 순수 함수**로 판정한다',
     /!isPastAnchor\(form\.plan_anchor_date, todayKst\(\)\)/.test(form))
   ok('안내는 막지 않는다 — 제출 버튼 조건에 날짜 축이 없다',
     !/requiredOk[^\n]*isPastAnchor|isPastAnchor[^\n]*requiredOk/.test(form))
 
-  ok('★ 달력 띠가 서버 값으로 두 갈래를 가른다', /created\.anchorApplied \?/.test(client))
-  ok('시작된 경우 — **화면을 떠나지 않고** 그 회차 패널을 연다',
-    /created-open-step1[\s\S]{0,300}?setSelectedInspectionId\(created\.startedInspectionId!\)/.test(client))
-  ok('계획만 생긴 경우 — 그 날짜 데이 패널을 연다',
-    /created-open-plan[\s\S]{0,300}?setDayPanelDate\(created\.anchorDate\)/.test(client))
+  /* 🚨 2026-09-22 계약 교대 — 종전엔 등록이 달력 위 **모달**이라 달력에 머물렀고, 그래서
+     「1~4단계가 생겼습니다 / 계획이 잡혔습니다」를 **띠로 말해야** 했다(그 띠가 서버의
+     `anchorApplied`로 두 갈래를 갈랐다). 이제 등록은 `/customers/new` **페이지**이고
+     마치면 떠나기 직전 화면으로 돌아온다 — 데이 패널이 열려 있었으면 그 사이드바로.
+     **그 목록이 곧 답이다**: 단계가 생겼으면 단계 칩이, 계획만 생겼으면 계획 칩이 거기 있다.
+     띠로 다시 말하면 같은 사실을 두 번 말하는 것이고, 두 벌이면 갈라진다.
+     ⚠ 그래서 「띠가 있는가」를 묻던 단언을 **반대 방향으로 갈아끼운다**(지우지 않는다) —
+       띠가 되살아나면 여기서 멈춰 서야 한다. 화면에 올라오는 축은 **달력 그 자체**다. */
+  ok('★ 등록 후 복귀 주소로 돌아간다 (달력이 새로 그려지며 칩이 증언한다)',
+    /if \(returnHref\) \{ router\.push\(returnHref\); return \}/.test(form))
+  ok('★ 음성 — 「등록 완료」 띠를 다시 만들지 않았다',
+    !/calendar-created-banner|created-open-step1|created-open-plan/.test(client))
   ok('음성 — 달력이 날짜를 다시 비교해 추측하지 않는다',
     !/isPastAnchor/.test(client))
 }

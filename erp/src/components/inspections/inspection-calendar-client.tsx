@@ -1,7 +1,6 @@
 ﻿'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react'
-import dynamic from 'next/dynamic'
 import { useRouter, usePathname, useSearchParams } from 'next/navigation'
 import { Calendar, dateFnsLocalizer, Views, type View, type ToolbarProps } from 'react-big-calendar'
 import withDragAndDrop from 'react-big-calendar/lib/addons/dragAndDrop'
@@ -18,20 +17,12 @@ import {
 import { InspectionSmsModal, type SmsModalSource } from '@/components/sms/inspection-sms-modal'
 import { completeStepAction, bulkCompleteStepsAction, bulkStartCompletePlanItemsAction } from '@/app/(dashboard)/inspections/actions'
 import { moveMonthlyPlanItemAction, previewInspectionDateChangeAction, changeInspectionDateAction } from '@/app/(dashboard)/inspections/plan-date-actions'
-import { getCustomerNewFormDataAction } from '@/app/(dashboard)/customers/actions'
-import { parseWorkbookNotice, workbookFixHref, type WorkbookNoticePart } from '@/lib/workbook-notice'
-import { takePendingDoc, writePendingDoc } from '@/lib/pending-doc-intent'
+import { type WorkbookNoticePart } from '@/lib/workbook-notice'
 import { DocNoticeList } from '@/components/ui/doc-notice-list'
 import { FirePlanXlsxButton } from '@/components/customers/fire-plan-xlsx-button'
 import { parseFirePlanNotice } from '@/lib/fire-plan-notice'
 import { tabOfForm } from '@/lib/fire-plan-sections'
 import { firePlanNoticeHref } from '@/lib/fire-plan-chip-target'
-/* 등록 폼은 877줄 + 우편번호 스크립트를 쓴다 — 달력 초기 번들에 얹지 않고 **열 때** 받는다.
-   ssr:false는 폼이 lazy 초기값에서 localStorage를 읽기 때문이다(클라이언트에서만 마운트). */
-const CustomerNewClient = dynamic(
-  () => import('@/components/customers/customer-new-client').then(m => m.CustomerNewClient),
-  { ssr: false, loading: () => <p className="text-xs text-ink-meta p-4">등록 폼을 불러오는 중…</p> },
-)
 // 여러 건 날짜 이동은 문자 발송 화면이 쓰는 액션을 **그대로 태운다** — 같은 달·미시작·1단계 완료
 // 가드가 그 경로에만 있으므로 여기서 복제하면 두 곳이 갈라진다(sms-actions.ts:391-394의 교훈)
 import { bulkMovePlanDatesAction } from '@/app/(dashboard)/inspections/sms-actions'
@@ -46,7 +37,7 @@ import { kstDate, todayKst } from '@/lib/kst-date'
 import { periodSummary } from '@/lib/inspection-period'
 import { CustomerFilterSearch } from '@/components/ui/customer-filter-search'
 import { AddressMapButton } from '@/components/ui/address-map-button'
-import { WorkbookXlsxButton, WORKBOOK_LABEL } from '@/components/inspections/workbook-xlsx-button'
+import { WorkbookXlsxButton } from '@/components/inspections/workbook-xlsx-button'
 import type { InspectionType, InspectionStatus, UserRole } from '@/types'
 import { inspectionTypeLabel } from '@/types'
 
@@ -368,6 +359,8 @@ interface Props {
   initialCustomerQuery?: string
   /** 단계 사이드 패널 복원 — URL ?insp= (점검표 입력에서 [←]로 돌아오면 그 패널이 다시 열린다) */
   initialInspectionId?: string
+  /** 데이 패널(우측 사이드바) 복원 — URL ?day= (고객 등록 페이지에서 돌아오면 그 날짜 패널이 다시 열린다) */
+  initialDayPanelDate?: string
   /** 주말·공휴일 표시용 (YYYY-MM-DD + 이름) */
   holidays?: Array<{ date: string; name: string }>
   /** 정기 칩 드래그 이동 권한 (inspection_plan_manage) */
@@ -379,7 +372,7 @@ interface Props {
 }
 
 // ─── Component ───────────────────────────────────────────────────────────────
-export function InspectionCalendarClient({ inspections, planItems = [], employees, currentUserId, currentUserRole, initialFilter = 'all', initialCustomerQuery = '', initialInspectionId = '', holidays = [], canMovePlan = false, canSendSms = false, canCreateCustomer = false }: Props) {
+export function InspectionCalendarClient({ inspections, planItems = [], employees, currentUserId, currentUserRole, initialFilter = 'all', initialCustomerQuery = '', initialInspectionId = '', initialDayPanelDate = '', holidays = [], canMovePlan = false, canSendSms = false, canCreateCustomer = false }: Props) {
   const router = useRouter()
   // B-3 복귀 경로 재료 — 지금 보고 있는 달까지 포함해 되돌아가려고 쓴다(하이드레이션 안전)
   const pathname = usePathname()
@@ -394,8 +387,15 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
 
   // 달력 모드: 전체 | 종합(6단계) | 작동(6단계) | 정기(monthly) | 일반(event)
   const [calMode, setCalMode] = useState<'all' | 'comp' | 'oper' | 'regular' | 'event'>('all')
-  // 데이 패널 — 날짜·집계 칩 클릭 시 그날 전체 일정 (기존 "+N개 더 보기" 팝업·안내 배너 대체)
-  const [dayPanelDate, setDayPanelDate] = useState<string | null>(null)
+  /* 데이 패널 — 날짜·집계 칩 클릭 시 그날 전체 일정 (기존 "+N개 더 보기" 팝업·안내 배너 대체)
+   *
+   *  초기값을 URL(?day=)에서 받는다 — 위 `?insp=`(단계 패널)와 **같은 규약**이다. 고객 등록이
+   *  모달에서 `/customers/new` **페이지**로 바뀌면서(2026-09-22 사용자 요청) 이 패널은 화면을
+   *  떠났다가 돌아오는 자리가 됐다: 「입력 다 하고 다시 사이드바 화면으로 복귀하도록 —
+   *  만약 사이드바에서 왔다면」. 로컬 state뿐이면 돌아와도 달력만 남아 날짜를 다시 짚어야 한다.
+   *  ⚠ 「사이드바에서 왔다면」의 조건 판정을 따로 만들지 않는다 — 떠날 때 열려 있었으면 URL에
+   *    `day=`가 실리고, 툴바에서 들어갔으면 안 실린다. 조건은 **주소가 이미 알고 있다**. */
+  const [dayPanelDate, setDayPanelDate] = useState<string | null>(initialDayPanelDate || null)
   const [daySearch, setDaySearch] = useState('')
   // 같은 날 일괄 완료 (2026-08-04) — 모달·선택 상태. 기본 체크 = 1단계형(정기·일반), 자체점검 단계는 기본 해제
   const [bulkOpen, setBulkOpen] = useState(false)
@@ -439,8 +439,11 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
 
   // Calendar view state
   const [calView, setCalView] = useState<View>(initialFilter === 'overdue' ? Views.AGENDA : Views.MONTH)
+  /* ⚠ `?day=`가 가장 세다 — 그 날짜의 데이 패널을 열어 놓고 **보던 달**을 기한초과 점프가
+     덮으면, 복귀했을 때 패널은 11월인데 달력은 7월인 어긋난 화면이 된다. */
   const [calDate, setCalDate] = useState(() =>
-    earliestOverdue ? new Date(earliestOverdue + 'T12:00:00') : new Date())
+    initialDayPanelDate ? new Date(initialDayPanelDate + 'T12:00:00')
+      : earliestOverdue ? new Date(earliestOverdue + 'T12:00:00') : new Date())
   // 과거 달로 점프했을 때만 안내 배너 — "8월인데 왜 7월?" 혼동 방지 (2026-08-04)
   const [overdueJumpNotice, setOverdueJumpNotice] = useState(() =>
     // F-14 잔여 축 — **월** 비교도 같은 결함이다. 상대(earliestOverdue)는 due_date(DATE=달력
@@ -507,6 +510,18 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
     const qs = sp.toString()
     window.history.replaceState(window.history.state, '', qs ? `?${qs}` : window.location.pathname)
   }, [selectedInspectionId])
+
+  /* 열린 **데이 패널**을 URL에 기록 — 위 두 effect와 같은 규약(replaceState).
+   *  이게 곧 「사이드바에서 왔는가」의 답이다: 복귀 경로(`calendarBackHref`)가 여기 실린 값을
+   *  그대로 들고 나가므로, 닫혀 있으면 `day=`가 없고 복귀해도 달력만 보인다.
+   *  ⚠ **닫을 때 반드시 지운다** — 남겨 두면 다음에 아무 링크로 들어와도 옛 날짜 패널이 열린다. */
+  useEffect(() => {
+    const sp = new URLSearchParams(window.location.search)
+    if (dayPanelDate) sp.set('day', dayPanelDate)
+    else sp.delete('day')
+    const qs = sp.toString()
+    window.history.replaceState(window.history.state, '', qs ? `?${qs}` : window.location.pathname)
+  }, [dayPanelDate])
 
   const today = useMemo(() => todayKst(), [])
 
@@ -811,9 +826,12 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
     const sp = new URLSearchParams(searchParams.toString())
     if (custQuery) sp.set('cust', custQuery); else sp.delete('cust')
     if (selectedInspectionId) sp.set('insp', selectedInspectionId); else sp.delete('insp')
+    // `day`도 **같은 이유로** 여기서 덮어쓴다(replaceState는 useSearchParams에 안 잡힌다).
+    // 데이 패널이 열려 있으면 복귀 주소가 그 사이드바까지 되살린다 — 2026-09-22 사용자 요청.
+    if (dayPanelDate) sp.set('day', dayPanelDate); else sp.delete('day')
     const qs = sp.toString()
     return `${pathname}${qs ? `?${qs}` : ''}`
-  }, [searchParams, pathname, custQuery, selectedInspectionId])
+  }, [searchParams, pathname, custQuery, selectedInspectionId, dayPanelDate])
 
   const panelEntryQuery = (() => {
     const q = new URLSearchParams()
@@ -845,66 +863,38 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
   >(null)
   const [isChangingDate, startChangingDate] = useTransition()
 
-  /* ── 달력에서 고객 등록 (2026-09-22 사용자 요청) ──────────────────────────
-     등록은 **이미 달력 일정을 만든다**(`_autoCreatePlanItemsForNewCustomer` — 롤링 계획 +
-     과거·오늘이면 1차 즉시 시작). 그래서 여기서 등록하면 그 자리에 칩이 바로 뜬다.
-     날짜를 짚어 들어왔으면 그 날짜가 **점검일자**로 프리필된다 — 달력의 단위가 곧 그 칸이다. */
-  const [newCustomerDate, setNewCustomerDate] = useState<string | null>(null)
-  const [newFormData, setNewFormData] = useState<
-    { employees: Array<{ id: string; name: string; position: string | null }>; defaultRegionSi: string; purposes: string[] } | null
-  >(null)
-  const [newFormError, setNewFormError] = useState('')
-  /** 등록 직후 달력에 남기는 띠 — 이동하지 않으므로 「무엇이 생겼는지」를 여기서 말해야 한다 */
-  const [created, setCreated] = useState<
-    { customerId: string; customerName: string; anchorDate: string
-      anchorApplied: boolean; startedInspectionId?: string } | null
-  >(null)
-
-  /** 폼이 요구하는 서버 데이터는 **모달을 열 때** 받는다 — 달력 초기 로드에 얹지 않는다 */
-  /* ── 문서 고지를 **채우러 가는 입구**로 (2026-09-22) ───────────────────────
-     라우트는 이미 무엇이 비었는지 말한다. 종전엔 읽기 전용 토스트로 흘러가고 끝났다.
-     이제 조각별로 목적지를 달아 주고, 채우고 돌아오면 **자동으로 다시 발행**한다.
-     ⚠ 발행 가드(window.confirm)는 여전히 안 붙인다 — 이 패널의 방침이다(문서 줄 주석 참조).
-       문서는 이미 받았고, 이건 다음 발행을 위한 안내다. */
-  const [wbNotice, setWbNotice] = useState<WorkbookNoticePart[]>([])
+  /* ── 보고서 엑셀 (2026-09-22) ─────────────────────────────────────────────
+     🚨 **고지를 그리지 않는다**(사용자 지시 — 종전의 「채우면 다음 발행에 반영됩니다」 칩 묶음을
+       통째로 뺐다). 라우트는 여전히 `X-Workbook-Missing`을 내려보내지만 달력은 받지 않는다:
+       `onNotice`를 넘기지 않으면 버튼도 자기 고지를 그리지 않는다(`owns = !onNotice && !onError`).
+     ⚠ **오류는 남긴다** — 고지는 「받았는데 빈칸이 있다」는 안내고, 오류는 「못 받았다」다.
+       둘을 같이 걷어 내면 다운로드가 조용히 실패한다. */
   const [wbError, setWbError] = useState('')
-  /** 소방계획서 고지 — 보고서와 **다른 축**이라 따로 든다(고객 단위 문서다) */
+  /** 소방계획서 고지 — 보고서와 **다른 축**이라 따로 든다(고객 단위 문서다). 이쪽은 그대로 남긴다 */
   const [fpNotice, setFpNotice] = useState<WorkbookNoticePart[]>([])
   const [fpError, setFpError] = useState('')
-  /** 채우고 돌아왔다 — 쪽지를 소비했으면 「지금 받기」를 띄운다 */
-  const [resumedDoc, setResumedDoc] = useState(false)
-  const resumeRef = useRef<string | null>(null)
 
-  /* 회차가 바뀌면 이전 회차의 고지를 들고 있으면 안 된다 — 남의 빈칸을 이 회차 것으로 읽게 된다.
-     그리고 **채우고 돌아온 경우**(?insp= 복귀) 쪽지를 소비해 [지금 받기]를 띄운다.
-     ⚠ 자동 다운로드는 브라우저가 막을 수 있어 **배너가 보장 경로**다
-       (`plan-annex-round-card.tsx:196` 실측 교훈 — 자동만 두면 막혔을 때 아무 일도 안 일어난다). */
+  /* 회차가 바뀌면 이전 회차의 고지·오류를 들고 있으면 안 된다 — 남의 빈칸을 이 회차 것으로 읽게 된다. */
   useEffect(() => {
-    setWbNotice([]); setWbError(''); setResumedDoc(false); setFpNotice([]); setFpError('')
-    const id = selectedInspectionId
-    if (!id) { resumeRef.current = null; return }
-    if (resumeRef.current === id) return      // 이 회차에 대해선 이미 소비했다
-    resumeRef.current = id
-    if (takePendingDoc(id, Date.now())) setResumedDoc(true)
+    setWbError(''); setFpNotice([]); setFpError('')
   }, [selectedInspectionId])
 
+  /* ── 달력에서 고객 등록 (2026-09-22 사용자 요청) ──────────────────────────
+     등록은 **이미 달력 일정을 만든다**(`_autoCreatePlanItemsForNewCustomer` — 롤링 계획 +
+     과거·오늘이면 1차 즉시 시작). 그래서 등록하면 그 자리에 칩이 바로 뜬다.
+     날짜를 짚어 들어왔으면 그 날짜가 **점검일자**로 프리필된다 — 달력의 단위가 곧 그 칸이다.
+
+     🚨 종전엔 달력 위에 **모달**로 띄웠다. 2026-09-22 사용자 요청으로 `/customers/new`
+       **페이지로 이동**한다 — 등록은 우편번호 레이어·건축물대장 조회·중복 확인이 딸린 긴 폼이라
+       400px 사이드바 위 모달에서 하기엔 좁았다.
+     ⚠ 폼은 여전히 **한 벌**이다(`CustomerNewClient`). 달력이 자기 복제본을 갖지 않는다 —
+       이제는 아예 그 페이지로 보내므로 복제할 여지 자체가 없다.
+     ⚠ 복귀는 `calendarBackHref` **한 곳**이 만든다(cust·insp·day가 거기 다 실린다).
+       데이 패널에서 왔으면 `day=`가 실려 **그 사이드바가 다시 열리고**, 툴바에서 왔으면 안 실린다. */
   const openNewCustomer = useCallback((date: string) => {
-    setNewCustomerDate(date)
-    setCreated(null)
-    setNewFormError('')
-    setNewFormData(prev => {
-      if (prev) return prev                       // 한 번 받아 두면 다시 받지 않는다
-      void getCustomerNewFormDataAction().then(res => {
-        if (res.error) { setNewFormError(res.error); return }
-        setNewFormData({
-          employees: res.employees ?? [],
-          defaultRegionSi: res.defaultRegionSi ?? '',
-          purposes: res.purposes ?? [],
-        })
-      })
-      return prev
-    })
-  }, [])
+    const q = new URLSearchParams({ anchor: date, from: calendarBackHref })
+    router.push(`/customers/new?${q.toString()}`)
+  }, [router, calendarBackHref])
 
   const openDateChange = useCallback((inspectionId: string, from: string) => {
     setDateChange({ inspectionId, from, to: from, loading: false })
@@ -1768,53 +1758,10 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
             </div>
           )}
 
-          {/* 등록 완료 띠 (2026-09-22) — 달력에 **머물기로** 했으므로(사용자 확정) 이동 대신
-              여기서 무엇이 생겼는지 말하고, 다음 걸음 두 개를 링크로 준다.
-              ⚠ 「나머지 채우기」의 목적지 탭은 **서버(lib/onboarding-steps)가 첫 미완 탭으로** 정한다 —
-                폼 state로 고르면 대장 자동값·부분 실패와 어긋난다. 그래서 여기선 고객 id만 넘긴다. */}
-          {created && (
-            <div data-testid="calendar-created-banner"
-                 className="flex items-center gap-2 flex-wrap rounded-lg bg-green-50 border border-green-200 px-3 py-2 text-sm text-green-800">
-              <Check className="size-4 shrink-0 text-green-600" />
-              {/* 🚨 두 갈래를 **서버가 준 anchorApplied로** 가른다. 화면이 날짜를 다시 비교해
-                  추측하면 서버의 실제 결과(예: 적용 대상 회차가 없어 실패)와 어긋난다. */}
-              {created.anchorApplied ? (
-                <span data-testid="created-started">
-                  <strong>{created.customerName}</strong> 등록 완료 — {created.anchorDate}에 <b>1~4단계</b>가 생겼습니다
-                </span>
-              ) : (
-                <span data-testid="created-planned">
-                  <strong>{created.customerName}</strong> 등록 완료 — {created.anchorDate}에 <b>계획</b>이 잡혔습니다
-                  <span className="text-green-700"> (1~4단계는 점검 당일에 열립니다)</span>
-                </span>
-              )}
-              {/* 화면을 **떠나지 않고** 그 자리로 간다 — 이게 「달력에 머문다」의 실체다 */}
-              {created.anchorApplied && created.startedInspectionId ? (
-                <button
-                  data-testid="created-open-step1"
-                  onClick={() => { setSelectedInspectionId(created.startedInspectionId!); setStepError(null) }}
-                  className="ml-auto shrink-0 text-xs text-green-700 font-medium hover:underline flex items-center gap-0.5">
-                  1단계 열기 <ChevronRight className="size-3" />
-                </button>
-              ) : (
-                <button
-                  data-testid="created-open-plan"
-                  onClick={() => { setDayPanelDate(created.anchorDate); setDaySearch('') }}
-                  className="ml-auto shrink-0 text-xs text-green-700 font-medium hover:underline flex items-center gap-0.5">
-                  계획 확인 <ChevronRight className="size-3" />
-                </button>
-              )}
-              <Link
-                href={`/customers/${created.customerId}?created=1&onboarding=1&from=${encodeURIComponent(calendarBackHref)}`}
-                data-testid="created-fill-rest"
-                className="shrink-0 text-xs text-green-700 font-medium hover:underline flex items-center gap-0.5">
-                나머지 채우기 <ChevronRight className="size-3" />
-              </Link>
-              <button onClick={() => setCreated(null)} className="shrink-0 text-green-700 hover:text-green-900">
-                <X className="size-4" />
-              </button>
-            </div>
-          )}
+          {/* 🚨 「등록 완료 띠」는 없다(2026-09-22) — 등록이 **페이지 이동**으로 바뀌면서
+              「달력에 머문다」는 전제가 사라졌다. 이제 등록을 마치면 떠나기 직전의 화면
+              (데이 패널이 열려 있었으면 그 사이드바)으로 돌아오고, 새로 생긴 계획·단계 칩이
+              그 목록에 **이미 들어 있다** — 띠로 다시 말하면 같은 사실을 두 번 말하는 것이다. */}
 
           {/* 퇴사자 담당 재배정 안내 */}
           {orphanCount > 0 && (
@@ -1995,12 +1942,16 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
                       </button>
                     )}
                     {/* 이 날짜로 고객 등록 (2026-09-22) — 달력의 단위가 곧 점검일자 칸이라
-                        짚은 날짜가 그대로 프리필된다. 등록하면 그 자리에 칩이 바로 뜬다. */}
+                        짚은 날짜가 그대로 프리필된다. 등록하면 그 자리에 칩이 바로 뜬다.
+                        🚨 **패널을 닫지 않는다.** 닫으면 위 effect가 주소에서 `?day=`를 지워
+                          복귀 주소가 그 사이드바를 잃는다 — 등록을 마치고 돌아왔을 때 달력만
+                          남는 바로 그 증상이다(2026-09-22 사용자 요청의 반대편). 어차피 화면을
+                          떠나므로 닫아서 얻는 것도 없다. 단계 [입력] 링크와 같은 규약이다. */}
                     {canCreateCustomer && (
                       <button
                         data-testid="daypanel-new-customer"
                         disabled={moveSelectMode}
-                        onClick={() => { const dt = dayPanelDate; setDayPanelDate(null); openNewCustomer(dt) }}
+                        onClick={() => openNewCustomer(dayPanelDate)}
                         /* 형제 셋(사전안내·전체완료·날짜이동)과 **같은 테두리 스타일이라 묻혀 있었다**
                            (2026-09-22 사용자 지적). 저쪽은 이미 있는 일정을 다루고 이것만 **새로 만든다** —
                            범주가 다르니 무게도 달라야 한다. 채움은 이 줄에서 **하나뿐**이어야 뜻이 산다. */
@@ -2336,43 +2287,9 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
         )
       })()}
 
-      {/* ── 고객 등록 모달 (2026-09-22) ─────────────────────────────
-          ⚠ **폼을 복제하지 않는다.** `CustomerNewClient`를 그대로 띄운다 — 그 안에 필수 6칸 판정,
-            고객코드 자동생성 대기, 주소·고객명 중복검사, 건축물대장 자동조회가 다 들어 있다.
-            「달력용 간단 폼」을 새로 짜면 두 벌이 되고 한쪽만 고쳐진다.
-          ⚠ 우편번호 레이어는 body에 z-index 9999로 붙으므로(use-daum-postcode) 이 모달(z-[60])
-            위에 정상적으로 뜬다 — 착수 전 실측으로 확인했다. */}
-      {newCustomerDate && (
-        <div className="fixed inset-0 bg-black/30 dark:bg-black/60 z-[60] flex items-start justify-center p-4 overflow-y-auto"
-             onClick={() => setNewCustomerDate(null)}>
-          <div data-testid="calendar-new-customer-modal"
-               className="bg-surface rounded-xl shadow-2xl w-full max-w-5xl my-6 p-5 space-y-4"
-               onClick={e => e.stopPropagation()}>
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="font-semibold text-ink">고객 등록</p>
-                <p className="text-xs text-ink-sub mt-0.5">
-                  점검일자 <b>{newCustomerDate}</b>로 시작합니다 — 폼에서 바꿀 수 있습니다.
-                </p>
-              </div>
-              <button onClick={() => setNewCustomerDate(null)} className="text-ink-meta hover:text-ink-sub">
-                <X className="size-5" />
-              </button>
-            </div>
-            {newFormError && <p className="text-xs text-red-600">{newFormError}</p>}
-            {!newFormData && !newFormError && <p className="text-xs text-ink-meta">등록 폼을 준비하는 중…</p>}
-            {newFormData && (
-              <CustomerNewClient
-                employees={newFormData.employees}
-                defaultRegionSi={newFormData.defaultRegionSi}
-                purposes={newFormData.purposes}
-                initialAnchorDate={newCustomerDate}
-                onCreated={r => { setNewCustomerDate(null); setCreated(r); router.refresh() }}
-              />
-            )}
-          </div>
-        </div>
-      )}
+      {/* 🚨 고객 등록 **모달은 없다**(2026-09-22 사용자 요청) — `openNewCustomer`가
+          `/customers/new` 페이지로 보낸다. 그 페이지가 폼의 유일한 집이고, 달력은 날짜(anchor)와
+          복귀 주소(from)만 실어 준다. 여기에 모달을 되살리면 폼이 두 자리에 살게 된다. */}
 
       {/* ── 점검일자 변경 모달 (2026-09-22) ───────────────────────
           패널(z-50) 위에 떠야 하므로 z-[80] — 이동 확인 팝업과 같은 층. */}
@@ -2692,47 +2609,33 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
                 종전엔 [N단계로 이동]으로 작업대까지 나가야 이 문서를 받을 수 있었고, 받고 나면
                 달력으로 되돌아와야 했다. 달력이 한 바퀴의 정본인데 문서만 밖에 있었다.
 
-                ⚠ **새 버튼을 만들지 않는다** — `WorkbookXlsxButton`을 그대로 쓴다. 이 버튼이
-                  `fetch`+`Blob`인 이유가 라우트의 `X-Workbook-Missing` 고지(무응답 항목이 ○(양호)로
-                  인쇄됨·사진 실패·불량 접힘)를 화면에 붙들기 위해서다. `<a href>`로 짜면 그 고지가
-                  새 탭과 함께 사라진다 — 종전 번들 패널 버튼이 정확히 그래서 고지가 **한 번도 닿은
-                  적이 없었다**. 이름도 `WORKBOOK_LABEL` 한 벌을 따른다(여기 글씨를 또 적지 않는다).
+                ⚠ **새 버튼을 만들지 않는다** — `WorkbookXlsxButton`을 그대로 쓴다. 이름도
+                  `WORKBOOK_LABEL` 한 벌을 따른다(여기 글씨를 또 적지 않는다).
+
+                🚨 2026-09-22 사용자 요청 — **고지를 그리지 않는다.** 종전엔 이 자리에
+                  「채우면 다음 발행에 반영됩니다 (N)」 칩 묶음 + 「양식에 다 담기지 않은 것」 +
+                  회사·직원 접이줄 + 「입력을 마치고 돌아오셨습니다」 띠가 붙어, 버튼 한 번에
+                  사이드바가 고지로 덮였다(실측 31/31에 고지가 떴다 — 예외가 아니라 상시다).
+                  이제 **버튼과 오류만** 남는다.
+                ⚠ `onNotice`를 넘기지 않는 것이 그 방법이다 — 그러면 버튼의 `owns` 판정이 살아나
+                  자기 고지를 그릴 수 있다. 여기선 `onError`를 넘기므로 `owns=false`가 되어
+                  **양쪽 다 안 그린다**(`workbook-xlsx-button.tsx`의 `owns = !onNotice && !onError`).
+                ⚠ `onError`는 남긴다 — 고지는 「받았는데 빈칸이 있다」지만 오류는 「못 받았다」다.
 
                 ⚠ 발행 가드(미입력이면 점검표로 보냄)는 **붙이지 않는다**. 그건 회차 카드 칩의 축이다.
-                  달력은 착륙 화면이라 현장 흐름을 끊지 않고, 대신 위 고지로 알린다.
+                  달력은 착륙 화면이라 현장 흐름을 끊지 않는다.
 
-                ⚠ 줄은 flex-wrap이어야 한다 — 이 컴포넌트는 [버튼 + 고지/오류]를 함께 그린다. */}
+                ⚠ 줄은 flex-wrap이어야 한다 — [버튼 + 오류]를 함께 그린다. */}
             {selectedInspection.hasResultReport && (
               <div
                 data-testid="daypanel-workbook"
-                className="px-5 py-3 border-t border-line shrink-0 flex flex-wrap items-center gap-2 max-h-[40vh] overflow-y-auto"
+                className="px-5 py-3 border-t border-line shrink-0 flex flex-wrap items-center gap-2"
               >
                 <WorkbookXlsxButton
                   inspectionId={selectedInspection.id}
-                  onNotice={raw => setWbNotice(parseWorkbookNotice(raw))}
                   onError={setWbError}
                 />
-                {resumedDoc && (
-                  <p data-testid="daypanel-workbook-resume" className="text-form-2xs text-brand">
-                    입력을 마치고 돌아오셨습니다 — 위 [{WORKBOOK_LABEL}]을 다시 누르면 반영된 문서를 받습니다.
-                  </p>
-                )}
                 {wbError && <p className="text-form-2xs text-red-600 w-full">{wbError}</p>}
-                <DocNoticeList
-                  parts={wbNotice}
-                  hrefOf={p => {
-                    if (!p.target) return null
-                    const base = workbookFixHref(
-                      p.target,
-                      { inspectionId: selectedInspection.id, customerId: selectedInspection.customer_id },
-                      stepInputLink,
-                    )
-                    return `${base}${base.includes('?') ? '&' : '?'}from=${encodeURIComponent(calendarBackHref)}`
-                  }}
-                  /* 🚨 쪽지는 **이동 앞에서** 쓴다. `router.push` 뒤에 두면 실행되지 않는다
-                     (`plan-annex-round-card.tsx:121`의 교훈). Link의 onClick은 이동 전에 돈다. */
-                  onNavigate={() => writePendingDoc(selectedInspection.id, 'xlsx', Date.now())}
-                />
               </div>
             )}
 
