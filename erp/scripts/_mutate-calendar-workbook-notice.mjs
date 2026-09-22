@@ -1,4 +1,12 @@
-// 변이 프로브 — 「고지 → 채우러 가기 → 자동 재발행」 축(2026-09-22)이 실제로 물리는지 본다.
+// 변이 프로브 — 달력 데이 패널의 엑셀 고지 축이 실제로 물리는지 본다.
+//
+// 🚨 2026-09-23 **다시 썼다.** 2026-09-22 사용자 요청으로 달력은 보고서 고지를 **그리지 않는다**
+//   (31/31 상시라 400px 사이드바를 덮었다). 옛 변이 M3~M7은 사라진 배선을 물어 0건 치환이었다 →
+//   W1~W9로 교대: 「뺀 화면이 조용히 돌아오는가」와 「과잉으로 오류·소방계획서 고지까지 걷었는가」.
+//   목록·분류 축(M1·M2·M8·M9)은 소방계획서 칩이 계속 쓰므로 그대로 둔다.
+//
+// ── 아래는 첫 판(2026-09-22)의 머리말 ──
+// 「고지 → 채우러 가기 → 자동 재발행」 축
 //
 // 이 축의 실패는 **조용하다**: 칩을 눌러 채우고 돌아왔는데 아무 일도 안 일어나거나,
 // 엉뚱한 화면에 도착하거나, 복귀 경로가 없어 왕복이 안 닫힌다. 화면상 멀쩡해 보인다.
@@ -19,6 +27,73 @@ const BTN = 'src/components/inspections/workbook-xlsx-button.tsx'
 const SUITE = 'npx tsx scripts/test-calendar-workbook-notice.mts'
 
 const MUTANTS = [
+  // ── 🚨 2026-09-23 계약 교대: 달력은 **보고서 고지를 그리지 않는다** ─────────────
+  //   (옛 M3~M7은 사라진 배선 — 쪽지·복귀 띠·목적지 조립 — 을 물고 있어 0건 치환이었다)
+  {
+    name: 'W1 owns 식에서 onError를 뺀다 — 달력이 onError만 넘기면 버튼이 자기 고지를 되살린다',
+    file: BTN,
+    from: '  const owns = !onNotice && !onError          // 고지를 내가 그리는가',
+    to: '  const owns = !onNotice',
+    expect: 'owns 판정',
+  },
+  {
+    name: 'W2 owns를 무시하고 늘 자기 고지를 쓴다',
+    file: BTN,
+    from: "  const notice = owns ? selfNotice : ''",
+    to: '  const notice = selfNotice',
+    expect: 'owns 판정',
+  },
+  {
+    name: 'W3 달력이 보고서 고지를 다시 받는다',
+    file: CLIENT,
+    from: '                  onError={setWbError}',
+    to: '                  onNotice={raw => setWbNotice(parseWorkbookNotice(raw))} onError={setWbError}',
+    expect: '받지도 않는다',
+  },
+  {
+    name: 'W4 보고서 줄에 고지 목록을 다시 그린다',
+    file: CLIENT,
+    from: '                {wbError && <p className="text-form-2xs text-red-600 w-full">{wbError}</p>}',
+    to: '                <DocNoticeList parts={[]} />\n                {wbError && <p className="text-form-2xs text-red-600 w-full">{wbError}</p>}',
+    expect: '고지 목록을 그리지',
+  },
+  {
+    // 가장 그럴듯한 과잉 — 고지를 걷다가 오류까지 걷는다. 그러면 owns=true가 되어 **고지도 되살아난다**.
+    name: 'W5 onError까지 걷어 낸다 — 다운로드 실패가 조용해지고 버튼 토스트가 되살아난다',
+    file: CLIENT,
+    from: '                  onError={setWbError}',
+    to: '',
+    expect: '오류 표시는 남아',
+  },
+  {
+    name: 'W6 오류를 받기는 하는데 안 그린다',
+    file: CLIENT,
+    from: '                {wbError && <p className="text-form-2xs text-red-600 w-full">{wbError}</p>}',
+    to: '',
+    expect: '오류 표시는 남아',
+  },
+  {
+    name: 'W7 회차가 바뀌어도 이전 오류를 안 버린다',
+    file: CLIENT,
+    from: "setWbError(''); setFpNotice([]); setFpError('')",
+    to: "setFpNotice([]); setFpError('')",
+    expect: '회차가 바뀌면',
+  },
+  {
+    name: 'W8 달력에 발행 가드를 이식한다 — 이 패널이 명시적으로 금지한 방향',
+    file: CLIENT,
+    from: '                data-testid="daypanel-workbook"',
+    to: `                data-testid="daypanel-workbook" onClickCapture={e => { if (!window.confirm('미입력이 있습니다')) e.preventDefault() }}`,
+    expect: 'window.confirm',
+  },
+  {
+    name: 'W9 과잉 제거 — 소방계획서 고지까지 걷는다(사용자는 「보고서 엑셀만」이라 했다)',
+    file: CLIENT,
+    from: 'parts={fpNotice}',
+    to: 'parts={[]}',
+    expect: '소방계획서 고지는',
+  },
+  // ── 목록 컴포넌트·분류 축 (소방계획서 칩이 계속 쓴다 — 종전 변이 유지) ─────────
   {
     name: 'M1 쪽지를 이동 **뒤**로 옮긴다 — 채우고 돌아와도 아무 일이 없다',
     file: LIST,
@@ -34,43 +109,6 @@ const MUTANTS = [
     expect: 'stepInputLink(1)과 **같은 주소**',
   },
   {
-    name: 'M3 복귀 경로를 뗀다 — 채우러 갔다가 달력으로 못 돌아온다',
-    file: CLIENT,
-    from: '                    return `${base}${base.includes(\'?\') ? \'&\' : \'?\'}from=${encodeURIComponent(calendarBackHref)}`',
-    to: '                    return base',
-    expect: '복귀 경로가 붙는다',
-  },
-  {
-    name: 'M4 돌아와도 쪽지를 안 집는다 — [지금 받기]가 안 뜬다',
-    file: CLIENT,
-    from: '    if (takePendingDoc(id, Date.now())) setResumedDoc(true)',
-    to: '    void id',
-    expect: '쪽지를 소비해',
-  },
-  {
-    name: 'M5 회차가 바뀌어도 고지를 안 버린다 — 남의 빈칸을 이 회차 것으로 읽는다',
-    file: CLIENT,
-    from: "    setWbNotice([]); setWbError(''); setResumedDoc(false)",
-    to: '    void 0',
-    expect: '이전 고지를 버린다',
-  },
-  {
-    name: 'M6 달력에 발행 가드를 이식한다 — 이 패널이 **명시적으로 금지한** 방향',
-    file: CLIENT,
-    from: '                  onNavigate={() => writePendingDoc(selectedInspection.id, \'xlsx\', Date.now())}',
-    to: '                  onNavigate={() => { if (window.confirm(\'미입력이 있습니다\')) writePendingDoc(selectedInspection.id, \'xlsx\', Date.now()) }}',
-    expect: 'window.confirm 발행 가드를 이식하지 않았다',
-  },
-  {
-    name: 'M7 버튼이 고지를 늘 자기가 그린다 — 달력이 칩으로 못 바꾼다',
-    file: BTN,
-    from: '  const owns = !onNotice && !onError          // 고지를 내가 그리는가',
-    to: '  const owns = true',
-    expect: '종전대로 자기가 그린다',
-  },
-  {
-    // 분리 규칙이 순수 함수로 나온 뒤(R5 수리) 여기를 친다 — JSX 안 filter였을 땐
-    // 모양만 보는 단언이 못 잡아 이 변이가 살아남았다.
     name: 'M8 상한을 칩 덩이에 섞는다 — 못 고치는 것을 고치러 보낸다',
     file: LIB,
     from: "    fixable: parts.filter(p => p.kind === 'fixable' && p.scope !== 'org'),",
@@ -87,16 +125,16 @@ const MUTANTS = [
 ]
 
 const only = process.env.MUT
-const TARGETS = only ? MUTANTS.filter(m => m.name.startsWith(only)) : MUTANTS
+const TARGETS = only ? MUTANTS.filter(m => m.name.startsWith(only + ' ')) : MUTANTS
 if (only && TARGETS.length === 0) throw new Error(`MUT=${only} 에 맞는 변이가 없다`)
 
 let caught = 0
 for (const m of TARGETS) {
   const original = readFileSync(m.file, 'utf8')
   try {
-    if (!original.includes(m.from)) {
-      throw new Error(`치환 대상을 못 찾음 (${m.file}) — 변이가 적용되지 않았다:\n${m.from}`)
-    }
+    // 파일에 **정확히 한 번** 있어야 한다 — 여러 번이면 엉뚱한 자리를 물 수 있다.
+    const n = original.split(m.from).length - 1
+    if (n !== 1) throw new Error(`치환 대상이 ${n}건 (${m.file}) — 정확히 1건이어야 한다:\n${m.from}`)
     const mutated = original.replace(m.from, m.to)
     if (mutated === original) throw new Error(`0건 치환 — 변이가 안 먹었다: ${m.name}`)
     writeFileSync(m.file, mutated)

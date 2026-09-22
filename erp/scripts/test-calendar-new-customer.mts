@@ -96,6 +96,13 @@ ok('★ ㉢ 달력 서버가 `?day=`를 되읽어 패널을 복원한다',
   /const initialDayPanelDate = \/\^\\d\{4\}-\\d\{2\}-\\d\{2\}\$\/\.test\(params\.day \?\? ''\)/.test(page)
   && /initialDayPanelDate=\{initialDayPanelDate\}/.test(page)
   && /useState<string \| null>\(initialDayPanelDate \|\| null\)/.test(client))
+/* ㉢의 짝 — 패널만 열리고 **달력이 기한초과 달로 뛰면** 11월 패널 옆에 7월 달력이 선다.
+   `?day=`가 기한초과 점프보다 **먼저** 와야 한다(삼항의 첫 가지). 2026-09-23 변이 R6이
+   이 단언 없이 살아남았다 — 메모에만 있고 검사엔 없던 축이다. */
+ok('★ ㉢ 복귀하면 달력도 **보던 달**(패널의 달)로 선다 — 기한초과 점프보다 먼저', () => {
+  const m = client.match(/const \[calDate, setCalDate\] = useState\(\(\) =>\s*([^\n]+)/)
+  return !!m && /^initialDayPanelDate \? new Date\(initialDayPanelDate \+ 'T12:00:00'\)/.test(m[1].trim())
+}, '(calDate 초기값의 첫 가지가 initialDayPanelDate가 아니다)')
 /* ㉣ **떠나기 전에 패널을 닫으면 안 된다.** 닫는 순간 effect가 주소에서 `day=`를 지워
    복귀 주소가 사이드바를 잃는다 — 「돌아왔는데 달력만 있다」가 정확히 이 한 줄에서 난다.
    ⚠ 이름으로 찾지 않고 **그 버튼의 onClick 안쪽**을 본다(다른 자리의 setDayPanelDate(null)은

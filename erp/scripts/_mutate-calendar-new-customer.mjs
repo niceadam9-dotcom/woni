@@ -1,98 +1,191 @@
-// 변이 프로브 — 「달력에서 고객 등록」 축(2026-09-22)이 실제로 물리는지 본다.
+// 변이 프로브 — 「달력에서 고객 등록 → 등록 **페이지** → 왔던 사이드바로 복귀」 축이 실제로 물리는지 본다.
 //
-// 17/0 초록은 "무언가를 잡는다"만 말한다. 이 축은 **거의 전부 소스 단언**이라 특히 공허 통과가 쉽다.
-// 가장 중요한 변이는 M1·M2 — **폼 복제**와 **권한 누락**이다. 둘 다 「화면은 멀쩡한데 규칙이 사라지는」 부류다.
+// 🚨 2026-09-23 **다시 썼다.** 첫 판(2026-09-22)은 달력 위 **모달**을 물고 있었다 — 모달이
+//   `/customers/new` 페이지로 옮겨 가자 치환 대상이 사라져 그대로 돌리면 0건 치환이었다.
+//   계약이 바뀌면 변이도 새 계약의 급소를 물어야 한다(옛 줄을 찾아 헤매는 변이는 아무것도 증명 못 한다).
 //
-// 🚨 from은 한 줄짜리만 쓴다 — 이 저장소 소스는 CRLF가 섞여 여러 줄 문자열이 조용히 안 맞는다.
+// 이 축의 급소는 「왕복 네 고리」다(`test-calendar-new-customer.mts` ③). 하나만 끊겨도
+// 「등록하고 돌아왔는데 달력만 있다」 — 화면은 멀쩡해 보이고 에러도 없다. 그래서 고리마다 변이를 하나씩 건다.
+// 가장 무서운 변이는 R4(떠나기 전에 패널을 닫는다 — 한 줄이면 되고 「정리 잘했다」처럼 보인다)와
+// S1(오픈 리다이렉트 — 정규식 한 글자).
 //
-// 실행: node scripts/_mutate-calendar-new-customer.mjs   (MUT=M3 처럼 골라 돌릴 수 있다)
+// 🚨 from은 한 줄짜리만 쓰고, **파일 안에 정확히 한 번** 있어야 한다(같은 줄이 여러 번이면
+//   엉뚱한 자리를 물 수 있다 — 이 저장소에서 실제로 그랬다). 여러 번이면 `after`로 자리를 좁힌다.
+//
+// 실행: node scripts/_mutate-calendar-new-customer.mjs   (MUT=R4 처럼 골라 돌릴 수 있다)
 import { readFileSync, writeFileSync } from 'node:fs'
 import { execSync } from 'node:child_process'
 
 const FORM = 'src/components/customers/customer-new-client.tsx'
 const CLIENT = 'src/components/inspections/inspection-calendar-client.tsx'
-const PAGE = 'src/app/(dashboard)/inspections/calendar/page.tsx'
+const CAL_PAGE = 'src/app/(dashboard)/inspections/calendar/page.tsx'
+const NEW_PAGE = 'src/app/(dashboard)/customers/new/page.tsx'
 const ACTIONS = 'src/app/(dashboard)/customers/actions.ts'
 const SUITE = 'npx tsx scripts/test-calendar-new-customer.mts'
 
 const MUTANTS = [
+  // ── ③ 왕복 네 고리 ────────────────────────────────────────────────
   {
-    name: 'M1 필수 판정을 한 칸 줄인다 — 달력 등록만 대표 관계인 없이 통과한다',
+    name: 'R1 ㉠ 패널을 닫아도 day를 안 지운다 — 다음에 아무 링크로 와도 옛 날짜 패널이 열린다',
+    file: CLIENT,
+    from: "    else sp.delete('day')",
+    to: '    else void 0',
+    expect: '㉠',
+  },
+  {
+    name: 'R2 ㉡ 복귀 주소가 day를 싣지 않는다 — 돌아오면 달력만 남는다',
+    file: CLIENT,
+    from: "    if (dayPanelDate) sp.set('day', dayPanelDate); else sp.delete('day')",
+    to: "    sp.delete('day')",
+    expect: '㉡ 복귀 주소(calendarBackHref)',
+  },
+  {
+    name: 'R3 ㉡ 등록 링크가 from을 빠뜨린다 — 등록 페이지가 돌아갈 곳을 모른다',
+    file: CLIENT,
+    from: '    const q = new URLSearchParams({ anchor: date, from: calendarBackHref })',
+    to: '    const q = new URLSearchParams({ anchor: date })',
+    expect: '㉡ 등록 링크',
+  },
+  {
+    name: 'R4 ㉣ 떠나기 전에 패널을 닫는다 — 「정리」처럼 보이지만 복귀 주소가 day를 잃는다',
+    file: CLIENT,
+    from: '                        onClick={() => openNewCustomer(dayPanelDate)}',
+    to: '                        onClick={() => { setDayPanelDate(null); openNewCustomer(dayPanelDate) }}',
+    expect: '㉣',
+  },
+  {
+    name: 'R4b ㉣ 닫기를 옆 핸들러로 숨긴다 — onClick은 그대로라 모양만 보면 초록',
+    file: CLIENT,
+    from: '                        onClick={() => openNewCustomer(dayPanelDate)}',
+    to: '                        onClick={() => openNewCustomer(dayPanelDate)} onMouseDown={() => setDayPanelDate(null)}',
+    expect: '㉣',
+  },
+  {
+    name: 'R5 ㉢ 달력 서버가 day를 되읽어도 클라이언트에 안 넘긴다',
+    file: CAL_PAGE,
+    from: '      initialDayPanelDate={initialDayPanelDate}',
+    to: "      initialDayPanelDate={''}",
+    expect: '㉢',
+  },
+  {
+    name: 'R6 ㉢ 패널은 열리는데 달력은 기한초과 달로 뛴다 — 11월 패널 옆에 7월 달력',
+    file: CLIENT,
+    from: "    initialDayPanelDate ? new Date(initialDayPanelDate + 'T12:00:00')",
+    to: '    false ? new Date()',
+    expect: '보던 달',
+  },
+  {
+    name: 'R6b ㉢ 우선순위를 뒤집는다 — 기한초과가 있으면 day를 이긴다',
+    file: CLIENT,
+    from: "    initialDayPanelDate ? new Date(initialDayPanelDate + 'T12:00:00')",
+    to: "    earliestOverdue ? new Date(earliestOverdue + 'T12:00:00') : initialDayPanelDate ? new Date(initialDayPanelDate + 'T12:00:00')",
+    expect: '보던 달',
+  },
+  {
+    name: 'R7 폼이 복귀 주소를 무시한다 — 등록하면 고객 상세로 가 버린다',
+    file: FORM,
+    from: '      if (returnHref) { router.push(returnHref); return }',
+    to: '      void returnHref',
+    expect: '폼이 복귀 주소로',
+  },
+  {
+    name: 'R8 등록 페이지가 짚은 날짜를 폼에 안 넘긴다',
+    file: NEW_PAGE,
+    from: '        initialAnchorDate={initialAnchorDate}',
+    to: "        initialAnchorDate={''}",
+    expect: '등록 페이지가 anchor',
+  },
+  {
+    name: 'R9 프리필을 effect로 덮는다 — 사람이 고친 점검일자를 짚은 날짜가 다시 덮는다',
+    file: FORM,
+    from: '    plan_anchor_date: initialAnchorDate,',
+    to: "    plan_anchor_date: '',",
+    expect: '프리필은',
+  },
+  // ── 🚨 오픈 리다이렉트 ─────────────────────────────────────────────
+  {
+    name: 'S1 복귀 주소 검증에서 `//` 차단을 뺀다 — //evil.com으로 튕긴다',
+    file: NEW_PAGE,
+    from: "  const returnHref = /^\\/(?![/\\\\])/.test(from) ? from : ''",
+    to: "  const returnHref = /^\\//.test(from) ? from : ''",
+    expect: '오픈 리다이렉트',
+  },
+  {
+    name: 'S2 복귀 주소를 검증 없이 넘긴다',
+    file: NEW_PAGE,
+    from: "  const returnHref = /^\\/(?![/\\\\])/.test(from) ? from : ''",
+    to: '  const returnHref = from',
+    expect: '오픈 리다이렉트',
+  },
+  // ── ① 폼은 한 벌 · ② 권한 · ④ 회귀 ──────────────────────────────
+  {
+    name: 'F1 필수 판정을 한 칸 줄인다 — 대표 관계인 없이 통과한다',
     file: FORM,
     from: "    ['대표 관계인', !!contacts['대표'].name.trim()],",
     to: '',
     expect: '6칸',
   },
   {
-    name: 'M2 권한 가림을 없앤다 — 권한 없는 직원에게도 버튼이 뜬다(눌러 봐야 서버가 던진다)',
+    name: 'F2 달력이 폼을 다시 들여온다 — 모달 부활의 첫 줄',
+    file: CLIENT,
+    from: "import { DocNoticeList } from '@/components/ui/doc-notice-list'",
+    to: "import { DocNoticeList } from '@/components/ui/doc-notice-list'\nimport { CustomerNewClient } from '@/components/customers/customer-new-client'",
+    expect: '번들에',
+  },
+  {
+    name: 'P1 데이 패널 버튼의 권한 가림을 없앤다',
     file: CLIENT,
     from: '                    {canCreateCustomer && (',
     to: '                    {true && (',
-    expect: '데이 패널 버튼이 cap으로 가려진다',
+    expect: '데이 패널 버튼이 cap으로',
   },
   {
-    name: 'M3 서버 cap을 늘 참으로 — page가 권한을 안 보고 내린다',
-    file: PAGE,
+    name: 'P2 서버 cap을 늘 참으로 — 달력 page가 권한을 안 본다',
+    file: CAL_PAGE,
     from: "      canCreateCustomer={can(profile.role as UserRole, 'customer_manage')}",
     to: '      canCreateCustomer={true}',
-    expect: 'customer_manage로 cap을 내린다',
+    expect: 'customer_manage로 cap',
   },
   {
-    name: 'M4 서버 액션의 권한 검사를 뺀다 — 폼 데이터가 아무에게나 열린다',
+    name: 'P3 등록 액션의 권한 검사를 뺀다',
     file: ACTIONS,
-    from: "  await requirePermission('customer_manage')\n  const admin = createAdminClient()\n  const [{ data: employeesRaw }, company, purposes] = await Promise.all([",
-    to: '  const admin = createAdminClient()\n  const [{ data: employeesRaw }, company, purposes] = await Promise.all([',
+    after: 'export async function createCustomerAction(',
+    from: "  const profile = await requirePermission('customer_manage')",
+    to: "  const profile = { id: '' } as { id: string }",
     expect: '서버 액션도 같은 권한',
   },
   {
-    name: 'M5 기존 화면의 이동 폴백을 지운다 — /customers/new에서 등록해도 아무 일이 없다',
+    name: 'B1 from 없을 때의 폴백을 지운다 — 사이드바 밖에서 등록하면 아무 데도 못 간다',
     file: FORM,
     from: '      router.push(`/customers/${result.customerId}?created=1&onboarding=1`)',
     to: '      void result',
     expect: '폴백 보존',
   },
-  {
-    name: 'M6 onCreated가 있어도 이동한다 — 달력이 등록하자마자 화면을 떠난다',
-    file: FORM,
-    from: '      if (onCreated) {',
-    to: '      if (false && onCreated) {',
-    expect: 'onCreated가 있으면 이동하지 않는다',
-  },
-  {
-    name: 'M7 프리필을 끊는다 — 짚은 날짜가 점검일자로 안 간다',
-    file: CLIENT,
-    from: '                initialAnchorDate={newCustomerDate}',
-    to: "                initialAnchorDate={''}",
-    expect: '짚은 날짜가 점검일자로 넘어간다',
-  },
-  {
-    name: 'M8 폼 데이터를 달력 서버가 미리 싣는다 — 등록 안 하는 방문에도 비용이 붙는다',
-    file: PAGE,
-    from: "import { dateChangeVerdict } from '@/lib/inspection-date-change'",
-    to: "import { dateChangeVerdict } from '@/lib/inspection-date-change'\nimport { listBuildingPurposes } from '@/lib/building-purposes'",
-    expect: '열 때** 받는다',
-  },
-  {
-    name: 'M9 「나머지 채우기」가 탭을 직접 고른다 — 서버의 첫 미완 탭 판정을 앞지른다',
-    file: CLIENT,
-    from: '                href={`/customers/${created.customerId}?created=1&onboarding=1&from=${encodeURIComponent(calendarBackHref)}`}',
-    to: '                href={`/customers/${created.customerId}?tab=plan`}',
-    expect: '목적지 탭을 화면이 고르지 않는다',
-  },
 ]
 
 const only = process.env.MUT
-const TARGETS = only ? MUTANTS.filter(m => m.name.startsWith(only)) : MUTANTS
+const TARGETS = only ? MUTANTS.filter(m => m.name.startsWith(only + ' ')) : MUTANTS
 if (only && TARGETS.length === 0) throw new Error(`MUT=${only} 에 맞는 변이가 없다`)
+
+const count = (s, sub) => s.split(sub).length - 1
 
 let caught = 0
 for (const m of TARGETS) {
   const original = readFileSync(m.file, 'utf8')
   try {
-    if (!original.includes(m.from)) {
-      throw new Error(`치환 대상을 못 찾음 (${m.file}) — 변이가 적용되지 않았다:\n${m.from}`)
+    // `after`가 있으면 그 뒤 **첫** 자리를, 없으면 파일에 **유일한** 자리를 문다.
+    let at
+    if (m.after) {
+      const a = original.indexOf(m.after)
+      if (a < 0) throw new Error(`after 앵커를 못 찾음 (${m.file}): ${m.after}`)
+      at = original.indexOf(m.from, a)
+    } else {
+      const n = count(original, m.from)
+      if (n !== 1) throw new Error(`치환 대상이 ${n}건 (${m.file}) — 정확히 1건이어야 한다:\n${m.from}`)
+      at = original.indexOf(m.from)
     }
-    const mutated = original.replace(m.from, m.to)
+    if (at < 0) throw new Error(`치환 대상을 못 찾음 (${m.file}):\n${m.from}`)
+    const mutated = original.slice(0, at) + m.to + original.slice(at + m.from.length)
     if (mutated === original) throw new Error(`0건 치환 — 변이가 안 먹었다: ${m.name}`)
     writeFileSync(m.file, mutated)
 
