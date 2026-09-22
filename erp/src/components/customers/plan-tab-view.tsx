@@ -10,6 +10,7 @@ import { DateInput } from '@/components/ui/date-input'
 import { TableWrap } from '@/components/ui/fields'
 import { collectPlanSaveHandlers, useUnsavedNavGuard } from '@/components/ui/unsaved-nav'
 import { useCustomerTabs } from '@/components/customers/customer-tabs'
+import { FIRE_PLAN_CHIP_TARGET, FIRE_PLAN_CHIP_LABEL } from '@/lib/fire-plan-chip-target'
 import { PLAN_TREE_FORMS, PLAN_TREE_FORM_KEYS, formOfCard, tabOfForm, sectionsOfForm, type FirePlanFormKey } from '@/lib/fire-plan-sections'
 import { FirePlanXlsxButton } from '@/components/customers/fire-plan-xlsx-button'
 import { firePlanPdfUrl } from '@/lib/fire-plan-doc-urls'
@@ -41,21 +42,11 @@ import type { RevisionYearGroup } from '@/app/(dashboard)/customers/fire-plan-re
  *  연다. 대신 '지금은 안 뜬다'는 사실은 test-cd-ui가 단언으로 붙들고 있다 —
  *  그게 없어서 낡은 E2E가 오래 빨간 채로 방치됐다(2026-08-19 정리).
  */
-const CHIP_TARGET: Record<string, 'buildings' | 'info' | 'form11' | 'ch2' | 'consent'> = {
-  '주소': 'info', '사용승인일': 'info',
-  '건물 용도': 'buildings', '건축허가일': 'buildings', '연면적': 'buildings', '건축면적': 'buildings',
-  '층수': 'buildings', '높이': 'buildings', '세대수': 'buildings', '건물동수': 'buildings',
-  '승강기': 'buildings', '주차장': 'buildings',
-  '수신기위치': 'form11', '구조': 'form11', '지붕': 'form11', '선임일': 'form11', '급수': 'form11',
-  '화재보험': 'form11', '운영시간': 'form11', '인원': 'form11', '선임 형태': 'form11',
-  '자위소방대': 'ch2', '송달 동의': 'consent',
-}
-const CHIP_TARGET_LABEL: Record<string, string> = {
-  // 1.1은 [공통] 탭으로 이사했다(2026-09-20 3분리) — 칩도 그리로 보낸다. 송달 동의는 1.1 하단.
-  buildings: '건물·시설 탭', info: '기본정보 탭', form11: '공통 탭 > 1.1 일반현황', ch2: '2장 자위소방대', consent: '공통 탭 1.1 하단 송달 동의',
-}
-/** 11-5 필드 단위 포커스 — 기본정보·건물 탭 칩 라벨 → 편집 폼 입력 id (1.1 칩은 fire-plan-info-panel focusMissing에 위임).
- *  건물(bf-*) 칩은 소방계획서_9 B안으로 수기 입력칸이 생겨, 대장 조회 대신 해당 입력칸으로 이동한다. */
+/* 🚨 표는 `lib/fire-plan-chip-target`로 **이사했다**(2026-09-22) — 점검달력에도
+   [소방계획서 엑셀]이 생기면서 같은 표가 필요해졌다. 여기 복제해 두면 한쪽만 고쳐져
+   「주소」 칩이 화면마다 다른 데로 간다. 라벨 표도 함께 옮겼다. */
+const CHIP_TARGET = FIRE_PLAN_CHIP_TARGET
+const CHIP_TARGET_LABEL = FIRE_PLAN_CHIP_LABEL
 const CHIP_FIELD_ID: Record<string, string> = {
   '주소': 'cf-address', '사용승인일': 'cf-approval',
   '건물 용도': 'bf-purpose', '연면적': 'bf-total-area', '층수': 'bf-floors-above',

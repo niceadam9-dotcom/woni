@@ -22,6 +22,10 @@ import { getCustomerNewFormDataAction } from '@/app/(dashboard)/customers/action
 import { parseWorkbookNotice, workbookFixHref, type WorkbookNoticePart } from '@/lib/workbook-notice'
 import { takePendingDoc, writePendingDoc } from '@/lib/pending-doc-intent'
 import { DocNoticeList } from '@/components/ui/doc-notice-list'
+import { FirePlanXlsxButton } from '@/components/customers/fire-plan-xlsx-button'
+import { parseFirePlanNotice } from '@/lib/fire-plan-notice'
+import { tabOfForm } from '@/lib/fire-plan-sections'
+import { firePlanNoticeHref } from '@/lib/fire-plan-chip-target'
 /* 등록 폼은 877줄 + 우편번호 스크립트를 쓴다 — 달력 초기 번들에 얹지 않고 **열 때** 받는다.
    ssr:false는 폼이 lazy 초기값에서 localStorage를 읽기 때문이다(클라이언트에서만 마운트). */
 const CustomerNewClient = dynamic(
@@ -812,6 +816,9 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
        문서는 이미 받았고, 이건 다음 발행을 위한 안내다. */
   const [wbNotice, setWbNotice] = useState<WorkbookNoticePart[]>([])
   const [wbError, setWbError] = useState('')
+  /** 소방계획서 고지 — 보고서와 **다른 축**이라 따로 든다(고객 단위 문서다) */
+  const [fpNotice, setFpNotice] = useState<WorkbookNoticePart[]>([])
+  const [fpError, setFpError] = useState('')
   /** 채우고 돌아왔다 — 쪽지를 소비했으면 「지금 받기」를 띄운다 */
   const [resumedDoc, setResumedDoc] = useState(false)
   const resumeRef = useRef<string | null>(null)
@@ -821,7 +828,7 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
      ⚠ 자동 다운로드는 브라우저가 막을 수 있어 **배너가 보장 경로**다
        (`plan-annex-round-card.tsx:196` 실측 교훈 — 자동만 두면 막혔을 때 아무 일도 안 일어난다). */
   useEffect(() => {
-    setWbNotice([]); setWbError(''); setResumedDoc(false)
+    setWbNotice([]); setWbError(''); setResumedDoc(false); setFpNotice([]); setFpError('')
     const id = selectedInspectionId
     if (!id) { resumeRef.current = null; return }
     if (resumeRef.current === id) return      // 이 회차에 대해선 이미 소비했다
@@ -2559,6 +2566,39 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
                   /* 🚨 쪽지는 **이동 앞에서** 쓴다. `router.push` 뒤에 두면 실행되지 않는다
                      (`plan-annex-round-card.tsx:121`의 교훈). Link의 onClick은 이동 전에 돈다. */
                   onNavigate={() => writePendingDoc(selectedInspection.id, 'xlsx', Date.now())}
+                />
+              </div>
+            )}
+
+            {/* 소방계획서 엑셀 (2026-09-22) — **게이트를 걸지 않는다**(사용자 지시:
+                「경우에 따라 만들 수도, 안 만들 수도」). 고객이 있으면 언제나 대상이고,
+                비어 있다는 사실은 **고지가 말해 준다**(실측 채움률 3.2% — 12/12에 고지가 떴다).
+                ⚠ 보고서와 **다른 축**이다: 이건 고객 단위 문서라 회차 쪽지(pendingDoc)를 쓰지 않는다. */}
+            {true && (
+              <div
+                data-testid="daypanel-fireplan"
+                className="px-5 py-3 border-t border-line shrink-0 flex flex-wrap items-center gap-2 max-h-[40vh] overflow-y-auto"
+              >
+                <FirePlanXlsxButton
+                  customerId={selectedInspection.customer_id}
+                  variant="outline"
+                  onNotice={raw => setFpNotice(parseFirePlanNotice(raw).map(p => {
+                    const hit = firePlanNoticeHref(p, selectedInspection.customer_id, tabOfForm)
+                    return hit
+                      ? { text: p.text, kind: 'fixable' as const, label: hit.label, scope: 'customer' as const }
+                      : { text: p.text, kind: 'unknown' as const }
+                  }))}
+                  onError={setFpError}
+                />
+                {fpError && <p className="text-form-2xs text-red-600 w-full">{fpError}</p>}
+                <DocNoticeList
+                  parts={fpNotice}
+                  hrefOf={p => {
+                    const hit = firePlanNoticeHref(
+                      { text: p.text }, selectedInspection.customer_id, tabOfForm)
+                    if (!hit) return null
+                    return `${hit.href}${hit.href.includes('?') ? '&' : '?'}from=${encodeURIComponent(calendarBackHref)}`
+                  }}
                 />
               </div>
             )}
