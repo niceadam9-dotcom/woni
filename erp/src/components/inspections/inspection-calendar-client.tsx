@@ -38,6 +38,7 @@ import { bulkMovePlanDatesAction } from '@/app/(dashboard)/inspections/sms-actio
 import { stepInputLink } from '@/lib/inspection-step-links'
 import { planRowInspectionEntry } from '@/lib/calendar-plan-row'
 import { layoutPlanChips } from '@/lib/calendar-chips'
+import { canDragCalendarChip } from '@/lib/calendar-drag'
 import { hangulMatch } from '@/lib/hangul'
 import { kstDate, todayKst } from '@/lib/kst-date'
 /** 일수는 **여기서 세지 않는다** — 별지 9호에 인쇄되는 값과 같은 셈법(양끝 포함)이어야 한다.
@@ -224,6 +225,12 @@ type CalEventResource = {
   isOverdue: boolean
   isReceiveStep: boolean
   color: string
+  /** R8b — 이 칩을 끌어 **점검일자**를 옮길 수 있는가. 서버가 의무 축으로 판정한 값 그대로다.
+   *  1단계 칩에만 싣는다(나머지 단계는 마감일이라 끌 대상이 아니다 — 서버가 다시 깔아 준다). */
+  dateChange?: { allowed: boolean; reason?: string; blockedBy?: number }
+  /** R8b — 모달이 보여 줄 **현재 점검일자**. 칩이 앉은 `dueDate`와 같아야 정상이지만,
+   *  서버가 실제로 바꾸는 값은 이쪽이므로 「지금」 칸엔 이 값을 쓴다(추정하지 않는다). */
+  inspectionStartDate?: string
 }
 
 type CalEvent = {
@@ -588,12 +595,21 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
             end: endDate,
             allDay: true as const,
             resource: {
+              /* R8b — 여태 **비어 있었다**. 타입은 'step'을 선언해 뒀는데 실제로 안 실어서
+                 단계 칩의 kind는 undefined였다(그래도 `=== 'plan'`·`=== 'plan-group'` 검사만
+                 있어 아무도 안 넘어졌다). 이제 드래그가 **이 축으로 갈리므로** 명시한다. */
+              kind: 'step' as const,
               inspectionId: insp.id,
               stepId: s.id,
               stepNum: s.step_num,
               stepStatus: s.status,
               dueDate: s.due_date!,
               completedAt: s.completed_at,
+              /* R8b — 1단계 칩만 끌 수 있게 하는 판정. 서버가 의무 축으로 이미 내줬다
+                 (`lib/inspection-date-change`). 여기서 `insp.steps`로 다시 세면 표시 축이라
+                 숨겨진 ⑤⑥ 완료를 못 보고 **이미 나간 서류의 날짜를 끌 수 있게** 된다. */
+              dateChange: insp.dateChange,
+              inspectionStartDate: insp.inspection_start_date,
               customerName: insp.customer_name,
               customerAddress: insp.customer_address ?? null,
               inspectionType: insp.inspection_type,
@@ -764,7 +780,6 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
     selectedInspection?.inspection_days,
   )
 
-
   /** B-2 — 패널 하단 링크가 착지할 단계. **기한초과 먼저, 없으면 첫 미완**.
    *  화면이 붉게 칠한 그 줄이 곧 사용자가 누르려던 자리다. 전부 완료면 null(기본 칸으로).
    *  ⚠ `steps`는 서버가 **표시 축으로 이미 걸러** 보낸 목록이다(lib/active-steps) — 불량 0건이면
@@ -898,11 +913,13 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
   /** 날짜를 고르면 **저장 전에** 무엇이 바뀌는지 서버에 묻는다.
    *  ⚠ 마감일을 화면에서 계산하지 않는다 — 공휴일·영업일 보정은 `resolveStepDates`가 정본이고
    *    여기서 흉내 내면 미리보기와 실제 저장값이 갈린다(그 어긋남은 저장한 뒤에야 보인다). */
-  const previewDateChange = useCallback((to: string) => {
-    setDateChange(d => (d ? { ...d, to, rows: undefined, blocked: undefined, error: undefined, loading: true } : d))
+  /** 미리보기 조회 본체 — **점검 id를 인자로 받는다.**
+   *  ⚠ 상태(`dateChange?.inspectionId`)에서 읽으면 안 되는 경로가 생겼다(R8b): 드래그 드롭은
+   *    모달을 **여는 동시에** 미리보기를 띄워야 하는데, 그 순간 상태는 아직 이전 값(또는 null)이라
+   *    같은 렌더에서 읽으면 조회가 통째로 건너뛰어진다. 그래서 id를 넘겨받는 한 벌로 두고
+   *    입력칸·드롭 **두 경로가 같은 함수**를 쓴다 — 두 벌이면 한쪽만 고쳐져 갈라진다. */
+  const fetchDateChangePreview = useCallback((id: string, to: string) => {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(to)) { setDateChange(d => (d ? { ...d, loading: false } : d)); return }
-    const id = dateChange?.inspectionId
-    if (!id) return
     void previewInspectionDateChangeAction(id, to).then(res => {
       setDateChange(d => {
         if (!d || d.inspectionId !== id || d.to !== to) return d   // 늦게 온 응답이 최신 선택을 덮지 않게
@@ -911,26 +928,57 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
         return { ...d, loading: false, rows: res.rows }
       })
     })
-  }, [dateChange?.inspectionId])
+  }, [])
 
-  const draggableAccessor = useCallback((event: object) => {
-    const e = event as CalEvent
-    return canMovePlan
-      && e.resource.kind === 'plan'
-      && e.resource.planType === 'monthly'
-      && (e.resource.planStatus === 'planned' || e.resource.planStatus === 'confirmed')
-  }, [canMovePlan])
+  const previewDateChange = useCallback((to: string) => {
+    const id = dateChange?.inspectionId
+    setDateChange(d => (d ? { ...d, to, rows: undefined, blocked: undefined, error: undefined, loading: true } : d))
+    if (!id) return
+    fetchDateChangePreview(id, to)
+  }, [dateChange?.inspectionId, fetchDateChangePreview])
+
+  /** R8b — 드롭 한 번으로 **모달을 열면서 그 날짜의 미리보기까지** 받는다.
+   *  드래그는 이미 「이 날짜로」라는 의도를 말했으므로 날짜를 다시 고르게 하지 않는다.
+   *  ⚠ 그래도 **저장은 사람이 누른다**: 드롭=즉시 적용인 정기 칩과 다르게, 이쪽은 1~6단계
+   *    마감일을 통째로 다시 깔고 그중엔 이미 나간 서류가 걸릴 수 있다. 미리보기를 보고 누르는
+   *    한 박자가 그 차이를 감당하는 값이다(모달 본문이 그걸 설명한다). */
+  const openDateChangeAt = useCallback((inspectionId: string, from: string, to: string) => {
+    setDateChange({ inspectionId, from, to, loading: true })
+    fetchDateChangePreview(inspectionId, to)
+  }, [fetchDateChangePreview])
+
+  /** 끌 수 있는 칩인가 — 판정은 `lib/calendar-drag` 한 벌이다(R8b, 2026-09-22).
+   *  여기 인라인으로 두면 달력을 띄워 마우스로 끌어 봐야만 단언할 수 있어서 밖으로 뺐다.
+   *  ⛔ `onSelectSlot`(빈 칸 드래그)은 켜지 않는다 — `onEventDrop` 제스처와 충돌한다. */
+  const draggableAccessor = useCallback(
+    (event: object) => canDragCalendarChip((event as CalEvent).resource, canMovePlan),
+    [canMovePlan],
+  )
 
   const handleEventDrop = useCallback((args: { event: object; start: Date | string }) => {
     const e = args.event as CalEvent
     const r = e.resource
     if (!draggableAccessor(e)) return
-    const from = r.dueDate
     const to = format(new Date(args.start), 'yyyy-MM-dd')
+
+    /* ① 1단계 칩 = 점검일자 이동. **같은 달 제약이 없다** — 정기의 「같은 달」은 월 단위 의무에서
+       오는 규칙인데(그 달이 비고 옮겨간 달이 2회가 된다), 이쪽은 이미 시작된 점검의 기산일을
+       정정하는 일이라 달을 넘는 정정이 실제로 일어난다(2026-09-20 「해오름 9/12→9/18」).
+       판정·산식은 전부 서버(R8a) 것을 그대로 쓴다 — 여기서 규칙을 새로 짜지 않는다. */
+    if (r.kind === 'step') {
+      // 서버가 실제로 바꾸는 값을 「지금」으로 삼는다(칩이 앉은 due_date를 점검일자로 추정하지 않는다)
+      const from = r.inspectionStartDate ?? r.dueDate
+      if (to === from) return
+      openDateChangeAt(r.inspectionId, from, to)
+      return
+    }
+
+    // ② 미시작 정기 계획 칩 — 종전 경로 그대로
+    const from = r.dueDate
     if (to === from) return
     if (to.slice(0, 7) !== from.slice(0, 7)) { alert('같은 달 안에서만 이동할 수 있습니다.'); return }
     setMoveConfirm({ mode: 'single', planItemId: r.inspectionId, customerName: r.customerName, from, to })
-  }, [draggableAccessor])
+  }, [draggableAccessor, openDateChangeAt])
 
   function handleMoveConfirm() {
     if (!moveConfirm) return
