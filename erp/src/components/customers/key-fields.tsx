@@ -37,7 +37,8 @@ export function GroupBox({ n, title, status, right, alert, children, testId }: {
 }) {
   const done = status ? status[0] >= status[1] : true
   return (
-    <section data-testid={testId} className={`${cardCls} ${alert ? 'border-red-200' : 'border-line'} overflow-hidden`}>
+    // ⚠ overflow-**clip**(hidden 아님) — hidden은 스크롤 컨테이너가 돼 안쪽 sticky 저장 줄이 안 붙는다
+    <section data-testid={testId} className={`${cardCls} ${alert ? 'border-red-200' : 'border-line'} overflow-clip`}>
       <div className="flex items-center gap-2 px-5 py-3 border-b border-line bg-paper">
         <span className="inline-flex size-6 shrink-0 items-center justify-center rounded-full bg-brand text-white text-xs font-bold">{n}</span>
         <h2 className="text-sm font-bold text-ink shrink-0">{title}</h2>

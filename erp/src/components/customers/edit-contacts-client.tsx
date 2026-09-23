@@ -139,15 +139,16 @@ export function EditContactsClient({ customerId, customerName = '', canSendSms =
   const firstEmptyRole = ROLES.find(role => !contacts.some(c => c.role === role))
 
   return (
-    <div className="grid grid-cols-1 gap-3">
+    // 넓은 상자(관계인 그룹 ③)에서는 카드 2열 — 열 수는 **상자 폭**(key-fields의 @container)으로 정한다(2026-09-23)
+    <div className="grid grid-cols-1 @4xl:grid-cols-2 gap-3">
       {visibleRoles.length === 0 && (
-        <p className="text-form-sm text-ink-meta">등록된 관계인이 없습니다</p>
+        <p className="text-form-sm text-ink-meta @4xl:col-span-2">등록된 관계인이 없습니다</p>
       )}
       {/* 체크 인원 = 회차당 통수 (소방계획서_24 S5-b) — 문자 비용이 정해지는 지점은 발송 모달이 아니라
           여기다. 정기점검 고객이면 3명 체크 = 연 36통이 되는데 그 사실이 화면에 드러나지 않았다. */}
       {visibleRoles.length > 0 && (
         <div data-testid="sms-recipient-summary"
-          className="flex items-center gap-1.5 text-form-xs text-ink-sub bg-brand-tint border border-brand-line-soft rounded-lg px-3 py-1.5">
+          className="@4xl:col-span-2 flex items-center gap-1.5 text-form-xs text-ink-sub bg-brand-tint border border-brand-line-soft rounded-lg px-3 py-1.5">
           <MessageSquare className="size-3 text-brand" />
           {pickedCount > 0 ? (
             <>사전 안내 문자 <b className="text-ink">{pickedCount}명</b> 지정 — <b>점검 1회당 {pickedCount}통</b>이 나갑니다.</>
@@ -375,7 +376,7 @@ export function EditContactsClient({ customerId, customerName = '', canSendSms =
       {canManage && firstEmptyRole && editingRole === null && (
         <button
           onClick={() => startEdit(firstEmptyRole)}
-          className="flex items-center justify-center gap-1 text-form-sm font-medium text-brand hover:bg-brand-tint border border-dashed border-brand-line rounded-lg py-2.5 transition-colors"
+          className="@4xl:col-span-2 flex items-center justify-center gap-1 text-form-sm font-medium text-brand hover:bg-brand-tint border border-dashed border-brand-line rounded-lg py-2.5 transition-colors"
         >
           <Plus className="size-3" />
           관계인 추가

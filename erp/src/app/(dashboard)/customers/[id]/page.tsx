@@ -7,6 +7,7 @@ import { listFireStationCandidates } from '@/lib/fire-station'
 import { loadFacilityFormData, type FacilityBuildingRow } from '@/lib/facility-form-data'
 import { formatBizNo, formatTel } from '@/lib/format-contact'
 import { AssignEmployeeInline } from '@/components/customers/assign-employee-inline'
+import { GroupBox, SubRow, Cell } from '@/components/customers/key-fields'
 import { EditContactsClient } from '@/components/customers/edit-contacts-client'
 import { RepRoleProvider } from '@/components/customers/rep-role-sync'
 import { FireSafetyManagerPanel } from '@/components/customers/fire-safety-manager-panel'
@@ -565,13 +566,16 @@ export default async function CustomerDetailPage({
         canManage={canManage}
         unassigned={!customer.assigned_employee_id}
         assigneeSlot={
-          <div className="flex items-center gap-2 flex-wrap">
+          /* 칸을 꽉 채운다(fill) — 옆 고객명·관할 소방서와 **같은 높이·같은 줄**. 지역 추천 버튼은 그 아래로
+             (옆에 두면 좁은 칸에서 글자가 꺾였다 — 2026-09-23 사용자 지적 「산만하다, 입력칸이 정렬되게」). */
+          <div className="space-y-1.5">
             <AssignEmployeeInline
               customerId={customer.id}
               currentEmployeeId={customer.assigned_employee_id}
               assignedSource={(customer as { assigned_source?: string | null }).assigned_source ?? null}
               employees={employees}
               canAssign={canAssign}
+              fill
             />
             {canAssign && regionRecommend && (
               <RecommendAssignClient customerId={customer.id}
@@ -617,19 +621,19 @@ export default async function CustomerDetailPage({
 
   // 관계인 정보 (수정 가능)
   const contactsTab = (
-      <div className="bg-surface rounded-xl border border-line shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-5">
-        <div className="flex flex-wrap items-center gap-2 mb-4">
-          <h2 className="text-form-base font-semibold text-ink">관계인 정보</h2>
-          {fsmMissing.length > 0 && (
-            <a href="#fire-safety-manager" data-testid="fsm-missing-badge"
-              className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-form-xs font-medium text-amber-700 hover:bg-amber-100 transition-colors">
-              ⚠ 소방안전관리 미입력: {fsmMissing.join(' · ')}
-            </a>
-          )}
-        </div>
+      /* ③ 관계인 — 그룹 상자(2026-09-23 「기본정보처럼」). 관계인 카드 줄 → ★소방안전관리 줄 → 자격·구분 줄. */
+      <GroupBox n={3} title="관계인 정보" testId="contacts-group"
+        right={fsmMissing.length > 0 ? (
+          <a href="#fire-safety-manager" data-testid="fsm-missing-badge"
+            className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-form-xs font-medium text-amber-700 hover:bg-amber-100 transition-colors truncate">
+            ⚠ 소방안전관리 미입력: {fsmMissing.join(' · ')}
+          </a>
+        ) : undefined}>
         {/* 대표자 구분(rep_role)은 아래 두 블록이 **같은 값**을 만진다 — 각자 state를 들면
             늦게 저장하는 쪽이 상대 값을 덮어쓴다(2026-09-14 E2E 재현). 하나로 묶어 준다. */}
         <RepRoleProvider customerId={customer.id} initial={planInfoInitial.repRole}>
+        <SubRow label="관계인">
+          <Cell span={4}>
         <EditContactsClient
           customerId={customer.id}
           customerName={customer.customer_name}
@@ -638,9 +642,11 @@ export default async function CustomerDetailPage({
           canManage={canManage}
           brigadeByName={Object.fromEntries(planInfoInitial.brigade.map(m => [m.name, m.team]))}
         />
+          </Cell>
+        </SubRow>
         {/* 소방안전관리 (2026-08-20) — 별지 9호 2쪽 «소방안전정보» 한 블록을 여기서 다 채운다.
             종전엔 이 블록이 관계인 탭·계획서 1.1 ②·계획서 1.7 세 곳에 흩어져 320곳 중 1곳만 완성돼 있었다. */}
-        <div id="fire-safety-manager" className="mt-4 pt-4 border-t border-brand-line-soft scroll-mt-24">
+        <div id="fire-safety-manager" className="scroll-mt-24">
           <FireSafetyManagerPanel
             customerId={customer.id}
             contacts={contacts}
@@ -655,7 +661,7 @@ export default async function CustomerDetailPage({
           />
         </div>
         </RepRoleProvider>
-      </div>
+      </GroupBox>
   )
 
   const panelBuildings: BuildingPanelRow[] = buildings.map(b => {
@@ -1251,7 +1257,7 @@ export default async function CustomerDetailPage({
         panels={{ info: infoTab, buildings: buildingsTab, contacts: contactsTab, plan: planTab, facilities: facilitiesTab, reports: reportsTab, annex: annexTab, billing: billingTab, history: historyTab }}
         fullWidthKeys={['plan', 'facilities', 'reports', 'annex']}
         // 넓게 쓰되 요약 패널은 남긴다(2026-09-23 사용자: 오른쪽이 비어 있다 — 1920에서 ~620px 빈칸)
-        wideKeys={['info']}
+        wideKeys={['info', 'buildings', 'contacts']}
         // 별지 패널은 마운트 즉시 회차 조회를 왕복한다(plan-annex-section의 reload) —
         // 이 셸은 패널을 전부 렌더하므로 지연 마운트가 없으면 기본정보 탭만 열어도 그 왕복이 돈다 (소방계획서_34 S2)
         // 공통·보고서 패널도 같은 부류다 — PlanForm14·EtcItemsPanel·PlanAnnexStatusCard가 마운트 즉시 서버액션을 왕복한다

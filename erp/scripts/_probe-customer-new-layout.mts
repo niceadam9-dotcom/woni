@@ -86,6 +86,30 @@ try {
     const clipped = await clippedDates()
     check('★ 기본정보 1280 — 날짜가 잘리지 않는다 (상자 폭 기준 2열)', clipped.length === 0, clipped.join(', '))
     check('기본정보 1280 — 가로 넘침 없음', await noOverflow())
+    check('★ 기본정보 — 저장 버튼이 늘 보인다(변경 없으면 비활성)',
+      await page.locator('[data-testid="info-save"]').isVisible() && await page.locator('[data-testid="info-save"]').isDisabled())
+
+    // ── 건물·시설 · 관계인 — 「기본정보처럼」 ──
+    for (const [tab, box, key] of [
+      ['buildings', 'building-group', 'building-keydates'],
+      ['contacts', 'contacts-group', 'fsm-keyrow'],
+    ] as const) {
+      await page.setViewportSize({ width: 1920, height: 1080 })
+      await page.goto(`${BASE}/customers/${cid}?tab=${tab}`, { waitUntil: 'domcontentloaded' })
+      await page.locator(`[data-testid="${box}"]`).waitFor()
+      // 건물 탭은 1동이면 폼이 자동으로 열린다 — 안 열렸으면 [보기·수정]
+      if (tab === 'buildings' && await page.locator(`[data-testid="${key}"]`).count() === 0) {
+        await page.locator('[data-testid="building-open"]').first().click().catch(() => {})
+      }
+      const w = await page.locator(`[data-testid="${box}"]`).evaluate(e => e.getBoundingClientRect().width)
+      check(`★ ${tab} 1920 — 본문이 넓다 (> 1200px)`, w > 1200, `${Math.round(w)}px`)
+      check(`★ ${tab} — 핵심 줄이 강조 바탕`, await page.locator(`[data-testid="${key}"][data-accent="1"]`).count() === 1)
+      check(`${tab} 1920 — 세로줄 4줄 이하`, (await maxColumnLines()) <= 4, `${await maxColumnLines()}줄`)
+      await page.setViewportSize({ width: 1280, height: 900 })
+      await page.waitForTimeout(400)
+      const cl = await clippedDates()
+      check(`${tab} 1280 — 날짜 안 잘림 · 가로 넘침 없음`, cl.length === 0 && await noOverflow(), cl.join(', '))
+    }
   }
 
   // ── 등록 400 ──

@@ -144,6 +144,57 @@ console.log('\n— ⑥ 기본정보 탭')
     /assigneeSlot=\{/.test(page) && /unassigned=\{!customer\.assigned_employee_id\}/.test(page))
   ok('★ 기본정보 탭은 넓게(wideKeys) — 요약 패널은 유지', /wideKeys=\{\['info'/.test(page)
     && /isFull \|\| isWide \? '' : 'max-w-3xl'/.test(tabs) && /\{summary && !isFull && summary\}/.test(tabs))
+  /* 사용자 「기본정보 저장버튼은 없네?」 — 종전엔 고쳐야만 버튼이 나타났다. 이제 늘 있고 변경 없으면 비활성. */
+  /* ⚠ 옛 모양(`isDirty && canManage ?`)만 막으면 **다른 모양의 같은 게이트**(`canManage && isDirty &&`)가
+     초록으로 새어 든다 — 변이 V1이 실제로 살아남았다(2026-09-23). 저장 줄을 여는 조건을 **직접** 본다. */
+  ok('★ 저장 버튼이 **늘** 있다 (고쳐야만 나타나지 않는다)', () => {
+    const i = infoJsx.indexOf('data-testid="info-save-bar"')
+    const gate = i > 0 ? infoJsx.slice(infoJsx.lastIndexOf('{', infoJsx.lastIndexOf('(', i)), i) : ''
+    return /data-testid="info-save"/.test(infoJsx) && /disabled=\{isPending \|\| !isDirty\}/.test(infoJsx)
+      && /^\{canManage && \($/m.test(gate.trim().split('\n')[0]) && !/isDirty/.test(gate)
+  }, '(저장 줄 앞 조건에 isDirty가 끼어 있다)')
+  ok('저장 줄은 상자 아래에 붙는다(sticky) · 그룹 상자는 overflow-clip(hidden이면 sticky가 죽는다)',
+    /data-testid="info-save-bar"\s*\n\s*className="sticky bottom-0/.test(infoJsx) && /overflow-clip/.test(kf) && !/overflow-hidden/.test(kf))
+  ok('담당 칸은 칸을 꽉 채운다(fill) — 옆 칸과 같은 높이, 안내 문구는 툴팁',
+    /\n\s*fill\n/.test(page) && (() => {
+      const a = read('../src/components/customers/assign-employee-inline.tsx')
+      return /title="선택 즉시 저장 · 배정 알림 발송"/.test(a) && !/<span[^>]*>선택 즉시 저장 · 배정 알림 발송<\/span>/.test(a)
+    })())
+}
+
+console.log('\n— ⑦ 건물·시설 탭 (「기본정보처럼」)')
+{
+  const bld = read('../src/components/customers/building-inline-panel.tsx')
+  ok('★ 그룹 상자 · 제목은 「건물정보」 그대로(§10-2 ③)', /<GroupBox n=\{2\} title="건물정보" testId="building-group"/.test(bld))
+  ok('★ 기준일 줄(accent)에 사용승인일·건축허가일', /\baccent\b/.test(subRowOf(bld, 'placeholder="고객 정보에서 입력"'))
+    && subRowOf(bld, 'placeholder="고객 정보에서 입력"') === subRowOf(bld, 'id="bf-permit-date"'))
+  ok('「비었을 때만 빨강」 표식(data-a9-blank)이 넷 다 살아 있다',
+    (bld.match(/data-a9-blank=\{a9Blank\(/g) ?? []).length === 4)
+  ok('건물 칸들이 소그룹 줄 순서: 건물 → 주소 → 기준일 → 규모 → 구조 → 시설 현황 → 메모', inOrder(bld, [
+    ['건물', 'label="건물"'], ['주소', 'label="주소"'], ['기준일', 'label="기준일"'], ['규모', 'label="규모 (별지 9호)"'],
+    ['구조', 'label="구조"'], ['시설 현황', '<FacilityStatusGrid'], ['메모', 'label="메모"'],
+  ]).bad.length === 0)
+  ok('저장 줄 sticky', /data-testid="building-save-bar"\s*\n\s*className="sticky bottom-0/.test(bld))
+  ok('Cell span은 1·2·3·4만', [...bld.matchAll(/<Cell[^>]*?\bspan=\{(\d+)\}/g)].every(m => +m[1] >= 1 && +m[1] <= 4))
+}
+
+console.log('\n— ⑧ 관계인 탭 (「기본정보처럼」)')
+{
+  const fsm = read('../src/components/customers/fire-safety-manager-panel.tsx')
+  const cts = read('../src/components/customers/edit-contacts-client.tsx')
+  ok('★ 그룹 상자로 감싼다', /<GroupBox n=\{3\} title="관계인 정보" testId="contacts-group"/.test(page))
+  ok('★ 소방안전관리 줄(accent)에 선임일·최근 교육이수일', /\baccent\b/.test(subRowOf(fsm, '>선임일</label>'))
+    && subRowOf(fsm, '>선임일</label>') === subRowOf(fsm, '>최근 교육이수일</label>'))
+  ok('★ 선임일이 패널의 **첫 날짜 칸**(E2E가 .first()로 잡는다)', () => {
+    const d = fsm.indexOf('<DateInput')   // 패널의 첫 날짜 입력 — 바로 앞 라벨이 선임일이어야 한다
+    return d > 0 && fsm.slice(Math.max(0, d - 200), d).includes('>선임일</label>')
+  })
+  ok('★ 라벨·입력이 같은 div의 직계(E2E `div:has(> label:has-text(...)) button`)',
+    ['대표자 구분', '관리자 자격구분 ', '최근 교육이수일'].every(t =>
+      new RegExp(`<div className="space-y-1\\.5">\\s*<label className=\\{labelCls\\}>${t}`).test(fsm)))
+  ok('관계인 카드는 넓은 상자에서 2열(상자 폭 기준)', /grid grid-cols-1 @4xl:grid-cols-2 gap-3/.test(cts))
+  ok('fsm-save·패널 id 유지', /data-testid="fsm-save"/.test(fsm) && /id="c-fire-safety-manager"/.test(fsm))
+  ok('★ 세 탭 모두 넓게', /wideKeys=\{\['info', 'buildings', 'contacts'\]\}/.test(page))
 }
 
 console.log(`\n결과: ${pass} 통과 / ${fail} 실패`)

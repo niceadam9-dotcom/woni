@@ -347,23 +347,30 @@ export function EditCustomerInfoClient({ customer, typeSlot, annualLabel, lastCh
           </Cell>
         </SubRow>
 
-        {/* 변경 시에만 저장/취소 노출 — 상자 맨 아래 줄 */}
-        <div className="flex items-center gap-3 px-5 py-3 bg-paper">
-          {isDirty && canManage ? (
-            <>
-              <button type="submit" disabled={isPending}
-                className="h-form-8 px-4 rounded-lg bg-brand hover:bg-brand-strong text-white text-form-sm font-medium transition-colors flex items-center justify-center gap-1.5 disabled:opacity-50">
-                {isPending ? <Loader2 className="size-3.5 animate-spin" /> : null} 저장
-              </button>
-              <button type="button" onClick={handleReset} disabled={isPending}
-                className="h-form-8 px-3 rounded-lg border border-line text-form-sm text-ink-sub hover:bg-paper transition-colors">
-                취소
-              </button>
-            </>
-          ) : (
-            lastChangeText && <span className="text-form-xs text-ink-meta truncate">최근 변경: {lastChangeText}</span>
-          )}
-        </div>
+        {/* 저장 줄 — **늘 보인다**(2026-09-23 사용자: 「기본정보 저장버튼은 없네?」).
+            종전엔 고쳐야만 버튼이 나타나 「저장이 없는 화면」으로 읽혔다. 이제 버튼은 늘 있고,
+            고친 게 없으면 흐리게(변경 없음), 고치면 진하게. 상자 아래에 붙어(sticky) 스크롤해도 보인다. */}
+        {canManage && (
+          <div data-testid="info-save-bar"
+            className="sticky bottom-0 z-10 flex items-center gap-3 px-5 py-3 bg-paper/95 backdrop-blur border-t border-line">
+            <span className="text-form-xs truncate min-w-0 flex-1">
+              {isDirty
+                ? <span className="font-semibold text-amber-700">저장하지 않은 변경이 있습니다</span>
+                : <span className="text-ink-meta">{lastChangeText ? `최근 변경: ${lastChangeText}` : '변경 없음'}</span>}
+            </span>
+            <button type="button" onClick={handleReset} disabled={isPending || !isDirty}
+              className="h-form-9 px-4 rounded-lg border border-line text-form-sm text-ink-sub hover:bg-paper transition-colors disabled:opacity-40 shrink-0">
+              취소
+            </button>
+            <button type="submit" data-testid="info-save" disabled={isPending || !isDirty}
+              className="h-form-9 px-6 rounded-lg bg-brand hover:bg-brand-strong text-white text-form-sm font-semibold transition-colors flex items-center justify-center gap-1.5 disabled:opacity-40 shrink-0">
+              {isPending ? <Loader2 className="size-3.5 animate-spin" /> : null} 저장
+            </button>
+          </div>
+        )}
+        {!canManage && lastChangeText && (
+          <div className="px-5 py-3 bg-paper text-form-xs text-ink-meta truncate">최근 변경: {lastChangeText}</div>
+        )}
       </GroupBox>
 
       {error && (

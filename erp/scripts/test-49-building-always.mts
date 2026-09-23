@@ -104,8 +104,9 @@ const PANEL_RAW = read('src', 'components', 'customers', 'building-inline-panel.
 const PANEL = PANEL_RAW.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')
 check('[H0] 주석 제거가 실제로 줄였다 (계측기 자기검증)', PANEL.length < PANEL_RAW.length,
   `${PANEL_RAW.length} → ${PANEL.length}자`)
-check('[H1] 제목이 「건물정보」', /<h2[^>]*>건물정보<\/h2>/.test(PANEL))
-check('[H2] 「건물 목록」 제목이 남아 있지 않다', !/<h2[^>]*>건물 목록<\/h2>/.test(PANEL))
+// 2026-09-23 그룹 상자(GroupBox) 도입 — 제목이 <h2> 대신 title 속성으로 들어간다. 뜻(제목=「건물정보」)은 그대로.
+check('[H1] 제목이 「건물정보」', /<h2[^>]*>건물정보<\/h2>|<GroupBox[^>]*title="건물정보"/.test(PANEL))
+check('[H2] 「건물 목록」 제목이 남아 있지 않다', !/<h2[^>]*>건물 목록<\/h2>|title="건물 목록"/.test(PANEL))
 check('[H3] [+ 건물 등록] 버튼 JSX가 있다 (주석 밖)', /onClick=\{openNew\}/.test(PANEL))
 check('[H4] lucide import에 Plus가 있다',
   /\bPlus\b/.test(PANEL.match(/^import .*lucide-react.*$/m)?.[0] ?? ''))

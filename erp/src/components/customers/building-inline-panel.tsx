@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useTransition } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 // `Plus`는 [+ 건물 등록] 버튼과 한 몸이다 — 2026-09-11에 함께 빠졌다가 2026-09-15에 함께 돌아왔다
-import { Building2, Plus, Search, Loader2, X } from 'lucide-react'
+import { Plus, Search, Loader2, X } from 'lucide-react'
 import { DateInput, isCompleteDate } from '@/components/ui/date-input'
 import { ComboInput } from '@/components/ui/combo-input'
 import { createBuildingAction, updateBuildingAction, deleteBuildingAction, setPrimaryBuildingAction } from '@/app/(dashboard)/buildings/actions'
@@ -20,6 +20,7 @@ import { findSameNameBuilding, normalizeBuildingName } from '@/lib/building-dup'
 import { initialBuildingPanelTarget, shouldHideBuildingTable } from '@/lib/building-panel-open'
 import { useDaumPostcode } from '@/hooks/use-daum-postcode'
 import { useCustomerTabs } from '@/components/customers/customer-tabs'
+import { GroupBox, SubRow, Cell, keyInputCls } from '@/components/customers/key-fields'
 
 /** 건물 목록 + 인라인 등록·수정 패널 (설계 §5·§5-A) — /buildings/new·[id] 페이지 이동 대체.
  *  주소 상속('고객 주소와 동일') · Daum 주소 검색 시 bcode·지번 저장(092) · 건축물대장 자동 조회(빈 칸만). */
@@ -556,7 +557,7 @@ export function BuildingListPanel({ customerId, customerName, customerAddress, b
   }
 
   return (
-    <div id="buildings-panel" className="scroll-mt-4 bg-surface rounded-xl border border-line shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-5">
+    <div id="buildings-panel" className="scroll-mt-4">
       {/* 「건물 목록」 → 「건물정보」 (2026-09-11 사용자 확정: "다동 고객은 없어, 별지와 소방계획서와
           동일하게 건물정보만 추가가 되면 돼"). 고객 1 : 활성 건물 1이 **UI 불변식**이 됐으므로
           여기는 「목록」이 아니라 그 한 동의 **정보를 채우는 자리**다. 소방계획서_49 §10.
@@ -577,10 +578,10 @@ export function BuildingListPanel({ customerId, customerName, customerAddress, b
             생긴다(§10-2 ①). 버튼은 **2번째 동부터**가 본래 쓸모다.
           📏 유지되는 것: 제목은 「건물정보」 그대로(§10-2 ③), 1동이면 표를 감추는 규칙도 그대로.
             되돌린 것은 §10-2 **② 하나뿐**이다 — 셋을 한꺼번에 되짚지 말 것. */}
-      <div className="flex items-center gap-2 mb-4">
-        <Building2 className="size-4 text-brand" />
-        <h2 className="text-form-base-title font-semibold text-ink">건물정보</h2>
-        <span className="text-form-sm text-ink-meta ml-auto">{buildings.length}개</span>
+      {/* ② 건물·시설 탭의 그룹 상자(2026-09-23 「기본정보처럼」). ⚠ 제목은 「건물정보」 그대로(§10-2 ③, 2026-09-11 사용자 확정 —
+          test-49 [H1]이 문다). 머리줄의 개수·[건물 등록]은 상자 머리로 옮겼다(위 주석의 불변식 그대로). */}
+      <GroupBox n={2} title="건물정보" testId="building-group" right={<>
+        <span className="text-form-sm text-ink-meta">{buildings.length}개</span>
         {canManage && (
           <button onClick={openNew} disabled={editing === 'new'}
             title={editing === 'new' ? '등록 폼이 이미 열려 있습니다' : '건물(동)을 하나 더 등록합니다'}
@@ -589,8 +590,9 @@ export function BuildingListPanel({ customerId, customerName, customerAddress, b
             건물 등록
           </button>
         )}
-      </div>
-
+      </>}>
+      {(activeCount > 1 || !shouldHideBuildingTable({ buildings, editing })) && (
+      <div className="px-5 py-4 space-y-3">
       {/* 다동 안내 — 서식이 담는 동 수를 넘으면 **세어서 알린다**(조용히 자르면 인쇄물은 멀쩡해 보인다).
           🚨 종전 주석은 근거를 「별지 9호 작성요령 10의 **동별로 나누어 작성**」이라고 적었다. **틀렸다.**
             법제처 원문(`erp_goal/_form/별지9호_법제처API_20260701.hwp`) 실측: 「나누어」 0회,
@@ -610,7 +612,6 @@ export function BuildingListPanel({ customerId, customerName, customerAddress, b
           )}
         </div>
       )}
-
       {/* 1동뿐이고 **그 동의 상세가 이미 펼쳐져 있으면** 목록 표를 그리지 않는다 (2026-09-11 사용자 확정:
           "두번 보일 필요는 없어"). 자동 펼침을 넣자 같은 건물명이 목록 행과 폼에 **위아래로 두 번** 나왔다
           — 행 1개와 그 행의 상세는 같은 한 건이라, 표는 「고를 것이 있을 때」만 쓸모가 있다.
@@ -691,182 +692,240 @@ export function BuildingListPanel({ customerId, customerName, customerAddress, b
           </table>
         </div>
       )}
+      </div>
+      )}
 
-      {/* 인라인 등록·수정 패널 */}
+      {/* 인라인 등록·수정 — ② 건물·시설 그룹 상자 안의 소그룹 줄들(2026-09-23 「기본정보처럼」 사용자 요청).
+          기본정보 탭과 **같은 부품·같은 격자**라 세로줄이 두 탭에서 같은 자리에 선다. */}
       {editing && (
-        <div className="mt-4 rounded-xl border border-brand-line bg-brand-tint p-4 space-y-3">
-          <div className="flex items-center justify-between">
+        <>
+          <div className="flex items-center justify-between px-5 py-2.5 bg-brand-tint">
             <p className="text-form-sm font-bold text-brand">{editing === 'new' ? '건물 등록' : '건물 수정'}</p>
-            <button onClick={close} className="text-ink-faint hover:text-ink-sub"><X className="size-4" /></button>
+            <button onClick={close} className="text-ink-faint hover:text-ink-sub" title="닫기"><X className="size-4" /></button>
           </div>
 
-          {/* 등록 시점 안내 (2026-09-11 사용자 지시) — **등록을 결정하는 그 순간에** 어디에 실리는지 알린다.
-              🚨🚨 이 문구는 **반드시 배포되는 코드(origin/main)에 대고** 적을 것. 한 번 dev 서버
-                (=공유 작업트리)에 대고 판정해서 세 줄이 거짓인 채 푸시됐다(`7617b25` → `a2d5cc8`로 정정).
-                그 트리에는 타 세션의 **미커밋 다동 작업**이 얹혀 있었고 원격엔 하나도 없었다.
-              📏 이 커밋에서 다동 배선이 실제로 들어왔으므로 문구를 **되돌려** 적는다 —
-                `otherBuildings`(별지 9호 동별)·`mb{i}` 실값 앵커(갑지 다수동일때)·`primaryBuilding`.
-                **동작과 그 동작을 설명하는 문구는 한 커밋에서 함께 움직인다.**
-              ⚠ 여전히 대표동만 읽는 자리가 있다: 소방계획서 1.1(`primaryBuilding(buildings)`) ·
-                별지 9호 2쪽(`bldRows[0]`) · 3쪽 설비(`.eq('building_id', b.id)`) · 갑지 개요·정보 시트.
-                이 비대칭이 화면에 없으면 사용자는 "입력했는데 문서에 없다"를 겪는다.
-              ⚠ 활성 동수는 화면의 `activeCount`와 **같은 값**을 쓴다 — 배너와 안내가 다른 수를 말하면
-                둘 중 하나는 반드시 거짓이다.
-              ⚠ 마지막 줄은 규현빌라 실사고(기존 동을 고치려다 새 동을 만든 것) 재발 방지다. */}
-          {editing === 'new' && buildings.length > 0 && (
-            <div data-testid="building-new-notice"
-              className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-form-xs text-amber-800 space-y-1">
-              <p><b>{activeCount + 1}번째 동</b>을 등록합니다 — 문서마다 실리는 자리가 다릅니다.</p>
-              <p>· <b>실립니다</b>: 별지 9호 <b>동별</b> 쪽 · 갑지 <b>다수동일때</b> 시트 ·
-                소방계획서 <b>1.4 시설현황</b>(설비는 전 동 합산)</p>
-              <p>· <b>안 실립니다</b>: 소방계획서 본문 1.1 · 별지 9호 2쪽·3쪽 · 갑지 개요·정보 시트 —
-                이 자리는 <b>대표동</b> 값만 인쇄합니다(목록에서 [대표로]로 바꿀 수 있습니다).</p>
-              {activeCount + 1 > FORM9_MAX_BUILDINGS && (
-                <p className="font-semibold text-amber-900">
-                  ⚠ 서식이 담는 {FORM9_MAX_BUILDINGS}동을 넘습니다 — 이 동은 인쇄되지 않습니다. 서식을 추가하여 작성하세요.
+          {/* empty:hidden — 새 동 안내가 없으면(수정·첫 동) 빈 띠를 남기지 않는다 */}
+          <div className="px-5 py-3 empty:hidden">
+            {/* 등록 시점 안내 (2026-09-11 사용자 지시) — **등록을 결정하는 그 순간에** 어디에 실리는지 알린다.
+                🚨🚨 이 문구는 **반드시 배포되는 코드(origin/main)에 대고** 적을 것. 한 번 dev 서버
+                  (=공유 작업트리)에 대고 판정해서 세 줄이 거짓인 채 푸시됐다(`7617b25` → `a2d5cc8`로 정정).
+                  그 트리에는 타 세션의 **미커밋 다동 작업**이 얹혀 있었고 원격엔 하나도 없었다.
+                📏 이 커밋에서 다동 배선이 실제로 들어왔으므로 문구를 **되돌려** 적는다 —
+                  `otherBuildings`(별지 9호 동별)·`mb{i}` 실값 앵커(갑지 다수동일때)·`primaryBuilding`.
+                  **동작과 그 동작을 설명하는 문구는 한 커밋에서 함께 움직인다.**
+                ⚠ 여전히 대표동만 읽는 자리가 있다: 소방계획서 1.1(`primaryBuilding(buildings)`) ·
+                  별지 9호 2쪽(`bldRows[0]`) · 3쪽 설비(`.eq('building_id', b.id)`) · 갑지 개요·정보 시트.
+                  이 비대칭이 화면에 없으면 사용자는 "입력했는데 문서에 없다"를 겪는다.
+                ⚠ 활성 동수는 화면의 `activeCount`와 **같은 값**을 쓴다 — 배너와 안내가 다른 수를 말하면
+                  둘 중 하나는 반드시 거짓이다.
+                ⚠ 마지막 줄은 규현빌라 실사고(기존 동을 고치려다 새 동을 만든 것) 재발 방지다. */}
+            {editing === 'new' && buildings.length > 0 && (
+              <div data-testid="building-new-notice"
+                className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-form-xs text-amber-800 space-y-1">
+                <p><b>{activeCount + 1}번째 동</b>을 등록합니다 — 문서마다 실리는 자리가 다릅니다.</p>
+                <p>· <b>실립니다</b>: 별지 9호 <b>동별</b> 쪽 · 갑지 <b>다수동일때</b> 시트 ·
+                  소방계획서 <b>1.4 시설현황</b>(설비는 전 동 합산)</p>
+                <p>· <b>안 실립니다</b>: 소방계획서 본문 1.1 · 별지 9호 2쪽·3쪽 · 갑지 개요·정보 시트 —
+                  이 자리는 <b>대표동</b> 값만 인쇄합니다(목록에서 [대표로]로 바꿀 수 있습니다).</p>
+                {activeCount + 1 > FORM9_MAX_BUILDINGS && (
+                  <p className="font-semibold text-amber-900">
+                    ⚠ 서식이 담는 {FORM9_MAX_BUILDINGS}동을 넘습니다 — 이 동은 인쇄되지 않습니다. 서식을 추가하여 작성하세요.
+                  </p>
+                )}
+                <p className="text-amber-700">
+                  ⚠ 기존 동을 고치려던 것이라면 <b>취소</b>하고 목록에서 [보기·수정]을 누르세요 —
+                  여기서 저장하면 <b>새 동이 생기고</b>, 되돌리는 길은 완전 삭제가 아니라 비활성 처리뿐입니다.
                 </p>
-              )}
-              <p className="text-amber-700">
-                ⚠ 기존 동을 고치려던 것이라면 <b>취소</b>하고 목록에서 [보기·수정]을 누르세요 —
-                여기서 저장하면 <b>새 동이 생기고</b>, 되돌리는 길은 완전 삭제가 아니라 비활성 처리뿐입니다.
-              </p>
-            </div>
-          )}
-
-          <div className="flex flex-wrap gap-2 items-end">
-            <div className="w-52"><label className={labelCls}>건물명<span className="text-red-500 ml-0.5">*</span></label>
-              <input value={form.building_name} onChange={e => setField('building_name', e.target.value)} disabled={!canManage} className={inputCls} /></div>
-            <div className="flex-1 min-w-64"><label className={labelCls}>주소</label>
-              <input value={form.address} readOnly placeholder="주소 검색 또는 고객 주소 상속" className={`${inputCls} bg-paper`} /></div>
-            <div className="w-24"><label className={labelCls}>우편번호</label>
-              <input value={form.zipcode} readOnly className={`${inputCls} bg-paper`} /></div>
-            {canManage && (
-              <button onClick={handleAddressSearch}
-                className="inline-flex items-center gap-1 h-form-8 px-3 rounded-lg bg-brand-tint hover:bg-brand-tint text-brand text-form-sm font-medium border border-brand-line">
-                <Search className="size-3.5" /> 주소 검색
-              </button>
+              </div>
             )}
           </div>
-          {editing === 'new' && customerAddress && (
-            <label className="flex items-center gap-1.5 text-form-xs text-ink-sub">
-              <input type="checkbox" checked={sameAsCustomer} onChange={e => toggleSameAsCustomer(e.target.checked)} className="accent-brand" />
-              고객 주소와 동일 ({customerAddress})
-            </label>
-          )}
 
-          <div className="flex flex-wrap gap-2 items-end">
-            <div className="w-36"><label className={labelCls}>용도</label>
+          <SubRow label="건물">
+            <Cell span={2} label={<>건물명<span className="text-red-500 ml-0.5">*</span></>}>
+              <input value={form.building_name} onChange={e => setField('building_name', e.target.value)} disabled={!canManage}
+                className={`${inputCls} ${keyInputCls}`} />
+            </Cell>
+            <Cell label="용도" htmlFor="bf-purpose">
               {/* 049 building_purposes 제안 — select가 아닌 콤보: 대장이 목록에 없는 용도를 넣는 경우가
                   있어 강제하면 값이 잘린다. datalist→ComboInput 교체(2026-08-19) — 누르기 전엔 목록이 안 보였다 */}
               <ComboInput id="bf-purpose" value={form.purpose} onChange={v => setField('purpose', v)} disabled={!canManage}
                 options={purposes} ariaLabel="건물 용도"
-                placeholder={purposes.length > 0 ? '선택/직접 입력' : '예: 근린생활시설'} className={inputCls} /></div>
-            <div className="w-28"><label className={labelCls}>연면적(㎡)</label>
-              <input id="bf-total-area" type="number" value={form.total_area} onChange={e => setField('total_area', e.target.value)} disabled={!canManage} className={inputCls} /></div>
-            <div className="w-24"><label className={labelCls}>지상(층)</label>
-              <input id="bf-floors-above" type="number" value={form.floors_above} onChange={e => setField('floors_above', e.target.value)} disabled={!canManage} className={inputCls} /></div>
-            <div className="w-24"><label className={labelCls}>지하(층)</label>
-              <input type="number" value={form.floors_below} onChange={e => setField('floors_below', e.target.value)} disabled={!canManage} className={inputCls} /></div>
-            <div className="w-24"><label className={labelCls}>준공연도</label>
-              <input type="number" value={form.year_built} onChange={e => setField('year_built', e.target.value)} disabled={!canManage} className={inputCls} /></div>
-            <div className="flex-1 min-w-40"><label className={labelCls}>비고</label>
-              <input value={form.notes} onChange={e => setField('notes', e.target.value)} disabled={!canManage} className={inputCls} /></div>
-            {editing !== 'new' && canManage && (
-              <label className="flex items-center gap-1.5 text-form-xs text-ink-sub h-form-8">
-                <input type="checkbox" checked={form.is_active} onChange={e => setField('is_active', e.target.checked)} className="accent-brand" />
-                활성
-              </label>
-            )}
-          </div>
+                placeholder={purposes.length > 0 ? '선택/직접 입력' : '예: 근린생활시설'} className={`${inputCls} !h-12`} />
+            </Cell>
+            <Cell label="준공연도">
+              <input type="number" value={form.year_built} onChange={e => setField('year_built', e.target.value)} disabled={!canManage}
+                className={`${inputCls} !h-12`} />
+            </Cell>
+            <Cell label="연면적(㎡)" htmlFor="bf-total-area">
+              <input id="bf-total-area" type="number" value={form.total_area} onChange={e => setField('total_area', e.target.value)} disabled={!canManage} className={inputCls} />
+            </Cell>
+            <Cell label="지상(층)" htmlFor="bf-floors-above">
+              <input id="bf-floors-above" type="number" value={form.floors_above} onChange={e => setField('floors_above', e.target.value)} disabled={!canManage} className={inputCls} />
+            </Cell>
+            <Cell label="지하(층)">
+              <input type="number" value={form.floors_below} onChange={e => setField('floors_below', e.target.value)} disabled={!canManage} className={inputCls} />
+            </Cell>
+            <Cell label="상태">
+              {editing !== 'new' && canManage ? (
+                <label className="flex items-center gap-1.5 h-form-8 text-form-sm text-ink-sub">
+                  <input type="checkbox" checked={form.is_active} onChange={e => setField('is_active', e.target.checked)} className="accent-brand" />
+                  활성
+                </label>
+              ) : <p className="h-form-8 flex items-center text-form-sm text-ink-meta">{editing === 'new' ? '새 동' : form.is_active ? '활성' : '비활성'}</p>}
+            </Cell>
+          </SubRow>
 
-          {/* 별지 9호 2쪽 "건축물 정보" 항목 (소방계획서_9 B안) — 대장이 값을 주지 않는 건물도 서식을 채울 수 있게 수기 입력 */}
-          <div className="rounded-lg border border-brand-line-soft bg-surface p-3 space-y-2">
-            <p className="text-form-xs font-semibold text-ink-sub">
-              별지 9호 2쪽 건축물 정보
-              <span className="ml-1 font-normal text-ink-meta">— 주소 검색 시 건축물대장에서 빈 칸만 자동 채움, 대장에 없으면 직접 입력</span>
-            </p>
-            {/* ① 허가·승인·면적·규모 — 연면적·층수는 위 기본 정보 행에서 입력 */}
-            <div className="flex flex-wrap gap-2 items-end">
-              <div className="w-32" data-a9-blank={a9Blank(form.permit_date) ? '1' : '0'}>
-                <label className={a9Label(a9Blank(form.permit_date))}>건축허가일<span className="text-red-500 ml-0.5">*</span></label>
-                <DateInput id="bf-permit-date" value={form.permit_date} onChange={e => setField('permit_date', e.target.value)} disabled={!canManage} className={inputCls} /></div>
-              <div className="w-32" data-a9-blank={a9Blank(useApprovalDate) ? '1' : '0'}>
+          <SubRow label="주소">
+            <Cell label="우편번호">
+              <input value={form.zipcode} readOnly tabIndex={-1} className={`${inputCls} bg-paper`} />
+            </Cell>
+            <Cell span={2} label="주소">
+              <input value={form.address} readOnly tabIndex={-1} placeholder="주소 검색 또는 고객 주소 상속" className={`${inputCls} bg-paper`} />
+            </Cell>
+            <Cell label={<span className="invisible">검색</span>}>
+              {canManage && (
+                <button onClick={handleAddressSearch}
+                  className="w-full inline-flex items-center justify-center gap-1 h-form-8 px-3 rounded-lg bg-brand-tint text-brand text-form-sm font-medium border border-brand-line">
+                  <Search className="size-3.5" /> 주소 검색
+                </button>
+              )}
+            </Cell>
+            {editing === 'new' && customerAddress && (
+              <Cell span={4}>
+                <label className="flex items-center gap-1.5 text-form-xs text-ink-sub">
+                  <input type="checkbox" checked={sameAsCustomer} onChange={e => toggleSameAsCustomer(e.target.checked)} className="accent-brand" />
+                  고객 주소와 동일 ({customerAddress})
+                </label>
+              </Cell>
+            )}
+          </SubRow>
+
+          {/* ★ 기준일 — 별지 9호 2쪽 「건축물 정보」의 두 날짜. 기본정보 탭의 기준일 줄과 **같은 모양**(보라 바탕·큰 칸).
+              ⚠ 사용승인일은 여기서 **고칠 수 없다**(고객 기본정보가 원천 — 점검 기산점 축) → 읽기 전용 + 갈 곳 안내.
+              ⚠ a9Label·data-a9-blank는 그대로 — 「비었을 때만 빨강」 계약(test-a9)이 이 표식을 문다. */}
+          <SubRow label="기준일" accent testId="building-keydates">
+            <Cell>
+              <div data-a9-blank={a9Blank(useApprovalDate) ? '1' : '0'} className="space-y-1.5">
                 <label className={a9Label(a9Blank(useApprovalDate))}>사용승인일</label>
                 <input value={useApprovalDate ?? ''} readOnly placeholder="고객 정보에서 입력"
                   title="사용승인일은 고객 기본 정보의 값입니다 — 점검 기산점 축이라 고객 정보에서 수정합니다"
-                  className={`${inputCls} bg-paper`} /></div>
-              {/* 건축면적 — 표시만 필수(빨간 *), 저장은 막지 않는다(2026-09-08 사용자 확정): 대장 표제부에
-                  archArea가 없는 건물이 실재해(실호출 11/14) 차단하면 그 건물은 영영 저장이 안 된다 */}
-              <div className="w-28" data-a9-blank={a9Blank(form.building_area) ? '1' : '0'}>
+                  className={`${inputCls} ${keyInputCls} bg-paper`} />
+              </div>
+            </Cell>
+            <Cell>
+              <div data-a9-blank={a9Blank(form.permit_date) ? '1' : '0'} className="space-y-1.5">
+                <label className={a9Label(a9Blank(form.permit_date))}>건축허가일<span className="text-red-500 ml-0.5">*</span></label>
+                <DateInput id="bf-permit-date" value={form.permit_date} onChange={e => setField('permit_date', e.target.value)} disabled={!canManage}
+                  className={`${inputCls} ${keyInputCls}`} />
+              </div>
+            </Cell>
+            <Cell span={2} label="건축물대장">
+              <p className="text-form-xs text-ink-sub leading-relaxed">
+                주소 검색 시 건축물대장에서 <b className="text-ink">빈 칸만</b> 자동 채움 — 대장에 없으면 직접 입력.
+                사용승인일은 <b className="text-ink">기본정보 탭</b>에서 고칩니다(점검 기산점).
+              </p>
+              {ledgerNote && <p className="text-form-xs text-brand">{ledgerNote}</p>}
+            </Cell>
+          </SubRow>
+
+          {/* 별지 9호 2쪽 "건축물 정보" 항목 (소방계획서_9 B안) — 대장이 값을 주지 않는 건물도 서식을 채울 수 있게 수기 입력 */}
+          <SubRow label="규모 (별지 9호)">
+            {/* 건축면적 — 표시만 필수(빨간 *), 저장은 막지 않는다(2026-09-08 사용자 확정): 대장 표제부에
+                archArea가 없는 건물이 실재해(실호출 11/14) 차단하면 그 건물은 영영 저장이 안 된다 */}
+            <Cell>
+              <div data-a9-blank={a9Blank(form.building_area) ? '1' : '0'} className="space-y-1.5">
                 <label className={a9Label(a9Blank(form.building_area))}>건축면적(㎡)<span className="text-red-500 ml-0.5">*</span></label>
-                <input id="bf-building-area" type="number" value={form.building_area} onChange={e => setField('building_area', e.target.value)} disabled={!canManage} className={inputCls} /></div>
-              <div className="w-20" data-a9-blank={a9Blank(form.height) ? '1' : '0'}>
+                <input id="bf-building-area" type="number" value={form.building_area} onChange={e => setField('building_area', e.target.value)} disabled={!canManage} className={inputCls} />
+              </div>
+            </Cell>
+            <Cell>
+              <div data-a9-blank={a9Blank(form.height) ? '1' : '0'} className="space-y-1.5">
                 <label className={a9Label(a9Blank(form.height))}>높이(m)</label>
-                <input id="bf-height" type="number" value={form.height} onChange={e => setField('height', e.target.value)} disabled={!canManage} className={inputCls} /></div>
-              <div className="w-24"><label className={labelCls}>세대수</label>
-                <input id="bf-households" type="number" value={form.households} onChange={e => setField('households', e.target.value)} disabled={!canManage} className={inputCls} /></div>
-              <div className="w-20"><label className={labelCls}>동수</label>
-                <input id="bf-building-count" type="number" value={form.building_count} onChange={e => setField('building_count', e.target.value)} disabled={!canManage} className={inputCls} /></div>
-            </div>
-            {/* ② 구조 — 자유 입력 허용(목록 밖 값은 서식에서 '기타' 체크로 인쇄) */}
-            <div className="flex flex-wrap gap-2 items-end">
-              <div className="w-40"><label className={labelCls}>건축물구조</label>
-                <ComboInput id="bf-structure" value={form.main_structure} onChange={v => setField('main_structure', v)} disabled={!canManage}
-                  options={STRUCTURE_OPTIONS} ariaLabel="건축물구조" placeholder="선택/직접 입력" className={inputCls} /></div>
-              <div className="w-36"><label className={labelCls}>지붕구조</label>
-                <ComboInput id="bf-roof" value={form.roof_structure} onChange={v => setField('roof_structure', v)} disabled={!canManage}
-                  options={ROOF_OPTIONS} ariaLabel="지붕구조" placeholder="선택/직접 입력" className={inputCls} /></div>
-              <div className="w-24"><label className={labelCls}>경사로(개소)</label>
-                <input id="bf-ramp" type="number" value={form.ramp_count} onChange={e => setField('ramp_count', e.target.value)} disabled={!canManage} className={inputCls} /></div>
-            </div>
-            {/* ③ 시설현황 — 서식 1.1 12~16행(승강기·주차장·계단)을 **그 배치 그대로** 한 덩어리로.
-                종전엔 계단·승강기가 숫자칸 넷, 주차장이 텍스트+숫자4+칩8로 흩어져 있었다.
-                규칙은 여기 없다 — 판정은 `lib/facility-status`, 주차장 해석은 `doc-templates/report9`. */}
-            <FacilityStatusGrid
-              idPrefix="bf"
-              disabled={!canManage}
-              value={{
-                elevators: {
-                  passenger: form.elevator_count,
-                  emergency: form.emergency_elevator_count,
-                  evac: form.evac_elevator_count,
-                },
-                stairs: {
-                  special: form.stair_special_count, direct: form.stair_direct_count,
-                  escape: form.stair_escape_count, outdoor: form.stair_outdoor_count,
-                },
-                parkingSummary: form.parking_summary,
-              }}
-              onElevator={(k, v) => setField(ELEVATOR_FORM_FIELD[k], v)}
-              onStair={(k, v) => setField(STAIR_FORM_FIELD[k], v)}
-              onParking={v => setField('parking_summary', v)}
-            />
-          </div>
+                <input id="bf-height" type="number" value={form.height} onChange={e => setField('height', e.target.value)} disabled={!canManage} className={inputCls} />
+              </div>
+            </Cell>
+            <Cell label="세대수" htmlFor="bf-households">
+              <input id="bf-households" type="number" value={form.households} onChange={e => setField('households', e.target.value)} disabled={!canManage} className={inputCls} />
+            </Cell>
+            <Cell label="동수" htmlFor="bf-building-count">
+              <input id="bf-building-count" type="number" value={form.building_count} onChange={e => setField('building_count', e.target.value)} disabled={!canManage} className={inputCls} />
+            </Cell>
+          </SubRow>
 
-          {ledgerNote && <p className="text-form-xs text-brand">{ledgerNote}</p>}
-          {error && <p className="text-form-xs text-red-500">{error}</p>}
-          {saved && !error && (
-            <p className="text-form-xs text-green-700" data-testid="building-saved-note">저장되었습니다.</p>
-          )}
+          {/* 구조 — 자유 입력 허용(목록 밖 값은 서식에서 '기타' 체크로 인쇄) */}
+          <SubRow label="구조">
+            <Cell label="건축물구조" htmlFor="bf-structure">
+              <ComboInput id="bf-structure" value={form.main_structure} onChange={v => setField('main_structure', v)} disabled={!canManage}
+                options={STRUCTURE_OPTIONS} ariaLabel="건축물구조" placeholder="선택/직접 입력" className={inputCls} />
+            </Cell>
+            <Cell label="지붕구조" htmlFor="bf-roof">
+              <ComboInput id="bf-roof" value={form.roof_structure} onChange={v => setField('roof_structure', v)} disabled={!canManage}
+                options={ROOF_OPTIONS} ariaLabel="지붕구조" placeholder="선택/직접 입력" className={inputCls} />
+            </Cell>
+            <Cell label="경사로(개소)" htmlFor="bf-ramp">
+              <input id="bf-ramp" type="number" value={form.ramp_count} onChange={e => setField('ramp_count', e.target.value)} disabled={!canManage} className={inputCls} />
+            </Cell>
+          </SubRow>
 
+          {/* 시설현황 — 서식 1.1 12~16행(승강기·주차장·계단)을 **그 배치 그대로** 한 덩어리로(4열 전폭).
+              규칙은 여기 없다 — 판정은 `lib/facility-status`, 주차장 해석은 `doc-templates/report9`. */}
+          <SubRow label="시설 현황">
+            <Cell span={4}>
+              <FacilityStatusGrid
+                idPrefix="bf"
+                disabled={!canManage}
+                value={{
+                  elevators: {
+                    passenger: form.elevator_count,
+                    emergency: form.emergency_elevator_count,
+                    evac: form.evac_elevator_count,
+                  },
+                  stairs: {
+                    special: form.stair_special_count, direct: form.stair_direct_count,
+                    escape: form.stair_escape_count, outdoor: form.stair_outdoor_count,
+                  },
+                  parkingSummary: form.parking_summary,
+                }}
+                onElevator={(k, v) => setField(ELEVATOR_FORM_FIELD[k], v)}
+                onStair={(k, v) => setField(STAIR_FORM_FIELD[k], v)}
+                onParking={v => setField('parking_summary', v)}
+              />
+            </Cell>
+          </SubRow>
+
+          <SubRow label="메모">
+            <Cell span={4} label="비고">
+              <input value={form.notes} onChange={e => setField('notes', e.target.value)} disabled={!canManage} className={inputCls} />
+            </Cell>
+          </SubRow>
+
+          {/* 저장 줄 — 기본정보 탭과 같은 모양·같은 자리(상자 아래, 스크롤해도 붙어 있다) */}
           {canManage && (
-            <div className="flex items-center gap-2">
-              <button onClick={save} disabled={isPending}
-                className="h-form-8 px-5 rounded-lg bg-brand hover:bg-brand-strong text-white text-form-sm font-medium disabled:opacity-50 inline-flex items-center gap-1.5">
-                {isPending && <Loader2 className="size-3 animate-spin" />} 저장
-              </button>
-              <button onClick={close} className="h-form-8 px-4 rounded-lg border border-line text-form-sm text-ink-sub hover:bg-paper">취소</button>
+            <div data-testid="building-save-bar"
+              className="sticky bottom-0 z-10 flex items-center gap-3 px-5 py-3 bg-paper/95 backdrop-blur border-t border-line">
               {editing !== 'new' && form.is_active && (() => {
                 const cur = buildings.find(b => b.id === editing)
                 return cur ? (
                   <button onClick={() => deactivate(cur)} disabled={isPending}
-                    className="h-form-8 px-3 rounded-lg border border-red-200 text-form-sm text-red-500 hover:bg-red-50 ml-auto">비활성화</button>
+                    className="h-form-9 px-3 rounded-lg border border-red-200 text-form-sm text-red-500 hover:bg-red-50 shrink-0">비활성화</button>
                 ) : null
               })()}
+              <span className="text-form-xs truncate min-w-0 flex-1">
+                {error ? <span className="text-red-500">{error}</span>
+                  : saved ? <span className="text-green-700" data-testid="building-saved-note">저장되었습니다.</span>
+                  : null}
+              </span>
+              <button onClick={close} className="h-form-9 px-4 rounded-lg border border-line text-form-sm text-ink-sub hover:bg-paper shrink-0">취소</button>
+              <button onClick={save} disabled={isPending}
+                className="h-form-9 px-6 rounded-lg bg-brand hover:bg-brand-strong text-white text-form-sm font-semibold disabled:opacity-50 inline-flex items-center gap-1.5 shrink-0">
+                {isPending && <Loader2 className="size-3 animate-spin" />} 저장
+              </button>
             </div>
           )}
-        </div>
+          {!canManage && error && <p className="px-5 py-3 text-form-xs text-red-500">{error}</p>}
+        </>
       )}
+      </GroupBox>
 
       {/* 주소 중복 안내 — 다른 고객의 고객·건물과 주소가 겹칠 때만 */}
       {dupInfo && (

@@ -10,6 +10,7 @@ import { formatTel } from '@/lib/format-contact'
 import { useRepRole } from './rep-role-sync'
 import { saveFireSafetyManagerAction, type FireSafetyManagerInput } from '@/app/(dashboard)/customers/fire-safety-manager-actions'
 import type { CustomerContact } from '@/types'
+import { SubRow, Cell, keyInputCls, emptyRequiredCls } from './key-fields'
 
 /** 관계인 탭 [소방안전관리] 구역 — 별지 9호 2쪽 '소방안전정보' 한 블록을 **한 화면에서** 채운다.
  *
@@ -76,117 +77,141 @@ export function FireSafetyManagerPanel({ customerId, contacts, canManage, initia
   }
 
   return (
-    <div id="c-fire-safety-manager" className="scroll-mt-4 rounded-xl border border-brand-line-soft bg-brand-tint p-3.5 space-y-3">
-      <div className="flex items-center gap-1.5">
-        <ShieldCheck className="size-3.5 text-brand" />
-        <p className="text-form-sm font-semibold text-ink">소방안전관리</p>
-        <span className="text-form-2xs text-ink-sub">별지 9호 2쪽 «소방안전정보»에 그대로 실립니다</span>
-        {dirty && <span className="ml-auto text-form-2xs text-amber-600 font-medium">미저장</span>}
-      </div>
-
-      {/* ① 소방안전관리자 지목 — 성명·전화가 관계인에서 따라온다 */}
-      <div className="space-y-1">
-        <label className={labelCls}>소방안전관리자</label>
-        <div className="flex items-center gap-2 flex-wrap">
-          <select value={d.managerContactId} disabled={!canManage}
-            onChange={e => set('managerContactId', e.target.value)}
-            className={`${inputCls} min-w-44`}>
-            <option value="">지정 안 함 (계획서 1.7 선임현황 → 첫 관계인 순으로 폴백)</option>
-            {contacts.map(c => (
-              <option key={c.id} value={c.id}>{c.name}{c.position ? ` (${c.position})` : ''}</option>
-            ))}
-          </select>
-          {picked ? (
-            <span className="inline-flex items-center gap-1 text-form-xs text-ink-sub">
-              <Phone className="size-3 text-ink-faint" />
-              {picked.phone
-                ? formatTel(picked.phone)
-                : <span className="text-amber-600">전화 없음 — 위 관계인 카드에서 번호를 채우면 문서에 실립니다</span>}
-            </span>
-          ) : (
-            <span className="text-form-xs text-ink-meta">지정하면 성명·전화가 그 관계인에서 자동으로 옵니다</span>
-          )}
-        </div>
-      </div>
-
-      <div className="flex flex-wrap gap-3 items-end">
-        {/* ② 대상물 급수는 여기 없다 — 사람이 아니라 **건물** 속성이라 계획서 1.1이 정본이다
-            (2026-09-14 사용자 확정). 두 화면이 같은 컬럼을 쓰면 늦게 저장하는 쪽의 낡은 상태가
-            상대 값을 덮어쓴다 — 선임일이 그렇게 지워졌다. 어디로 가면 되는지만 알려 준다. */}
-        <div>
-          <label className={labelCls}>소방안전관리등급 <span className="text-ink-meta">(대상물 급수 · 별표4)</span></label><br />
-          <Link href={`/customers/${customerId}?tab=facilities&form=1.1`}
-            className="inline-flex items-center gap-1 h-form-8 px-2.5 mt-0.5 rounded-lg border border-brand-line text-form-sm text-brand hover:bg-brand-tint">
-            건물 속성이라 공통 탭 1.1에서 <ExternalLink className="size-2.5" />
-          </Link>
-        </div>
-
-        {/* ③ 사람의 자격구분 — 위 등급과 다른 축임을 표시 */}
-        <div>
-          <label className={labelCls}>관리자 자격구분 <span className="text-ink-meta">(사람 · 등급과 별개)</span></label>
-          <div className="flex rounded-lg border border-brand-line overflow-hidden mt-0.5">
-            {GRADES.map(g => (
-              <button key={g} disabled={!canManage} onClick={() => toggle('managerLicenseGrade', g)}
-                className={segBtn(d.managerLicenseGrade === g)}>{g}</button>
-            ))}
+    /* 관계인 탭 ③ 그룹 상자 안의 소그룹 줄들(2026-09-23 「기본정보처럼」). 페이지가 GroupBox로 감싼다.
+       ⚠ 칸 안은 **<div><label/>입력</div>** 모양을 지킨다 — E2E가 `div:has(> label:has-text("대표자 구분")) button`
+         처럼 라벨과 입력이 **같은 div의 직계**라는 구조로 칸을 잡는다(test-plan-tab·test-selected-at-preserve).
+       ⚠ 선임일이 이 패널의 **첫 날짜 칸**이어야 한다(test-selected-at-preserve가 `.first()`로 잡는다). */
+    <div id="c-fire-safety-manager" className="scroll-mt-4 divide-y divide-brand-line-soft">
+      {/* ★ 소방안전관리자 — 별지 9호 2쪽 «소방안전정보»의 핵심(누가·언제 선임·교육). 기준일 줄과 같은 강조 */}
+      <SubRow label="소방안전관리" accent testId="fsm-keyrow">
+        <Cell span={2}>
+          {/* ① 소방안전관리자 지목 — 성명·전화가 관계인에서 따라온다 */}
+          <div className="space-y-1.5">
+            <label className={labelCls}>소방안전관리자</label>
+            <select value={d.managerContactId} disabled={!canManage}
+              onChange={e => set('managerContactId', e.target.value)}
+              className={`${inputCls} w-full !h-12 !text-form-base font-semibold`}>
+              <option value="">지정 안 함 (계획서 1.7 선임현황 → 첫 관계인 순으로 폴백)</option>
+              {contacts.map(c => (
+                <option key={c.id} value={c.id}>{c.name}{c.position ? ` (${c.position})` : ''}</option>
+              ))}
+            </select>
+            {picked ? (
+              <span className="inline-flex items-center gap-1 text-form-xs text-ink-sub">
+                <Phone className="size-3 text-ink-faint" />
+                {picked.phone
+                  ? formatTel(picked.phone)
+                  : <span className="text-amber-600">전화 없음 — 위 관계인 카드에서 번호를 채우면 문서에 실립니다</span>}
+              </span>
+            ) : (
+              <span className="text-form-xs text-ink-meta">지정하면 성명·전화가 그 관계인에서 자동으로 옵니다</span>
+            )}
           </div>
-        </div>
+        </Cell>
+        <Cell>
+          <div className="space-y-1.5">
+            <label className={labelCls}>선임일</label>
+            <DateInput value={d.managerSelectedAt} disabled={!canManage}
+              onChange={e => set('managerSelectedAt', e.target.value)} className={`${inputCls} w-full ${keyInputCls}`} />
+          </div>
+        </Cell>
+        <Cell>
+          <div className="space-y-1.5">
+            <label className={labelCls}>최근 교육이수일</label>
+            <DateInput value={d.managerEduDate} disabled={!canManage}
+              onChange={e => set('managerEduDate', e.target.value)}
+              className={`${inputCls} w-full ${keyInputCls} ${!d.managerEduDate ? emptyRequiredCls : ''}`} />
+          </div>
+        </Cell>
+      </SubRow>
 
-        <div>
-          <label className={labelCls}>선임일</label><br />
-          <DateInput value={d.managerSelectedAt} disabled={!canManage}
-            onChange={e => set('managerSelectedAt', e.target.value)} className={`${inputCls} w-32 mt-0.5`} />
-        </div>
-        <div>
-          <label className={labelCls}>최근 교육이수일</label><br />
-          <DateInput value={d.managerEduDate} disabled={!canManage}
-            onChange={e => set('managerEduDate', e.target.value)} className={`${inputCls} w-32 mt-0.5`} />
-        </div>
-        <div>
+      <SubRow label="자격·구분">
+        <Cell>
+          {/* ③ 사람의 자격구분 — 아래 대상물 급수(건물)와 다른 축임을 표시 */}
+          <div className="space-y-1.5">
+            <label className={labelCls}>관리자 자격구분 <span className="text-ink-meta">(사람 · 등급과 별개)</span></label>
+            <div className="flex w-fit rounded-lg border border-brand-line overflow-hidden">
+              {GRADES.map(g => (
+                <button key={g} disabled={!canManage} onClick={() => toggle('managerLicenseGrade', g)}
+                  className={segBtn(d.managerLicenseGrade === g)}>{g}</button>
+              ))}
+            </div>
+          </div>
+        </Cell>
+        <Cell>
           {/* 라벨을 바꾸지 말 것 — '대표자'는 별지 9호 2쪽의 서식 원문 항목명이다
               (_form/별지9호-placeholder.hwpx: "대표자 │ [ ]소유자, [ ]관리자, [ ]점유자 / 성명:, 전화번호:").
               값은 report9.ts:278·xlsx-workbook.ts:226으로 서식에 그대로 인쇄되므로,
               다른 말로 고치면 사용자가 서식의 어느 칸을 채우는 중인지 알 수 없게 된다.
               관계인 카드·선택 목록의 role 표기 '대표'를 걷어낼 때(bb03d14·9614dc2)도 여기만 남겼다. */}
-          <label className={labelCls}>대표자 구분</label>
-          <div className="flex rounded-lg border border-brand-line overflow-hidden mt-0.5">
-            {REP_ROLES.map(r => (
-              <button key={r} disabled={!canManage || repPending} onClick={() => pickRepRole(r)}
-                title="관계인 카드의 [구분]과 같은 값 — 누르면 바로 저장됩니다"
-                className={segBtn(repRole === r)}>{r}</button>
-            ))}
+          <div className="space-y-1.5">
+            <label className={labelCls}>대표자 구분</label>
+            <div className="flex w-fit rounded-lg border border-brand-line overflow-hidden">
+              {REP_ROLES.map(r => (
+                <button key={r} disabled={!canManage || repPending} onClick={() => pickRepRole(r)}
+                  title="관계인 카드의 [구분]과 같은 값 — 누르면 바로 저장됩니다"
+                  className={segBtn(repRole === r)}>{r}</button>
+              ))}
+            </div>
+            {repError && <p className="text-form-2xs text-red-500">{repError}</p>}
           </div>
-          {repError && <p className="text-form-2xs text-red-500 mt-0.5">{repError}</p>}
-        </div>
-      </div>
+        </Cell>
+        <Cell span={2}>
+          <div className="space-y-1.5">
+            <label className={labelCls}>선임 형태</label>
+            <div className="flex flex-wrap rounded-lg border border-brand-line overflow-hidden w-fit">
+              {APPOINT_TYPES.map(t => (
+                <button key={t} disabled={!canManage} onClick={() => toggle('managerAppointType', t)}
+                  className={segBtn(d.managerAppointType === t)}>{t}</button>
+              ))}
+            </div>
+          </div>
+        </Cell>
+      </SubRow>
 
-      <div>
-        <label className={labelCls}>선임 형태</label>
-        <div className="flex flex-wrap rounded-lg border border-brand-line overflow-hidden mt-0.5 w-fit">
-          {APPOINT_TYPES.map(t => (
-            <button key={t} disabled={!canManage} onClick={() => toggle('managerAppointType', t)}
-              className={segBtn(d.managerAppointType === t)}>{t}</button>
-          ))}
-        </div>
-      </div>
+      <SubRow label="다른 곳에서 입력">
+        <Cell span={2}>
+          {/* ② 대상물 급수는 여기 없다 — 사람이 아니라 **건물** 속성이라 계획서 1.1이 정본이다
+              (2026-09-14 사용자 확정). 두 화면이 같은 컬럼을 쓰면 늦게 저장하는 쪽의 낡은 상태가
+              상대 값을 덮어쓴다 — 선임일이 그렇게 지워졌다. 어디로 가면 되는지만 알려 준다. */}
+          <div className="space-y-1.5">
+            <label className={labelCls}>소방안전관리등급 <span className="text-ink-meta">(대상물 급수 · 별표4)</span></label>
+            <Link href={`/customers/${customerId}?tab=facilities&form=1.1`}
+              className="flex w-fit items-center gap-1 h-form-8 px-2.5 rounded-lg border border-brand-line text-form-sm text-brand hover:bg-brand-tint">
+              건물 속성이라 공통 탭 1.1에서 <ExternalLink className="size-2.5" />
+            </Link>
+          </div>
+        </Cell>
+        <Cell span={2}>
+          {/* 보조자는 여기 없다 — 어디로 가야 하는지 말해준다 (1.7은 보조자 전용).
+              D-4(소방계획서_30): 같은 경로 ?tab= Link는 서버를 재렌더하지 않는다 — <a> 전체 이동, 미저장은 beforeunload */}
+          <div className="space-y-1.5">
+            <label className={labelCls}>보조자</label>
+            <a href={`/customers/${customerId}?tab=plan&form=1.7`} data-testid="fsm-assistant-link"
+              className="flex w-fit items-center gap-1 h-form-8 px-2.5 rounded-lg border border-brand-line text-form-sm text-brand hover:bg-brand-tint">
+              보조자 선임현황 <ExternalLink className="size-2.5" />
+            </a>
+          </div>
+        </Cell>
+      </SubRow>
 
-      <div className="flex items-center gap-2 flex-wrap">
-        {/* fsm-save — 이 버튼이 '저장' 텍스트 셀렉터의 첫 매치였다. 비활성(!dirty)·비가시(다른 탭)라
-            소방계획서 화면의 클릭을 15초씩 잡아먹었다. 표적을 붙여 텍스트로 안 잡히게 한다. */}
-        {canManage && (
+      {/* 저장 줄 — 기본정보·건물 탭과 같은 모양·같은 자리(상자 아래, 스크롤해도 붙어 있다) */}
+      {canManage && (
+        <div className="sticky bottom-0 z-10 flex items-center gap-3 px-5 py-3 bg-paper/95 backdrop-blur border-t border-line">
+          <ShieldCheck className="size-4 text-brand shrink-0" />
+          <span className="text-form-xs truncate min-w-0 flex-1">
+            {msg ? <span className={msg.startsWith('❌') ? 'text-red-600' : msg.startsWith('✅') ? 'text-green-600' : 'text-ink-sub'}>{msg}</span>
+              : dirty ? <span className="font-semibold text-amber-700">저장하지 않은 변경이 있습니다</span>
+              : <span className="text-ink-meta">별지 9호 2쪽 «소방안전정보»에 그대로 실립니다</span>}
+          </span>
+          {/* fsm-save — 이 버튼이 '저장' 텍스트 셀렉터의 첫 매치였다. 비활성(!dirty)·비가시(다른 탭)라
+              소방계획서 화면의 클릭을 15초씩 잡아먹었다. 표적을 붙여 텍스트로 안 잡히게 한다. */}
           <button onClick={save} disabled={isPending || !dirty} data-testid="fsm-save"
-            className="inline-flex items-center gap-1 h-form-7 px-2.5 rounded-lg bg-brand hover:bg-brand-strong text-white text-form-xs font-medium disabled:opacity-50">
-            {isPending ? <Loader2 className="size-3 animate-spin" /> : <Save className="size-3" />} 저장
+            className="inline-flex items-center gap-1.5 h-form-9 px-6 rounded-lg bg-brand hover:bg-brand-strong text-white text-form-sm font-semibold disabled:opacity-40 shrink-0">
+            {isPending ? <Loader2 className="size-3.5 animate-spin" /> : <Save className="size-3.5" />} 저장
           </button>
-        )}
-        {/* 보조자는 여기 없다 — 어디로 가야 하는지 말해준다 (1.7은 보조자 전용).
-            D-4(소방계획서_30): 같은 경로 ?tab= Link는 서버를 재렌더하지 않는다 — <a> 전체 이동, 미저장은 beforeunload */}
-        <a href={`/customers/${customerId}?tab=plan&form=1.7`} data-testid="fsm-assistant-link"
-          className="text-form-xs text-brand hover:underline inline-flex items-center gap-0.5">
-          보조자 선임현황 <ExternalLink className="size-2.5" />
-        </a>
-        {msg && <span className={`text-form-xs ${msg.startsWith('❌') ? 'text-red-600' : msg.startsWith('✅') ? 'text-green-600' : 'text-ink-sub'}`}>{msg}</span>}
-      </div>
+        </div>
+      )}
     </div>
   )
 }
