@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { Loader2, Save, Plus, Trash2, Wand2 } from 'lucide-react'
+import { Plus, Trash2, Wand2 } from 'lucide-react'
 import { saveFirePlanSectionsAction } from '@/app/(dashboard)/customers/fire-plan-form-actions'
 import { stampPlanTextAppliedAction } from '@/app/(dashboard)/customers/plan-text-library-actions'
 import { NumStepper, useUnsavedWarning } from '@/components/ui/fields'
@@ -10,6 +10,8 @@ import { LibraryTextButton, type AppliedMeta } from '@/components/customers/libr
 import { ImageSlot } from '@/components/customers/plan-form13'
 import { PLAN_TEXT_SECTIONS } from '@/lib/plan-text-sections'
 import { trainingDoneIn, trainingRecordYear } from '@/lib/training-records'
+import { SaveBar } from '@/components/customers/key-fields'
+import { normalizeTraining } from '@/lib/evac-plan-normalize'
 
 /** 서식 1.11 소방훈련 및 교육 — 섹션 카드 4개 (소방계획서_4.md §3, sections.training)
  *  1.11.1 연간계획(교육/훈련 × 12개월 그리드 + [표준 패턴] §11-3) · 1.11.2 세부계획 · 1.11.3 시나리오(유형 프리셋) · 1.11.4 결과 기록부(별지 28호, 2년 보관) */
@@ -70,7 +72,9 @@ export function PlanForm111({ customerId, canManage, initial, presetType }: {
   presetType: string // 용도 기반 추천 (주택형/상가형/공장형)
 }) {
   const router = useRouter()
-  const [t, setT] = useState<TrainingSection>(initial ?? EMPTY_TRAINING)
+  // 🚨 `initial ?? EMPTY_TRAINING`은 자료가 있기만 하면 빠진 키를 안 채웠다 — headcount 없는 부분 저장값
+  //   (스테이징 3건)에서 `t.headcount[k]`가 죽었다(2026-09-23, 3장과 같은 부류). 빠진 키만 채운다(lib/evac-plan-normalize).
+  const [t, setT] = useState<TrainingSection>(() => normalizeTraining(initial))
   const [dirty, setDirty] = useState(false)
   useUnsavedWarning(dirty, save) // §11-4 이탈 경고 + 이동 확인창 [저장하고 이동]
   const [msg, setMsg] = useState('')
@@ -348,14 +352,10 @@ export function PlanForm111({ customerId, canManage, initial, presetType }: {
         </div>
       </div>
 
+      {/* 저장 줄 — 고객 화면 공용 SaveBar 한 벌(2026-09-23 「저장 버튼 형태 동일하게」). 글씨에 「저장」 유지(plan-tab-view가 그 글씨로 미저장 표시를 지운다) */}
       {canManage && (
-        <div className="flex items-center gap-2">
-          <button onClick={() => { void save() }} disabled={!dirty || isPending}
-            className="inline-flex items-center gap-1 h-form-8 px-3 rounded-lg bg-brand text-white text-form-sm font-medium disabled:opacity-50">
-            {isPending ? <Loader2 className="size-3.5 animate-spin" /> : <Save className="size-3.5" />} 서식 1.11 저장
-          </button>
-          {msg && <span className="text-form-sm text-ink-sub">{msg}</span>}
-        </div>
+        <SaveBar dirty={dirty} pending={isPending} onSave={() => { void save() }} saveLabel="서식 1.11 저장"
+          status={msg ? <span className={msg.startsWith('❌') ? 'text-red-600' : msg.startsWith('✅') ? 'text-green-700' : 'text-ink-sub'}>{msg}</span> : undefined} />
       )}
     </div>
   )

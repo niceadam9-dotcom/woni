@@ -9,6 +9,7 @@
  *  ⚠ 값이 있는 키는 건드리지 않는다 — 빠진 키만 기본값으로. 배열 자리에 배열이 아닌 게 오면 빈 배열.
  */
 import type { EvacPlanSection, VulnerableSection } from '@/components/customers/plan-ch3'
+import type { TrainingSection } from '@/components/customers/plan-form111'
 
 const str = (v: unknown) => (typeof v === 'string' ? v : '')
 
@@ -30,5 +31,28 @@ export function normalizeVulnerable(v: Partial<VulnerableSection> | null | undef
     none: src.none === true,
     counts: src.counts && typeof src.counts === 'object' && !Array.isArray(src.counts) ? src.counts : {},
     plans: Array.isArray(src.plans) ? src.plans : [],
+  }
+}
+
+/* ── 1.11 훈련·교육 (2026-09-23) — 같은 부류 ─────────────────────────────────────────────
+ *  🚨 `plan-form111.tsx:187 t.headcount[k]`에서 TypeError(dev 로그). 스테이징 training 3건이
+ *    `{details, scenario, scenarioType}` 세 키만 가진 부분 저장값이다 — 3장과 **같은 경로**
+ *    (공통 문구 자동 주입 `plan-text-sections`의 injectEmpty가 서술 칸만 채워 저장)의 흔적.
+ *    headcount·eduMonths·drillMonths·records가 없다. 읽는 쪽에서 빠진 키만 채운다. */
+
+export function normalizeTraining(t: Partial<TrainingSection> | null | undefined): TrainingSection {
+  const src = (t ?? {}) as Partial<TrainingSection>
+  const hc = (src.headcount && typeof src.headcount === 'object' ? src.headcount : {}) as Partial<TrainingSection['headcount']>
+  const nums = (v: unknown) => (Array.isArray(v) ? v.filter(x => typeof x === 'number') : [])
+  return {
+    ...src,
+    headcount: { worker: str(hc.worker), resident: str(hc.resident), brigade: str(hc.brigade) },
+    eduMonths: nums(src.eduMonths),
+    drillMonths: nums(src.drillMonths),
+    details: Array.isArray(src.details) ? src.details : [],
+    scenario: str(src.scenario),
+    scenarioType: str(src.scenarioType),
+    records: Array.isArray(src.records) ? src.records : [],
+    photos: Array.isArray(src.photos) ? src.photos : [],
   }
 }

@@ -6,7 +6,7 @@
  *  여기서는 **그 실제 모양**을 값으로 넣어 돌린다 — 모양만 보는 소스 단언은 값이 빈 채로도 초록이다.
  */
 import { readFileSync } from 'node:fs'
-import { normalizeEvacPlan, normalizeVulnerable } from '../src/lib/evac-plan-normalize.ts'
+import { normalizeEvacPlan, normalizeVulnerable, normalizeTraining } from '../src/lib/evac-plan-normalize.ts'
 import { codeOnly } from './_code-only.mts'
 
 let pass = 0, fail = 0
@@ -43,7 +43,23 @@ console.log('\n— 피난약자(같은 부류의 위험)')
   ok('counts가 배열이면 객체로', !Array.isArray(normalizeVulnerable({ counts: [] as never }).counts))
 }
 
+console.log('\n— 1.11 훈련·교육 (같은 부류 — 스테이징 3건 `{details, scenario, scenarioType}`만)')
+{
+  const partial = { details: [{ name: '소방훈련' }], scenario: '시나리오', scenarioType: '주택형' } as never
+  const t = normalizeTraining(partial)
+  ok('★ headcount가 채워진다 — t.headcount[k]가 죽지 않는다',
+    t.headcount.worker === '' && t.headcount.resident === '' && t.headcount.brigade === '', JSON.stringify(t.headcount))
+  ok('월 선택·기록이 빈 배열', t.eduMonths.length === 0 && t.drillMonths.length === 0 && t.records.length === 0)
+  ok('★ 있던 값(details·scenario·scenarioType)은 그대로', t.details.length === 1 && t.scenario === '시나리오' && t.scenarioType === '주택형')
+  const full = normalizeTraining({ headcount: { worker: '3', resident: '', brigade: '5' }, eduMonths: [3], drillMonths: [9],
+    details: [], scenario: '', scenarioType: '', records: [], photos: [] })
+  ok('온전한 값은 그대로', full.headcount.worker === '3' && full.eduMonths[0] === 3 && full.drillMonths[0] === 9)
+}
+
 console.log('\n— 배선: 화면이 정규화를 **거쳐서** 읽는다')
+ok('★ 1.11 초기값이 normalizeTraining을 거친다',
+  /useState<TrainingSection>\(\(\) => normalizeTraining\(initial\)\)/.test(
+    codeOnly(readFileSync(new URL('../src/components/customers/plan-form111.tsx', import.meta.url), 'utf8'))))
 {
   const src = codeOnly(readFileSync(new URL('../src/components/customers/plan-ch3.tsx', import.meta.url), 'utf8'))
   ok('★ plan 초기값이 normalizeEvacPlan을 거친다', /useState<EvacPlanSection>\(\(\) => normalizeEvacPlan\(initialPlan\)\)/.test(src))
