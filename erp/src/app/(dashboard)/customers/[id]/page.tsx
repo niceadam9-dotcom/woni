@@ -1,6 +1,6 @@
 ﻿import { redirect, notFound } from 'next/navigation'
 import Link from 'next/link'
-import { ChevronLeft, FileText, UserCheck, ClipboardList, History } from 'lucide-react'
+import { ChevronLeft, FileText, ClipboardList, History } from 'lucide-react'
 import { getProfile, can } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { listFireStationCandidates } from '@/lib/fire-station'
@@ -557,36 +557,30 @@ export default async function CustomerDetailPage({
 
   // §11: 기본정보 탭 = 단일 카드 (담당 인라인 배정 + 항상 편집 가능한 촘촘 그리드 기본정보, 2026-08-05 모드 통합)
   const infoTab = (
-    <div className={`bg-surface rounded-xl border shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-5 space-y-4 ${!customer.assigned_employee_id ? 'border-red-200' : 'border-line'}`}>
-      {/* §11-3: 담당 — 인라인 배정 (모달 폐지) + 지역 추천 병행 */}
-      <div className="flex items-center gap-3 flex-wrap">
-        <div className={`size-9 rounded-lg flex items-center justify-center shrink-0 ${customer.assigned_employee_id ? 'bg-brand-tint' : 'bg-red-50'}`}>
-          <UserCheck className={`size-4 ${customer.assigned_employee_id ? 'text-brand' : 'text-red-400'}`} />
-        </div>
-        <div>
-          <p className="text-form-sm text-ink-sub font-medium mb-0.5">담당직원</p>
-          <AssignEmployeeInline
-            customerId={customer.id}
-            currentEmployeeId={customer.assigned_employee_id}
-            assignedSource={(customer as { assigned_source?: string | null }).assigned_source ?? null}
-            employees={employees}
-            canAssign={canAssign}
-          />
-        </div>
-        {canAssign && regionRecommend && (
-          <RecommendAssignClient customerId={customer.id}
-            employeeId={regionRecommend.employeeId}
-            employeeName={regionRecommend.name}
-            regionLabel={regionRecommend.regionLabel} />
-        )}
-      </div>
-
-      <div className="border-t border-brand-line-soft" />
-
-      {/* §11-1·2·4: 기본정보 — 항상 편집 가능한 촘촘 그리드 (연간 횟수는 유형 옆 병기, [편집] 버튼 폐기) */}
+      /* ① 기본정보 — 그룹 상자 하나(2026-09-23 그룹 단위 정렬). 상자·테두리(미배정이면 붉게)는
+         EditCustomerInfoClient의 GroupBox가 그린다. 담당은 고객명과 **같은 첫 줄**에 슬롯으로 들어간다.
+         §11-3: 담당 — 인라인 배정 (모달 폐지) + 지역 추천 병행 */
       <EditCustomerInfoClient
         customer={customer}
         canManage={canManage}
+        unassigned={!customer.assigned_employee_id}
+        assigneeSlot={
+          <div className="flex items-center gap-2 flex-wrap">
+            <AssignEmployeeInline
+              customerId={customer.id}
+              currentEmployeeId={customer.assigned_employee_id}
+              assignedSource={(customer as { assigned_source?: string | null }).assigned_source ?? null}
+              employees={employees}
+              canAssign={canAssign}
+            />
+            {canAssign && regionRecommend && (
+              <RecommendAssignClient customerId={customer.id}
+                employeeId={regionRecommend.employeeId}
+                employeeName={regionRecommend.name}
+                regionLabel={regionRecommend.regionLabel} />
+            )}
+          </div>
+        }
         inspectionSubType={docProfile.inspection_sub_type === '종합' ? '종합' : '작동'}
         // 155 미적용 DB엔 이 컬럼이 없다 — undefined면 배지가 레거시로 해석한다(코드와 같은 답)
         planAnchorManual={(customer as unknown as { plan_anchor_manual?: boolean | null }).plan_anchor_manual}
@@ -609,7 +603,6 @@ export default async function CustomerDetailPage({
         }
         lastChangeText={lastChangeText}
       />
-    </div>
   )
 
   // 소방안전관리 미입력 요약 (2026-09-05) — 아래 패널 값이 비면 별지 9호 2쪽·갑지 「정보」 시트가
@@ -1257,6 +1250,8 @@ export default async function CustomerDetailPage({
         ) : undefined}
         panels={{ info: infoTab, buildings: buildingsTab, contacts: contactsTab, plan: planTab, facilities: facilitiesTab, reports: reportsTab, annex: annexTab, billing: billingTab, history: historyTab }}
         fullWidthKeys={['plan', 'facilities', 'reports', 'annex']}
+        // 넓게 쓰되 요약 패널은 남긴다(2026-09-23 사용자: 오른쪽이 비어 있다 — 1920에서 ~620px 빈칸)
+        wideKeys={['info']}
         // 별지 패널은 마운트 즉시 회차 조회를 왕복한다(plan-annex-section의 reload) —
         // 이 셸은 패널을 전부 렌더하므로 지연 마운트가 없으면 기본정보 탭만 열어도 그 왕복이 돈다 (소방계획서_34 S2)
         // 공통·보고서 패널도 같은 부류다 — PlanForm14·EtcItemsPanel·PlanAnnexStatusCard가 마운트 즉시 서버액션을 왕복한다

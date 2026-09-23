@@ -28,7 +28,7 @@ export function useCustomerTabs() {
   return useContext(CustomerTabsContext)
 }
 
-export function CustomerTabs({ initialTab, tabs, panels, summary, banner, fullWidthKeys, lazyKeys }: {
+export function CustomerTabs({ initialTab, tabs, panels, summary, banner, fullWidthKeys, wideKeys, lazyKeys }: {
   initialTab: string
   tabs: CustomerTabDef[]
   panels: Record<string, ReactNode>
@@ -38,6 +38,8 @@ export function CustomerTabs({ initialTab, tabs, panels, summary, banner, fullWi
    *  탭 이동을 못 한다. URL만 바꾸는 우회는 안 된다(활성 탭은 아래 state가 들고 있다). */
   banner?: ReactNode
   fullWidthKeys?: string[]    // 전체 폭으로 펼칠 탭 키(예: ['plan']) — max-w-3xl 해제 + 요약 패널 접힘
+  /** 넓게 쓸 탭 키 — max-w-3xl만 풀고 **요약 패널은 유지**(2026-09-23 사용자: 기본정보·건물·시설·관계인 오른쪽이 비어 있다) */
+  wideKeys?: string[]
   /** 처음 활성화될 때까지 패널을 렌더하지 않는다 (소방계획서_34 S2 — 마운트가 비싼 패널용).
    *  위 §설명대로 이 셸은 패널을 전부 렌더하므로, 마운트 즉시 서버액션을 왕복하는 패널(별지 서식의
    *  getCustomerRoundsAction)을 그냥 얹으면 **기본정보 탭만 열어도** 그 왕복이 매번 돈다.
@@ -149,6 +151,7 @@ export function CustomerTabs({ initialTab, tabs, panels, summary, banner, fullWi
 
   // 전체 폭 탭(예: 소방계획서)에서는 768px 제한을 풀고 우측 요약 패널을 접어 화면 전체를 사용 (2026-08-05)
   const isFull = fullWidthKeys?.includes(active) ?? false
+  const isWide = wideKeys?.includes(active) ?? false
   return (
     <CustomerTabsContext.Provider value={ctx}>
       {nav.dialog}
@@ -184,7 +187,7 @@ export function CustomerTabs({ initialTab, tabs, panels, summary, banner, fullWi
         ))}
       </div>
       <div className="flex gap-6 items-start">
-        <div className={`flex-1 min-w-0 ${isFull ? '' : 'max-w-3xl'}`}>
+        <div className={`flex-1 min-w-0 ${isFull || isWide ? '' : 'max-w-3xl'}`}>
           {tabs.map(t => {
             // 지연 마운트(소방계획서_34 S2) — 아직 한 번도 안 연 lazy 탭은 패널 자체를 만들지 않는다
             const deferred = (lazyKeys?.includes(t.key) ?? false) && !visitedRef.current.has(t.key)

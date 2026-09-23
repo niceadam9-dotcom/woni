@@ -10,6 +10,8 @@ import { AnchorChangePreview, LegalScheduleBadge, anchorPreviewWorthShowing } fr
 import { todayKst } from '@/lib/kst-date'
 import { resolveAnchor, anchorSourceLabel, isProvisionalAnchor } from '@/lib/plan-anchor'
 import { AddressDuplicateDialog } from './address-duplicate-dialog'
+import { GroupBox, SubRow, Cell, RoleBadge, keyInputCls, emptyRequiredCls } from './key-fields'
+import { anchorRoles } from '@/lib/anchor-role'
 import type { Customer } from '@/types'
 
 type Props = {
@@ -24,12 +26,16 @@ type Props = {
   annualLabel?: string
   lastChangeText?: string | null
   canManage?: boolean
+  /** 담당직원 칸 — 즉시 저장 컴포넌트(AssignEmployeeInline 등)를 페이지가 넣는다.
+   *  2026-09-23 고객명과 **같은 첫 줄**로 들였다(종전엔 폼 밖 머리에 따로 떠 있었다). */
+  assigneeSlot?: ReactNode
+  /** 담당 미배정 — 상자 테두리를 붉게 */
+  unassigned?: boolean
 }
 
 // §11(2026-08-05): 요약/편집 모드 통합 — 모든 필드를 항상 편집 가능한 촘촘한 그리드로 표시([편집] 버튼 폐기)
 const inputCls = 'h-form-9 w-full rounded-lg border border-brand-line bg-surface px-2.5 text-form-base text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition'
 const readonlyCls = 'h-form-9 w-full rounded-lg border border-brand-line bg-paper px-2.5 text-form-base text-ink-sub outline-none cursor-default'
-const labelCls = 'text-form-xs font-medium text-ink-sub'
 
 function makeInitial(c: Props['customer']) {
   return {
@@ -47,7 +53,7 @@ function makeInitial(c: Props['customer']) {
   }
 }
 
-export function EditCustomerInfoClient({ customer, typeSlot, annualLabel, lastChangeText, canManage = true, inspectionSubType, planAnchorManual }: Props) {
+export function EditCustomerInfoClient({ customer, typeSlot, annualLabel, lastChangeText, canManage = true, inspectionSubType, planAnchorManual, assigneeSlot, unassigned }: Props) {
   const router = useRouter()
   const openPostcode = useDaumPostcode()
   const [form, setForm] = useState(() => makeInitial(customer))
@@ -227,122 +233,142 @@ export function EditCustomerInfoClient({ customer, typeSlot, annualLabel, lastCh
     return () => window.removeEventListener('erp:focus-missing', onFocusReq)
   }, [canManage])
 
-  // 촘촘 그리드 셀 — 라벨 + 입력 (wide면 전체 폭)
-  const field = (label: ReactNode, node: ReactNode, opts?: { wide?: boolean }) => (
-    <div className={`space-y-1 min-w-0 ${opts?.wide ? 'col-span-2 md:col-span-3' : ''}`}>
-      <label className={labelCls}>{label}</label>
-      {node}
-    </div>
-  )
-  const req = <span className="text-red-500">*</span>
   const dis = !canManage
+
+  /* 법정 시기 상시 배지 — **입력하는 즉시** 바뀐다(순수 계산이라 서버 왕복 0).
+     별지 9호 표기와 같은 성격이다: 늘 보이니 잘못을 눈치챈다.
+     ⚠ planAnchorManual이 undefined면 레거시로 해석한다 — 코드가 실제로 하는 그대로여야
+       배지가 거짓말을 하지 않는다.
+     2026-09-23 — 탭 맨 아래에 작게 있던 것을 **기준일 줄 안으로 올렸다**(날짜를 고치면 바로 옆에서 결과가 바뀐다). */
+  const anchorInput = {
+    use_approval_date: form.use_approval_date || null,
+    plan_anchor_date: form.plan_anchor_date || null,
+    plan_anchor_manual: planAnchorManual,
+  }
+  const roles = anchorRoles(anchorInput)
+  const legalBadge = (() => {
+    const r = resolveAnchor(anchorInput)
+    if (!r.date) return null
+    const m = Number(r.date.slice(5, 7))
+    const isComp = inspectionSubType === '종합'
+    const months = [{ seq: 1, month: m, planType: `special_${isComp ? '종합' : '작동'}` }]
+    if (isComp) months.push({ seq: 2, month: ((m - 1 + 6) % 12) + 1, planType: 'special_작동' })
+    // 최초점검 기한 — 종합 대상이고 사용승인일 기준일 때만, 그리고 **아직 안 지났을 때만** 띄운다
+    const due = (isComp && form.use_approval_date && isCompleteDate(form.use_approval_date))
+      ? new Date(Date.UTC(+form.use_approval_date.slice(0, 4), +form.use_approval_date.slice(5, 7) - 1, +form.use_approval_date.slice(8, 10)) + 60 * 86_400_000).toISOString().slice(0, 10)
+      : null
+    const stillOpen = due && due >= new Date().toISOString().slice(0, 10)
+    return (
+      <LegalScheduleBadge
+        months={months} anchorSource={anchorSourceLabel(r.source)} anchorDate={r.date}
+        divergent={r.divergent} initialDueDate={stillOpen ? due : null}
+        provisional={isProvisionalAnchor(anchorInput)}
+      />
+    )
+  })()
+  // 필수 현황(머리 알약) — 고객명·점검일자·관할 소방서(주소가 있으면 서버가 자동 지정하므로 주소로도 충족)
+  const reqs = [!!form.customer_name.trim(), !!form.plan_anchor_date, !!(form.fire_station.trim() || form.address.trim())]
 
   return (
     <form className="space-y-3" onSubmit={e => { e.preventDefault(); if (!isPending && isDirty) handleSave() }}>
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-3">
-        {field('점검유형',
-          <div className="flex items-center gap-1.5 h-form-9">
-            {typeSlot}
-            {/* 12px 계층은 ink-meta(5.03:1)를 쓰지 않는다 — 크기가 작을수록 대비가 필요하다 */}
-            {annualLabel && <span className="text-form-2xs text-ink-sub">{annualLabel}</span>}
-          </div>
-        )}
-        {field(<>점검일자 {req} <span className="text-form-2xs text-ink-sub font-normal">(기산일)</span></>,
-          <DateInput id="cf-plan" value={form.plan_anchor_date} onChange={e => set('plan_anchor_date', e.target.value)} disabled={dis} className={inputCls} />
-        )}
-        {field(<>고객명 {req}</>,
-          <input id="cf-name" type="text" value={form.customer_name} onChange={e => set('customer_name', e.target.value)} disabled={dis} className={inputCls} />
-        )}
-        {field('계약일',
-          <DateInput id="cf-contract" value={form.contract_date} onChange={e => set('contract_date', e.target.value)} disabled={dis} className={inputCls} />
-        )}
-        {field('사용승인일',
-          <DateInput id="cf-approval" value={form.use_approval_date} onChange={e => set('use_approval_date', e.target.value)} disabled={dis} className={inputCls} />
-        )}
-        {field(<>관할 소방서 {req}</>,
-          <input id="cf-station" type="text" value={form.fire_station} onChange={e => set('fire_station', e.target.value)} disabled={dis} placeholder="예: 양평소방서" className={inputCls} />
-        )}
-        {field(<>점검료 <span className="text-form-2xs text-ink-sub font-normal">{isMonthlyFee ? '(월정액)' : '(건별)'}</span></>,
-          <input readOnly value={feeStr} className={readonlyCls} title="편집은 청구·수금 화면에서" />
-        )}
+      {/* ① 기본정보 — 그룹 단위 정렬(2026-09-23 사용자 요청). 등록 화면의 ① 상자와 **같은 부품·같은 줄 순서**다.
+          첫 줄 = 고객명 | 담당직원 | 관할 소방서 — 사용자 요청 「고객명을 담당 왼쪽으로」.
+          ★ 기준일 줄 = 사용승인일 | 점검일자 | 이 날짜로 잡히는 일정(보라 바탕 + 큰 칸 + 기산점 배지). */}
+      <GroupBox n={1} title="기본정보" testId="info-group" alert={unassigned} status={[reqs.filter(Boolean).length, reqs.length]}>
+        <SubRow label="기본">
+          <Cell span={2} label="고객명" required htmlFor="cf-name" missing={!form.customer_name.trim()}>
+            <input id="cf-name" type="text" value={form.customer_name} onChange={e => set('customer_name', e.target.value)} disabled={dis}
+              className={`${inputCls} ${keyInputCls} ${!form.customer_name.trim() ? emptyRequiredCls : ''}`} />
+          </Cell>
+          <Cell label="담당직원" testId="info-assignee">
+            {assigneeSlot}
+          </Cell>
+          <Cell label="관할 소방서" required htmlFor="cf-station">
+            <input id="cf-station" type="text" value={form.fire_station} onChange={e => set('fire_station', e.target.value)} disabled={dis} placeholder="예: 양평소방서"
+              className={`${inputCls} !h-12`} />
+          </Cell>
+        </SubRow>
+
+        <SubRow label="기준일" accent testId="info-keydates">
+          <Cell label="사용승인일" htmlFor="cf-approval" badge={<RoleBadge role={roles.approval} testId="info-role-approval" />}>
+            <DateInput id="cf-approval" value={form.use_approval_date} onChange={e => set('use_approval_date', e.target.value)} disabled={dis}
+              className={`${inputCls} ${keyInputCls}`} />
+          </Cell>
+          <Cell label={<>점검일자 <span className="text-form-2xs text-ink-sub font-normal">(기산일)</span></>} required htmlFor="cf-plan"
+            missing={!form.plan_anchor_date} badge={<RoleBadge role={roles.plan} testId="info-role-plan" />}>
+            <DateInput id="cf-plan" value={form.plan_anchor_date} onChange={e => set('plan_anchor_date', e.target.value)} disabled={dis}
+              className={`${inputCls} ${keyInputCls} ${!form.plan_anchor_date ? emptyRequiredCls : ''}`} />
+          </Cell>
+          <Cell span={2} label="이 날짜로 잡히는 일정" testId="info-legal">
+            {legalBadge ?? <p className="text-form-xs text-ink-meta">날짜를 넣으면 법정 점검 시기가 여기 표시됩니다.</p>}
+          </Cell>
+        </SubRow>
+
+        <SubRow label="점검·계약">
+          <Cell label="점검유형">
+            <div className="flex items-center gap-1.5 h-form-9 flex-wrap">
+              {typeSlot}
+              {/* 12px 계층은 ink-meta(5.03:1)를 쓰지 않는다 — 크기가 작을수록 대비가 필요하다 */}
+              {annualLabel && <span className="text-form-2xs text-ink-sub">{annualLabel}</span>}
+            </div>
+          </Cell>
+          <Cell label="계약일" htmlFor="cf-contract">
+            <DateInput id="cf-contract" value={form.contract_date} onChange={e => set('contract_date', e.target.value)} disabled={dis} className={inputCls} />
+          </Cell>
+          <Cell label={<>점검료 <span className="text-form-2xs text-ink-sub font-normal">{isMonthlyFee ? '(월정액)' : '(건별)'}</span></>}>
+            <input readOnly tabIndex={-1} value={feeStr} className={readonlyCls} title="편집은 청구·수금 화면에서" />
+          </Cell>
+        </SubRow>
+
         {/* 주소 — 검색은 즉시 저장·전파, 도로명은 수기 보정 가능 */}
-        <div className="col-span-2 md:col-span-3 space-y-1 min-w-0">
-          <div className="flex items-center justify-between">
-            <label className={labelCls}>주소</label>
+        <SubRow label="주소">
+          <Cell label="우편번호">
+            <input value={form.zipcode} readOnly tabIndex={-1} placeholder="우편번호" className={readonlyCls} />
+          </Cell>
+          <Cell span={2} label="도로명주소" htmlFor="cf-address">
+            <input id="cf-address" type="text" value={form.address} onChange={e => set('address', e.target.value)} disabled={dis}
+              placeholder="주소 검색 후 동/호수 추가 가능" className={inputCls} />
+          </Cell>
+          <Cell label={<span className="invisible">검색</span>}>
             {canManage && (
               <button type="button" onClick={handleAddressSearch} disabled={isPending}
-                className="inline-flex items-center gap-1 h-form-7 px-2.5 rounded-lg bg-brand-tint hover:bg-brand-tint text-brand text-form-sm font-medium transition-colors border border-brand-line disabled:opacity-50">
-                <Search className="size-3" /> 주소 검색
+                className="w-full inline-flex items-center justify-center gap-1.5 h-form-9 px-3 rounded-lg bg-brand-tint text-brand text-form-sm font-medium transition-colors border border-brand-line disabled:opacity-50">
+                <Search className="size-3.5" /> 주소 검색
               </button>
             )}
-          </div>
-          <div className="grid grid-cols-4 gap-2">
-            <input value={form.zipcode} readOnly placeholder="우편번호" className={readonlyCls} />
-            <input id="cf-address" type="text" value={form.address} onChange={e => set('address', e.target.value)} disabled={dis}
-              placeholder="주소 검색 후 동/호수 추가 가능" className={`${inputCls} col-span-3`} />
-          </div>
+          </Cell>
+        </SubRow>
+
+        <SubRow label="메모">
+          <Cell span={4} label="비고" htmlFor="cf-notes">
+            <textarea id="cf-notes" value={form.notes} onChange={e => set('notes', e.target.value)} disabled={dis}
+              placeholder="특이사항 메모" rows={2}
+              className="w-full rounded-lg border border-brand-line bg-surface px-2.5 py-1.5 text-form-base text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition resize-none" />
+          </Cell>
+        </SubRow>
+
+        {/* 변경 시에만 저장/취소 노출 — 상자 맨 아래 줄 */}
+        <div className="flex items-center gap-3 px-5 py-3 bg-paper">
+          {isDirty && canManage ? (
+            <>
+              <button type="submit" disabled={isPending}
+                className="h-form-8 px-4 rounded-lg bg-brand hover:bg-brand-strong text-white text-form-sm font-medium transition-colors flex items-center justify-center gap-1.5 disabled:opacity-50">
+                {isPending ? <Loader2 className="size-3.5 animate-spin" /> : null} 저장
+              </button>
+              <button type="button" onClick={handleReset} disabled={isPending}
+                className="h-form-8 px-3 rounded-lg border border-line text-form-sm text-ink-sub hover:bg-paper transition-colors">
+                취소
+              </button>
+            </>
+          ) : (
+            lastChangeText && <span className="text-form-xs text-ink-meta truncate">최근 변경: {lastChangeText}</span>
+          )}
         </div>
-        {field('비고',
-          <textarea id="cf-notes" value={form.notes} onChange={e => set('notes', e.target.value)} disabled={dis}
-            placeholder="특이사항 메모" rows={2}
-            className="w-full rounded-lg border border-brand-line bg-surface px-2.5 py-1.5 text-form-base text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition resize-none" />,
-          { wide: true }
-        )}
-      </div>
+      </GroupBox>
 
       {error && (
         <p className="text-form-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>
       )}
-
-      {/* 변경 시에만 저장/취소 노출 */}
-      <div className="flex items-center gap-3 pt-1 border-t border-brand-line-soft">
-        {isDirty && canManage ? (
-          <>
-            <button type="submit" disabled={isPending}
-              className="h-form-8 px-4 rounded-lg bg-brand hover:bg-brand-strong text-white text-form-sm font-medium transition-colors flex items-center justify-center gap-1.5 disabled:opacity-50">
-              {isPending ? <Loader2 className="size-3.5 animate-spin" /> : null} 저장
-            </button>
-            <button type="button" onClick={handleReset} disabled={isPending}
-              className="h-form-8 px-3 rounded-lg border border-line text-form-sm text-ink-sub hover:bg-paper transition-colors">
-              취소
-            </button>
-          </>
-        ) : (
-          lastChangeText && <span className="text-form-xs text-ink-meta truncate">최근 변경: {lastChangeText}</span>
-        )}
-      </div>
-
-      {/* 법정 시기 상시 배지 — **입력하는 즉시** 바뀐다(순수 계산이라 서버 왕복 0).
-          별지 9호 표기와 같은 성격이다: 늘 보이니 잘못을 눈치챈다.
-          ⚠ planAnchorManual이 undefined면 레거시로 해석한다 — 코드가 실제로 하는 그대로여야
-            배지가 거짓말을 하지 않는다. */}
-      {(() => {
-        const anchorInput = {
-          use_approval_date: form.use_approval_date || null,
-          plan_anchor_date: form.plan_anchor_date || null,
-          plan_anchor_manual: planAnchorManual,
-        }
-        const r = resolveAnchor(anchorInput)
-        if (!r.date) return null
-        const m = Number(r.date.slice(5, 7))
-        const isComp = inspectionSubType === '종합'
-        const months = [{ seq: 1, month: m, planType: `special_${isComp ? '종합' : '작동'}` }]
-        if (isComp) months.push({ seq: 2, month: ((m - 1 + 6) % 12) + 1, planType: 'special_작동' })
-        // 최초점검 기한 — 종합 대상이고 사용승인일 기준일 때만, 그리고 **아직 안 지났을 때만** 띄운다
-        const due = (isComp && form.use_approval_date && isCompleteDate(form.use_approval_date))
-          ? new Date(Date.UTC(+form.use_approval_date.slice(0, 4), +form.use_approval_date.slice(5, 7) - 1, +form.use_approval_date.slice(8, 10)) + 60 * 86_400_000).toISOString().slice(0, 10)
-          : null
-        const stillOpen = due && due >= new Date().toISOString().slice(0, 10)
-        return (
-          <div className="mt-2">
-            <LegalScheduleBadge
-              months={months} anchorSource={anchorSourceLabel(r.source)} anchorDate={r.date}
-              divergent={r.divergent} initialDueDate={stillOpen ? due : null}
-              provisional={isProvisionalAnchor(anchorInput)}
-            />
-          </div>
-        )
-      })()}
 
       {/* 기산점 변경 미리보기 — 저장 **전**에 무엇이 될지 보여준다.
           확정 처리 선택 팝업(B안)은 2026-09-12 폐지 — 미시작 전건이 자동 동행한다. */}

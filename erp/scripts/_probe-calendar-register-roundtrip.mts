@@ -107,7 +107,7 @@ try {
     // 2026-09-23 — 페이지를 열면 **커서가 고객명**에 있다(사용자 요청). 달력에서 와도 같다.
     const focusedId = await page.evaluate(() => document.activeElement?.id ?? '')
     check('★ A 열자마자 커서가 고객명에 있다', focusedId === 'new-customer-name', focusedId || '(없음)')
-    check('A ④ 추가 정보는 접혀 있다 (필수만으로 등록한다)', (await page.locator('[data-testid="new-optional-body"]').count()) === 0)
+    check('A 기준일 두 칸이 강조 줄 안에 있다', (await page.locator('[data-testid="new-keydates"] #new-anchor-date').count()) === 1)
     check('A 복귀 약속 문구가 뜬다', (await page.getByText('등록하면 점검달력으로 돌아갑니다').count()) === 1)
 
     const cid = await fillAndSubmit('A', `E2E-RT-${STAMP}-패널`)
