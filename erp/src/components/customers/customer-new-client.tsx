@@ -3,7 +3,7 @@
 import { useState, useTransition, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { Loader2, Users, Phone, Mail, MapPin, Search, X, Building2, Plus, ChevronDown, ChevronRight, Check } from 'lucide-react'
+import { Loader2, Phone, Mail, MapPin, Search, X, Plus, ChevronDown, ChevronRight, Check } from 'lucide-react'
 import { createCustomerAction, generateCustomerCodeAction, checkAddressAction, checkCustomerNameAction, fetchBuildingLedgerAction, previewNewCustomerScheduleAction, type ContactInput, type BuildingLedgerInfo, type AddressDuplicateCustomer, type AddressDuplicateBuilding, type NameDuplicateCustomer, type NewSchedulePreview } from '@/app/(dashboard)/customers/actions'
 import { NewSchedulePreviewBox } from '@/components/customers/new-schedule-preview'
 import { AddressDuplicateDialog } from '@/components/customers/address-duplicate-dialog'
@@ -22,14 +22,42 @@ function extractBuildingName(fullAddress: string): string {
 }
 
 const inputCls = 'w-full h-10 rounded-lg border border-brand-line bg-surface px-3 text-sm text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition'
-const readonlyCls = 'w-full h-10 rounded-lg border border-brand-line bg-paper px-3 text-sm text-ink-sub outline-none cursor-default'
 const labelCls = 'text-xs font-medium text-ink-sub'
+const cardCls = 'bg-surface rounded-xl border border-line shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px]'
+const stepBadgeCls = 'inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-brand text-white text-form-2xs font-semibold'
+// 세그먼트 버튼(점검유형·등급) — 같은 모양 한 벌
+const segCls = 'inline-flex items-center gap-1 h-9 px-3 text-sm cursor-pointer select-none transition-colors border-r border-line last:border-r-0 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-brand/40'
+const segOnCls = 'bg-brand text-white'
+const segOffCls = 'bg-surface text-ink-sub hover:bg-brand-tint'
 
-function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
+/** 번호 붙은 카드 — ① 건물 · ② 점검 일정 · ③ 관계인 (④는 접이라 따로 그린다) */
+function Section({ n, title, sub, right, children }: {
+  n: number; title: string; sub?: string; right?: React.ReactNode; children: React.ReactNode
+}) {
   return (
-    <div className="space-y-1.5">
-      <label className={labelCls}>{label}{required && <span className="text-red-500 ml-0.5">*</span>}</label>
+    <section className={`${cardCls} px-5 sm:px-6 py-5 space-y-4`}>
+      <div className="flex items-center gap-2 min-w-0">
+        <span className={stepBadgeCls}>{n}</span>
+        <h2 className="text-sm font-semibold text-ink shrink-0">{title}</h2>
+        {sub && <span className="text-xs text-ink-meta truncate">{sub}</span>}
+        {right && <div className="ml-auto shrink-0">{right}</div>}
+      </div>
       {children}
+    </section>
+  )
+}
+
+/** 카드 안의 한 줄 — **라벨 왼쪽 고정폭 + 입력 오른쪽** 한 모양으로 통일한다(좁은 화면에선 위아래).
+ *  종전엔 1·2·3·4열 격자와 위-라벨이 섞여 줄이 안 맞았다(2026-09-23 「산만하다」). */
+function Row({ label, required, htmlFor, children }: {
+  label: string; required?: boolean; htmlFor?: string; children: React.ReactNode
+}) {
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-[8em_minmax(0,1fr)] gap-x-4 gap-y-1.5 items-start">
+      <label htmlFor={htmlFor} className={`${labelCls} sm:pt-3`}>
+        {label}{required && <span className="text-red-500 ml-0.5">*</span>}
+      </label>
+      <div className="min-w-0 space-y-1.5">{children}</div>
     </div>
   )
 }
@@ -72,9 +100,10 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
   const [ledgerNote, setLedgerNote] = useState('')
   // ADD-3: 관계인 — 대표만 기본, [추가] 버튼으로 직원1/직원2 노출
   const [visibleContactRoles, setVisibleContactRoles] = useState<Array<'대표' | '직원1' | '직원2'>>(['대표'])
-  // §10(T9) 선택 항목 — 종전에는 세로로 이어 붙어 있어 펼치면 폼이 두 배가 되므로 접어 뒀다.
-  // 이제 **오른쪽 칸**을 따로 쓰므로 펼쳐도 필수 정보를 밀어내지 않는다 → 기본 펼침.
-  const [showOptional, setShowOptional] = useState(true)
+  // §10(T9) 선택 항목(④ 추가 정보) — **기본 접힘**(2026-09-23). 두 칸 시절엔 오른쪽을 따로 써서 펼쳐 뒀지만,
+  // 한 줄기로 세운 지금 펼쳐 두면 선택 칸이 필수(①~③)보다 길어져 다시 산만해진다.
+  // 필수만으로 등록할 수 있고 전부 등록 후 상세에서도 고친다. 대장 자동값은 접힌 머리에 개수로 알린다.
+  const [showOptional, setShowOptional] = useState(false)
 
   // ── 법정 일정 미리보기 (2026-09-14) ─────────────────────────────────────
   // 등록 폼은 점검일자를 필수로 받지만, 사용승인일도 필수라 신규 고객은 manual=false로 태어나
@@ -180,10 +209,16 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
         region_ri: data.bname2 || '',
       }))
 
-      // 주소 끝 괄호 안 건물명 자동추출
-      const building = extractBuildingName(data.roadAddress)
-      if (building) {
-        setForm(prev => ({ ...prev, customer_name: building }))
+      // 주소 끝 괄호 안 건물명 자동추출 — **고객명이 비어 있을 때만** 채운다(2026-09-23).
+      // 고객명이 첫 칸·첫 커서가 되면서 「이름부터 치고 주소 검색」이 정상 동선이 됐다. 종전처럼 무조건
+      // 덮으면 사용자가 친 이름이 건물명으로 바뀐다. 판정은 **지금 칸에 보이는 값**(ref)으로 한다 —
+      // 이 콜백은 팝업이 닫힐 때 불리므로 렌더 당시의 `form`은 낡았을 수 있다.
+      const typedName = (customerNameRef.current?.value ?? '').trim()
+      const building = typedName ? '' : extractBuildingName(data.roadAddress)
+      if (typedName) {
+        // 이미 친 이름은 손대지 않는다 — 포커스도 옮기지 않는다(사용자가 탭으로 이어 간다)
+      } else if (building) {
+        setForm(prev => ({ ...prev, customer_name: prev.customer_name.trim() ? prev.customer_name : building }))
         // 자동입력된 이름도 중복일 수 있다 — 손으로 안 쳤으니 blur가 안 나서 여기서 직접 검사한다
         checkNameNow(building)
         setTimeout(() => {
@@ -384,17 +419,18 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
       : '연 1회 자동 생성 (작동 1회 — 정기 없음)',
   }
 
-  // §10-2(T9): 필수 충족 체크 — 요약 패널 체크리스트·[등록] 활성화
+  // §10-2(T9): 필수 충족 체크 — 하단 바 칩·[등록] 활성화.
+  // 순서 = **화면 순서**(① 고객명·주소 → ② 사용승인일·점검일자·점검유형 → ③ 대표) — 칩이 위→아래로 읽힌다.
   const requiredChecks: Array<[string, boolean]> = [
-    ['주소', !!form.address.trim()],
     ['고객명', !!form.customer_name.trim()],
-    ['점검유형', !!form.inspection_type],
-    ['점검일자', isCompleteDate(form.plan_anchor_date)],
+    ['주소', !!form.address.trim()],
     // 사용승인일은 법정 점검 시기의 기산점이다 — 종합점검은 사용승인일이 속하는 달,
     // 작동점검은 그로부터 6개월(시행규칙 [별표 3]). 비어 있으면 그 달을 계산할 수 없고
     // 최초점검(사용승인일+60일) 판정도 불가능해 별지 9호 3분기를 정할 수 없다.
-    // 대부분 건축물대장 자동 조회로 저절로 채워진다(아래 [적용] 버튼).
+    // 대부분 건축물대장 자동 조회로 저절로 채워진다(칸 옆 [적용] 버튼).
     ['사용승인일', isCompleteDate(form.use_approval_date)],
+    ['점검일자', isCompleteDate(form.plan_anchor_date)],
+    ['점검유형', !!form.inspection_type],
     ['대표 관계인', !!contacts['대표'].name.trim()],
   ]
   const allFieldsOk = requiredChecks.every(c => c[1])
@@ -402,201 +438,235 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
   // typeLabel·assignedName은 '등록 요약' 패널 전용이었다 — 패널을 없애면서 함께 제거.
   // 두 값 모두 입력칸에 그대로 보이므로 파생 표시가 필요 없다.
 
+  /* 건축물대장·기존 건물이 채워 준 건물정보 칸 수 — 접힌 ④ 머리에 「열어 볼 이유」로 보인다 */
+  const autoBuildingCount = [form.building_purpose, form.building_total_area, form.building_floors_above,
+    form.building_floors_below, form.building_year_built].filter(v => v.trim()).length
+
   return (
     <form className="space-y-4" onSubmit={e => { e.preventDefault(); handleSubmit() }}>
-    {/* 좌 필수 | 우 선택 — 세로로 쌓으면 ~1070px라 반드시 스크롤이 생긴다.
-        나란히 놓으면 max(500,570)≈570px로 한 화면에 들어간다.
-        종전 우측의 '등록 요약'은 제거했다 — 폼이 길어 다 안 보이던 시절의 보조 장치였고,
-        두 칸이 동시에 보이는 지금은 같은 값을 두 번 보여주는 셈이다.
-        요약이 갖고 있던 필수 체크·[등록] 상태 문구·'대장 자동' 배지는 아래·오른쪽으로 옮겨 살렸다. */}
-    <div className="flex flex-col lg:flex-row gap-6 items-start">
-    <div className="flex-1 w-full space-y-6 min-w-0">
-      {/* §10-1: 필수 정보 — 주소 검색·고객명·점검유형·점검계획일·대표 관계인 */}
-      <section className="bg-surface rounded-xl border border-line shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-6 space-y-4">
-        <h2 className="text-sm font-semibold text-ink">필수 정보 <span className="text-xs font-normal text-ink-meta">— 주소 검색 한 번이면 대부분 자동으로 채워집니다</span></h2>
-
-        {/* ① 주소 검색 섹션 — 최상단 배치 */}
-        <div className="space-y-3 pb-4 border-b border-brand-line-soft">
-          <div className="flex items-center justify-between">
-            <label className={`${labelCls} flex items-center gap-1`}>
-              <MapPin className="size-3.5 text-brand" />
-              주소 검색
-              <span className="text-xs text-ink-meta font-normal ml-1">— 검색 후 건물명 자동입력</span>
-            </label>
-            <button
-              type="button"
-              onClick={handleAddressSearch}
-              className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg bg-brand hover:bg-brand-strong text-white text-xs font-medium transition-colors"
-            >
-              <Search className="size-3.5" />
-              주소 검색
-            </button>
+    {/* 한 줄기 네 카드 (2026-09-23 사용자 요청 — 「너무 산만하게 분산되어 있다」).
+        종전은 좌 필수 | 우 선택 두 칸이었는데 ①필수인 사용승인일이 오른쪽(선택)에 있어 눈이 좌우를 오갔고
+        ②선택인 등급이 필수 칸 사이에 끼었고 ③오른쪽이 기본 펼침이라 필수보다 길었고 ④1·2·3·4열 격자가
+        섞여 줄이 안 맞았다. 이제 **위→아래가 입력 순서이자 탭 순서**다: ① 건물 → ② 점검 일정 → ③ 관계인
+        → ④ 추가 정보(선택·기본 접힘). 필수는 ①~③에만, 선택은 ④에만 둔다.
+        ⚠ 카드 안은 모두 `Row`(라벨 왼쪽 고정폭 + 입력 오른쪽) 한 모양이다 — 줄이 자로 잰 듯 맞는다.
+        ⚠ 「한 화면에 다 보이게」는 이제 하단 바가 대신한다(sticky — 스크롤해도 필수 칩·[등록]이 보인다). */}
+    <div className="max-w-3xl space-y-4">
+      {/* ① 건물 — 고객명이 **첫 칸이자 첫 커서**(2026-09-23 사용자 요청). 주소 검색이 건물명을 채워 주던
+          「주소 먼저」 흐름은 그대로 쓸 수 있다 — 고객명이 비어 있을 때만 채우므로(handleAddressSearch)
+          이름부터 쳐도 지워지지 않는다. */}
+      <Section n={1} title="건물" sub="주소 검색 한 번이면 사용승인일·건물정보가 자동으로 채워집니다">
+        <Row label="고객명 (건물명)" required htmlFor="new-customer-name">
+          <div className="relative">
+            <input
+              id="new-customer-name"
+              ref={customerNameRef}
+              autoFocus
+              value={form.customer_name}
+              // 타이핑 중에는 경고를 지운다 — 고치는 중에 옛 경고가 남아 있으면 이미 해결한 걸로 착각한다
+              onChange={e => { setField('customer_name', e.target.value); setNameWarn(null) }}
+              onBlur={e => checkNameNow(e.target.value)}
+              placeholder="주소 검색 시 자동입력 또는 직접 입력"
+              className={`${inputCls} ${nameWarn ? 'border-red-400 focus:border-red-400 focus:ring-red-400/20' : ''}`}
+            />
+            {form.customer_name && (
+              <button
+                type="button"
+                tabIndex={-1}
+                onClick={() => { setField('customer_name', ''); setNameWarn(null); customerNameRef.current?.focus() }}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-ink-meta hover:text-ink-sub"
+              >
+                <X className="size-3.5" />
+              </button>
+            )}
           </div>
+          {nameWarn && (
+            <p className="text-form-xs text-red-600 bg-red-50 rounded-lg px-2.5 py-1.5">
+              「{nameWarn.customer_name}」(고객코드 {nameWarn.customer_code})으로 이미 등록돼 있습니다 — 이 이름으로는 등록할 수 없습니다.{' '}
+              <Link href={`/customers/${nameWarn.id}`} className="underline font-medium">기존 고객 보기</Link>
+            </p>
+          )}
+        </Row>
 
-          {/* 우편번호 + 지번주소 */}
-          <div className="grid grid-cols-4 gap-2">
-            <div className="space-y-1">
-              <p className="text-xs text-ink-meta">우편번호</p>
-              <input value={form.zipcode} readOnly placeholder="자동입력" className={readonlyCls} />
-            </div>
-            <div className="col-span-3 space-y-1">
-              <p className="text-xs text-ink-meta">지번주소 (참고)</p>
-              <input value={addrJibun} readOnly placeholder="자동입력" className={readonlyCls} />
-            </div>
-          </div>
-
-          {/* 도로명주소 — requiredChecks의 '주소'가 이 값이다(비면 [등록] 비활성).
-              주소검색 블록 안에 있다 보니 다른 필수 4개와 달리 Field 헬퍼를 안 써서 별표가 빠져 있었다. */}
-          <div className="space-y-1">
-            <p className={labelCls}>도로명주소 <span className="text-red-500 ml-0.5">*</span>
-              <span className="text-xs text-ink-meta font-normal ml-1">(상세주소 직접 입력 가능)</span></p>
-            <div className="relative">
+        {/* 도로명주소 — requiredChecks의 '주소'가 이 값이다(비면 [등록] 비활성). 검색 버튼을 칸 옆에 붙였다. */}
+        <Row label="주소" required htmlFor="new-address">
+          <div className="flex gap-2">
+            <div className="relative flex-1 min-w-0">
               <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-ink-faint" />
               <input
+                id="new-address"
                 value={form.address}
                 onChange={e => setField('address', e.target.value)}
                 placeholder="주소 검색 후 동/호수 등 추가 입력"
                 className={`${inputCls} pl-8`}
               />
             </div>
+            <button
+              type="button"
+              onClick={handleAddressSearch}
+              className="inline-flex items-center gap-1.5 h-10 px-3 rounded-lg bg-brand hover:bg-brand-strong text-white text-xs font-medium transition-colors shrink-0"
+            >
+              <Search className="size-3.5" />
+              주소 검색
+            </button>
           </div>
+          {/* 우편번호·지번은 **읽기 전용 입력칸**이던 것을 글자 한 줄로 — 탭이 거기 걸리지 않는다.
+              ADD-1: 지역(region_si/myeon/ri)은 UI 없이 주소 검색 시 백그라운드 저장(지역배정·필터·검색) */}
+          {(form.zipcode || addrJibun) && (
+            <p data-testid="new-address-meta" className="text-form-xs text-ink-meta">
+              {form.zipcode && <>우편번호 {form.zipcode}</>}
+              {form.zipcode && addrJibun && ' · '}
+              {addrJibun && <>지번 {addrJibun}</>}
+            </p>
+          )}
+          {ledgerNote && (
+            <p className={`text-form-xs ${ledgerNote.startsWith('건축물대장 자동') ? 'text-green-600' : 'text-amber-500'}`}>
+              {ledgerNote}
+            </p>
+          )}
+        </Row>
+      </Section>
 
-          {/* ADD-1: 지역 입력 UI 제거 — 주소검색 시 region_si/myeon/ri는 백그라운드 자동 저장 (지역배정·필터·검색에서 사용) */}
-        </div>
-
-        {/* ② 고객명(건물명) — 고객코드는 내부 자동생성(V9 §6: UI 미노출) */}
-        <div className="grid grid-cols-1 gap-4">
-          <Field label="고객명 (건물명)" required>
-            <div className="relative">
-              <input
-                ref={customerNameRef}
-                value={form.customer_name}
-                // 타이핑 중에는 경고를 지운다 — 고치는 중에 옛 경고가 남아 있으면 이미 해결한 걸로 착각한다
-                onChange={e => { setField('customer_name', e.target.value); setNameWarn(null) }}
-                onBlur={e => checkNameNow(e.target.value)}
-                placeholder="주소 검색 시 자동입력 또는 직접 입력"
-                className={`${inputCls} ${nameWarn ? 'border-red-400 focus:border-red-400 focus:ring-red-400/20' : ''}`}
-              />
-              {form.customer_name && (
-                <button
-                  type="button"
-                  onClick={() => { setField('customer_name', ''); setNameWarn(null); customerNameRef.current?.focus() }}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-ink-meta hover:text-ink-sub"
-                >
-                  <X className="size-3.5" />
-                </button>
-              )}
-            </div>
-            {nameWarn && (
-              <p className="text-form-xs text-red-600 bg-red-50 rounded-lg px-2.5 py-1.5">
-                「{nameWarn.customer_name}」(고객코드 {nameWarn.customer_code})으로 이미 등록돼 있습니다 — 이 이름으로는 등록할 수 없습니다.{' '}
-                <Link href={`/customers/${nameWarn.id}`} className="underline font-medium">기존 고객 보기</Link>
-              </p>
-            )}
-          </Field>
-        </div>
-
-        <div className="grid grid-cols-2 gap-4">
-          <Field label="점검일자" required>
+      {/* ② 점검 일정 — 사용승인일을 **점검일자 바로 위**로 옮겼다(종전엔 오른쪽 선택 칸 안).
+          사용승인일이 있으면 그게 법정 기산점이라 점검일자의 뜻을 정한다 — 둘이 붙어 있어야
+          「어느 날짜가 쓰이는가」가 한눈에 읽힌다. */}
+      <Section n={2} title="점검 일정">
+        <Row label="사용승인일" required htmlFor="new-use-approval">
+          <div className="flex flex-wrap items-center gap-2">
             <DateInput
-              value={form.plan_anchor_date}
-              onChange={e => setField('plan_anchor_date', e.target.value)}
-              className={inputCls}
+              id="new-use-approval"
+              value={form.use_approval_date}
+              onChange={e => setField('use_approval_date', e.target.value)}
+              className={`${inputCls} max-w-[13rem]`}
             />
-            {/* ⚠ 종전 문구는 "이 날짜의 월·일 기준으로 일정이 확정됩니다"였는데 **거짓**이었다 —
-                사용승인일도 필수라 신규 고객은 늘 사용승인일이 기산점이 된다(2026-09-14 실측 158/162).
-                무엇이 실제로 쓰이는지는 아래 미리보기가 답한다. */}
-            <p className="text-form-xs text-ink-meta">등록일이 아닌 연간 점검의 기산일 — 사용승인일이 있으면 <b>법정 기산점은 사용승인일</b>입니다 (아래 참조)</p>
-            <NewSchedulePreviewBox
-              preview={schedPreview}
-              loading={schedLoading}
-              anchorManual={anchorManual}
-              onToggleManual={setAnchorManual}
-              canOverride
-            />
-            {/* 미래 날짜면 **지금은 단계가 안 생긴다**는 사실을 등록 전에 말한다 (2026-09-22).
-                막지 않는다 — 달력에서 앞당겨 잡는 것은 정상 동선이고, 막으면 그 자리에서
-                할 수 없는 일을 요구받는다(`inspection-step-links.ts:37`의 확립된 기울기).
-                ⚠ 판정은 **서버와 같은 순수 함수**(`isPastAnchor`)로 한다 — 두 벌로 적으면
-                  「생긴다고 했는데 안 생기는」 어긋남이 곧바로 생긴다. */}
-            {isCompleteDate(form.plan_anchor_date)
-              && !isPastAnchor(form.plan_anchor_date, todayKst()) && (
-              <p data-testid="anchor-future-note" className="text-form-2xs text-amber-700 mt-1.5">
-                이 날짜는 <b>계획</b>으로 잡힙니다 — 1~4단계는 점검 당일에 열립니다.
-              </p>
+            {ledgerRef.current?.use_approval_date && !form.use_approval_date && (
+              <button
+                type="button"
+                onClick={() => setField('use_approval_date', ledgerRef.current!.use_approval_date!)}
+                className="text-form-xs text-brand hover:underline"
+              >
+                건축물대장 사용승인일 {ledgerRef.current.use_approval_date} 적용
+              </button>
             )}
-          </Field>
-        </div>
-
-        <Field label="점검유형" required>
-          <div className="flex gap-6">
-            {(['소방안전관리', '일반관리'] as const).map(cat => (
-              <label key={cat} className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="radio"
-                  name="inspection_category"
-                  checked={cat === '일반관리' ? form.inspection_type === '일반관리' : form.inspection_type !== '일반관리'}
-                  onChange={() => setField('inspection_type', cat === '일반관리' ? '일반관리' : '종합')}
-                  className="accent-brand"
-                />
-                <span className="text-sm font-medium text-ink">{cat}</span>
-              </label>
-            ))}
           </div>
-          {/* 자체점검 종류 — 소방안전관리·일반관리 공통 종합/작동 선택 (소방계획서_6 W-1) */}
-          <div className="flex gap-6 mt-2 pl-3 border-l-2 border-brand-line-soft">
-            {(['종합', '작동'] as const).map(sub => {
-              const isGeneral = form.inspection_type === '일반관리'
-              const checked = isGeneral ? form.general_sub_type === sub : form.inspection_type === sub
-              return (
-                <label key={sub} className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="inspection_sub_type"
-                    checked={checked}
-                    onChange={() => isGeneral ? setField('general_sub_type', sub) : setField('inspection_type', sub)}
-                    className="accent-brand"
-                  />
-                  <span className="text-sm text-ink">
-                    {sub} <span className="text-xs text-ink-sub">({sub === '종합' ? '연2회' : '연1회'})</span>
-                  </span>
-                </label>
-              )
-            })}
-          </div>
-        </Field>
+          {/* 이 칸이 **무엇을 정하는지** 그 자리에서 말한다 (2026-09-22 사용자 요청).
+              종전엔 아무 말도 없어서, 위 [점검일자]를 찍은 사용자는 자기가 고른 날짜로
+              일정이 잡히는 줄 알았다 — 실측 65%가 사용승인일에 밀려 다른 날에 앉았고
+              90명은 아예 달이 달랐다. 어느 칸이 이기는지를 입력 중에 보여준다.
+              ⚠ 막지 않는다. 사용승인일을 **못 내는** 건물이 실재한다(군부대·쉼터 등 —
+                건축물대장 조회가 실패하는 건들). 막으면 그 고객은 등록 자체가 안 된다. */}
+          {isCompleteDate(form.use_approval_date) ? (
+            <p data-testid="new-anchor-legal" className="text-form-2xs text-ink-meta leading-relaxed">
+              이 날짜 기준으로 <b className="text-ink-sub">종합·작동·정기</b>가 잡힙니다 — 법정 기산점입니다.
+            </p>
+          ) : (
+            <p data-testid="new-anchor-provisional" className="text-form-2xs text-amber-700 leading-relaxed">
+              ⚠ 사용승인일이 없어 <b>점검일자로 잠정 배치</b>됩니다.
+              일정은 <b>그대로 생성</b>되고(종합·작동·정기), 나중에 사용승인일을 넣으면 <b>법정 자리로 자동 재배치</b>됩니다.
+            </p>
+          )}
+        </Row>
 
-        {form.inspection_type && (
-          <p className="text-xs text-brand bg-brand-tint rounded-lg px-3 py-2">
-            {form.inspection_type !== '일반관리' ? `소방안전관리 › ${form.inspection_type}` : `일반관리 › ${form.general_sub_type}`}: {INSPECTION_ANNUAL[form.inspection_type]}
-          </p>
-        )}
+        <Row label="점검일자" required htmlFor="new-anchor-date">
+          <DateInput
+            id="new-anchor-date"
+            value={form.plan_anchor_date}
+            onChange={e => setField('plan_anchor_date', e.target.value)}
+            className={`${inputCls} max-w-[13rem]`}
+          />
+          {/* ⚠ 종전 문구는 "이 날짜의 월·일 기준으로 일정이 확정됩니다"였는데 **거짓**이었다 —
+              사용승인일도 필수라 신규 고객은 늘 사용승인일이 기산점이 된다(2026-09-14 실측 158/162).
+              무엇이 실제로 쓰이는지는 아래 미리보기가 답한다. */}
+          <p className="text-form-xs text-ink-meta">등록일이 아닌 연간 점검의 기산일 — 사용승인일이 있으면 <b>법정 기산점은 사용승인일</b>입니다</p>
+          {/* 미래 날짜면 **지금은 단계가 안 생긴다**는 사실을 등록 전에 말한다 (2026-09-22).
+              막지 않는다 — 달력에서 앞당겨 잡는 것은 정상 동선이고, 막으면 그 자리에서
+              할 수 없는 일을 요구받는다(`inspection-step-links.ts:37`의 확립된 기울기).
+              ⚠ 판정은 **서버와 같은 순수 함수**(`isPastAnchor`)로 한다 — 두 벌로 적으면
+                「생긴다고 했는데 안 생기는」 어긋남이 곧바로 생긴다. */}
+          {isCompleteDate(form.plan_anchor_date)
+            && !isPastAnchor(form.plan_anchor_date, todayKst()) && (
+            <p data-testid="anchor-future-note" className="text-form-2xs text-amber-700">
+              이 날짜는 <b>계획</b>으로 잡힙니다 — 1~4단계는 점검 당일에 열립니다.
+            </p>
+          )}
+        </Row>
 
-        {/* 소방안전관리등급 (2026-08-20) — 별지 9호 2쪽 «소방안전정보»에 실리는 대상물 급수(별표4).
-            **필수로 걸지 않는다**: 별표4의 2·3급은 설비 설치 여부로 갈리는데 등록 폼엔 설비 입력이 없어
-            등록 시점에 자동 산정이 사실상 불가하다. 실측상 최근 1년 등록 321건 중 315건이 미입력이었고,
-            필수로 걸었다면 그 전부가 등록 자체를 못 했다(2026-08-20). 아는 사람은 여기서 바로 채운다. */}
-        <Field label="소방안전관리등급 (대상물 급수)">
-          <div className="flex items-center gap-2 flex-wrap">
-            <div className="flex rounded-lg border border-line overflow-hidden">
-              {(['특급', '1급', '2급', '3급'] as const).map(g => (
-                <button key={g} type="button"
-                  onClick={() => setField('building_grade', form.building_grade === g ? '' : g)}
-                  className={`px-3 h-9 text-sm ${form.building_grade === g ? 'bg-brand text-white' : 'bg-surface text-ink-sub hover:bg-brand-tint'}`}>
-                  {g}
-                </button>
-              ))}
+        {/* 점검유형 — 라디오를 **세그먼트 버튼** 모양으로(라디오 자체는 남긴다: 화살표 키·name 묶음이 그대로 산다).
+            자체점검 종류 — 소방안전관리·일반관리 공통 종합/작동 선택 (소방계획서_6 W-1) */}
+        <Row label="점검유형" required>
+          <div className="flex flex-wrap items-center gap-2">
+            <div role="radiogroup" aria-label="관리 구분" className="inline-flex rounded-lg border border-line overflow-hidden">
+              {(['소방안전관리', '일반관리'] as const).map(cat => {
+                const checked = cat === '일반관리' ? form.inspection_type === '일반관리' : form.inspection_type !== '일반관리'
+                return (
+                  <label key={cat} className={`${segCls} ${checked ? segOnCls : segOffCls}`}>
+                    <input
+                      type="radio"
+                      name="inspection_category"
+                      checked={checked}
+                      onChange={() => setField('inspection_type', cat === '일반관리' ? '일반관리' : '종합')}
+                      className="sr-only"
+                    />
+                    {cat}
+                  </label>
+                )
+              })}
             </div>
-            <span className="text-xs text-ink-meta">
-              모르면 비워두세요 — 관계인 탭 [소방안전관리]에서 나중에 입력·자동 산정할 수 있습니다
-            </span>
+            <div role="radiogroup" aria-label="자체점검 종류" className="inline-flex rounded-lg border border-line overflow-hidden">
+              {(['종합', '작동'] as const).map(sub => {
+                const isGeneral = form.inspection_type === '일반관리'
+                const checked = isGeneral ? form.general_sub_type === sub : form.inspection_type === sub
+                return (
+                  <label key={sub} className={`${segCls} ${checked ? segOnCls : segOffCls}`}>
+                    <input
+                      type="radio"
+                      name="inspection_sub_type"
+                      checked={checked}
+                      onChange={() => isGeneral ? setField('general_sub_type', sub) : setField('inspection_type', sub)}
+                      className="sr-only"
+                    />
+                    {sub} <span className={`text-form-2xs ${checked ? 'text-white/80' : 'text-ink-meta'}`}>({sub === '종합' ? '연2회' : '연1회'})</span>
+                  </label>
+                )
+              })}
+            </div>
           </div>
-        </Field>
+          {form.inspection_type && (
+            <p className="text-form-xs text-ink-meta">
+              {form.inspection_type !== '일반관리' ? `소방안전관리 › ${form.inspection_type}` : `일반관리 › ${form.general_sub_type}`} — {INSPECTION_ANNUAL[form.inspection_type]}
+            </p>
+          )}
+        </Row>
 
-        {/* §10-1: 대표 관계인 — 필수 */}
-        <div className="space-y-1.5">
-          <label htmlFor="contact-대표-name" className={labelCls}>대표 관계인 <span className="text-red-500 ml-0.5">*</span></label>
-          <div className="grid grid-cols-3 gap-3">
+        {/* 법정 일정 미리보기 — 두 날짜·종류가 다 정해진 **맨 아래**에서 결과를 보여 준다 */}
+        <NewSchedulePreviewBox
+          preview={schedPreview}
+          loading={schedLoading}
+          anchorManual={anchorManual}
+          onToggleManual={setAnchorManual}
+          canOverride
+        />
+      </Section>
+
+      {/* ③ 관계인 — 대표 1명 필수, 추가는 최대 2명(ADD-3). 추가 행도 대표와 **같은 3칸 격자**다. */}
+      <Section
+        n={3}
+        title="관계인"
+        right={visibleContactRoles.length < 3 ? (
+          <button
+            type="button"
+            onClick={() => setVisibleContactRoles(prev =>
+              prev.length === 1 ? [...prev, '직원1'] : [...prev, '직원2']
+            )}
+            className="inline-flex items-center gap-1 h-7 px-2.5 rounded-lg bg-brand-tint text-brand text-xs font-medium transition-colors border border-brand-line"
+          >
+            <Plus className="size-3" />
+            관계인 추가
+          </button>
+        ) : undefined}
+      >
+        <Row label="대표" required htmlFor="contact-대표-name">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
             <input
               id="contact-대표-name"
               value={contacts['대표'].name}
@@ -610,6 +680,7 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
                 value={contacts['대표'].phone}
                 onChange={e => setContact('대표', 'phone', formatPhoneKR(e.target.value))}
                 inputMode="tel"
+                aria-label="대표 연락처"
                 placeholder="010-0000-0000"
                 className={`${inputCls} pl-7`}
               />
@@ -620,255 +691,199 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
                 type="email"
                 value={contacts['대표'].email}
                 onChange={e => setContact('대표', 'email', e.target.value)}
+                aria-label="대표 이메일"
                 placeholder="example@email.com"
                 className={`${inputCls} pl-7`}
               />
             </div>
           </div>
-        </div>
-      </section>
-    </div>
+        </Row>
+        {visibleContactRoles.filter(r => r !== '대표').map(role => (
+          <Row key={role} label="추가 관계인" htmlFor={`contact-${role}-name`}>
+            <div className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_1fr_auto] gap-2 items-center">
+              <input
+                id={`contact-${role}-name`}
+                value={contacts[role].name}
+                onChange={e => setContact(role, 'name', e.target.value)}
+                placeholder="이름"
+                className={inputCls}
+              />
+              <input
+                value={contacts[role].phone}
+                onChange={e => setContact(role, 'phone', formatPhoneKR(e.target.value))}
+                inputMode="tel"
+                aria-label="추가 관계인 연락처"
+                placeholder="010-0000-0000"
+                className={inputCls}
+              />
+              <input
+                type="email"
+                value={contacts[role].email}
+                onChange={e => setContact(role, 'email', e.target.value)}
+                aria-label="추가 관계인 이메일"
+                placeholder="example@email.com"
+                className={inputCls}
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  setContact(role, 'name', ''); setContact(role, 'phone', ''); setContact(role, 'email', '')
+                  setVisibleContactRoles(prev => prev.filter(r => r !== role))
+                }}
+                className="justify-self-start text-ink-meta hover:text-red-500 transition-colors p-1"
+                title="관계인 제거"
+              >
+                <X className="size-3.5" />
+              </button>
+            </div>
+          </Row>
+        ))}
+      </Section>
 
-    {/* 우측 칸 — 선택 항목 (담당 배정·추가 관계인·계약일·사용승인일·건물 정보·비고) */}
-    <div className="flex-1 w-full space-y-6 min-w-0">
-      <section className="bg-surface rounded-xl border border-line shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] overflow-hidden">
-        <button type="button" onClick={() => setShowOptional(v => !v)} className="w-full flex items-center gap-2 px-6 py-4">
-          {showOptional ? <ChevronDown className="size-4 text-brand" /> : <ChevronRight className="size-4 text-brand" />}
-          <span className="text-sm font-semibold text-ink">선택 항목</span>
-          <span className="text-xs text-ink-meta">담당 배정 · 추가 관계인 · 계약일 · 사용승인일 · 건물 정보 · 비고 — 등록 후 상세에서도 입력 가능</span>
+      {/* ④ 추가 정보 — 선택 항목만. **기본 접힘**: 필수만으로 등록할 수 있고 전부 등록 후 상세에서도 고친다.
+          대장·기존 건물이 채워 준 값이 있으면 머리에 개수를 달아 「열어 볼 이유」를 알린다. */}
+      <section className={cardCls}>
+        <button
+          type="button"
+          data-testid="new-optional-toggle"
+          aria-expanded={showOptional}
+          onClick={() => setShowOptional(v => !v)}
+          className="w-full flex items-center gap-2 px-5 sm:px-6 py-4 text-left"
+        >
+          <span className={stepBadgeCls}>4</span>
+          <span className="text-sm font-semibold text-ink">추가 정보</span>
+          <span className="text-xs text-ink-meta truncate">선택 — 담당 · 계약일 · 등급 · 건물정보 · 비고 (등록 후에도 입력 가능)</span>
+          {autoBuildingCount > 0 && (
+            <span data-testid="new-optional-auto" className="shrink-0 text-form-2xs px-1.5 py-0.5 rounded-full bg-green-50 text-green-700">
+              자동 채움 {autoBuildingCount}칸
+            </span>
+          )}
+          {showOptional ? <ChevronDown className="size-4 text-brand ml-auto shrink-0" /> : <ChevronRight className="size-4 text-brand ml-auto shrink-0" />}
         </button>
 
         {showOptional && (
-        <div className="px-6 pb-6 space-y-5">
-          {/* 담당직원 배정 */}
-          <div className="grid grid-cols-2 gap-4">
-            <Field label="담당직원 (나중에 변경 가능)">
-              <select
-                value={form.assigned_employee_id}
-                onChange={e => setField('assigned_employee_id', e.target.value)}
-                className={inputCls}
-              >
-                <option value="">배정 안함</option>
-                {employees.map(e => (
-                  <option key={e.id} value={e.id}>
-                    {e.name}{e.position ? ` (${e.position})` : ''}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            <Field label="계약일">
-              <DateInput
-                value={form.contract_date}
-                onChange={e => setField('contract_date', e.target.value)}
-                className={inputCls}
-              />
-            </Field>
-            <Field label="사용승인일" required>
-              <DateInput
-                value={form.use_approval_date}
-                onChange={e => setField('use_approval_date', e.target.value)}
-                className={inputCls}
-              />
-              {ledgerRef.current?.use_approval_date && !form.use_approval_date && (
-                <button
-                  type="button"
-                  onClick={() => setField('use_approval_date', ledgerRef.current!.use_approval_date!)}
-                  className="mt-1 text-form-xs text-brand hover:underline"
-                >
-                  건축물대장 사용승인일 {ledgerRef.current.use_approval_date} 적용
-                </button>
-              )}
-              {/* 이 칸이 **무엇을 정하는지** 그 자리에서 말한다 (2026-09-22 사용자 요청).
-                  종전엔 아무 말도 없어서, 위 [점검일자]를 찍은 사용자는 자기가 고른 날짜로
-                  일정이 잡히는 줄 알았다 — 실측 65%가 사용승인일에 밀려 다른 날에 앉았고
-                  90명은 아예 달이 달랐다. 어느 칸이 이기는지를 입력 중에 보여준다.
-                  ⚠ 막지 않는다. 사용승인일을 **못 내는** 건물이 실재한다(군부대·쉼터 등 —
-                    건축물대장 조회가 실패하는 건들). 막으면 그 고객은 등록 자체가 안 된다. */}
-              {isCompleteDate(form.use_approval_date) ? (
-                <p data-testid="new-anchor-legal" className="text-form-2xs text-ink-meta mt-1.5 leading-relaxed">
-                  이 날짜 기준으로 <b className="text-ink-sub">종합·작동·정기</b>가 잡힙니다 — 법정 기산점입니다.
-                </p>
-              ) : (
-                <p data-testid="new-anchor-provisional" className="text-form-2xs text-amber-700 mt-1.5 leading-relaxed">
-                  ⚠ 사용승인일이 없어 <b>점검일자로 잠정 배치</b>됩니다.
-                  일정은 <b>그대로 생성</b>되고(종합·작동·정기), 나중에 사용승인일을 넣으면 <b>법정 자리로 자동 재배치</b>됩니다.
-                </p>
-              )}
-            </Field>
-          </div>
-          {form.assigned_employee_id && (
-            <p className="text-xs text-ink-sub bg-paper rounded-lg px-3 py-2">
-              배정 즉시 해당 직원에게 알림이 발송됩니다.
-            </p>
-          )}
-
-          {/* 추가 관계인 (ADD-3: 최대 2명) */}
-          <div className="space-y-3">
-            <div className="flex items-center gap-2">
-              <Users className="size-4 text-brand" />
-              <span className="text-xs font-semibold text-ink-sub">추가 관계인</span>
-              {visibleContactRoles.length < 3 && (
-                <button
-                  type="button"
-                  onClick={() => setVisibleContactRoles(prev =>
-                    prev.length === 1 ? [...prev, '직원1'] : [...prev, '직원2']
-                  )}
-                  className="ml-auto inline-flex items-center gap-1 h-7 px-2.5 rounded-lg bg-brand-tint hover:bg-brand-tint text-brand text-xs font-medium transition-colors border border-brand-line"
-                >
-                  <Plus className="size-3" />
-                  관계인 추가
-                </button>
-              )}
-            </div>
-            {visibleContactRoles.filter(r => r !== '대표').length === 0 && (
-              <p className="text-form-xs text-ink-meta">추가 관계인 없음 — 필요 시 [관계인 추가]</p>
+        <div data-testid="new-optional-body" className="px-5 sm:px-6 pb-6 space-y-4">
+          <Row label="담당직원" htmlFor="new-assignee">
+            <select
+              id="new-assignee"
+              value={form.assigned_employee_id}
+              onChange={e => setField('assigned_employee_id', e.target.value)}
+              className={`${inputCls} max-w-xs`}
+            >
+              <option value="">배정 안함</option>
+              {employees.map(e => (
+                <option key={e.id} value={e.id}>
+                  {e.name}{e.position ? ` (${e.position})` : ''}
+                </option>
+              ))}
+            </select>
+            {form.assigned_employee_id && (
+              <p className="text-form-xs text-ink-sub">배정 즉시 해당 직원에게 알림이 발송됩니다.</p>
             )}
-            {visibleContactRoles.filter(r => r !== '대표').map(role => (
-              <div key={role} className="grid grid-cols-3 gap-3 items-end">
-                <Field label={`추가 관계인 이름`}>
-                  <input
-                    id={`contact-${role}-name`}
-                    value={contacts[role].name}
-                    onChange={e => setContact(role, 'name', e.target.value)}
-                    placeholder="이름"
-                    className={inputCls}
-                  />
-                </Field>
-                <Field label="연락처">
-                  <input
-                    value={contacts[role].phone}
-                    onChange={e => setContact(role, 'phone', formatPhoneKR(e.target.value))}
-                    inputMode="tel"
-                    placeholder="010-0000-0000"
-                    className={inputCls}
-                  />
-                </Field>
-                <div className="flex gap-2 items-center">
-                  <Field label="이메일">
-                    <input
-                      type="email"
-                      value={contacts[role].email}
-                      onChange={e => setContact(role, 'email', e.target.value)}
-                      placeholder="example@email.com"
-                      className={inputCls}
-                    />
-                  </Field>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setContact(role, 'name', ''); setContact(role, 'phone', ''); setContact(role, 'email', '')
-                      setVisibleContactRoles(prev => prev.filter(r => r !== role))
-                    }}
-                    className="text-ink-meta hover:text-red-500 transition-colors mt-5"
-                    title="관계인 제거"
-                  >
-                    <X className="size-3.5" />
+          </Row>
+          <Row label="계약일" htmlFor="new-contract-date">
+            <DateInput
+              id="new-contract-date"
+              value={form.contract_date}
+              onChange={e => setField('contract_date', e.target.value)}
+              className={`${inputCls} max-w-[13rem]`}
+            />
+          </Row>
+
+          {/* 소방안전관리등급 (2026-08-20) — 별지 9호 2쪽 «소방안전정보»에 실리는 대상물 급수(별표4).
+              **필수로 걸지 않는다**: 별표4의 2·3급은 설비 설치 여부로 갈리는데 등록 폼엔 설비 입력이 없어
+              등록 시점에 자동 산정이 사실상 불가하다. 실측상 최근 1년 등록 321건 중 315건이 미입력이었고,
+              필수로 걸었다면 그 전부가 등록 자체를 못 했다(2026-08-20). 아는 사람은 여기서 바로 채운다.
+              ⚠ 2026-09-23 필수 칸 사이에서 ④로 옮겼다 — 98%가 비워 두는 칸이 필수 흐름을 끊고 있었다. */}
+          <Row label="소방안전관리등급">
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className="inline-flex rounded-lg border border-line overflow-hidden">
+                {(['특급', '1급', '2급', '3급'] as const).map(g => (
+                  <button key={g} type="button"
+                    aria-pressed={form.building_grade === g}
+                    onClick={() => setField('building_grade', form.building_grade === g ? '' : g)}
+                    className={`${segCls} ${form.building_grade === g ? segOnCls : segOffCls}`}>
+                    {g}
                   </button>
-                </div>
+                ))}
               </div>
-            ))}
-          </div>
-
-          {/* 건물 기본정보 (V9-3) — 대장 자동값 확인·보정 */}
-          <div className="space-y-3">
-            <div className="flex items-center gap-2">
-              <Building2 className="size-4 text-brand" />
-              <span className="text-xs font-semibold text-ink-sub">건물 기본정보</span>
-              {ledgerNote && (
-                <span className={`text-form-xs ml-auto ${ledgerNote.startsWith('건축물대장 자동') ? 'text-green-600' : 'text-amber-500'}`}>
-                  {ledgerNote}
-                </span>
-              )}
+              <span className="text-form-xs text-ink-meta">
+                모르면 비워두세요 — 관계인 탭 [소방안전관리]에서 나중에 입력·자동 산정할 수 있습니다
+              </span>
             </div>
-            <div className="grid grid-cols-2 gap-4">
-          <Field label="건물용도">
-            {/* 049 building_purposes 목록 제안 — select가 아닌 콤보: 건축물대장이 목록에 없는 용도를
-                자동 입력하는 경우가 있어 강제하면 값이 잘린다 (buildings.purpose는 자유 TEXT).
-                datalist에서 ComboInput으로 교체(2026-08-19) — datalist는 타이핑 전에는 목록이
-                안 떠서 "선택하거나"가 거짓말이었다. 이제 칸을 누르면 전체가 펼쳐진다. */}
-            <ComboInput
-              value={form.building_purpose}
-              onChange={v => setField('building_purpose', v)}
-              options={purposes}
-              ariaLabel="건물용도"
-              placeholder={purposes.length > 0 ? '선택하거나 직접 입력' : '예: 업무시설, 근린생활시설'}
-              className={inputCls}
-            />
-          </Field>
-          <Field label="연면적 (㎡)">
-            <input
-              type="number"
-              value={form.building_total_area}
-              onChange={e => setField('building_total_area', e.target.value)}
-              placeholder="예: 1500.5"
-              min="0"
-              step="0.01"
-              className={inputCls}
-            />
-          </Field>
-          <Field label="지상층수">
-            <input
-              type="number"
-              value={form.building_floors_above}
-              onChange={e => setField('building_floors_above', e.target.value)}
-              placeholder="예: 5"
-              min="0"
-              className={inputCls}
-            />
-          </Field>
-          <Field label="지하층수">
-            <input
-              type="number"
-              value={form.building_floors_below}
-              onChange={e => setField('building_floors_below', e.target.value)}
-              placeholder="예: 1"
-              min="0"
-              className={inputCls}
-            />
-          </Field>
-          <Field label="준공연도">
-            <input
-              type="number"
-              value={form.building_year_built}
-              onChange={e => setField('building_year_built', e.target.value)}
-              placeholder="예: 2005"
-              min="1900"
-              max={new Date().getFullYear()}
-              className={inputCls}
-            />
-          </Field>
-            </div>
-          </div>
+          </Row>
 
-          {/* 비고 */}
-          <Field label="비고">
+          {/* 건물 기본정보 (V9-3) — 대장 자동값 확인·보정. 다섯 칸을 한 줄 격자로(용도만 두 칸 폭). */}
+          <Row label="건물 기본정보">
+            <div className="grid grid-cols-2 sm:grid-cols-6 gap-2">
+              <div className="col-span-2 space-y-1">
+                <p className="text-form-2xs text-ink-meta">건물용도</p>
+                {/* 049 building_purposes 목록 제안 — select가 아닌 콤보: 건축물대장이 목록에 없는 용도를
+                    자동 입력하는 경우가 있어 강제하면 값이 잘린다 (buildings.purpose는 자유 TEXT).
+                    datalist에서 ComboInput으로 교체(2026-08-19) — datalist는 타이핑 전에는 목록이
+                    안 떠서 "선택하거나"가 거짓말이었다. 이제 칸을 누르면 전체가 펼쳐진다. */}
+                <ComboInput
+                  value={form.building_purpose}
+                  onChange={v => setField('building_purpose', v)}
+                  options={purposes}
+                  ariaLabel="건물용도"
+                  placeholder={purposes.length > 0 ? '선택하거나 직접 입력' : '예: 업무시설, 근린생활시설'}
+                  className={inputCls}
+                />
+              </div>
+              {([
+                ['building_total_area',   '연면적 (㎡)', '1500.5', { min: '0', step: '0.01' }],
+                ['building_floors_above', '지상층수',    '5',      { min: '0' }],
+                ['building_floors_below', '지하층수',    '1',      { min: '0' }],
+                ['building_year_built',   '준공연도',    '2005',   { min: '1900', max: String(new Date().getFullYear()) }],
+              ] as const).map(([key, label, ph, attrs]) => (
+                <div key={key} className="space-y-1 min-w-0">
+                  <p className="text-form-2xs text-ink-meta">{label}</p>
+                  <input
+                    type="number"
+                    aria-label={label}
+                    value={form[key]}
+                    onChange={e => setField(key, e.target.value)}
+                    placeholder={`예: ${ph}`}
+                    {...attrs}
+                    className={inputCls}
+                  />
+                </div>
+              ))}
+            </div>
+          </Row>
+
+          <Row label="비고" htmlFor="new-notes">
             <textarea
+              id="new-notes"
               value={form.notes}
               onChange={e => setField('notes', e.target.value)}
               placeholder="특이사항 메모"
               rows={2}
               className="w-full rounded-lg border border-brand-line bg-surface px-3 py-2.5 text-sm text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition resize-none"
             />
-          </Field>
+          </Row>
         </div>
         )}
       </section>
-    </div>
-    </div>
 
       {error && (
         <p className="text-sm text-red-600 bg-red-50 rounded-lg px-4 py-3">{error}</p>
       )}
 
-      {/* 하단 바 — 요약 패널이 갖고 있던 **필수 체크**와 **[등록] 상태 문구**를 여기로 옮겼다.
-          값 미러는 옮기지 않았다: 두 칸이 동시에 보이므로 같은 값을 다시 보여줄 이유가 없다.
-          어느 칸이 비었는지 알려 주는 기능은 여전히 필요해 칩으로 남긴다. */}
-      <div className="flex flex-wrap items-center gap-3 pb-8 pt-1">
-        <div className="flex flex-wrap gap-1 items-center min-w-0 flex-1">
+      {/* 하단 바 — **화면 아래에 붙어 있다**(sticky). 한 줄기로 세우면서 폼이 길어졌으므로
+          스크롤해도 필수 칩과 [등록]이 늘 보이게 한다. 칩은 화면 순서(① → ③)대로 읽힌다. */}
+      <div
+        data-testid="new-submit-bar"
+        className="sticky bottom-0 z-10 flex flex-wrap items-center gap-3 py-3 bg-surface/95 backdrop-blur border-t border-line"
+        style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom, 0px))' }}
+      >
+        {/* 좁은 폭에선 칩이 한 줄을 통째로 쓰고 버튼은 아래로 — 버튼 옆에 끼면 칩 글자가 한 자씩 꺾인다 */}
+        <div className="flex flex-wrap gap-1 items-center min-w-0 basis-full sm:basis-0 sm:flex-1">
           <span className="text-form-2xs text-ink-meta shrink-0">필수</span>
           {requiredChecks.map(([label, ok]) => (
             <span key={label as string}
-              className={`inline-flex items-center gap-0.5 text-form-2xs px-1.5 py-0.5 rounded-full ${ok ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700 border border-amber-200'}`}>
+              className={`inline-flex items-center gap-0.5 whitespace-nowrap text-form-2xs px-1.5 py-0.5 rounded-full ${ok ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700 border border-amber-200'}`}>
               {ok && <Check className="size-2.5" />}{label}
             </span>
           ))}
@@ -891,6 +906,7 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
             : '필수 항목을 채워주세요'}
         </button>
       </div>
+    </div>
 
       {/* 고객명 중복 — 차단 팝업 ([계속 등록] 없음). 주소 축과 정책이 다르다 */}
       {nameDup && (

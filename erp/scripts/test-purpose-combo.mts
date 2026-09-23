@@ -28,6 +28,8 @@ try {
   console.log('— 1. 고객 등록: 눌러서 펼침')
   await page.goto(`${BASE}/customers/new`)
   await page.waitForLoadState('networkidle')
+  // 건물용도는 ④ 추가 정보(기본 접힘) 안이다 — 2026-09-23 등록 화면 재배치. 먼저 연다.
+  await page.locator('[data-testid="new-optional-toggle"]').click()
   const combo = page.getByRole('combobox', { name: '건물용도' })
   await combo.waitFor({ state: 'visible', timeout: 20000 })
 

@@ -653,7 +653,7 @@ try {
     await page.goto(`${BASE}/customers/new`)
     await page.locator('input[placeholder="주소 검색 후 동/호수 등 추가 입력"]').fill('경기도 양평군 양평읍 테스트로 9')
     await page.locator('input[placeholder="주소 검색 시 자동입력 또는 직접 입력"]').fill(REG)
-    await page.locator('input[placeholder="YYYY-MM-DD"]').first().fill(SCHED)
+    await page.locator('#new-anchor-date').fill(SCHED)   // 순번 아닌 id — 2026-09-23 재배치로 첫 날짜 칸은 사용승인일
     await page.locator('#contact-대표-name').fill('배치대표')
     const regBtn = page.getByRole('button', { name: '등록', exact: true }).first()
     await regBtn.waitFor()

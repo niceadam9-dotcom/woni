@@ -59,7 +59,7 @@ try {
     await page.getByText('고객명 (건물명)').first().waitFor()
     await page.locator('input[placeholder="주소 검색 후 동/호수 등 추가 입력"]').fill(`서울시 테스트구 ${STAMP}로 ${label}`)
     await page.locator('input[placeholder="주소 검색 시 자동입력 또는 직접 입력"]').fill(name)
-    await page.locator('div:has(> label:has-text("사용승인일"))').locator('input[placeholder="YYYY-MM-DD"]').first().fill('2020-01-01')
+    await page.locator('#new-use-approval').fill('2020-01-01')
     await page.locator('input[placeholder="대표 이름 *"]').fill('테스트대표')
     const submit = page.locator('button[type="submit"]').last()
     const enabled = await page.waitForFunction(
@@ -84,7 +84,7 @@ try {
   }
 
   const anchorValue = async () => {
-    const v = await page.locator('div:has(> label:has-text("점검일자"))').locator('input[placeholder="YYYY-MM-DD"]').first().inputValue()
+    const v = await page.locator('#new-anchor-date').inputValue()
     return v
   }
 
@@ -104,6 +104,10 @@ try {
       from.startsWith('/inspections/calendar') && new URLSearchParams(from.split('?')[1] ?? '').get('day') === D, from)
     check('A 등록 페이지 anchor = 짚은 날짜', qs().get('anchor') === D, page.url())
     check('★ A 점검일자가 짚은 날짜로 프리필된다', (await anchorValue()) === D, await anchorValue())
+    // 2026-09-23 — 페이지를 열면 **커서가 고객명**에 있다(사용자 요청). 달력에서 와도 같다.
+    const focusedId = await page.evaluate(() => document.activeElement?.id ?? '')
+    check('★ A 열자마자 커서가 고객명에 있다', focusedId === 'new-customer-name', focusedId || '(없음)')
+    check('A ④ 추가 정보는 접혀 있다 (필수만으로 등록한다)', (await page.locator('[data-testid="new-optional-body"]').count()) === 0)
     check('A 복귀 약속 문구가 뜬다', (await page.getByText('등록하면 점검달력으로 돌아갑니다').count()) === 1)
 
     const cid = await fillAndSubmit('A', `E2E-RT-${STAMP}-패널`)
@@ -158,7 +162,7 @@ try {
     await page.goto(`${BASE}/customers/new`, { waitUntil: 'domcontentloaded' })
     await page.getByText('고객명 (건물명)').first().waitFor()
     check('D from 없이 열면 점검일자는 비어 있다 (지어내지 않는다)', (await anchorValue()) === '', await anchorValue())
-    await page.locator('div:has(> label:has-text("점검일자"))').locator('input[placeholder="YYYY-MM-DD"]').first().fill(iso(30))
+    await page.locator('#new-anchor-date').fill(iso(30))
     const cid = await fillAndSubmit('D', `E2E-RT-${STAMP}-직접`)
     check('D 고객이 만들어졌다', !!cid)
     check('★ D from이 없으면 종전대로 고객 상세로 간다',
