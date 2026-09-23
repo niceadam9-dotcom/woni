@@ -11,6 +11,7 @@ import { PLAN_TEXT_SECTIONS } from '@/lib/plan-text-sections'
 import { goPlanNode } from '@/components/customers/plan-form13'
 import type { EvacFireSection } from '@/components/customers/plan-form15'
 import { compartmentLabel } from '@/lib/evac-compartment'
+import { normalizeEvacPlan, normalizeVulnerable } from '@/lib/evac-plan-normalize'
 
 /** 3장 피난계획 — 서식 3.1~3.7 (소방계획서_4.md §6)
  *  3.1은 1.5 입력(evacFire) 자동 표시(재사용 — 수정은 1.5에서), 3.4 evacPlan은 생성 어댑터(§7-3)로 문서에 반영.
@@ -63,8 +64,10 @@ export function PlanCh3({ customerId, canManage, evacFire, headcount, initialDet
   const router = useRouter()
   const [detail, setDetail] = useState<EvacDetailRow[]>(initialDetail)
   const [hcNote, setHcNote] = useState(initialHeadcountNote)
-  const [plan, setPlan] = useState<EvacPlanSection>(initialPlan ?? { procedure: '', routes: [], assembly: '', mapImage: null })
-  const [vul, setVul] = useState<VulnerableSection>(initialVulnerable ?? { none: false, counts: {}, plans: [] })
+  // 🚨 `initialPlan ?? 기본값`은 **자료가 있기만 하면** 빠진 키를 안 채웠다 — routes 없는 저장값(스테이징 6건)에서
+  //   `plan.routes.map`이 죽었다(2026-09-23). 빠진 키만 기본값으로 채운다(lib/evac-plan-normalize).
+  const [plan, setPlan] = useState<EvacPlanSection>(() => normalizeEvacPlan(initialPlan))
+  const [vul, setVul] = useState<VulnerableSection>(() => normalizeVulnerable(initialVulnerable))
   const [methods, setMethods] = useState<Record<string, string>>(initialMethods)
   const [dirty, setDirty] = useState(false)
   useUnsavedWarning(dirty, () => saveKeys(fullPatch(), '3장')) // §11-4 이탈 경고 + 이동 확인창 [저장하고 이동]
