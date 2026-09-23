@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { FileSpreadsheet, Loader2 } from 'lucide-react'
 import { DocNoticeToast } from '@/components/ui/doc-notice-toast'
 import { firePlanXlsxUrl } from '@/lib/fire-plan-doc-urls'
+import { PANEL_BTN_OUTLINE } from '@/components/inspections/doc-card'
 
 /** 소방계획서 엑셀 받기 — **단일 원천** (소방계획서_47).
  *
@@ -28,7 +29,8 @@ export function FirePlanXlsxButton({
 }: {
   customerId: string
   label?: string
-  variant?: 'primary' | 'outline' | 'compact'
+  /** 'panel' = 달력 단계 사이드바 버튼 **한 벌**(inspections/doc-card.ts) + 칸 폭 가득(2026-09-23 image-15) */
+  variant?: 'primary' | 'outline' | 'compact' | 'panel'
   title?: string
   /** 넘기면 고지를 바깥이 그린다 — 넘기지 않으면 이 컴포넌트가 아래에 그린다 */
   onNotice?: (msg: string) => void
@@ -97,7 +99,8 @@ export function FirePlanXlsxButton({
     <>
       <button onClick={download} disabled={busy} data-testid="fire-plan-xlsx"
         title={title ?? defaultTitle}
-        className={`inline-flex items-center gap-1 h-form-8 px-3 rounded-lg text-form-sm font-medium transition-colors disabled:opacity-50 ${cls}`}>
+        className={variant === 'panel' ? `${PANEL_BTN_OUTLINE} w-full min-w-0`
+          : `inline-flex items-center gap-1 h-form-8 px-3 rounded-lg text-form-sm font-medium whitespace-nowrap transition-colors disabled:opacity-50 ${cls}`}>
         {busy ? <Loader2 className="size-3.5 animate-spin" /> : <FileSpreadsheet className="size-3.5" />} {label}
       </button>
       {owns && selfError && (

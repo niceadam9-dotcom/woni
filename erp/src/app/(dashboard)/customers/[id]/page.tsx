@@ -17,6 +17,8 @@ import { FirePlanViewClient } from '@/components/customers/fire-plan-view'
 import { FirePlanXlsxButton } from '@/components/customers/fire-plan-xlsx-button'
 import { WorkbookXlsxButton } from '@/components/inspections/workbook-xlsx-button'
 import { currentRoundOf, downloadableInspectionId, roundLabel } from '@/lib/customer-rounds'
+import { safeReturnHref } from '@/lib/safe-return'
+import { ReportGapsProvider, ReportGapCount, ReportGapsStrip } from '@/components/customers/report-gaps'
 import { FirePlanInfoPanel } from '@/components/customers/fire-plan-info-panel'
 import { PlanTabView, type FormStatusMap } from '@/components/customers/plan-tab-view'
 import { sectionsOfForm, tabOfForm, type FirePlanStatusKey } from '@/lib/fire-plan-sections'
@@ -104,10 +106,13 @@ export default async function CustomerDetailPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>
-  searchParams: Promise<{ tab?: string; b?: string; new?: string; lq?: string; hy?: string; hk?: string; created?: string; sub?: string; form?: string; onboarding?: string }>
+  searchParams: Promise<{ tab?: string; b?: string; new?: string; lq?: string; hy?: string; hk?: string; created?: string; sub?: string; form?: string; onboarding?: string; from?: string }>
 }) {
   const { id } = await params
-  const { tab: initialTab, b: initialBuildingId, new: initialNewBuilding, lq, hy, hk, created, sub, form: initialForm, onboarding } = await searchParams
+  const { tab: initialTab, b: initialBuildingId, new: initialNewBuilding, lq, hy, hk, created, sub, form: initialForm, onboarding, from: fromParam } = await searchParams
+  // 복귀 주소(2026-09-23) — 점검달력 사이드바에서 탭으로 들어왔으면 ←가 달력으로 돌아간다.
+  // ⚠ `?from=report9`(1.4 설비 대장 자동 오픈 신호)와는 **값의 꼴로** 갈린다: 이쪽은 `/`로 시작하는 경로만.
+  const returnHref = safeReturnHref(fromParam)
   // ── 소방계획서_34 S1-1: 구 딥링크 ?tab=plan&form=annex → 새 최상위 탭 annex ──
   // ⚠ 이 3줄은 **영구 존치**한다. 별지가 소방계획서 탭 안 트리 노드였던 시절의 URL이 사용자 북마크와
   //   E2E·프로브 11종(test-annex-interaction · _diag-header-plan-link · _judge-soban15-annex ·
@@ -469,18 +474,19 @@ export default async function CustomerDetailPage({
   //    「⚠인데 소방계획서로 직행시킨다」가 안 생긴다. 규칙·근거는 lib/onboarding-steps.ts.
   const obState = { buildings: buildingsDone(buildings), contacts: contactsDone(contacts) }
   const tabDefs: CustomerTabDef[] = [
-    { key: 'info', label: '기본정보', warn: !customer.plan_anchor_date || !customer.assigned_employee_id },
-    { key: 'buildings', label: '건물·시설', warn: !obState.buildings },
-    { key: 'contacts', label: '관계인', badge: `(${contacts.length})`, warn: !obState.contacts },
+    // extra = 보고서 엑셀 빈칸 수(2026-09-23) — 화면이 뜬 뒤 /report-gaps가 채운다. ⚠는 등록 기본 축, 이 수는 보고서 축
+    { key: 'info', label: '기본정보', warn: !customer.plan_anchor_date || !customer.assigned_employee_id, extra: <ReportGapCount tabKey="info" /> },
+    { key: 'buildings', label: '건물·시설', warn: !obState.buildings, extra: <ReportGapCount tabKey="buildings" /> },
+    { key: 'contacts', label: '관계인', badge: `(${contacts.length})`, warn: !obState.contacts, extra: <ReportGapCount tabKey="contacts" /> },
     // ── 소방계획서 3분리 구간 (2026-09-20 사용자 확정): 순서도 사용자 지정 — 공통 → 보고서 → 소방계획서 → 회차
     //    (2026-09-21 사용자 지시로 회차를 소방계획서 **뒤**로 옮겼다 — 종전: 공통 → 보고서 → 회차 → 소방계획서).
     //    분리 이유(사용자): 소방계획서가 필요 없는 고객이 있다 — 공통·보고서만 채우면 별지 업무가 끝나야 한다. ──
     // 공통 탭(구 소방계획서 트리 1.1·1.4) — 소방계획서·별지 9호(·4호·점검표)가 **양쪽에서 읽는** 입력.
     // ⭐ 확장 규칙(사용자 확정): 앞으로 공통으로 판정되는 서식은 이 탭 트리에 노드로 추가한다.
     { key: 'facilities', label: '공통', badge: installedTabCount > 0 ? `${installedTabCount}종` : undefined,
-      warn: !facilitiesDone || readiness.done < readiness.total },
+      warn: !facilitiesDone || readiness.done < readiness.total, extra: <ReportGapCount tabKey="facilities" /> },
     // 보고서 — **별지에만** 실리는 입력(기타 점검대상·전년도 업무 실시사항). 2026-09-20 3분리로 신설.
-    { key: 'reports', label: '보고서' },
+    { key: 'reports', label: '보고서', extra: <ReportGapCount tabKey="reports" /> },
     // 일반관리도 소방계획서 대상 (소방계획서_6 W-14·D-6). 뱃지 = 목차 완성도 합산(§1-4).
     // warn도 그 축 — 1.1 필수 완성도(readiness)는 공통 탭으로 이사했다.
     { key: 'plan', label: '소방계획서', badge: `${formFilled}/${formTotal}`, warn: formFilled < formTotal },
@@ -1206,7 +1212,10 @@ export default async function CustomerDetailPage({
         {/* 목록으로 — 2026-09-21 사용자 요청으로 **2배 크게·굵게**(size-5 20px → size-10 40px,
             기본 굵기 2 → 3). 고객 사이를 오가며 제일 자주 누르는 자리인데 20px 실선 하나라
             제목 옆에서 눈에 띄지 않았다. 색도 한 단계 진하게(ink-sub → ink). */}
-        <Link href="/customers" aria-label="고객 목록으로"
+        {/* 달력에서 왔으면(`?from=`) 달력으로 — 탭 이동은 URL의 from을 보존하므로(customer-tabs applySwitchTab)
+            여러 탭을 채우고 난 뒤에도 이 ←가 떠나온 사이드바로 돌아간다(2026-09-23). */}
+        <Link href={returnHref || '/customers'} aria-label={returnHref ? '점검달력으로 돌아가기' : '고객 목록으로'}
+          title={returnHref ? '점검달력으로 돌아가기' : undefined} data-testid="customer-back"
           className="shrink-0 text-ink hover:text-brand transition-colors">
           <ChevronLeft className="size-10" strokeWidth={3} />
         </Link>
@@ -1220,7 +1229,16 @@ export default async function CustomerDetailPage({
             URL만 바뀌고 **서버가 재렌더되지 않아** initialTab·initialForm이 옛 값 그대로다 —
             2026-08-28 실측: tab=buildings에서 눌러도 활성 탭이 건물·시설로 남았다(전체 로드는 정상).
             customer-tabs.tsx:42·plan-tab-view.tsx:122의 프롭 동기화는 둘 다 그 재렌더를 전제한다. */}
-        <a href={`/customers/${customer.id}?tab=annex`}
+        {/* 달력에서 왔으면 **어느 탭에서든** 보이는 복귀 버튼(2026-09-23 사용자 「소방계획서 입력 후 달력으로
+            복귀도 편리하고 쉽게」). ←(아이콘)만으로는 「목록으로」인지 「달력으로」인지 안 읽힌다 — 글씨로 말한다.
+            ⚠ 미저장 입력이 있으면 탭 셸의 링크 가로채기(customer-tabs useUnsavedNavGuard)가 먼저 묻는다. */}
+        {returnHref && (
+          <Link href={returnHref} data-testid="customer-return-calendar"
+            className="inline-flex items-center gap-1 h-form-8 px-3 rounded-lg bg-brand text-white text-form-sm font-medium hover:opacity-90 transition-opacity shrink-0">
+            ← {returnHref.startsWith('/inspections/calendar') ? '점검달력으로 돌아가기' : '돌아가기'}
+          </Link>
+        )}
+        <a href={`/customers/${customer.id}?tab=annex${returnHref ? `&from=${encodeURIComponent(returnHref)}` : ''}`}
           data-testid="header-plan-link"
           className="inline-flex items-center gap-1 text-form-sm font-medium px-2.5 py-1 rounded-lg border border-brand-line text-brand hover:bg-brand-tint shrink-0">
           <FileText className="size-3.5" /> 회차
@@ -1243,6 +1261,8 @@ export default async function CustomerDetailPage({
       )}
 
       {/* 탭 셸 + 우측 요약 패널 (설계 §2·§6-C-2) — 소방계획서 탭은 전체 폭(요약 패널 접힘, 2026-08-05) */}
+      <ReportGapsProvider customerId={customer.id} returnHref={returnHref}
+        enabled={can(profile.role as UserRole, 'inspection_register')}>
       <CustomerTabs
         initialTab={effectiveTab}
         tabs={tabDefs}
@@ -1254,7 +1274,16 @@ export default async function CustomerDetailPage({
             complete={onboardingComplete(obState)}
           />
         ) : undefined}
-        panels={{ info: infoTab, buildings: buildingsTab, contacts: contactsTab, plan: planTab, facilities: facilitiesTab, reports: reportsTab, annex: annexTab, billing: billingTab, history: historyTab }}
+        // 보고서 입력 다섯 탭은 맨 위에 「이 탭에서 채울 칸」 목록을 얹는다(2026-09-23 — report-gaps.tsx)
+        panels={{
+          info: <><ReportGapsStrip tabKey="info" />{infoTab}</>,
+          buildings: <><ReportGapsStrip tabKey="buildings" />{buildingsTab}</>,
+          contacts: <><ReportGapsStrip tabKey="contacts" />{contactsTab}</>,
+          plan: planTab,
+          facilities: <><ReportGapsStrip tabKey="facilities" />{facilitiesTab}</>,
+          reports: <><ReportGapsStrip tabKey="reports" />{reportsTab}</>,
+          annex: annexTab, billing: billingTab, history: historyTab,
+        }}
         fullWidthKeys={['plan', 'facilities', 'reports', 'annex']}
         // 넓게 쓰되 요약 패널은 남긴다(2026-09-23 사용자: 오른쪽이 비어 있다 — 1920에서 ~620px 빈칸)
         wideKeys={['info', 'buildings', 'contacts', 'billing', 'history']}
@@ -1275,6 +1304,7 @@ export default async function CustomerDetailPage({
           />
         }
       />
+      </ReportGapsProvider>
     </div>
   )
 }

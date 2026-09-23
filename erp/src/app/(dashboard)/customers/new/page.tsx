@@ -5,6 +5,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { CustomerNewClient } from '@/components/customers/customer-new-client'
 import { getCompanyProfile } from '@/lib/company-profile'
 import { listBuildingPurposes } from '@/lib/building-purposes'
+import { safeReturnHref } from '@/lib/safe-return'
 
 export default async function CustomersNewPage({
   searchParams,
@@ -19,11 +20,9 @@ export default async function CustomersNewPage({
      이 페이지로 옮겨 왔다). 짚은 날짜가 **점검일자**로 프리필되고, 마치면 `from`으로 돌아간다.
      ⚠ 형식 검증만 한다 — 날짜 꼴이 아니면 프리필 없이 평소의 빈 폼이다(지어내지 않는다). */
   const initialAnchorDate = /^\d{4}-\d{2}-\d{2}$/.test(params.anchor ?? '') ? params.anchor! : ''
-  /* 🚨 복귀 주소는 **내부 경로만** 받는다. 검증 없이 `router.push`에 넘기면 `//evil.com`이
-     프로토콜 상대 URL로 해석돼 외부로 튕긴다(오픈 리다이렉트). `/`로 시작하되 `//`·`/\`는
-     아닐 것 — 이 두 조건이 그 문을 닫는다. 걸러지면 종전 동선(고객 상세)으로 간다. */
-  const from = params.from ?? ''
-  const returnHref = /^\/(?![/\\])/.test(from) ? from : ''
+  /* 🚨 복귀 주소는 **내부 경로만** 받는다(오픈 리다이렉트 — 규칙은 lib/safe-return 한 곳).
+     걸러지면 종전 동선(고객 상세)으로 간다. */
+  const returnHref = safeReturnHref(params.from)
 
   const admin = createAdminClient()
   const [{ data: employeesRaw }, company, purposes] = await Promise.all([

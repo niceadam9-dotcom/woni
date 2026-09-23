@@ -19,6 +19,7 @@ export function CustomerFilterSearch({
   placeholder = '고객명 검색 (초성 가능)',
   widthClass = 'w-52',
   testId,
+  size = 'sm',
 }: {
   customers: FilterCustomer[]
   value: string
@@ -26,7 +27,11 @@ export function CustomerFilterSearch({
   placeholder?: string
   widthClass?: string
   testId?: string
+  /** 'lg' = 화면의 **주인공 검색창**(점검달력 2026-09-23 「고객검색이 눈에 잘 띄게」) — 높이 44px·글씨 14px·
+   *  `/` 단축키 안내. 기본 'sm'은 종전 그대로(다른 화면 무변경). */
+  size?: 'sm' | 'lg'
 }) {
+  const lg = size === 'lg'
   const [open, setOpen] = useState(false)
   const [active, setActive] = useState(-1)
   const boxRef = useRef<HTMLDivElement>(null)
@@ -65,7 +70,7 @@ export function CustomerFilterSearch({
 
   return (
     <div className="relative" ref={boxRef}>
-      <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-ink-faint pointer-events-none" />
+      <Search className={`absolute top-1/2 -translate-y-1/2 pointer-events-none ${lg ? 'left-3.5 size-4.5 text-brand' : 'left-2.5 size-3.5 text-ink-faint'}`} />
       <input
         ref={inputRef}
         value={value}
@@ -76,8 +81,14 @@ export function CustomerFilterSearch({
         autoComplete="off"
         aria-label="고객명 검색"
         data-testid={testId}
-        className={`h-8 pl-7 pr-7 rounded-lg border border-line bg-surface text-xs text-ink outline-none focus:border-brand focus:ring-1 focus:ring-brand transition ${widthClass}`}
+        className={lg
+          ? `h-11 pl-10 pr-16 rounded-xl border-2 border-brand-line bg-surface text-sm text-ink placeholder:text-ink-meta outline-none shadow-sm focus:border-brand focus:ring-4 focus:ring-brand/15 transition ${widthClass}`
+          : `h-8 pl-7 pr-7 rounded-lg border border-line bg-surface text-xs text-ink outline-none focus:border-brand focus:ring-1 focus:ring-brand transition ${widthClass}`}
       />
+      {/* `/` 단축키 안내 — 큰 검색창에서만, 비었을 때만(값이 있으면 지우기 X가 그 자리를 쓴다) */}
+      {lg && !value && (
+        <kbd className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none rounded border border-line bg-paper px-1.5 text-form-2xs text-ink-meta">/</kbd>
+      )}
       {value && (
         <button
           type="button"
@@ -94,7 +105,7 @@ export function CustomerFilterSearch({
         <div
           role="listbox"
           data-testid={testId ? `${testId}-list` : undefined}
-          className="absolute top-9 left-0 z-40 w-64 bg-surface rounded-xl border border-brand-line shadow-xl py-1.5 max-h-72 overflow-y-auto"
+          className={`absolute left-0 z-40 bg-surface rounded-xl border border-brand-line shadow-xl py-1.5 max-h-72 overflow-y-auto ${lg ? 'top-12 w-full min-w-64' : 'top-9 w-64'}`}
         >
           {matches.map((c, i) => (
             <button

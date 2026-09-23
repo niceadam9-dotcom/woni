@@ -12,6 +12,8 @@ export type CustomerTabDef = {
   label: string
   badge?: string   // 표시 텍스트 (예: "6/9", "(2)", "07-10")
   warn?: boolean   // 미완 ⚠ (앰버)
+  /** 라벨 뒤에 덧붙일 표식(예: 보고서 엑셀 빈칸 수 — 화면이 뜬 뒤 비동기로 채워진다) */
+  extra?: ReactNode
 }
 
 type TabsCtx = {
@@ -183,6 +185,7 @@ export function CustomerTabs({ initialTab, tabs, panels, summary, banner, fullWi
               <span className={`text-form-2xs font-medium ${t.warn ? 'text-amber-600' : 'text-ink-sub'}`}>{t.badge}</span>
             )}
             {t.warn && !t.badge && <span className="text-form-2xs text-amber-500">⚠</span>}
+            {t.extra}
           </button>
         ))}
       </div>

@@ -2,9 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import { useRouter, usePathname, useSearchParams } from 'next/navigation'
-import { Calendar, dateFnsLocalizer, Views, type View, type ToolbarProps } from 'react-big-calendar'
+import { Calendar, dateFnsLocalizer, Views, type View } from 'react-big-calendar'
 import withDragAndDrop from 'react-big-calendar/lib/addons/dragAndDrop'
-import { format, parse, startOfWeek, getDay, addDays } from 'date-fns'
+import { format, parse, startOfWeek, getDay, addDays, addMonths } from 'date-fns'
 import { ko } from 'date-fns/locale/ko'
 import 'react-big-calendar/lib/css/react-big-calendar.css'
 import 'react-big-calendar/lib/addons/dragAndDrop/styles.css'
@@ -38,6 +38,9 @@ import { periodSummary } from '@/lib/inspection-period'
 import { CustomerFilterSearch } from '@/components/ui/customer-filter-search'
 import { AddressMapButton } from '@/components/ui/address-map-button'
 import { WorkbookXlsxButton } from '@/components/inspections/workbook-xlsx-button'
+import { useReportGapSummary } from '@/components/customers/report-gaps'
+import { reportInputTarget } from '@/lib/workbook-notice'
+import { DOC_ROW, PANEL_BTN_PRIMARY, PANEL_BTN_OUTLINE } from '@/components/inspections/doc-card'
 import type { InspectionType, InspectionStatus, UserRole } from '@/types'
 import { inspectionTypeLabel } from '@/types'
 
@@ -495,6 +498,11 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
    *  ⚠ 서버가 형식만 검증해 넘긴다 — 실재 여부는 아래 `selectedInspection`이 목록에서 찾는다.
    *    없는 id면 패널이 안 열리고 조용히 달력만 보인다(그게 옳다: 남의 링크·지난 회차일 수 있다). */
   const [selectedInspectionId, setSelectedInspectionId] = useState<string | null>(initialInspectionId || null)
+  /** 달력에서 **누른 단계** — 사이드바가 그 단계로 스크롤하고 테두리로 짚는다(2026-09-23 image-15:
+   *  「6단계를 클릭했는데 스크롤을 내려야만 보인다」). 칩이 아닌 경로(주소 복원 등)면 null →
+   *  아래 effect가 **지금 급한 단계**(panelEntryStep — 하단 「N단계로 이동」과 같은 판정)로 간다. */
+  const [focusStepNum, setFocusStepNum] = useState<number | null>(null)
+  const stepsListRef = useRef<HTMLDivElement>(null)
   const [completingStepId, setCompletingStepId] = useState<string | null>(null)
   const [stepError, setStepError] = useState<string | null>(null)
 
@@ -776,9 +784,7 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
     [inspections]
   )
 
-  const panelCompletedCount = selectedInspection?.steps.filter(s => s.status === 'completed').length ?? 0
-  const panelTotalCount = selectedInspection?.steps.length ?? 0
-  const panelProgressPct = panelTotalCount > 0 ? Math.round((panelCompletedCount / panelTotalCount) * 100) : 0
+  // 「전체 진행률」 막대는 뺐다(2026-09-23 사용자 「삭제해도 돼」) — 완료 단계가 목록에서 한 줄 ✓로 접혀 보인다.
 
   /* ── R3 — 1단계 점검기간 한 줄 (2026-09-22 사용자 요청) ────────────────────────────
      패널은 여태 「9/14 시작」까지만 말했다. **며칠짜리인지, 언제 끝나는지**가 달력 어디에도
@@ -808,6 +814,21 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
       .reduce((a, b) => (a.step_num <= b.step_num ? a : b))
     return pick.step_num
   })()
+
+  /* 사이드바가 열리면 **누른 단계**(없으면 지금 급한 단계 — 위 panelEntryStep)가 목록 안에 보이게 한다
+     (2026-09-23 image-15 「6단계를 클릭했는데 스크롤을 내려야만 보인다」). 한눈에 다 들어오면 움직이지 않는다.
+     ⚠ scrollIntoView를 쓰지 않는다 — 목록 바깥(달력 페이지)까지 스크롤을 건드린다. 목록의 scrollTop만 옮긴다.
+     ⚠ 계산은 그리기 **뒤**여야 한다(useEffect) — 렌더 중엔 단계 줄의 위치가 아직 없다. */
+  const scrollTargetStep = focusStepNum ?? panelEntryStep
+  useEffect(() => {
+    const box = stepsListRef.current
+    if (!box || !selectedInspectionId) return
+    if (!scrollTargetStep) { box.scrollTop = 0; return }
+    const el = box.querySelector<HTMLElement>(`[data-step-num="${scrollTargetStep}"]`)
+    if (!el) return
+    const top = el.offsetTop, bottom = top + el.offsetHeight
+    if (top < box.scrollTop || bottom > box.scrollTop + box.clientHeight) box.scrollTop = Math.max(0, top - 8)
+  }, [selectedInspectionId, scrollTargetStep])
   /** 달력으로 되돌아올 **복귀 주소** — 패널에서 나가는 링크들이 **여기 한 곳에서** 받는다(B-3).
    *
    *  ⚠ 지금 보고 있는 **달 파라미터까지** 넘긴다: 그냥 `/inspections/calendar`로 보내면
@@ -873,10 +894,35 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
   /** 소방계획서 고지 — 보고서와 **다른 축**이라 따로 든다(고객 단위 문서다). 이쪽은 그대로 남긴다 */
   const [fpNotice, setFpNotice] = useState<WorkbookNoticePart[]>([])
   const [fpError, setFpError] = useState('')
+  /** 소방계획서 엑셀 안내 펼침 — 제목줄 「안내 N」을 누를 때만 목록을 편다(2026-09-23 image-14) */
+  const [fpNoticeOpen, setFpNoticeOpen] = useState(false)
+  /** 보고서 빈칸 요약 — 수와 첫 빈 탭만(제목줄 「빈칸 N」 + [입력하기] 목적지). 결과보고서가 없는 회차는 묻지 않는다 */
+  const reportGaps = useReportGapSummary(
+    selectedInspection?.customer_id ?? null,
+    selectedInspection?.hasResultReport ? selectedInspection.id : null)
+  /** 보고서 [입력 N] — 빈칸 수는 버튼 안 숫자, 목적지는 **첫 빈 탭**(reportInputTarget). 불러오는 중·판정 불가면
+   *  숫자 없이(0으로 그리지 않는다). JSX 밖에 두는 이유: 보고서 게이트 블록을 짧게(버튼이 게이트 안에 있음을
+   *  test-calendar-workbook-button이 600자 창으로 묻는다). */
+  const reportTo = reportInputTarget(reportGaps?.byTab ?? null)
+  const reportInputLink = selectedInspection ? (
+    <Link
+      href={`/customers/${selectedInspection.customer_id}?tab=${reportTo.tab}${reportTo.form ? `&form=${reportTo.form}` : ''}&from=${encodeURIComponent(calendarBackHref)}`}
+      data-testid="daypanel-report-input"
+      aria-label="보고서 입력하기 — 첫 빈 탭으로"
+      title={reportGaps?.total ? `보고서 빈칸 ${reportGaps.total} — 첫 빈 탭으로 갑니다 (${reportGaps.title})` : '고객 기본정보부터 입력합니다'}
+      className={PANEL_BTN_PRIMARY}
+    >
+      <PenLine className="size-3" /> 입력
+      {reportGaps && (reportGaps.total > 0
+        ? <span data-testid="daypanel-report-gaps" data-gaps={reportGaps.total}
+            className="ml-0.5 min-w-4 px-1 rounded-full bg-white/25 text-form-2xs font-semibold">{reportGaps.total}</span>
+        : <span data-testid="daypanel-report-gaps" data-gaps="0" className="sr-only">빈칸 없음</span>)}
+    </Link>
+  ) : null
 
   /* 회차가 바뀌면 이전 회차의 고지·오류를 들고 있으면 안 된다 — 남의 빈칸을 이 회차 것으로 읽게 된다. */
   useEffect(() => {
-    setWbError(''); setFpNotice([]); setFpError('')
+    setWbError(''); setFpNotice([]); setFpError(''); setFpNoticeOpen(false)
   }, [selectedInspectionId])
 
   /* ── 달력에서 고객 등록 (2026-09-22 사용자 요청) ──────────────────────────
@@ -990,6 +1036,7 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
       return
     }
     setSelectedInspectionId(e.resource.inspectionId)
+    setFocusStepNum(e.resource.stepNum || null)
     setStepError(null)
   }, [])
 
@@ -1391,99 +1438,171 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
     )
   }, [viewMode])
 
-  // 커스텀 툴바 — 월간 점검계획과 동일한 ‹ 2026년 7월 › 네비게이션 + 이번달 요약 스탯
-  // 주간 카드 뷰(rbc 밖 렌더링)와 월/목록(rbc 안)이 같은 툴바를 공유
+  // 달력 탐색 — ‹ 2026년 9월 › + 이번달 요약 + 월/주/목록.
+  // 🎯 2026-09-23 사용자 요청 「28일이 안 보인다 — 한눈에 다 조회되게」: 이 줄이 달력 카드 **안**에
+  //   따로 한 줄(42px)을 먹고 있었다. 이제 위 필터 줄에 **합쳐** 그린다(rbc 툴바는 끈다 — toolbar={false}).
+  //   그래서 이동 규칙을 rbc에 맡기지 않고 여기서 직접 정한다(rbc와 같은 걸음):
+  //   월 = 한 달 · 주 = 7일 · 목록 = 30일(rbc Agenda 기본 length).
+  const weekStart = startOfWeek(calDate, { weekStartsOn: 0 })
+  const navLabel = calView === 'week'
+    ? `${format(weekStart, 'M월 d일', { locale: ko })} – ${format(addDays(weekStart, 6), 'M월 d일', { locale: ko })}`
+    : calView === 'agenda'
+      ? `${format(calDate, 'M월 d일', { locale: ko })} – ${format(addDays(calDate, 30), 'M월 d일', { locale: ko })}`
+      : format(calDate, 'yyyy년 M월', { locale: ko })
+  const navigateCal = useCallback((action: 'TODAY' | 'PREV' | 'NEXT') => {
+    if (action === 'TODAY') { setCalDate(new Date()); return }
+    const dir = action === 'PREV' ? -1 : 1
+    setCalDate(d => calView === 'week' ? addDays(d, 7 * dir) : calView === 'agenda' ? addDays(d, 30 * dir) : addMonths(d, dir))
+  }, [calView])
+  /* 🎯 2026-09-23 사용자 요청 「산만하다 — 중요한 것은 **달력 이동과 고객 검색**, 다른 건 별로 안 중요」:
+     도구줄을 **주인공 줄**(달 이동 · 고객 검색 · 월/주/목록)과 **보조 줄**(종류·보기 필터 · 요약 · 부가 버튼)로
+     나눈다. 달 이동은 큰 글씨·큰 버튼으로 맨 왼쪽, [오늘]은 그 옆(「이동」 한 묶음). 요약 스탯은 보조 줄 글자로. */
   const renderCalToolbar = useCallback((label: string, onNavigate: (action: 'TODAY' | 'PREV' | 'NEXT') => void) => (
-    <div className="flex items-center justify-between gap-2 flex-wrap mb-3">
-      <div className="flex items-center gap-3">
-        <button
-          onClick={() => onNavigate('TODAY')}
-          className="h-8 px-3 rounded-lg border border-line text-xs font-medium text-ink-sub bg-surface hover:bg-brand-tint hover:text-brand transition-colors"
-        >
-          오늘
-        </button>
-        {/* 이번달 요약 — 모니터링 안 가도 현황 파악 */}
-        <span className="text-form-xs text-ink-sub hidden sm:flex items-center gap-2">
-          이번달 <b className="text-ink">{monthStats.total}건</b>
-          <span className="text-green-600">완료 {monthStats.done}</span>
-          <span className={monthStats.overdue > 0 ? 'text-red-600 font-semibold' : 'text-ink-meta'}>지연 {monthStats.overdue}</span>
-        </span>
-      </div>
-      <div className="flex items-center gap-0.5 bg-surface border border-line rounded-lg px-1 py-1 shadow-sm">
+    <div data-testid="cal-nav-move" className="flex items-center gap-2 shrink-0">
+      <div className="flex items-center rounded-xl border-2 border-brand-line bg-surface shadow-sm">
         <button
           onClick={() => onNavigate('PREV')}
-          className="p-1 hover:bg-brand-tint rounded transition-colors"
-          title="이전"
+          className="h-11 w-11 flex items-center justify-center rounded-l-[10px] hover:bg-brand-tint transition-colors"
+          title="이전" aria-label="이전"
         >
-          <ChevronLeft className="size-4 text-ink-sub" />
+          <ChevronLeft className="size-7 text-brand" strokeWidth={3} />
         </button>
-        <span className="text-sm font-semibold text-ink min-w-[88px] text-center px-1">{label}</span>
+        <span data-testid="cal-nav-label" className="text-xl font-bold text-ink min-w-[8.5rem] text-center px-1 tabular-nums">{label}</span>
         <button
           onClick={() => onNavigate('NEXT')}
-          className="p-1 hover:bg-brand-tint rounded transition-colors"
-          title="다음"
+          className="h-11 w-11 flex items-center justify-center rounded-r-[10px] hover:bg-brand-tint transition-colors"
+          title="다음" aria-label="다음"
         >
-          <ChevronRight className="size-4 text-ink-sub" />
+          <ChevronRight className="size-7 text-brand" strokeWidth={3} />
         </button>
       </div>
-      <div className="flex items-center bg-brand-tint rounded-lg p-0.5">
-        {([['month', '월'], ['week', '주'], ['agenda', '목록']] as const).map(([v, l]) => (
-          <button
-            key={v}
-            onClick={() => setCalView(v as View)}
-            className={`text-xs px-3 py-1.5 rounded-md font-medium transition-colors ${
-              calView === v ? 'bg-surface text-brand shadow-sm' : 'text-ink-sub hover:text-brand'
-            }`}
-          >
-            {l}
-          </button>
-        ))}
-      </div>
+      <button
+        onClick={() => onNavigate('TODAY')}
+        className="h-11 px-4 rounded-xl border-2 border-brand-line bg-surface text-sm font-semibold text-brand hover:bg-brand-tint transition-colors"
+      >
+        오늘
+      </button>
     </div>
-  ), [monthStats, calView])
-
-  const CalToolbar = useCallback(({ label, onNavigate }: ToolbarProps<CalEvent, object>) =>
-    renderCalToolbar(label, action => onNavigate(action)), [renderCalToolbar])
+  ), [])
+  /* `/` = 고객 검색으로 바로 커서(2026-09-23 「고객검색이 눈에 잘 띄게」의 손 쪽 짝). 입력 중이면 가로채지 않는다. */
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== '/' || e.ctrlKey || e.metaKey || e.altKey) return
+      const t = e.target as HTMLElement | null
+      if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return
+      const box = document.querySelector<HTMLInputElement>('[data-testid="cal-customer-search"]')
+      if (!box) return
+      e.preventDefault()
+      box.focus()
+      box.select()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
+  /** 월/주/목록 — 달력의 **모양**을 정하는 버튼이라 주인공 줄 오른쪽 끝(작게) */
+  const viewToggle = (
+    <div className="flex items-center bg-brand-tint rounded-lg p-0.5 shrink-0">
+      {([['month', '월'], ['week', '주'], ['agenda', '목록']] as const).map(([v, l]) => (
+        <button
+          key={v}
+          onClick={() => setCalView(v as View)}
+          className={`text-xs px-3 py-1.5 rounded-md font-medium transition-colors ${
+            calView === v ? 'bg-surface text-brand shadow-sm' : 'text-ink-sub hover:text-brand'
+          }`}
+        >
+          {l}
+        </button>
+      ))}
+    </div>
+  )
 
   return (
-    <div className="space-y-4">
+    /* 🎯 **화면에 남은 높이를 채운다**(2026-09-23 — 「28일이 안 보인다」). 종전엔 달력 높이가
+       `calc(100vh - 190px)` 고정식이었는데, 그 사이 달력 위에 띠(검색 안내·퇴사 담당·공휴일)가 생겨
+       실제 시작점이 259px(1920×937 실측)이라 마지막 주가 22px 잘리고 페이지가 80px 스크롤됐다.
+       이제 이 루트가 `main`의 높이(h-full)를 받고, 달력 카드가 **나머지 전부**(flex-1)를 가진다 —
+       위에 띠가 몇 개 생기든 달력이 알아서 줄어 넘치지 않는다. 마법 숫자를 없앤 것이 요점이다.
+       ⚠ 바닥(minHeight)은 배율을 탄다 — 아주 작은 창이나 큰 글자 배율에서는 이 바닥에 걸려 종전처럼
+         페이지가 스크롤된다(2026-09-07 결정 「일정이 숨는 것보다 스크롤이 낫다」를 그 구간에만 남긴다). */
+    <div className="flex flex-col gap-4 h-full" style={{ minHeight: 'calc(480px * var(--fs-scale))' }}>
       {/* 페이지 타이틀은 글로벌 바 브레드크럼으로 이동 (2026-07-14 A안) — 본문은 툴바부터 시작 */}
-      {/* ── 툴바: 모드 탭 | 퀵필터 | 필터·범례 팝오버 (사이드바 통합 — 달력 중심 1차, 2026-07-14) ── */}
-      <div className="flex items-center gap-2 flex-wrap">
-        <div className="flex items-center gap-1 bg-surface border border-line rounded-lg p-1 w-fit">
-          {([
-            { key: 'all',     label: '전체' },
-            { key: 'comp',    label: '종합' },
-            { key: 'oper',    label: '작동' },
-            { key: 'regular', label: '정기' },
-            { key: 'event',   label: '일반' },
-          ] as const).map(({ key, label }) => (
-            <button
-              key={key}
-              onClick={() => setCalMode(key)}
-              className={`h-8 px-4 rounded-md text-sm font-medium transition-colors ${
-                calMode === key ? 'bg-brand text-white' : 'text-ink-sub hover:bg-brand-tint'
-              }`}
-            >
-              {label}
-            </button>
-          ))}
+      {/* ── 도구줄 두 줄 (2026-09-23 사용자 요청 「산만하다 — 달력 이동과 고객 검색이 눈에 잘 띄게」) ──
+          ① 주인공 줄 — 달 이동(크게) · 고객 검색(가장 넓은 칸, `/`로 바로 커서) · 월/주/목록(작게)
+          ② 보조 줄   — 종류·보기 필터(이름표 붙여 두 묶음) · 이번달 요약(글자) · 퇴사 칩·문자·등록·필터·범례(작게)
+          ⚠ testid(cal-nav·cal-customer-search·cal-orphan-chip·calendar-sms-toolbar·calendar-new-customer)는
+            그대로 — 옮긴 것은 자리와 크기뿐이다(test-inspection-sms가 [사전안내 문자]의 **보임**을 묻는다). */}
+      <div data-testid="cal-toolbar" className="space-y-2">
+        {/* ⚠ `cal-nav` = 주인공 줄 전체 — test-calendar-fit이 이 안에서 [이전]·[다음]·[오늘]·[월/주/목록]을 누르고
+            글자로 달을 읽는다. 월/주/목록이 오른쪽 끝으로 가도 같은 줄 안이라 계약이 그대로 선다. */}
+        <div data-testid="cal-nav" className="flex items-center gap-3 flex-wrap">
+          {renderCalToolbar(navLabel, navigateCal)}
+          <div className="flex-1 min-w-[16rem] max-w-2xl">
+              {/* 고객명 검색 — 달력에 실린 고객에서 바로 고른다(서버 왕복 없음). 뷰 모드와 무관하게 적용 */}
+              <CustomerFilterSearch
+                customers={uniqueCustomers.map(c => ({ id: c.id, name: c.name, sub: c.code }))}
+                value={customerSearch}
+                onChange={setCustomerSearch}
+                testId="cal-customer-search"
+                size="lg"
+                widthClass="w-full"
+              />
+          </div>
+          <div className="ml-auto">{viewToggle}</div>
         </div>
-        {([
-          { key: 'all',     label: '전체',      color: 'text-brand bg-brand-tint border-brand-line' },
-          { key: 'today',   label: '오늘 마감', color: 'text-red-600 bg-red-50 border-red-200' },
-          { key: 'week',    label: '이번 주',   color: 'text-amber-600 bg-amber-50 border-amber-200' },
-          { key: 'overdue', label: '지연',      color: 'text-gray-500 bg-gray-100 border-gray-200' },
-        ] as const).map(({ key, label, color }) => (
-          <button
-            key={key}
-            onClick={() => setQuickFilter(key)}
-            className={`h-8 px-3 rounded-lg border text-xs font-medium transition-colors ${quickFilter === key ? color : 'border-line text-ink-sub bg-surface hover:bg-paper'}`}
-          >
-            {label}
-          </button>
-        ))}
-        <div className="ml-auto flex items-center gap-2">
+
+        <div data-testid="cal-toolbar-secondary" className="flex items-center gap-x-3 gap-y-2 flex-wrap [&_button]:whitespace-nowrap [&_a]:whitespace-nowrap">
+          <span className="text-form-2xs font-semibold text-ink-meta">종류</span>
+          <div className="flex items-center gap-0.5 bg-surface border border-line rounded-lg p-0.5 w-fit">
+            {([
+              { key: 'all',     label: '전체' },
+              { key: 'comp',    label: '종합' },
+              { key: 'oper',    label: '작동' },
+              { key: 'regular', label: '정기' },
+              { key: 'event',   label: '일반' },
+            ] as const).map(({ key, label }) => (
+              <button
+                key={key}
+                onClick={() => setCalMode(key)}
+                className={`h-6 px-2.5 rounded-md text-xs font-medium transition-colors ${
+                  calMode === key ? 'bg-brand text-white' : 'text-ink-sub hover:bg-brand-tint'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <span className="h-4 w-px bg-line" aria-hidden />
+          <span className="text-form-2xs font-semibold text-ink-meta">보기</span>
+          <div className="flex items-center gap-1">
+            {([
+              { key: 'all',     label: '전체',      color: 'text-brand bg-brand-tint border-brand-line' },
+              { key: 'today',   label: '오늘 마감', color: 'text-red-600 bg-red-50 border-red-200' },
+              { key: 'week',    label: '이번 주',   color: 'text-amber-600 bg-amber-50 border-amber-200' },
+              { key: 'overdue', label: '지연',      color: 'text-gray-500 bg-gray-100 border-gray-200' },
+            ] as const).map(({ key, label, color }) => (
+              <button
+                key={key}
+                onClick={() => setQuickFilter(key)}
+                className={`h-7 px-2.5 rounded-lg border text-xs font-medium transition-colors ${quickFilter === key ? color : 'border-line text-ink-sub bg-surface hover:bg-paper'}`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          {/* 이번달 요약 — 버튼이 아니라 글자(보조 정보) */}
+          <span className="text-form-xs text-ink-sub hidden sm:flex items-center gap-2">
+            이번달 <b className="text-ink">{monthStats.total}건</b>
+            <span className="text-green-600">완료 {monthStats.done}</span>
+            <span className={monthStats.overdue > 0 ? 'text-red-600 font-semibold' : 'text-ink-meta'}>지연 {monthStats.overdue}</span>
+          </span>
+          <div className="ml-auto flex items-center gap-1.5">
+          {orphanCount > 0 && (
+            <Link href="/customers" data-testid="cal-orphan-chip"
+              title={`퇴사(비활성) 직원 담당 일정이 ${orphanCount}건 있습니다. 달력에는 계속 표시되며, 담당자 재배정이 필요합니다 — 고객 관리에서 재배정`}
+              className="h-7 px-2.5 rounded-lg border border-amber-200 bg-amber-50 text-xs font-medium text-amber-800 hover:bg-amber-100 flex items-center gap-1 transition-colors">
+              <AlertTriangle className="size-3.5 text-amber-500" /> <span className="hidden 2xl:inline">퇴사 담당 </span>{orphanCount}<span className="hidden 2xl:inline">건</span>
+            </Link>
+          )}
           {/* 툴바 진입 — 기본은 내일이지만 모달 안에서 기간을 바꿀 수 있다(주간 지역 순회 준비) */}
           {canSendSms && (
             <button
@@ -1493,9 +1612,11 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
                 setSmsSource({ kind: 'range', from: t, to: t, title: '내일 방문 — 사전 안내' })
               }}
               title="내일 방문하는 고객에게 사전 안내 문자를 보냅니다"
-              className="h-8 px-3 rounded-lg border border-line bg-surface text-xs font-medium text-ink-sub hover:bg-paper flex items-center gap-1.5 transition-colors"
+              aria-label="사전안내 문자"
+              className="h-7 px-2.5 rounded-lg border border-line bg-surface text-xs font-medium text-ink-sub hover:bg-paper flex items-center gap-1.5 transition-colors"
             >
-              <MessageSquare className="size-3.5" /> 사전안내 문자
+              {/* 넓은 화면(2xl↑)만 글씨 — 좁으면 아이콘만 남겨 보조 줄이 두 줄로 접히지 않게(이름은 aria-label·title) */}
+              <MessageSquare className="size-3.5" /> <span className="hidden 2xl:inline">사전안내 문자</span>
             </button>
           )}
           {/* 툴바 등록 — 날짜를 안 짚고 들어오므로 **오늘**로 프리필한다.
@@ -1505,26 +1626,21 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
               data-testid="calendar-new-customer"
               onClick={() => openNewCustomer(today)}
               title="새 고객을 등록합니다 (점검일자는 오늘로 시작 — 폼에서 바꿀 수 있습니다)"
-              className="h-8 px-3 rounded-lg border border-line bg-surface text-xs font-medium text-ink-sub hover:bg-paper flex items-center gap-1.5 transition-colors"
+              aria-label="고객 등록"
+              className="h-7 px-2.5 rounded-lg border border-line bg-surface text-xs font-medium text-ink-sub hover:bg-paper flex items-center gap-1.5 transition-colors"
             >
-              <Plus className="size-3.5" /> 고객 등록
+              <Plus className="size-3.5" /> <span className="hidden 2xl:inline">고객 등록</span>
             </button>
           )}
-          {/* 고객명 검색 — 달력에 실린 고객에서 바로 고른다(서버 왕복 없음). 뷰 모드와 무관하게 적용 */}
-          <CustomerFilterSearch
-            customers={uniqueCustomers.map(c => ({ id: c.id, name: c.name, sub: c.code }))}
-            value={customerSearch}
-            onChange={setCustomerSearch}
-            testId="cal-customer-search"
-          />
           {/* 필터 팝오버 — 보기·직원/고객·유형·상태 (구 사이드바) */}
           <div ref={filterRef} className="relative">
             <button
               onClick={() => setFilterOpen(v => !v)}
-              className={`h-8 px-3 rounded-lg border text-xs font-medium flex items-center gap-1.5 transition-colors ${filterOpen || activeFilterCount > 0 ? 'border-brand-line bg-brand-tint text-brand' : 'border-line bg-surface text-ink-sub hover:bg-paper'}`}
+              aria-label="필터" title="필터 — 보기·직원/고객·유형·상태"
+              className={`h-7 px-2.5 rounded-lg border text-xs font-medium flex items-center gap-1.5 transition-colors ${filterOpen || activeFilterCount > 0 ? 'border-brand-line bg-brand-tint text-brand' : 'border-line bg-surface text-ink-sub hover:bg-paper'}`}
             >
               <SlidersHorizontal className="size-3.5" />
-              필터
+              <span className="hidden 2xl:inline">필터</span>
               {activeFilterCount > 0 && (
                 <span className="min-w-4 h-4 px-1 rounded-full bg-brand text-white text-form-2xs font-semibold flex items-center justify-center">{activeFilterCount}</span>
               )}
@@ -1690,7 +1806,7 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
             <button
               onClick={() => setLegendOpen(v => !v)}
               title="색상 범례"
-              className="h-8 w-8 rounded-lg border border-line bg-surface text-ink-sub hover:bg-paper flex items-center justify-center transition-colors"
+              className="h-7 w-7 rounded-lg border border-line bg-surface text-ink-sub hover:bg-paper flex items-center justify-center transition-colors"
             >
               <Info className="size-4" />
             </button>
@@ -1715,11 +1831,12 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
               </div>
             )}
           </div>
+          </div>
         </div>
       </div>
 
-      {/* ── 달력 ──────────────────────────────────────────── */}
-      <div className="space-y-3">
+      {/* ── 달력 ── 나머지 높이 전부(flex-1). min-h-0이 없으면 flex 자식이 내용 높이 밑으로 안 줄어 넘친다 */}
+      <div className="flex-1 min-h-0 flex flex-col gap-3">
           {/* 검색 중 안내 — 빈 달력이 '일정 없음'으로 보이는 오해를 막고, 해제 수단을 그 자리에 둔다 */}
           {custQuery && (
             <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-brand-tint border border-brand-line text-xs text-ink-sub">
@@ -1751,8 +1868,8 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
                   className="text-xs font-medium text-red-700 underline hover:text-red-900">
                   이번 달 보기
                 </button>
-                <button onClick={() => setOverdueJumpNotice(false)} className="text-red-400 hover:text-red-600" title="닫기">
-                  <X className="size-3.5" />
+                <button onClick={() => setOverdueJumpNotice(false)} className="p-0.5 rounded text-red-600 hover:text-red-800 hover:bg-red-100" title="닫기" aria-label="닫기">
+                  <X className="size-4.5" strokeWidth={2.75} />
                 </button>
               </span>
             </div>
@@ -1763,19 +1880,9 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
               (데이 패널이 열려 있었으면 그 사이드바)으로 돌아오고, 새로 생긴 계획·단계 칩이
               그 목록에 **이미 들어 있다** — 띠로 다시 말하면 같은 사실을 두 번 말하는 것이다. */}
 
-          {/* 퇴사자 담당 재배정 안내 */}
-          {orphanCount > 0 && (
-            <div className="flex items-center gap-2 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-sm text-amber-800">
-              <AlertTriangle className="size-4 shrink-0 text-amber-500" />
-              <span>퇴사(비활성) 직원 담당 일정이 <strong>{orphanCount}건</strong> 있습니다. 달력에는 계속 표시되며, 담당자 재배정이 필요합니다.</span>
-              {/* 담당은 고객관리가 단일 소스 — 점검확정 화면 폐지(2026-09-12)로 재배정 창구도 고객관리로 */}
-              <Link href="/customers" className="ml-auto shrink-0 text-xs text-amber-700 font-medium hover:underline flex items-center gap-0.5">
-                고객 관리에서 재배정 <ChevronRight className="size-3" />
-              </Link>
-            </div>
-          )}
+          {/* 퇴사자 담당 재배정 안내 — 띠에서 필터 줄 칩(cal-orphan-chip)으로 옮겼다(2026-09-23) */}
 
-          <div className="bg-surface rounded-xl border border-line shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-4">
+          <div className="flex-1 min-h-0 flex flex-col bg-surface rounded-xl border border-line shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px] p-4">
           {/* 공휴일 클릭 안내 배너 */}
           {holidayInfo && (
             <div className="mb-3 flex items-center gap-2 rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-sm text-red-700">
@@ -1784,8 +1891,8 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
                 <strong>{format(new Date(holidayInfo.date + 'T00:00:00'), 'M월 d일 (EEE)', { locale: ko })}</strong>
                 {' — '}{holidayInfo.name} (공휴일)
               </span>
-              <button onClick={() => setHolidayInfo(null)} className="ml-auto text-red-400 hover:text-red-600">
-                <X className="size-4" />
+              <button onClick={() => setHolidayInfo(null)} className="ml-auto p-0.5 rounded text-red-600 hover:text-red-800 hover:bg-red-100" title="닫기" aria-label="닫기">
+                <X className="size-4.5" strokeWidth={2.75} />
               </button>
             </div>
           )}
@@ -1801,14 +1908,10 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
           `}</style>
           {calView === 'week' ? (() => {
             // 주간 카드 뷰 — 시간축 대신 요일별 일정 카드 (날짜 단위 점검 업무에 맞춤, 3차 2026-07-14)
-            const weekStart = startOfWeek(calDate, { weekStartsOn: 0 })
-            const weekLabel = `${format(weekStart, 'M월 d일', { locale: ko })} – ${format(addDays(weekStart, 6), 'M월 d일', { locale: ko })}`
+            // 탐색 줄은 위 필터 줄로 올라갔다(navLabel·navigateCal) — 여기선 카드 높이를 채우기만 한다
             return (
               <>
-                {renderCalToolbar(weekLabel, action => setCalDate(
-                  action === 'TODAY' ? new Date() : addDays(calDate, action === 'PREV' ? -7 : 7)
-                ))}
-                <div className="grid grid-cols-7 gap-2" style={{ minHeight: 'calc(100vh - 280px)' }}>
+                <div className="grid grid-cols-7 gap-2 flex-1 min-h-0">
                   {Array.from({ length: 7 }, (_, i) => {
                     const d = addDays(weekStart, i)
                     const iso = format(d, 'yyyy-MM-dd')
@@ -1868,13 +1971,14 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
             resizable={false}
             onEventDrop={handleEventDrop}
             popup // "+N개 더 보기" 클릭 시 해당 날짜 전체 일정 오버레이 표시 (day 뷰가 없어 popup 필수)
-            // 칸 높이도 배율을 탄다 (2026-09-07 사용자 결정). 월 뷰는 컨테이너 높이를 6주로
-            // 나눠 쓰므로, 높이를 고정한 채 글자만 키우면 칸당 보이는 일정 수가 **줄어든다**
-            // ("+N개 더 보기"로 숨는다). 배율만큼 늘려 화면 밖으로 넘치면 페이지가 스크롤된다 —
-            // 일정이 잘려 안 보이는 것보다 스크롤이 낫다는 판단.
-            style={{ height: 'calc((100vh - 190px) * var(--fs-scale))', minHeight: 'calc(600px * var(--fs-scale))' }}
+            // 높이 = 카드의 나머지 전부(2026-09-23). 종전 `calc((100vh - 190px) * fs)` 고정식은 위 띠를
+            // 몰라 마지막 주를 화면 밖으로 밀었다. 월 뷰는 이 높이를 주 수(5·6)로 나누고, 칸에 다 못 든
+            // 일정은 「+N개 더 보기」로 접는다. 큰 글자 배율의 스크롤 판단(2026-09-07)은 루트 바닥이 맡는다.
+            style={{ flex: '1 1 0%', minHeight: 0 }}
+            // 탐색 줄은 위 필터 줄에 합쳐 그린다(navLabel·navigateCal) — rbc 자체 툴바는 끈다
+            toolbar={false}
             views={[Views.MONTH, Views.AGENDA]}
-            components={{ toolbar: CalToolbar, event: EventChip, month: { dateHeader: MonthDateHeader } }}
+            components={{ event: EventChip, month: { dateHeader: MonthDateHeader } }}
             dayPropGetter={(date: Date) => {
               const iso = format(date, 'yyyy-MM-dd')
               // 인라인 style은 클래스 코드모드가 닿지 않는 축(소방계획서_29 S3-1) —
@@ -1919,9 +2023,11 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
                     {format(d, 'M월 d일 (EEE)', { locale: ko })}
                     {holiday && <span className="ml-2 text-xs text-red-500 font-medium">{holiday}</span>}
                   </p>
+                  {/* 닫기 X — 크고 선명하게(2026-09-23 사용자 「X 종료표시는 크고 선명하게」): 흐린 아이콘만 → 테두리 버튼 + 굵은 X */}
                   <button onClick={() => setDayPanelDate(null)} disabled={isBulkMoving}
-                    className="text-ink-faint hover:text-ink-sub transition-colors disabled:opacity-40">
-                    <X className="size-5" />
+                    title="닫기" aria-label="닫기" data-testid="daypanel-close"
+                    className="size-9 shrink-0 flex items-center justify-center rounded-lg border border-line bg-surface text-ink hover:bg-paper hover:border-brand-line transition-colors disabled:opacity-40">
+                    <X className="size-5" strokeWidth={2.75} />
                   </button>
                 </div>
                 {/* 버튼이 셋이라 한 줄에 같이 두면 400px에서 요약 글자가 3줄로 접힌다 → 줄을 나눈다 */}
@@ -2015,7 +2121,7 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
                             /* 데이 패널 → 회차 패널로 가는 **주 동선**이다(달력에서 작업대까지의 유일한 길).
                                표식이 없으면 왕복 검사가 화면 구조를 추측해야 한다 — 그 추측이 곧 썩는다. */
                             data-testid="daypanel-step-row"
-                            onClick={() => { setDayPanelDate(null); setSelectedInspectionId(e.resource.inspectionId); setStepError(null) }}
+                            onClick={() => { setDayPanelDate(null); setSelectedInspectionId(e.resource.inspectionId); setFocusStepNum(e.resource.stepNum || null); setStepError(null) }}
                             className="flex-1 min-w-0 flex items-center gap-2 px-2 py-1.5 text-left disabled:opacity-50 disabled:cursor-default"
                           >
                             <span className="size-2.5 rounded-sm shrink-0" style={{ backgroundColor: e.resource.color }} />
@@ -2384,17 +2490,18 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
       >
         {selectedInspection && (
           <>
-            {/* 패널 헤더 */}
-            <div className="flex items-start justify-between px-5 py-4 border-b border-line shrink-0">
+            {/* 패널 헤더 — **두 줄**(2026-09-23 image-15 「사이드바 한눈에 — 스크롤 없이」): 이름 / 유형·차수·시작·담당.
+                「전체 진행률」 두 줄(라벨 + 막대)은 **뺐다**(사용자 「삭제해도 돼」) — 완료 단계가 목록에서 한 줄로
+                접혀 ✓로 보이므로 같은 사실을 막대로 한 번 더 말하던 자리였다. 그 세로가 단계 목록을 밀어냈다. */}
+            <div className="flex items-start justify-between px-5 py-3 border-b border-line shrink-0">
               <div className="flex-1 min-w-0 pr-3">
                 <p className="font-semibold text-ink truncate">{selectedInspection.customer_name}</p>
-                <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 mt-1 text-xs text-ink-sub">
                   <span className={`text-form-2xs font-medium px-1.5 py-0.5 rounded-full ${TYPE_COLORS[selectedInspection.inspection_type]}`}>
                     {inspectionTypeLabel(selectedInspection.inspection_type)}
                   </span>
-                  {/* R7 — 「종료됨」(2026-09-22 사용자 확정). 유형 badge 바로 옆에 둔다:
-                      이 패널에서 가장 먼저 답해야 하는 물음이 「이거 끝난 건가」다.
-                      ⚠ 값은 서버가 의무 축으로 판정한 `closed` 하나다 — 여기서 steps로 다시 세지 않는다. */}
+                  {/* R7 — 「종료됨」(2026-09-22 사용자 확정). 유형 badge 바로 옆: 이 패널이 가장 먼저 답할 물음이 「끝난 건가」다.
+                      ⚠ 값은 서버가 의무 축으로 판정한 closed 하나다 — 여기서 steps로 다시 세지 않는다. */}
                   {selectedInspection.closed?.closed && (
                     <span
                       data-testid="daypanel-closed"
@@ -2402,36 +2509,23 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
                     >
                       <Check className="size-3" />
                       종료됨
-                      {/* 「언제 끝났나」 — 없으면 말하지 않는다(과거 행은 completed_at이 빌 수 있다) */}
                       {selectedInspection.closed.closedAt && ` · ${selectedInspection.closed.closedAt.slice(0, 10)}`}
                     </span>
                   )}
-                  <span className="text-xs text-ink-sub">{selectedInspection.year}년 {selectedInspection.sequence_num}차</span>
-                  <ChevronRight className="size-3 text-ink-faint" />
-                  <span className="text-xs text-ink-sub">시작 {selectedInspection.inspection_start_date}</span>
+                  <span>{selectedInspection.year}년 {selectedInspection.sequence_num}차</span>
+                  <span className="text-ink-faint">·</span>
+                  <span>시작 {selectedInspection.inspection_start_date}</span>
+                  <span className="text-ink-faint">·</span>
+                  <span>담당 {selectedInspection.assigned_employee_name}</span>
                 </div>
-                <p className="text-xs text-ink-sub mt-1">담당: {selectedInspection.assigned_employee_name}</p>
               </div>
               <button
                 onClick={() => setSelectedInspectionId(null)}
-                className="text-ink-meta hover:text-ink-sub transition-colors shrink-0"
+                title="닫기" aria-label="닫기" data-testid="inspanel-close"
+                className="size-9 shrink-0 flex items-center justify-center rounded-lg border border-line bg-surface text-ink hover:bg-paper hover:border-brand-line transition-colors"
               >
-                <X className="size-5" />
+                <X className="size-5" strokeWidth={2.75} />
               </button>
-            </div>
-
-            {/* 진행률 바 */}
-            <div className="px-5 py-3 border-b border-brand-line-soft shrink-0">
-              <div className="flex justify-between text-xs mb-2">
-                <span className="text-ink-sub">전체 진행률</span>
-                <span className="font-medium text-brand">{panelCompletedCount}/{panelTotalCount} 단계 ({panelProgressPct}%)</span>
-              </div>
-              <div className="w-full h-2 bg-brand-line-soft rounded-full overflow-hidden">
-                <div
-                  className={`h-full rounded-full transition-all duration-500 ${panelProgressPct === 100 ? 'bg-green-500' : 'bg-brand'}`}
-                  style={{ width: `${panelProgressPct}%` }}
-                />
-              </div>
             </div>
 
             {/* 점검일자 — 고치는 자리 (2026-09-22 사용자 요청).
@@ -2441,7 +2535,7 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
                 ⚠ 가부는 서버가 준 `dateChange`를 그대로 쓴다. 여기서 `steps`로 다시 세지 않는다
                   (표시 축이라 불량 0이면 ⑤⑥이 빠져 숨겨진 완료를 못 본다). */}
             {selectedInspection.hasResultReport && (
-              <div data-testid="daypanel-anchor-date" className="px-5 py-2.5 border-b border-brand-line-soft shrink-0">
+              <div data-testid="daypanel-anchor-date" className="px-5 py-1.5 border-b border-brand-line-soft shrink-0">
                 <div className="flex items-center gap-2 text-xs">
                   <span className="text-ink-sub shrink-0">점검일자</span>
                   <span className="font-medium text-ink">{selectedInspection.inspection_start_date}</span>
@@ -2469,7 +2563,7 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
                 ⚠ 축은 위 [점검일자]와 같은 `hasResultReport`(자체점검 = 별지 9호가 있는 건)다.
                   정기(monthly)는 종료일 개념 자체가 없어 늘 「당일」이라 한 줄이 소음이 된다. */}
             {selectedInspection.hasResultReport && (
-              <details data-testid="daypanel-period" className="group px-5 py-2 border-b border-brand-line-soft shrink-0">
+              <details data-testid="daypanel-period" className="group px-5 py-1.5 border-b border-brand-line-soft shrink-0">
                 <summary className="flex items-center gap-2 text-xs cursor-pointer list-none [&::-webkit-details-marker]:hidden">
                   <ChevronRight className="size-3 text-ink-faint shrink-0 transition-transform group-open:rotate-90" />
                   <span className="text-ink-sub shrink-0">점검기간</span>
@@ -2495,8 +2589,13 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
               </details>
             )}
 
-            {/* 7단계 목록 */}
-            <div className="flex-1 overflow-y-auto">
+            {/* 단계 목록 — **한눈에**(2026-09-23 image-15 「6단계를 눌렀는데 스크롤을 내려야 보인다 · 스크롤 없이」).
+                ① 완료 단계는 **한 줄**로 접는다(이름 취소선 · 완료일) — 끝난 일이 세로를 먹을 이유가 없다.
+                ② 미완 단계는 「이름 한 줄 / 상태·마감·버튼 한 줄」 — 종전엔 버튼이 이름 옆에 서서 이름을
+                   두 줄로 꺾었다(「2단계: 배치확인서 보고 / 서 작성」).
+                ③ 달력에서 **누른 단계**(focusStepNum)로 스크롤하고 테두리로 짚는다 — 큰 글자 배율이라 넘쳐도 찾는다.
+                ⚠ 버튼은 사이드바 한 벌(doc-card.ts PANEL_BTN_*) — 문서 칸 버튼과 같은 크기다. */}
+            <div ref={stepsListRef} data-testid="daypanel-steps" className="relative flex-1 min-h-0 overflow-y-auto">
               {selectedInspection.steps.map(step => {
                 const isStepOverdue = step.status !== 'completed' && step.due_date !== null && step.due_date < today
                 const actualStatus = isStepOverdue ? 'overdue' : step.status
@@ -2514,85 +2613,80 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
                   ? stepInputLink(selectedInspection.id, step.step_num,
                       { facilitiesUnverified: selectedInspection.facilitiesUnverified })
                   : null
+                const focused = focusStepNum === step.step_num
+                // 마감일은 올해면 월-일만(한 줄에 상태·마감·버튼을 세우려고) — 해가 다르면 연도까지
+                const due = step.due_date ? (step.due_date.slice(0, 4) === today.slice(0, 4) ? step.due_date.slice(5) : step.due_date) : null
+                const done = step.status === 'completed'
 
                 return (
                   <div
                     key={step.id}
-                    className={`flex items-start gap-3 px-5 py-3 border-b border-paper last:border-0 ${isStepOverdue ? 'bg-red-50/40 border-l-4 border-l-red-400' : isDueSoon ? 'bg-amber-50/30 border-l-4 border-l-amber-400' : ''}`}
+                    data-step-num={step.step_num}
+                    data-focused={focused ? '1' : undefined}
+                    className={`px-4 py-2 border-b border-paper last:border-0 border-l-4 ${isStepOverdue ? 'bg-red-50/40 border-l-red-400' : isDueSoon ? 'bg-amber-50/30 border-l-amber-400' : 'border-l-transparent'} ${focused ? 'ring-2 ring-inset ring-brand' : ''}`}
                   >
-                    <div className={`size-6 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${step.status === 'completed' ? 'bg-green-100' : isStepOverdue ? 'bg-red-100' : 'bg-brand-tint'}`}>
-                      {step.status === 'completed'
-                        ? <Check className="size-3 text-green-600" />
-                        : isStepOverdue
-                        ? <AlertTriangle className="size-3 text-red-500" />
-                        : <span className="text-form-2xs font-bold text-brand">{step.step_num}</span>}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className={`text-sm ${step.status === 'completed' ? 'text-ink-sub line-through' : 'text-ink'}`}>
-                          {step.name_ko}
+                    {done ? (
+                      <div className="flex items-center gap-2 text-xs">
+                        <span className="size-5 rounded-full flex items-center justify-center shrink-0 bg-green-100">
+                          <Check className="size-3 text-green-600" />
                         </span>
-                        <span className={`text-form-2xs font-medium px-1.5 py-0.5 rounded-full ${cfg.cls}`}>
-                          {cfg.label}
-                        </span>
-                        {isDueSoon && (
-                          <span className="text-form-2xs text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded-full">마감임박</span>
-                        )}
+                        <span className="flex-1 min-w-0 truncate text-ink-sub line-through">{step.name_ko}</span>
+                        {/* F-14: completed_at은 UTC — 자르면 00:00~09:00 KST 완료분이 어제로 보인다 */}
+                        <span className="shrink-0 text-green-600">완료{step.completed_at ? ` ${kstDate(step.completed_at).slice(5)}` : ''}</span>
                       </div>
-                      {step.due_date ? (
-                        <p className={`text-xs mt-0.5 ${isStepOverdue ? 'text-red-500 font-medium' : 'text-ink-sub'}`}>
-                          마감: {step.due_date}
-                        </p>
-                      ) : (
-                        <p className="text-xs text-ink-meta mt-0.5">마감일 없음</p>
-                      )}
-                      {/* F-14: completed_at은 UTC — 자르면 00:00~09:00 KST 완료분이 어제로 보인다 */}
-                      {step.completed_at && (
-                        <p className="text-xs text-green-600 mt-0.5">완료: {kstDate(step.completed_at)}</p>
-                      )}
-                    </div>
-                    {/* 정상 경로가 위(채움), 예외 경로가 아래(테두리만) — 위계를 색으로 드러낸다.
-                        종전엔 [완료] 하나뿐이라 증거 없는 강제 완료가 유일한 출구처럼 보였다. */}
-                    {(inputLink || canCompleteThis) && (
-                      <div className="shrink-0 flex flex-col items-stretch gap-1">
-                        {inputLink && (
-                          <Link
-                            /* B-3 — 단계 링크에도 복귀 경로를 싣는다(패널 하단 링크와 같은 규약).
-                               왕복이 닫히지 않으면 「들어가는 길만 여섯 개」가 된다. 링크가
-                               이미 자기 쿼리를 들고 있을 수 있어 `?`/`&`를 보고 잇는다.
-
-                               🚨 복귀 경로에 **열린 패널(`insp`)을 실어야** 한다(2026-09-21 사용자 요청:
-                                 「돌아가면 단계별 클릭 사이드 화면이어야 한다」). 이게 없으면 달력까지는
-                                 오지만 패널이 닫혀 있어, 사용자가 날짜→단계를 처음부터 다시 짚는다.
-                               ⚠ 그 조립은 **`calendarBackHref` 한 곳**이 한다(위 정의) — 종전엔 여기서
-                                 직접 `insp`를 덮어썼고, 그래서 패널 하단 링크만 보정을 못 받았다. */
-                            href={`${inputLink.href}${inputLink.href.includes('?') ? '&' : '?'}from=${encodeURIComponent(calendarBackHref)}`}
-                            title={inputLink.title}
-                            data-testid="calendar-step-input"
-                            /* 🚨 여기서 패널을 닫지 않는다(2026-09-21). 닫으면 위 effect가 주소에서
-                               `?insp=`를 지워, **브라우저 뒤로가기**로 돌아왔을 때 패널이 안 열린다
-                               ([←] 버튼만 살고 back은 죽는 어긋난 상태). 어차피 화면을 떠나므로
-                               닫아서 얻는 것도 없다 — 돌아오면 그 패널이 그대로 있는 편이 옳다. */
-                            className="flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-brand text-white hover:bg-brand-strong transition-colors whitespace-nowrap"
-                          >
-                            <PenLine className="size-3" />
-                            {inputLink.label}
-                          </Link>
-                        )}
-                        {canCompleteThis && (
-                          <button
-                            onClick={() => handleCompleteStep(step.id, selectedInspection.id)}
-                            disabled={completingStepId === step.id}
-                            title="점검표·파일·제출일 같은 증거 없이 사람이 확정합니다 — 사유가 증빙으로 기록됩니다"
-                            className="flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium border border-line text-ink-soft hover:bg-brand-tint hover:text-ink-sub disabled:opacity-50 transition-colors whitespace-nowrap"
-                          >
-                            {completingStepId === step.id
-                              ? <Loader2 className="size-3 animate-spin" />
-                              : <Check className="size-3" />}
-                            사유 완료
-                          </button>
-                        )}
-                      </div>
+                    ) : (
+                      <>
+                        <div className="flex items-start gap-2">
+                          <span className={`size-5 rounded-full flex items-center justify-center shrink-0 mt-px ${isStepOverdue ? 'bg-red-100' : 'bg-brand-tint'}`}>
+                            {isStepOverdue
+                              ? <AlertTriangle className="size-3 text-red-500" />
+                              : <span className="text-form-2xs font-bold text-brand">{step.step_num}</span>}
+                          </span>
+                          <span className="flex-1 min-w-0 text-sm text-ink leading-snug">{step.name_ko}</span>
+                        </div>
+                        <div className="mt-1 pl-7 flex items-center gap-1.5 flex-wrap">
+                          <span className={`text-form-2xs font-medium px-1.5 py-0.5 rounded-full ${cfg.cls}`}>{cfg.label}</span>
+                          {isDueSoon && (
+                            <span className="text-form-2xs text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded-full">마감임박</span>
+                          )}
+                          <span className={`text-xs ${isStepOverdue ? 'text-red-500 font-medium' : 'text-ink-sub'}`}>
+                            {due ? `마감 ${due}` : '마감일 없음'}
+                          </span>
+                          {/* 정상 경로(칠함)와 예외 경로(테두리) — 위계를 색으로. 종전엔 [완료] 하나뿐이라
+                              증거 없는 강제 완료가 유일한 출구처럼 보였다. */}
+                          {(inputLink || canCompleteThis) && (
+                            <span className="ml-auto flex items-center gap-1">
+                              {canCompleteThis && (
+                                <button
+                                  onClick={() => handleCompleteStep(step.id, selectedInspection.id)}
+                                  disabled={completingStepId === step.id}
+                                  title="점검표·파일·제출일 같은 증거 없이 사람이 확정합니다 — 사유가 증빙으로 기록됩니다"
+                                  className={PANEL_BTN_OUTLINE}
+                                >
+                                  {completingStepId === step.id
+                                    ? <Loader2 className="size-3 animate-spin" />
+                                    : <Check className="size-3" />}
+                                  사유 완료
+                                </button>
+                              )}
+                              {inputLink && (
+                                <Link
+                                  /* 복귀 경로 — 열린 패널(insp)까지 싣는 조립은 **calendarBackHref 한 곳**(2026-09-21).
+                                     🚨 여기서 패널을 닫지 않는다 — 닫으면 주소의 ?insp=가 지워져 뒤로가기로 돌아왔을 때
+                                     패널이 안 열린다. */
+                                  href={`${inputLink.href}${inputLink.href.includes('?') ? '&' : '?'}from=${encodeURIComponent(calendarBackHref)}`}
+                                  title={inputLink.title}
+                                  data-testid="calendar-step-input"
+                                  className={PANEL_BTN_PRIMARY}
+                                >
+                                  <PenLine className="size-3" />
+                                  {inputLink.label}
+                                </Link>
+                              )}
+                            </span>
+                          )}
+                        </div>
+                      </>
                     )}
                   </div>
                 )
@@ -2626,51 +2720,73 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
                   달력은 착륙 화면이라 현장 흐름을 끊지 않는다.
 
                 ⚠ 줄은 flex-wrap이어야 한다 — [버튼 + 오류]를 함께 그린다. */}
+            {/* ── 문서 — **두 줄**, 두 줄이 같은 틀 (2026-09-23 image-12 → 14 → 15) ──
+                  [📄 보고서 엑셀      ] [✎ 입력 5]
+                  [📄 소방계획서 엑셀  ] [✎ 입력  ]
+                ⚠ 제목줄을 없앴다 — 버튼 글씨가 이미 문서 이름이다(「보고서 엑셀」 한 이름은 사용자 결정 ·
+                  test-workbook-label). 제목줄 두 개 + 큰 버튼 넷이 사용자 화면에서 ~330px을 먹어 단계 목록을 밀었다.
+                ⚠ 보고서 빈칸 수는 [입력] **안의 숫자** — 누르면 첫 빈 탭(reportInputTarget), 칸 이름은 그 탭이 말한다.
+                ⚠ 입력 열은 em 고정 폭(DOC_ROW) — [입력 5]와 [입력]의 x가 어긋나지 않는다.
+                ⚠ 두 [입력] 모두 달력 복귀 주소(from)를 싣는다 — 고객 머리줄 「← 점검달력으로 돌아가기」가 읽는다. */}
+            <div data-testid="daypanel-docs" className="px-5 py-2.5 border-t border-line shrink-0 space-y-1.5">
             {selectedInspection.hasResultReport && (
-              <div
-                data-testid="daypanel-workbook"
-                className="px-5 py-3 border-t border-line shrink-0 flex flex-wrap items-center gap-2"
-              >
+              <div data-testid="daypanel-workbook" className={DOC_ROW}>
                 <WorkbookXlsxButton
                   inspectionId={selectedInspection.id}
+                  variant="panel"
                   onError={setWbError}
                 />
-                {wbError && <p className="text-form-2xs text-red-600 w-full">{wbError}</p>}
+                {reportInputLink}
+                {wbError && <p className="col-span-2 text-form-2xs text-red-600">{wbError}</p>}
               </div>
             )}
-
-            {/* 소방계획서 엑셀 (2026-09-22) — **게이트를 걸지 않는다**(사용자 지시:
-                「경우에 따라 만들 수도, 안 만들 수도」). 고객이 있으면 언제나 대상이고,
-                비어 있다는 사실은 **고지가 말해 준다**(실측 채움률 3.2% — 12/12에 고지가 떴다).
-                ⚠ 보고서와 **다른 축**이다: 이건 고객 단위 문서라 회차 쪽지(pendingDoc)를 쓰지 않는다. */}
-            {true && (
-              <div
-                data-testid="daypanel-fireplan"
-                className="px-5 py-3 border-t border-line shrink-0 flex flex-wrap items-center gap-2 max-h-[40vh] overflow-y-auto"
+            {/* 소방계획서 — **게이트 없음**(고객이 있으면 언제나 대상, 2026-09-22). 보고서와 다른 축이라
+                회차 쪽지(pendingDoc)를 쓰지 않는다. 엑셀 안내는 받은 뒤에만 생기고 **접어 둔다**. */}
+            <div data-testid="daypanel-fireplan" className={DOC_ROW}>
+              <FirePlanXlsxButton
+                customerId={selectedInspection.customer_id}
+                label="소방계획서 엑셀"
+                variant="panel"
+                onNotice={raw => setFpNotice(parseFirePlanNotice(raw).map(p => {
+                  const hit = firePlanNoticeHref(p, selectedInspection.customer_id, tabOfForm)
+                  return hit
+                    ? { text: p.text, kind: 'fixable' as const, label: hit.label, scope: 'customer' as const }
+                    : { text: p.text, kind: 'unknown' as const }
+                }))}
+                onError={setFpError}
+              />
+              <Link
+                href={`/customers/${selectedInspection.customer_id}?tab=plan&from=${encodeURIComponent(calendarBackHref)}`}
+                data-testid="daypanel-fireplan-input"
+                aria-label="소방계획서 입력하기"
+                title="소방계획서 탭에서 입력합니다 — 마치면 「점검달력으로 돌아가기」로 이 사이드바에 돌아옵니다"
+                className={PANEL_BTN_PRIMARY}
               >
-                <FirePlanXlsxButton
-                  customerId={selectedInspection.customer_id}
-                  variant="outline"
-                  onNotice={raw => setFpNotice(parseFirePlanNotice(raw).map(p => {
-                    const hit = firePlanNoticeHref(p, selectedInspection.customer_id, tabOfForm)
-                    return hit
-                      ? { text: p.text, kind: 'fixable' as const, label: hit.label, scope: 'customer' as const }
-                      : { text: p.text, kind: 'unknown' as const }
-                  }))}
-                  onError={setFpError}
-                />
-                {fpError && <p className="text-form-2xs text-red-600 w-full">{fpError}</p>}
-                <DocNoticeList
-                  parts={fpNotice}
-                  hrefOf={p => {
-                    const hit = firePlanNoticeHref(
-                      { text: p.text }, selectedInspection.customer_id, tabOfForm)
-                    if (!hit) return null
-                    return `${hit.href}${hit.href.includes('?') ? '&' : '?'}from=${encodeURIComponent(calendarBackHref)}`
-                  }}
-                />
-              </div>
-            )}
+                <PenLine className="size-3" /> 입력
+              </Link>
+              {fpError && <p className="col-span-2 text-form-2xs text-red-600">{fpError}</p>}
+              {fpNotice.length > 0 && (
+                <button type="button" data-testid="daypanel-fireplan-notice-toggle" onClick={() => setFpNoticeOpen(v => !v)}
+                  aria-expanded={fpNoticeOpen}
+                  className="col-span-2 text-left text-form-2xs text-ink-meta hover:text-ink-sub">
+                  소방계획서 엑셀 안내 {fpNotice.length}건 {fpNoticeOpen ? '▴' : '▾'}
+                </button>
+              )}
+              {fpNoticeOpen && fpNotice.length > 0 && (
+                <div data-testid="daypanel-fireplan-notice" className="col-span-2 max-h-40 overflow-y-auto text-form-2xs text-ink-sub">
+                  <DocNoticeList
+                    parts={fpNotice}
+                    hrefOf={p => {
+                      const hit = firePlanNoticeHref(
+                        { text: p.text }, selectedInspection.customer_id, tabOfForm)
+                      if (!hit) return null
+                      return `${hit.href}${hit.href.includes('?') ? '&' : '?'}from=${encodeURIComponent(calendarBackHref)}`
+                    }}
+                  />
+                </div>
+              )}
+            </div>
+            </div>
 
             {/* 상세 페이지·소방계획서 링크 — 계획서는 착륙 화면(달력)에서 가장 잦은 목적지인데
                 종전엔 작업대를 경유해야 했다(4클릭 → 3클릭, 2026-08-28 동선 검토) */}
@@ -2690,13 +2806,16 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
                 {panelEntryStep ? `${panelEntryStep}단계로 이동` : '상세 페이지로 이동'}
                 <ChevronRight className="size-3" />
               </Link>
+              {/* 이름 교정(2026-09-23) — 목적지는 종전부터 **회차 탭**(?tab=annex)인데 글씨가 「소방계획서 트리」였다.
+                  바로 위 문서 칸에 [소방계획서 입력]이 생겨 둘이 같은 곳처럼 읽히므로 목적지대로 부른다.
+                  testid는 불변(프로브 의존). 복귀 주소도 싣는다 — 고객 머리줄 「점검달력으로 돌아가기」가 읽는다. */}
               <Link
-                href={`/customers/${selectedInspection.customer_id}?tab=annex`}
+                href={`/customers/${selectedInspection.customer_id}?tab=annex&from=${encodeURIComponent(calendarBackHref)}`}
                 title="회차 탭 · 회차별 별지 작성으로 바로가기"
                 data-testid="daypanel-plan-link"
                 className="text-xs text-brand hover:underline flex items-center gap-1"
               >
-                소방계획서 트리
+                회차 탭
                 <ChevronRight className="size-3" />
               </Link>
             </div>

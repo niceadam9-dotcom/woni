@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { FileSpreadsheet, Loader2 } from 'lucide-react'
 import { DocNoticeToast } from '@/components/ui/doc-notice-toast'
+import { PANEL_BTN_OUTLINE } from '@/components/inspections/doc-card'
 
 /**
  * 이 문서가 화면에 뜨는 **유일한 이름**(2026-09-21 사용자 지시).
@@ -44,7 +45,9 @@ export const WORKBOOK_LABEL = '보고서 엑셀'
 export function WorkbookXlsxButton({ inspectionId, disabled, variant = 'default', onNotice, onError }: {
   inspectionId: string
   disabled?: boolean
-  variant?: 'default' | 'compact'
+  /** 'panel' = 달력 단계 사이드바의 버튼 **한 벌**(doc-card.ts PANEL_BTN_OUTLINE) + 칸 폭 가득 —
+   *  단계 버튼·소방계획서 엑셀과 같은 높이·글씨(2026-09-23 image-15 「버튼 사이즈도 동일하게」). 로직은 같은 한 벌이다. */
+  variant?: 'default' | 'compact' | 'panel'
   /** 넘기면 고지를 **바깥이** 그린다 — 달력 패널이 칩(채우러 가기)으로 바꿔 그리려고 쓴다.
    *  ⚠ 안 넘기면 종전대로 이 컴포넌트가 토스트로 띄운다(기존 4개 호출부 무변경).
    *    `FirePlanXlsxButton`이 이미 쓰는 모양과 같은 규약이다 — 두 문서 버튼이 갈라지지 않게. */
@@ -112,7 +115,9 @@ export function WorkbookXlsxButton({ inspectionId, disabled, variant = 'default'
     <>
       <button onClick={download} disabled={busy || disabled} data-testid="workbook-xlsx"
         title="결과보고서 엑셀 받기 — 갑지 서식 통합 워크북. 받은 뒤 고쳐 쓰실 수 있습니다 (저장되지 않습니다)"
-        className="inline-flex items-center gap-1 h-6 px-2 rounded border border-emerald-200 text-form-xs text-emerald-700 hover:bg-emerald-50 disabled:opacity-50">
+        className={variant === 'panel'
+          ? `${PANEL_BTN_OUTLINE} w-full min-w-0`
+          : 'inline-flex items-center gap-1 h-6 px-2 rounded border border-emerald-200 text-form-xs text-emerald-700 hover:bg-emerald-50 disabled:opacity-50'}>
         {busy ? <Loader2 className="size-3 animate-spin" /> : <FileSpreadsheet className="size-3" />} {WORKBOOK_LABEL}
       </button>
       {error && (

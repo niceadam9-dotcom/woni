@@ -38,6 +38,7 @@ export type WorkbookNoticeKind =
 export type WorkbookFixTarget =
   | 'sheet'        // 점검표 입력
   | 'facilities'   // 1.4 소방시설 대장(공통 탭)
+  | 'common11'     // 1.1 일반현황(공통 탭) — 송달 동의·대상물 급수가 여기서 입력된다
   | 'defects'      // 불량·사진 (⑤)
   | 'period'       // 점검기간(시작·종료일)
   | 'annex'        // 별지 입력(④ 제출 단계)
@@ -121,8 +122,10 @@ export const WORKBOOK_NOTICE_RULES: readonly Rule[] = [
   // ── 고객 기본정보 ──────────────────────────────────────────
   { test: /^주소$/, kind: 'fixable', target: 'info', label: '기본정보', scope: 'customer' },
   { test: /^사용승인일$/, kind: 'fixable', target: 'info', label: '기본정보', scope: 'customer' },
-  { test: /^송달 동의$/, kind: 'fixable', target: 'info', label: '기본정보', scope: 'customer' },
-  { test: /^소방안전관리등급\(대상물 급수\) 미입력/, kind: 'fixable', target: 'info', label: '기본정보', scope: 'customer' },
+  // 송달 동의·대상물 급수는 **공통 탭 1.1**에서 입력한다(2026-09-23 실측 — 기본정보 폼에는 두 칸이 없다.
+  //   종전 목적지 'info'는 채우러 간 사람이 칸을 못 찾는 화면이었다. fire-plan-chip-target의 consent와 같은 자리)
+  { test: /^송달 동의$/, kind: 'fixable', target: 'common11', label: '공통 1.1', scope: 'customer' },
+  { test: /^소방안전관리등급\(대상물 급수\) 미입력/, kind: 'fixable', target: 'common11', label: '공통 1.1', scope: 'customer' },
   { test: /^관할 소방서 없음/, kind: 'fixable', target: 'info', label: '기본정보', scope: 'customer' },
   { test: /^고객명\(건물명\) 없음$/, kind: 'fixable', target: 'info', label: '기본정보', scope: 'customer' },
   { test: /^수신\(고객명\) 없음$/, kind: 'fixable', target: 'info', label: '기본정보', scope: 'customer' },
@@ -196,6 +199,7 @@ export function workbookFixHref(
     case 'period':     return step(4)                         // 기한·점검기간이 ④에 모여 있다
     case 'annex':      return step(4)                         // 별지 9호 입력도 ④
     case 'facilities': return `/customers/${c}?tab=facilities&form=1.4`
+    case 'common11':   return `/customers/${c}?tab=facilities&form=1.1`
     case 'buildings':  return `/customers/${c}?tab=buildings`
     case 'contacts':   return `/customers/${c}?tab=contacts`
     case 'reports':    return `/customers/${c}?tab=reports&form=duty`
@@ -225,4 +229,71 @@ export function splitNoticeParts(parts: readonly WorkbookNoticePart[]): {
     caps: parts.filter(p => p.kind === 'cap'),
     rest: parts.filter(p => p.kind === 'unknown'),
   }
+}
+
+// ── 보고서 준비도 — 고객 탭이 **엑셀을 받기 전에** 빈칸을 알려 준다 (2026-09-23 사용자 요청) ──
+//
+// 사용자: 「기본정보~보고서 탭을 입력하도록 유도해야 한다 — 보고서 엑셀을 채우려면」.
+// 종전엔 빈칸을 **엑셀을 받은 뒤에야** 알 수 있었다(고지는 다운로드 헤더에서만 만들어진다).
+// ⚠ 규칙을 새로 적지 않는다 — 위 분류표가 정한 목적지를 탭 키로 옮길 뿐이다. 두 벌이면
+//   「탭은 다 채웠다는데 엑셀은 비었다」가 생긴다.
+
+/** 보고서 엑셀을 채우는 고객 탭 — **탭 바 순서 그대로**(「다음 빈 탭」이 이 순서로 걷는다) */
+export const REPORT_INPUT_TABS = ['info', 'buildings', 'contacts', 'facilities', 'reports'] as const
+export type ReportInputTab = typeof REPORT_INPUT_TABS[number]
+
+/** 목적지 → 고객 탭. 여기 없는 목적지(회차 축·소방계획서·본사)는 탭 뱃지에 **세지 않는다** —
+ *  회차 축은 달력 단계 버튼이, 소방계획서는 자기 탭 뱃지(n/12)가, 본사는 설정 화면이 맡는다. */
+const TAB_OF_TARGET: Partial<Record<WorkbookFixTarget, ReportInputTab>> = {
+  info: 'info',
+  buildings: 'buildings',
+  contacts: 'contacts',
+  facilities: 'facilities',
+  common11: 'facilities',
+  reports: 'reports',
+}
+export function reportTabOfTarget(t: WorkbookFixTarget | undefined): ReportInputTab | null {
+  return (t && TAB_OF_TARGET[t]) ?? null
+}
+
+export type ReportGap = { text: string; short: string; target: WorkbookFixTarget }
+
+/** 원문 → 화면용 짧은 글씨. 「 — 」 뒤는 **어디에 인쇄되나**라서 칩에는 앞만 쓴다(원문은 title로 보존) */
+export function gapShortText(text: string): string {
+  const i = text.indexOf(' — ')
+  return (i > 0 ? text.slice(0, i) : text).trim()
+}
+
+/** 조립 함수의 `missing` 원문 → 탭별 빈칸. **고객 축·채울 수 있는 것**만 남긴다. */
+export function groupReportGaps(missing: readonly string[]): Record<ReportInputTab, ReportGap[]> {
+  const out = Object.fromEntries(REPORT_INPUT_TABS.map(k => [k, [] as ReportGap[]])) as Record<ReportInputTab, ReportGap[]>
+  const seen = new Set<string>()
+  for (const p of parseWorkbookNotice(missing.join(' | '))) {
+    if (p.kind !== 'fixable' || p.scope !== 'customer' || !p.target) continue
+    const tab = reportTabOfTarget(p.target)
+    if (!tab) continue
+    // 공문·위임장·9호가 같은 빈칸을 각자 알린다(예: 「관계인 성명」) — 한 칸은 한 번만 센다
+    const short = gapShortText(p.text)
+    if (seen.has(`${tab}|${short}`)) continue
+    seen.add(`${tab}|${short}`)
+    out[tab].push({ text: p.text, short, target: p.target })
+  }
+  return out
+}
+
+/** 달력 사이드바 [입력하기]의 목적지 — **첫 빈 탭**(탭 바 순서). 다 찼거나 모르면 기본정보.
+ *  공통 탭은 트리 노드가 둘이라 첫 빈칸이 1.1이면 1.1을, 아니면 1.4를 연다. 보고서 탭은 전년도 업무 칸. */
+export function reportInputTarget(byTab: Record<ReportInputTab, readonly ReportGap[]> | null): { tab: ReportInputTab; form: string | null } {
+  const tab = (byTab && REPORT_INPUT_TABS.find(k => byTab[k].length > 0)) || 'info'
+  const form = tab === 'facilities' ? (byTab?.facilities[0]?.target === 'common11' ? '1.1' : '1.4')
+    : tab === 'reports' ? 'duty' : null
+  return { tab, form }
+}
+
+/** 「다음 빈 탭」 — 지금 탭 **뒤**에서 먼저 찾고, 없으면 앞에서 찾는다(되감기). 다 찼으면 null */
+export function nextGapTab(byTab: Record<ReportInputTab, readonly unknown[]>, current: string): ReportInputTab | null {
+  const i = REPORT_INPUT_TABS.indexOf(current as ReportInputTab)
+  const order = i < 0 ? [...REPORT_INPUT_TABS]
+    : [...REPORT_INPUT_TABS.slice(i + 1), ...REPORT_INPUT_TABS.slice(0, i)]
+  return order.find(k => byTab[k].length > 0) ?? null
 }

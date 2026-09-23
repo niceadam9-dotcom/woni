@@ -24,6 +24,7 @@
  */
 import { readFileSync } from 'node:fs'
 import { codeOnly } from './_code-only.mts'
+import { safeReturnHref } from '../src/lib/safe-return.ts'
 
 let pass = 0, fail = 0
 const ok = (name: string, cond: boolean | (() => boolean), detail = '') => {
@@ -120,14 +121,15 @@ ok('★ 등록 페이지가 anchor를 프리필로, from을 복귀 주소로 넘
 ok('★ 폼이 복귀 주소로 돌아간다', /if \(returnHref\) \{ router\.push\(returnHref\); return \}/.test(form))
 /* 🚨 오픈 리다이렉트 — 검증 없이 push하면 `//evil.com`이 프로토콜 상대 URL로 해석돼 밖으로 튄다.
    판정은 **페이지에서** 한 벌로 한다(폼은 이미 걸러진 값을 받는다). 실제로 걸러지는지 여기서 돌려 본다. */
-ok('★ 복귀 주소는 내부 경로만 받는다 (오픈 리다이렉트 차단)', () => {
-  const m = newPage.match(/const returnHref = (\/.*\/)\.test\(from\) \? from : ''/)
-  if (!m) return false
-  const re = new RegExp(m[1].slice(1, -1))
-  return re.test('/inspections/calendar?day=2026-09-22')
-    && !re.test('//evil.com') && !re.test('/\\evil.com')
-    && !re.test('https://evil.com') && !re.test('')
-}, '(returnHref 검증식을 못 찾았거나 통과시키면 안 될 값을 통과시킨다)')
+// 2026-09-23 검증식이 `lib/safe-return`으로 이사했다(고객 상세도 같은 문을 쓴다) — 소스에서 식을 뽑던
+// 방식을 **함수를 직접 부르는** 방식으로 갈아끼운다. 페이지가 그 함수를 거치는지는 따로 묻는다.
+ok('★ 등록 페이지가 복귀 주소를 safeReturnHref로 거른다',
+  /const returnHref = safeReturnHref\(params\.from\)/.test(newPage))
+ok('★ 복귀 주소는 내부 경로만 받는다 (오픈 리다이렉트 차단)', () =>
+  safeReturnHref('/inspections/calendar?day=2026-09-22') === '/inspections/calendar?day=2026-09-22'
+    && safeReturnHref('//evil.com') === '' && safeReturnHref('/\\evil.com') === ''
+    && safeReturnHref('https://evil.com') === '' && safeReturnHref('') === '' && safeReturnHref(undefined) === '',
+  '(통과시키면 안 될 값을 통과시킨다)')
 
 console.log('\n— ④ 기존 화면 회귀 방지')
 ok('★ from이 없으면 종전대로 고객 상세로 이동한다 (폴백 보존)',
