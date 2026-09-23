@@ -51,15 +51,16 @@ export const NAV_GROUPS: NavGroup[] = [
     // 순서 규칙(2026-07-16 사용자 확정): 일상 점검 흐름순 → 정산(매니저↑) → 마스터데이터(점검표·지역배정)는 맨 아래
     // 소방계획서_21 R8: 그 분류를 section 소제목으로 화면에 드러낸다(대분류를 늘리지 않는다 — '보고서' 재생성 금지, 소방계획서_8 D-8)
     items: [
+      // 순서 변경 (2026-09-23 사용자 지시): **점검 달력 → 고객 관리 → 점검 업무**. 달력이 착륙 화면(HOME_PATH)이자
+      //   사이드바·고객 탭 왕복의 출발점이라 맨 위로 올린다. (종전 2026-09-20: 고객 관리 → 점검 업무 → 점검 달력)
+      { label: '점검 달력',        href: '/inspections/calendar',       icon: CalendarDays,   roles: ['employee', 'manager', 'admin'] },
       { label: '고객 관리',        href: '/customers',                  icon: BookUser,       roles: ['employee', 'manager', 'admin'] },
       // 건물 관리 메뉴 삭제 (2026-07-16 A안 확정) — 건물 조회·등록·수정은 고객 상세 > 건물·시설 탭
       // '점검 대장' 메뉴 소멸 (소방계획서_21 R8-3) — customers를 통째로 읽는 뷰라 고객 관리 탭으로 흡수. /inspection-ledger는 리다이렉트
       // '점검확정' 메뉴 소멸 (2026-09-12 사용자 결정) — 점검계획일=점검확정일로 확정 절차 자체가 폐지.
       // 계획은 고객 등록·크론(generate-yearly-plans)이 전건 확정 상태로 생성하고, 날짜 이동·시작은
       // 점검 달력이, 담당 변경은 고객관리가 담당한다. /inspection-plans는 점검 달력으로 리다이렉트
-      // 순서 변경 (2026-09-20 사용자 지시): 고객 관리 → 점검 업무 → 점검 달력
       { label: '점검 업무',        href: '/inspections',                icon: Flame,          roles: ['employee', 'manager', 'admin'] },
-      { label: '점검 달력',        href: '/inspections/calendar',       icon: CalendarDays,   roles: ['employee', 'manager', 'admin'] },
       // 접수 업무 — 점검 흐름 한가운데(종전 점검현황 앞)에서 일상 블록 끝으로 이동 (R8-6)
       { label: '문의요청',         href: '/inquiries',                  icon: MessageCircle,  roles: ['employee', 'manager', 'admin'] },
       // '보고서' 메뉴 소멸 (소방계획서_8 Phase B H-6d·D-8) — 고객별 문서·별지는 고객관리>소방계획서 트리,
@@ -356,10 +357,16 @@ export function Sidebar({ role, redCount = 0, orangeCount = 0, canSeeSms = false
               {isOpen && (
                 <div className="ml-3 pl-3 border-l-2 border-brand-line mt-0.5 mb-1 space-y-0.5">
                   {visibleItems.map((item, i) => {
-                    const exactOnly = item.href === '/dashboard' || item.href === '/admin'
-                    const isActive =
-                      pathname === item.href ||
-                      (!exactOnly && pathname.startsWith(item.href + '/'))
+                    const matches = (href: string) => {
+                      const exactOnly = href === '/dashboard' || href === '/admin'
+                      return pathname === href || (!exactOnly && pathname.startsWith(href + '/'))
+                    }
+                    // **가장 길게 맞는 메뉴 하나만** 켠다(2026-09-23) — /inspections/calendar는 「점검 업무」(/inspections)의
+                    // 하위 경로이기도 해서, 접두 판정만으로는 달력에 있을 때 두 메뉴가 **함께** 칠해졌다(메뉴 순서를
+                    // 달력 → 고객 → 업무로 바꾸며 눈에 띄었다 — 결함 자체는 그 전부터 있었다).
+                    const best = visibleItems.filter(it => matches(it.href))
+                      .reduce<string | null>((a, it) => (a && a.length >= it.href.length ? a : it.href), null)
+                    const isActive = item.href === best
                     // R8: 권한 필터를 통과한 목록에서 section이 바뀌는 첫 지점에만 소제목을 그린다 —
                     // 구역 전체가 숨는 역할에서는 소제목도 나타나지 않는다(빈 구역 방지)
                     const showSection = !!item.section && item.section !== visibleItems[i - 1]?.section
