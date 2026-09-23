@@ -1257,7 +1257,7 @@ export default async function CustomerDetailPage({
         panels={{ info: infoTab, buildings: buildingsTab, contacts: contactsTab, plan: planTab, facilities: facilitiesTab, reports: reportsTab, annex: annexTab, billing: billingTab, history: historyTab }}
         fullWidthKeys={['plan', 'facilities', 'reports', 'annex']}
         // 넓게 쓰되 요약 패널은 남긴다(2026-09-23 사용자: 오른쪽이 비어 있다 — 1920에서 ~620px 빈칸)
-        wideKeys={['info', 'buildings', 'contacts']}
+        wideKeys={['info', 'buildings', 'contacts', 'billing', 'history']}
         // 별지 패널은 마운트 즉시 회차 조회를 왕복한다(plan-annex-section의 reload) —
         // 이 셸은 패널을 전부 렌더하므로 지연 마운트가 없으면 기본정보 탭만 열어도 그 왕복이 돈다 (소방계획서_34 S2)
         // 공통·보고서 패널도 같은 부류다 — PlanForm14·EtcItemsPanel·PlanAnnexStatusCard가 마운트 즉시 서버액션을 왕복한다

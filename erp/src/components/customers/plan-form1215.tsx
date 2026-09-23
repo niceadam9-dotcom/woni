@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { Loader2, Save, Plus, Trash2 } from 'lucide-react'
+import { Plus, Trash2 } from 'lucide-react'
 import { saveFirePlanSectionsAction } from '@/app/(dashboard)/customers/fire-plan-form-actions'
 import { stampPlanTextAppliedAction } from '@/app/(dashboard)/customers/plan-text-library-actions'
 import { CardAnchorBar, useUnsavedWarning } from '@/components/ui/fields'
@@ -11,6 +11,7 @@ import { LibraryTextButton, type AppliedMeta } from '@/components/customers/libr
 import { PLAN_TEXT_SECTIONS } from '@/lib/plan-text-sections'
 import { ImageSlot } from '@/components/customers/plan-form13'
 import { PROMO_METHODS, type PromoPlan } from '@/lib/promo-plan-methods'
+import { SaveBar } from '@/components/customers/key-fields'
 
 /** 1.14.2 결과 증빙 사진 한 칸 — 종류가 하나뿐이라 `kind`는 저장하지 않는다(수집이 붙인다) */
 export type PromoPhotoRow = { path: string | null; caption: string }
@@ -213,14 +214,10 @@ export function PlanForm1215({ customerId, canManage, initial, initialPromoPlan,
         </div>
       ))}
 
+      {/* 저장 줄 — 고객 화면 공용 SaveBar 한 벌(2026-09-23 「저장 버튼 형태 동일하게」). 글씨에 「저장」 유지(plan-tab-view가 그 글씨로 미저장 표시를 지운다) */}
       {canManage && (
-        <div className="flex items-center gap-2">
-          <button onClick={() => { void save() }} disabled={!dirty || isPending}
-            className="inline-flex items-center gap-1 h-form-8 px-3 rounded-lg bg-brand text-white text-form-sm font-medium disabled:opacity-50">
-            {isPending ? <Loader2 className="size-3.5 animate-spin" /> : <Save className="size-3.5" />} 서식 1.12~1.15 저장
-          </button>
-          {msg && <span className="text-form-sm text-ink-sub">{msg}</span>}
-        </div>
+        <SaveBar dirty={dirty} pending={isPending} onSave={() => { void save() }} saveLabel="서식 1.12~1.15 저장"
+          status={msg ? <span className={msg.startsWith('❌') ? 'text-red-600' : msg.startsWith('✅') ? 'text-green-700' : 'text-ink-sub'}>{msg}</span> : undefined} />
       )}
       <p className="text-form-xs text-ink-meta">※ 기록은 계획서 생성(HWP) 시 해당 서식 표에 병합됩니다 — 1.12는 13행·1.13은 11행·1.14는 2건까지, 1.15는 양식이 단일 사건 서식이라 첫 행(일자·피해 내용·복구 조치)만 반영됩니다.</p>
     </div>

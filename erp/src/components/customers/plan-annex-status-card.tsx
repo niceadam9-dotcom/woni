@@ -2,10 +2,11 @@
 
 import { useEffect, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { Loader2, Save, ExternalLink } from 'lucide-react'
+import { Loader2, ExternalLink } from 'lucide-react'
 import { saveFirePlanSectionsAction, getPrevYearDutyAction } from '@/app/(dashboard)/customers/fire-plan-form-actions'
 import { annexStatusMarks, type AnnexStatusSection, type DutyMark, type PlanStoredMark, type PlanWrittenMark, type PrevYearDutyAuto } from '@/lib/prev-year-duty'
 import { useUnsavedWarning } from '@/components/ui/fields'
+import { SaveBar } from '@/components/customers/key-fields'
 
 /** 전년도 업무 실시사항 카드 — **별지 9호 2쪽 3행의 확정 자리** (소방계획서_44 S2 → 2026-09-20 [보고서] 탭 이사).
  *
@@ -142,14 +143,10 @@ export function PlanAnnexStatusCard({ customerId, canManage }: {
             자동 판정 기준은 가장 최근 점검({dutyAuto.year + 1}년)의 전년도인 {dutyAuto.year}년 실적입니다.
             고른 값에는 연도가 없어 모든 회차의 별지 9호에 그대로 인쇄됩니다.
           </p>
+          {/* 저장 줄 — 고객 화면 공용 SaveBar(2026-09-23) */}
           {canManage && (
-            <div className="flex items-center gap-2 pt-1">
-              <button onClick={() => { void save() }} disabled={!dirty || isPending} data-testid="annex-status-save"
-                className="inline-flex items-center gap-1 h-form-7 px-2.5 rounded-lg bg-brand text-white text-form-xs font-medium disabled:opacity-50">
-                {isPending ? <Loader2 className="size-3 animate-spin" /> : <Save className="size-3" />} 저장
-              </button>
-              {msg && <span className="text-form-xs text-ink-sub">{msg}</span>}
-            </div>
+            <SaveBar saveTestId="annex-status-save" dirty={dirty} pending={isPending} onSave={() => { void save() }}
+              status={msg ? <span className={msg.startsWith('❌') ? 'text-red-600' : msg.startsWith('✅') ? 'text-green-700' : 'text-ink-sub'}>{msg}</span> : undefined} />
           )}
         </div>
       )}

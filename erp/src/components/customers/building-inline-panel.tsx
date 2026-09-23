@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useTransition } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 // `Plus`는 [+ 건물 등록] 버튼과 한 몸이다 — 2026-09-11에 함께 빠졌다가 2026-09-15에 함께 돌아왔다
-import { Plus, Search, Loader2, X } from 'lucide-react'
+import { Plus, Search, X } from 'lucide-react'
 import { DateInput, isCompleteDate } from '@/components/ui/date-input'
 import { ComboInput } from '@/components/ui/combo-input'
 import { createBuildingAction, updateBuildingAction, deleteBuildingAction, setPrimaryBuildingAction } from '@/app/(dashboard)/buildings/actions'
@@ -20,7 +20,7 @@ import { findSameNameBuilding, normalizeBuildingName } from '@/lib/building-dup'
 import { initialBuildingPanelTarget, shouldHideBuildingTable } from '@/lib/building-panel-open'
 import { useDaumPostcode } from '@/hooks/use-daum-postcode'
 import { useCustomerTabs } from '@/components/customers/customer-tabs'
-import { GroupBox, SubRow, Cell, keyInputCls } from '@/components/customers/key-fields'
+import { GroupBox, SubRow, Cell, SaveBar, keyInputCls } from '@/components/customers/key-fields'
 
 /** 건물 목록 + 인라인 등록·수정 패널 (설계 §5·§5-A) — /buildings/new·[id] 페이지 이동 대체.
  *  주소 상속('고객 주소와 동일') · Daum 주소 검색 시 bcode·지번 저장(092) · 건축물대장 자동 조회(빈 칸만). */
@@ -900,27 +900,21 @@ export function BuildingListPanel({ customerId, customerName, customerAddress, b
           </SubRow>
 
           {/* 저장 줄 — 기본정보 탭과 같은 모양·같은 자리(상자 아래, 스크롤해도 붙어 있다) */}
+          {/* 건물 폼은 변경 추적이 없다 — [저장]·[취소](=폼 닫기)는 늘 켠다(alwaysEnabled). 모양은 공용 SaveBar 한 벌. */}
           {canManage && (
-            <div data-testid="building-save-bar"
-              className="sticky bottom-0 z-10 flex items-center gap-3 px-5 py-3 bg-paper/95 backdrop-blur border-t border-line">
-              {editing !== 'new' && form.is_active && (() => {
+            <SaveBar testId="building-save-bar" dirty={false} alwaysEnabled pending={isPending}
+              onSave={save} onCancel={close}
+              idle="건물 정보를 고친 뒤 [저장]을 누르세요"
+              status={error ? <span className="text-red-500">{error}</span>
+                : saved ? <span className="text-green-700" data-testid="building-saved-note">저장되었습니다.</span>
+                : undefined}
+              left={editing !== 'new' && form.is_active ? (() => {
                 const cur = buildings.find(b => b.id === editing)
                 return cur ? (
                   <button onClick={() => deactivate(cur)} disabled={isPending}
                     className="h-form-9 px-3 rounded-lg border border-red-200 text-form-sm text-red-500 hover:bg-red-50 shrink-0">비활성화</button>
                 ) : null
-              })()}
-              <span className="text-form-xs truncate min-w-0 flex-1">
-                {error ? <span className="text-red-500">{error}</span>
-                  : saved ? <span className="text-green-700" data-testid="building-saved-note">저장되었습니다.</span>
-                  : null}
-              </span>
-              <button onClick={close} className="h-form-9 px-4 rounded-lg border border-line text-form-sm text-ink-sub hover:bg-paper shrink-0">취소</button>
-              <button onClick={save} disabled={isPending}
-                className="h-form-9 px-6 rounded-lg bg-brand hover:bg-brand-strong text-white text-form-sm font-semibold disabled:opacity-50 inline-flex items-center gap-1.5 shrink-0">
-                {isPending && <Loader2 className="size-3 animate-spin" />} 저장
-              </button>
-            </div>
+              })() : undefined} />
           )}
           {!canManage && error && <p className="px-5 py-3 text-form-xs text-red-500">{error}</p>}
         </>

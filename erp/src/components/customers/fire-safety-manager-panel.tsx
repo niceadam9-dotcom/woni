@@ -3,14 +3,14 @@
 import { useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { Save, Loader2, ShieldCheck, ExternalLink, Phone } from 'lucide-react'
+import { ShieldCheck, ExternalLink, Phone } from 'lucide-react'
 import { DateInput } from '@/components/ui/date-input'
 import { useUnsavedWarning } from '@/components/ui/fields'
 import { formatTel } from '@/lib/format-contact'
 import { useRepRole } from './rep-role-sync'
 import { saveFireSafetyManagerAction, type FireSafetyManagerInput } from '@/app/(dashboard)/customers/fire-safety-manager-actions'
 import type { CustomerContact } from '@/types'
-import { SubRow, Cell, keyInputCls, emptyRequiredCls } from './key-fields'
+import { SubRow, Cell, SaveBar, keyInputCls, emptyRequiredCls } from './key-fields'
 
 /** 관계인 탭 [소방안전관리] 구역 — 별지 9호 2쪽 '소방안전정보' 한 블록을 **한 화면에서** 채운다.
  *
@@ -196,21 +196,14 @@ export function FireSafetyManagerPanel({ customerId, contacts, canManage, initia
       </SubRow>
 
       {/* 저장 줄 — 기본정보·건물 탭과 같은 모양·같은 자리(상자 아래, 스크롤해도 붙어 있다) */}
+      {/* fsm-save — 이 버튼이 '저장' 텍스트 셀렉터의 첫 매치였다. 비활성(!dirty)·비가시(다른 탭)라
+          소방계획서 화면의 클릭을 15초씩 잡아먹었다. 표적을 붙여 텍스트로 안 잡히게 한다(saveTestId).
+          모양은 공용 SaveBar 한 벌 — [취소]는 처음 값으로 되돌린다. */}
       {canManage && (
-        <div className="sticky bottom-0 z-10 flex items-center gap-3 px-5 py-3 bg-paper/95 backdrop-blur border-t border-line">
-          <ShieldCheck className="size-4 text-brand shrink-0" />
-          <span className="text-form-xs truncate min-w-0 flex-1">
-            {msg ? <span className={msg.startsWith('❌') ? 'text-red-600' : msg.startsWith('✅') ? 'text-green-600' : 'text-ink-sub'}>{msg}</span>
-              : dirty ? <span className="font-semibold text-amber-700">저장하지 않은 변경이 있습니다</span>
-              : <span className="text-ink-meta">별지 9호 2쪽 «소방안전정보»에 그대로 실립니다</span>}
-          </span>
-          {/* fsm-save — 이 버튼이 '저장' 텍스트 셀렉터의 첫 매치였다. 비활성(!dirty)·비가시(다른 탭)라
-              소방계획서 화면의 클릭을 15초씩 잡아먹었다. 표적을 붙여 텍스트로 안 잡히게 한다. */}
-          <button onClick={save} disabled={isPending || !dirty} data-testid="fsm-save"
-            className="inline-flex items-center gap-1.5 h-form-9 px-6 rounded-lg bg-brand hover:bg-brand-strong text-white text-form-sm font-semibold disabled:opacity-40 shrink-0">
-            {isPending ? <Loader2 className="size-3.5 animate-spin" /> : <Save className="size-3.5" />} 저장
-          </button>
-        </div>
+        <SaveBar saveTestId="fsm-save" dirty={dirty} pending={isPending} onSave={save}
+          onCancel={() => { setD(initial); setDirty(false); setMsg('') }}
+          idle={<><ShieldCheck className="inline size-3.5 text-brand mr-1 align-[-2px]" />별지 9호 2쪽 «소방안전정보»에 그대로 실립니다</>}
+          status={msg ? <span className={msg.startsWith('❌') ? 'text-red-600' : msg.startsWith('✅') ? 'text-green-600' : 'text-ink-sub'}>{msg}</span> : undefined} />
       )}
     </div>
   )

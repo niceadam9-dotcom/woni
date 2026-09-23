@@ -1,10 +1,11 @@
 'use client'
 
 import { useState, useTransition } from 'react'
+import { BookMarked } from 'lucide-react'
 import { useRouter } from 'next/navigation'
-import { BookMarked, Loader2, Save } from 'lucide-react'
 import { saveFirePlanSectionsAction } from '@/app/(dashboard)/customers/fire-plan-form-actions'
 import { useUnsavedWarning } from '@/components/ui/fields'
+import { SaveBar } from '@/components/customers/key-fields'
 
 /** 보고서 커버 (2026-08-10 사용자 요청) — 생성 문서 마지막 페이지에 업체명·연도 표기.
  *  생성 바의 연도 입력칸 폐지와 짝: 연도 표기의 단일 지점이 이 서식이다.
@@ -84,14 +85,10 @@ export function PlanFormCover({ customerId, canManage, initial, defaults }: {
         {(v.sub ?? '').trim() && <p className="text-form-sm text-ink-sub mt-2">{(v.sub ?? '').trim()}</p>}
       </div>
 
+      {/* 저장 줄 — 고객 화면 공용 SaveBar 한 벌(2026-09-23 「저장 버튼 형태 동일하게」). 글씨에 「저장」 유지(plan-tab-view가 그 글씨로 미저장 표시를 지운다) */}
       {canManage && (
-        <div className="flex items-center gap-2">
-          <button onClick={() => { void save() }} disabled={!dirty || isPending}
-            className="inline-flex items-center gap-1 h-form-8 px-3 rounded-lg bg-brand text-white text-form-sm font-medium disabled:opacity-50">
-            {isPending ? <Loader2 className="size-3.5 animate-spin" /> : <Save className="size-3.5" />} 보고서 커버 저장
-          </button>
-          {msg && <span className="text-form-sm text-ink-sub">{msg}</span>}
-        </div>
+        <SaveBar dirty={dirty} pending={isPending} onSave={() => { void save() }} saveLabel="보고서 커버 저장"
+          status={msg ? <span className={msg.startsWith('❌') ? 'text-red-600' : msg.startsWith('✅') ? 'text-green-700' : 'text-ink-sub'}>{msg}</span> : undefined} />
       )}
     </div>
   )

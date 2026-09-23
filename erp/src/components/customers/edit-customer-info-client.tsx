@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useTransition, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
-import { Loader2, Search } from 'lucide-react'
+import { Search } from 'lucide-react'
 import { updateCustomerAction, quickAddressApplyAction, checkAddressAction, previewAnchorChangeAction, type AnchorPreview, type UpdateCustomerInput, type AddressDuplicateCustomer, type AddressDuplicateBuilding } from '@/app/(dashboard)/customers/actions'
 import { useDaumPostcode, type DaumPostcodeData } from '@/hooks/use-daum-postcode'
 import { DateInput, isCompleteDate } from '@/components/ui/date-input'
@@ -10,7 +10,7 @@ import { AnchorChangePreview, LegalScheduleBadge, anchorPreviewWorthShowing } fr
 import { todayKst } from '@/lib/kst-date'
 import { resolveAnchor, anchorSourceLabel, isProvisionalAnchor } from '@/lib/plan-anchor'
 import { AddressDuplicateDialog } from './address-duplicate-dialog'
-import { GroupBox, SubRow, Cell, RoleBadge, keyInputCls, emptyRequiredCls } from './key-fields'
+import { GroupBox, SubRow, Cell, RoleBadge, SaveBar, keyInputCls, emptyRequiredCls } from './key-fields'
 import { anchorRoles } from '@/lib/anchor-role'
 import type { Customer } from '@/types'
 
@@ -351,22 +351,9 @@ export function EditCustomerInfoClient({ customer, typeSlot, annualLabel, lastCh
             종전엔 고쳐야만 버튼이 나타나 「저장이 없는 화면」으로 읽혔다. 이제 버튼은 늘 있고,
             고친 게 없으면 흐리게(변경 없음), 고치면 진하게. 상자 아래에 붙어(sticky) 스크롤해도 보인다. */}
         {canManage && (
-          <div data-testid="info-save-bar"
-            className="sticky bottom-0 z-10 flex items-center gap-3 px-5 py-3 bg-paper/95 backdrop-blur border-t border-line">
-            <span className="text-form-xs truncate min-w-0 flex-1">
-              {isDirty
-                ? <span className="font-semibold text-amber-700">저장하지 않은 변경이 있습니다</span>
-                : <span className="text-ink-meta">{lastChangeText ? `최근 변경: ${lastChangeText}` : '변경 없음'}</span>}
-            </span>
-            <button type="button" onClick={handleReset} disabled={isPending || !isDirty}
-              className="h-form-9 px-4 rounded-lg border border-line text-form-sm text-ink-sub hover:bg-paper transition-colors disabled:opacity-40 shrink-0">
-              취소
-            </button>
-            <button type="submit" data-testid="info-save" disabled={isPending || !isDirty}
-              className="h-form-9 px-6 rounded-lg bg-brand hover:bg-brand-strong text-white text-form-sm font-semibold transition-colors flex items-center justify-center gap-1.5 disabled:opacity-40 shrink-0">
-              {isPending ? <Loader2 className="size-3.5 animate-spin" /> : null} 저장
-            </button>
-          </div>
+          <SaveBar testId="info-save-bar" saveTestId="info-save" submit
+            dirty={isDirty} pending={isPending} onCancel={handleReset}
+            idle={lastChangeText ? `최근 변경: ${lastChangeText}` : undefined} />
         )}
         {!canManage && lastChangeText && (
           <div className="px-5 py-3 bg-paper text-form-xs text-ink-meta truncate">최근 변경: {lastChangeText}</div>

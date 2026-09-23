@@ -2,10 +2,10 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { Loader2, Save } from 'lucide-react'
 import { saveFirePlanSectionsAction } from '@/app/(dashboard)/customers/fire-plan-form-actions'
 import { MULTI_USE_CATEGORIES } from '@/lib/doc-requirements'
 import { NumStepper, formatPhoneKR, useUnsavedWarning } from '@/components/ui/fields'
+import { SaveBar } from '@/components/customers/key-fields'
 
 /** 1.10.3 다중이용업소 현황 — 카드 1장 (소방계획서_43 S7, 2026-09-09 사용자 확정 B안).
  *
@@ -158,13 +158,8 @@ export function PlanMultiUseCard({ customerId, canManage, initialMultiUse }: {
       )}
       {/* 저장 버튼이 1.4와 따로인 이유는 위 머리주석 참조 — 저장소가 다르다 */}
       {canManage && (
-        <div className="flex items-center gap-2">
-          <button onClick={() => { void save() }} disabled={!dirty || isPending} data-testid="form14-multi-use-save"
-            className="inline-flex items-center gap-1 h-form-7 px-2.5 rounded-lg border border-brand-line bg-surface text-form-xs text-brand font-medium disabled:opacity-50">
-            {isPending ? <Loader2 className="size-3 animate-spin" /> : <Save className="size-3" />} 1.10.3 저장
-          </button>
-          {msg && <span className="text-form-xs text-ink-sub">{msg}</span>}
-        </div>
+        <SaveBar saveTestId="form14-multi-use-save" dirty={dirty} pending={isPending} onSave={() => { void save() }} saveLabel="1.10.3 저장"
+          status={msg ? <span className={msg.startsWith('❌') ? 'text-red-600' : msg.startsWith('✅') ? 'text-green-700' : 'text-ink-sub'}>{msg}</span> : undefined} />
       )}
     </div>
   )

@@ -147,14 +147,20 @@ console.log('\n— ⑥ 기본정보 탭')
   /* 사용자 「기본정보 저장버튼은 없네?」 — 종전엔 고쳐야만 버튼이 나타났다. 이제 늘 있고 변경 없으면 비활성. */
   /* ⚠ 옛 모양(`isDirty && canManage ?`)만 막으면 **다른 모양의 같은 게이트**(`canManage && isDirty &&`)가
      초록으로 새어 든다 — 변이 V1이 실제로 살아남았다(2026-09-23). 저장 줄을 여는 조건을 **직접** 본다. */
+  // 2026-09-23 후속 — 저장 줄이 공용 SaveBar가 됐다(모양은 부품, 조건은 화면). 게이트를 여전히 **직접** 본다.
   ok('★ 저장 버튼이 **늘** 있다 (고쳐야만 나타나지 않는다)', () => {
-    const i = infoJsx.indexOf('data-testid="info-save-bar"')
+    const i = infoJsx.indexOf('testId="info-save-bar"')
     const gate = i > 0 ? infoJsx.slice(infoJsx.lastIndexOf('{', infoJsx.lastIndexOf('(', i)), i) : ''
-    return /data-testid="info-save"/.test(infoJsx) && /disabled=\{isPending \|\| !isDirty\}/.test(infoJsx)
+    return /saveTestId="info-save"/.test(infoJsx) && /dirty=\{isDirty\}/.test(infoJsx)
+      && !/testId="info-save-bar"[^/]*alwaysEnabled/.test(infoJsx)
       && /^\{canManage && \($/m.test(gate.trim().split('\n')[0]) && !/isDirty/.test(gate)
   }, '(저장 줄 앞 조건에 isDirty가 끼어 있다)')
-  ok('저장 줄은 상자 아래에 붙는다(sticky) · 그룹 상자는 overflow-clip(hidden이면 sticky가 죽는다)',
-    /data-testid="info-save-bar"\s*\n\s*className="sticky bottom-0/.test(infoJsx) && /overflow-clip/.test(kf) && !/overflow-hidden/.test(kf))
+  ok('저장 줄 부품: 늘 그려지고 · sticky · [저장]은 변경 없으면 비활성 · 그룹 상자는 overflow-clip', () => {
+    const sb = kf.slice(kf.indexOf('export function SaveBar'), kf.indexOf('export function RoleBadge'))
+    return /className="sticky bottom-0/.test(sb) && /disabled=\{pending \|\| !canSave\}/.test(sb)
+      && /const canSave = alwaysEnabled \|\| dirty/.test(sb) && !/\bif \(!dirty\) return null/.test(sb)
+      && /overflow-clip/.test(kf) && !/overflow-hidden/.test(kf)
+  })
   ok('담당 칸은 칸을 꽉 채운다(fill) — 옆 칸과 같은 높이, 안내 문구는 툴팁',
     /\n\s*fill\n/.test(page) && (() => {
       const a = read('../src/components/customers/assign-employee-inline.tsx')
@@ -174,7 +180,7 @@ console.log('\n— ⑦ 건물·시설 탭 (「기본정보처럼」)')
     ['건물', 'label="건물"'], ['주소', 'label="주소"'], ['기준일', 'label="기준일"'], ['규모', 'label="규모 (별지 9호)"'],
     ['구조', 'label="구조"'], ['시설 현황', '<FacilityStatusGrid'], ['메모', 'label="메모"'],
   ]).bad.length === 0)
-  ok('저장 줄 sticky', /data-testid="building-save-bar"\s*\n\s*className="sticky bottom-0/.test(bld))
+  ok('저장 줄은 공용 SaveBar', /<SaveBar testId="building-save-bar"/.test(bld))
   ok('Cell span은 1·2·3·4만', [...bld.matchAll(/<Cell[^>]*?\bspan=\{(\d+)\}/g)].every(m => +m[1] >= 1 && +m[1] <= 4))
 }
 
@@ -193,8 +199,41 @@ console.log('\n— ⑧ 관계인 탭 (「기본정보처럼」)')
     ['대표자 구분', '관리자 자격구분 ', '최근 교육이수일'].every(t =>
       new RegExp(`<div className="space-y-1\\.5">\\s*<label className=\\{labelCls\\}>${t}`).test(fsm)))
   ok('관계인 카드는 넓은 상자에서 2열(상자 폭 기준)', /grid grid-cols-1 @4xl:grid-cols-2 gap-3/.test(cts))
-  ok('fsm-save·패널 id 유지', /data-testid="fsm-save"/.test(fsm) && /id="c-fire-safety-manager"/.test(fsm))
-  ok('★ 세 탭 모두 넓게', /wideKeys=\{\['info', 'buildings', 'contacts'\]\}/.test(page))
+  ok('fsm-save·패널 id 유지', /saveTestId="fsm-save"/.test(fsm) && /id="c-fire-safety-manager"/.test(fsm))
+  ok('★ 세 탭 모두 넓게', /wideKeys=\{\['info', 'buildings', 'contacts'/.test(page))
+}
+
+console.log('\n— ⑨ 나머지 탭 — 저장 줄 한 벌 · 넓게 (2026-09-23 「기본정보 저장버튼 형태가 동일하게 나머지 탭들도」)')
+{
+  /* 폼 저장이 있는 모든 화면. 여기 없는 두 곳은 **폼 저장이 아니라** 뺐다:
+     revision-history(이력 행 편집의 행 단위 저장) · image-annotator(그림 편집 모달의 「이 그림으로 저장」). */
+  const SURFACES: Array<[string, string, string?]> = [
+    ['기본정보', 'edit-customer-info-client', 'info-save'], ['건물정보', 'building-inline-panel'],
+    ['소방안전관리', 'fire-safety-manager-panel', 'fsm-save'],
+    ['1.1', 'fire-plan-info-panel', 'fp-info-save'], ['1.4', 'plan-form14', 'form14-save'],
+    ['1.10.3', 'plan-multi-use-card', 'form14-multi-use-save'], ['기타 항목', 'etc-items-panel', 'etc-items-save'],
+    ['업무 실시사항', 'plan-annex-status-card', 'annex-status-save'], ['청구·수금', 'billing-client'],
+    ['1.2', 'plan-form12'], ['1.3', 'plan-form13'], ['1.5', 'plan-form15'], ['1.6', 'plan-form16'], ['1.7', 'plan-form17'],
+    ['1.10', 'plan-form110'], ['1.11', 'plan-form111'], ['1.12~1.15', 'plan-form1215'], ['표지', 'plan-form-cover'],
+    ['2장', 'plan-ch2'], ['3장', 'plan-ch3'],
+  ]
+  const noBar: string[] = [], oldBtn: string[] = [], lostId: string[] = []
+  for (const [name, file, tid] of SURFACES) {
+    const s = read(`../src/components/customers/${file}.tsx`)
+    if (!/<SaveBar\b/.test(s)) noBar.push(name)
+    // 옛 모양의 흔적 — 브랜드 바탕 버튼 안에 <Save 아이콘 + 「저장」 글씨(인라인 복사본)
+    if (/bg-brand[^"]*"[^>]*>\s*\{[^}]*<Save className/.test(s)) oldBtn.push(name)
+    if (tid && !new RegExp(`saveTestId="${tid}"`).test(s)) lostId.push(`${name}(${tid})`)
+  }
+  ok(`★ 폼 저장 ${SURFACES.length}곳이 모두 공용 SaveBar를 쓴다`, noBar.length === 0, noBar.join(', '))
+  ok('★ 옛 인라인 저장 버튼 복사본이 남아 있지 않다', oldBtn.length === 0, oldBtn.join(', '))
+  ok('검사가 잡던 저장 testid가 SaveBar로 그대로 옮겨졌다', lostId.length === 0, lostId.join(', '))
+  ok('소방계획서 서식 버튼 글씨에 「저장」 유지(plan-tab-view가 그 글씨로 미저장 표시를 지운다)',
+    ['plan-form12', 'plan-form13', 'plan-form16', 'plan-form-cover', 'plan-ch2'].every(f =>
+      /saveLabel="[^"]*저장"/.test(read(`../src/components/customers/${f}.tsx`))))
+  ok('1.4 미저장·변경 없음 표식(testid)이 저장 줄 안에 살아 있다',
+    (() => { const s = read('../src/components/customers/plan-form14.tsx'); return /form14-dirty-badge/.test(s) && /form14-clean-badge/.test(s) })())
+  ok('★ 청구·수금·이력 탭도 넓게', /wideKeys=\{\['info', 'buildings', 'contacts', 'billing', 'history'\]\}/.test(page))
 }
 
 console.log(`\n결과: ${pass} 통과 / ${fail} 실패`)

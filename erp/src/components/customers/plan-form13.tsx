@@ -1,10 +1,8 @@
 'use client'
 
 import { useEffect, useRef, useState, useTransition, type ReactNode } from 'react'
+import { Loader2, ImagePlus, Trash2, ClipboardPaste, Download, MoveUpRight, X, ImageIcon } from 'lucide-react'
 import { useRouter } from 'next/navigation'
-import {
-  Loader2, Save, ImagePlus, Trash2, ClipboardPaste, Download, MoveUpRight, X, ImageIcon,
-} from 'lucide-react'
 import {
   saveFirePlanSectionsAction, uploadPlanAssetAction, deletePlanAssetAction, getPlanAssetUrlAction,
   suggestSurroundingsAction,
@@ -17,6 +15,7 @@ import { prepareImageFile } from '@/lib/image-prep'
 import { readClipboardImage, CLIPBOARD_EMPTY_MSG } from '@/lib/clipboard-image'
 import { ImageAnnotator, parseAnnots, type AnnotDoc } from '@/components/customers/image-annotator'
 import { isRetiredRouteDraft } from '@/lib/fire-plan-image-refs'
+import { SaveBar } from '@/components/customers/key-fields'
 
 /** 서식 1.3 건축물 위치·운영현황 및 소방차 세부진입 계획 — 섹션 카드 2개 (소방계획서_4.md §3)
  *  sections.location(위치도·주변 현황·관할 소방서·거리·도착예상·운영 개요) + sections.fireAccess(진입경로·경로도·진입장소·주변 소방시설) */
@@ -855,14 +854,10 @@ export function PlanForm13({
         )}
       </div>
 
+      {/* 저장 줄 — 고객 화면 공용 SaveBar 한 벌(2026-09-23 「저장 버튼 형태 동일하게」). 글씨에 「저장」 유지(plan-tab-view가 그 글씨로 미저장 표시를 지운다) */}
       {canManage && (
-        <div className="flex items-center gap-2">
-          <button onClick={() => { void save() }} disabled={!dirty || isPending}
-            className="inline-flex items-center gap-1 h-form-8 px-3 rounded-lg bg-brand text-white text-form-sm font-medium disabled:opacity-50">
-            {isPending ? <Loader2 className="size-3.5 animate-spin" /> : <Save className="size-3.5" />} 서식 1.3 저장
-          </button>
-          {msg && <span className="text-form-sm text-ink-sub">{msg}</span>}
-        </div>
+        <SaveBar dirty={dirty} pending={isPending} onSave={() => { void save() }} saveLabel="서식 1.3 저장"
+          status={msg ? <span className={msg.startsWith('❌') ? 'text-red-600' : msg.startsWith('✅') ? 'text-green-700' : 'text-ink-sub'}>{msg}</span> : undefined} />
       )}
     </div>
   )

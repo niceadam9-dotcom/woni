@@ -3,12 +3,13 @@
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { Receipt, Landmark, Save, Eye, Loader2, ShieldCheck, Users, Download, ExternalLink } from 'lucide-react'
+import { Receipt, Landmark, Eye, ShieldCheck, Users, Download, ExternalLink } from 'lucide-react'
 import {
   saveBillingProfileAction, saveAutopayAction, revealAccountAction,
   type BillingProfileInput, type AutopayInput,
 } from '@/app/(dashboard)/customers/billing-actions'
 import { createOwnerAction, assignOwnerAction, type OwnerOption } from '@/app/(dashboard)/customers/owner-actions'
+import { SaveBar } from '@/components/customers/key-fields'
 
 export type BillingProfile = {
   business_no: string | null; company_name: string | null; rep_name: string | null
@@ -188,10 +189,11 @@ export function BillingClient({ customerId, profile, autopay, owners, ownerId, c
           <div><span className={label}>업태</span><input disabled={!canManage} value={bp.business_type} onChange={e => setBp({ ...bp, business_type: e.target.value })} className={field} /></div>
           <div><span className={label}>종목</span><input disabled={!canManage} value={bp.business_item} onChange={e => setBp({ ...bp, business_item: e.target.value })} className={field} /></div>
         </div>
+        {/* 저장 줄 — 고객 화면 공용 SaveBar(2026-09-23). 변경 추적이 없는 카드라 [저장]은 늘 켠다(alwaysEnabled) */}
         {canManage && (
-          <button onClick={saveProfile} disabled={isPending} className="mt-4 inline-flex items-center gap-1.5 h-form-9 px-4 rounded-lg bg-brand hover:bg-brand-strong text-white text-form-base font-medium disabled:opacity-50">
-            {isPending ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />} 저장
-          </button>
+          <div className="mt-4 -mx-5 -mb-5">
+            <SaveBar dirty={false} alwaysEnabled pending={isPending} onSave={saveProfile} idle="사업자정보 — 세금계산서 발행에 쓰입니다" />
+          </div>
         )}
       </div>
 
@@ -232,9 +234,9 @@ export function BillingClient({ customerId, profile, autopay, owners, ownerId, c
           </div>
         </div>
         {canManage && (
-          <button onClick={saveAutopay} disabled={isPending} className="mt-4 inline-flex items-center gap-1.5 h-form-9 px-4 rounded-lg bg-brand hover:bg-brand-strong text-white text-form-base font-medium disabled:opacity-50">
-            {isPending ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />} 저장
-          </button>
+          <div className="mt-4 -mx-5 -mb-5">
+            <SaveBar dirty={false} alwaysEnabled pending={isPending} onSave={saveAutopay} idle="자동이체 — 수금 예정일 계산에 쓰입니다" />
+          </div>
         )}
       </div>
 

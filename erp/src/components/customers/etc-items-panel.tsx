@@ -2,13 +2,13 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
-import { Loader2, Save } from 'lucide-react'
 import { getActiveSpecialInspectionAction } from '@/app/(dashboard)/customers/facility-spec-actions'
 import { getInspectionSheetOverviewAction, getEtcSheetProgressAction } from '@/app/(dashboard)/inspections/sheet-actions'
 import { ETC_LEDGER_CODE, ETC_KEYS, type EtcKey } from '@/lib/etc-sheet-map'
 import { saveEtcFacilitiesAction } from '@/app/(dashboard)/customers/facilities-actions'
 import { usePlanSaveHandler } from '@/components/ui/unsaved-nav'
 import type { SheetOverview } from '@/lib/sheet-overview'
+import { SaveBar } from '@/components/customers/key-fields'
 
 /** 기타 점검대상 입력 카드 — 1.4 「기타」 7종(ETC_ITEMS)이 두 자리로 갈라진 것(2026-09-20 사용자 확정):
  *   · 보고서(별지) 탭 「기타 점검대상」 = 방화문·방화셔터 / 비상구·피난통로 / 방염 (자체점검 「기타사항」 시트)
@@ -231,14 +231,10 @@ export function EtcItemsPanel({
           )
         })}
       </div>
+      {/* 저장 줄 — 고객 화면 공용 SaveBar(2026-09-23). embedded(1.6 안)이면 1.6 저장이 대신한다 */}
       {!embedded && canManage && (
-        <div className="flex items-center gap-2 pt-1">
-          <button onClick={() => { void save() }} disabled={!dirty || saving} data-testid="etc-items-save"
-            className="inline-flex items-center gap-1 h-form-7 px-2.5 rounded-lg bg-brand text-white text-form-xs font-medium disabled:opacity-50">
-            {saving ? <Loader2 className="size-3 animate-spin" /> : <Save className="size-3" />} 저장
-          </button>
-          {msg && <span className="text-form-xs text-ink-sub">{msg}</span>}
-        </div>
+        <SaveBar saveTestId="etc-items-save" dirty={dirty} pending={saving} onSave={() => { void save() }}
+          status={msg ? <span className={msg.startsWith('❌') ? 'text-red-600' : msg.startsWith('✅') ? 'text-green-700' : 'text-ink-sub'}>{msg}</span> : undefined} />
       )}
       {embedded && msg && <p className="text-form-xs text-ink-sub">{msg}</p>}
     </div>

@@ -2,11 +2,11 @@
 
 import { useCallback, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { Loader2, Save } from 'lucide-react'
 import { saveFirePlanSectionsAction } from '@/app/(dashboard)/customers/fire-plan-form-actions'
 import { NumField, useUnsavedWarning } from '@/components/ui/fields'
 import { ETC_ITEMS_PLAN } from '@/lib/facility-codes'
 import { EtcItemsPanel, type EtcBuildingInit } from '@/components/customers/etc-items-panel'
+import { SaveBar } from '@/components/customers/key-fields'
 
 /** 서식 1.6 기타시설 현황 (1.6.1) — 전기·가스·위험물 (소방계획서_4.md §3, sections.etcFacility)
  *  §11-3: 가스 [LPG 프리셋], 위험물 [해당없음] 원클릭
@@ -211,14 +211,10 @@ export function PlanForm16({ customerId, canManage, initial, etcBuildings, etcDe
         )}
       </div>
 
+      {/* 저장 줄 — 고객 화면 공용 SaveBar 한 벌(2026-09-23 「저장 버튼 형태 동일하게」). 글씨에 「저장」 유지(plan-tab-view가 그 글씨로 미저장 표시를 지운다) */}
       {canManage && (
-        <div className="flex items-center gap-2">
-          <button onClick={() => { void save() }} disabled={(!dirty && !etcDirty) || isPending}
-            className="inline-flex items-center gap-1 h-form-8 px-3 rounded-lg bg-brand text-white text-form-sm font-medium disabled:opacity-50">
-            {isPending ? <Loader2 className="size-3.5 animate-spin" /> : <Save className="size-3.5" />} 서식 1.6 저장
-          </button>
-          {msg && <span className="text-form-sm text-ink-sub">{msg}</span>}
-        </div>
+        <SaveBar dirty={dirty || etcDirty} pending={isPending} onSave={() => { void save() }} saveLabel="서식 1.6 저장"
+          status={msg ? <span className={msg.startsWith('❌') ? 'text-red-600' : msg.startsWith('✅') ? 'text-green-700' : 'text-ink-sub'}>{msg}</span> : undefined} />
       )}
     </div>
   )

@@ -13,7 +13,7 @@
  *    기준은 화면이 아니라 **상자 폭**(컨테이너 쿼리 @md=28rem · @2xl=42rem · @4xl=56rem).
  */
 import type { ReactNode } from 'react'
-import { Star } from 'lucide-react'
+import { Star, Loader2 } from 'lucide-react'
 import type { AnchorRole } from '@/lib/anchor-role'
 
 const cardCls = 'bg-surface rounded-xl border shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px]'
@@ -109,6 +109,62 @@ export function Cell({ span = 1, label, required, htmlFor, badge, missing, child
         </div>
       )}
       {children}
+    </div>
+  )
+}
+
+/** 저장 줄 — **모든 고객 탭이 이 한 벌**을 쓴다(2026-09-23 사용자: 「기본정보 저장버튼 형태가 동일하게 나머지 탭들도」).
+ *
+ *  모양: 상자(또는 화면) 아래에 붙는 띠(sticky) · 왼쪽 상태 글씨 · 오른쪽 [취소] [저장].
+ *   · 버튼은 **늘 보인다** — 고쳐야만 나타나면 「저장이 없는 화면」으로 읽힌다(기본정보에서 실제로 그랬다).
+ *   · 변경이 없으면 [저장]은 흐리게(비활성), 있으면 「저장하지 않은 변경이 있습니다」.
+ *   · `status`(저장됨·오류 메시지)가 있으면 그것이 상태 글씨를 대신한다.
+ *  ⚠ sticky가 붙으려면 조상에 overflow-hidden이 없어야 한다(GroupBox는 overflow-clip).
+ *  ⚠ 저장 조건(무엇이 dirty인가·무엇을 저장하나)은 **각 화면이 정한다** — 이 부품은 모양만 한 벌로 묶는다. */
+export function SaveBar({ dirty, pending, onSave, onCancel, status, idle, left, saveLabel = '저장', saveTitle, submit, alwaysEnabled, testId, saveTestId }: {
+  dirty: boolean
+  pending?: boolean
+  /** submit이면 비워도 된다(form onSubmit이 받는다) */
+  onSave?: () => void
+  /** 없으면 [취소]를 그리지 않는다 */
+  onCancel?: () => void
+  /** 저장됨·오류 등 — 있으면 상태 글씨를 대신한다 */
+  status?: ReactNode
+  /** 변경 없을 때의 글씨(예: 최근 변경: …) */
+  idle?: ReactNode
+  /** 맨 왼쪽 부가 버튼(예: 비활성화) */
+  left?: ReactNode
+  saveLabel?: string
+  /** 저장 버튼 툴팁(예: 단축키 안내) */
+  saveTitle?: string
+  /** 저장 버튼을 type=submit으로(폼 안에서) */
+  submit?: boolean
+  /** 변경 여부와 무관하게 [저장]·[취소]를 켠다(dirty 추적이 없는 화면 — 예: 건물 폼은 [취소]=폼 닫기) */
+  alwaysEnabled?: boolean
+  testId?: string
+  saveTestId?: string
+}) {
+  const canSave = alwaysEnabled || dirty
+  return (
+    <div data-testid={testId} data-save-bar="1"
+      className="sticky bottom-0 z-10 flex items-center gap-3 px-5 py-3 bg-paper/95 backdrop-blur border-t border-line">
+      {left}
+      <span className="text-form-xs truncate min-w-0 flex-1">
+        {status
+          ?? (dirty ? <span className="font-semibold text-amber-700">저장하지 않은 변경이 있습니다</span>
+            : <span className="text-ink-meta">{idle ?? '변경 없음'}</span>)}
+      </span>
+      {onCancel && (
+        <button type="button" onClick={onCancel} disabled={pending || !canSave}
+          className="h-form-9 px-4 rounded-lg border border-line text-form-sm text-ink-sub hover:bg-paper transition-colors disabled:opacity-40 shrink-0">
+          취소
+        </button>
+      )}
+      <button type={submit ? 'submit' : 'button'} onClick={submit ? undefined : onSave} data-testid={saveTestId} title={saveTitle}
+        disabled={pending || !canSave}
+        className="h-form-9 px-6 rounded-lg bg-brand hover:bg-brand-strong text-white text-form-sm font-semibold transition-colors inline-flex items-center justify-center gap-1.5 disabled:opacity-40 shrink-0">
+        {pending ? <Loader2 className="size-3.5 animate-spin" /> : null} {saveLabel}
+      </button>
     </div>
   )
 }

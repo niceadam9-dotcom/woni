@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { Loader2, Save, Plus, Trash2 } from 'lucide-react'
+import { Plus, Trash2 } from 'lucide-react'
 import { saveFirePlanSectionsAction, deletePlanAssetAction } from '@/app/(dashboard)/customers/fire-plan-form-actions'
 import { stampPlanTextAppliedAction } from '@/app/(dashboard)/customers/plan-text-library-actions'
 import { CardAnchorBar, NumStepper, useUnsavedWarning } from '@/components/ui/fields'
@@ -12,6 +12,7 @@ import { goPlanNode } from '@/components/customers/plan-form13'
 import type { EvacFireSection } from '@/components/customers/plan-form15'
 import { compartmentLabel } from '@/lib/evac-compartment'
 import { normalizeEvacPlan, normalizeVulnerable } from '@/lib/evac-plan-normalize'
+import { SaveBar } from '@/components/customers/key-fields'
 
 /** 3장 피난계획 — 서식 3.1~3.7 (소방계획서_4.md §6)
  *  3.1은 1.5 입력(evacFire) 자동 표시(재사용 — 수정은 1.5에서), 3.4 evacPlan은 생성 어댑터(§7-3)로 문서에 반영.
@@ -108,14 +109,10 @@ export function PlanCh3({ customerId, canManage, evacFire, headcount, initialDet
   const inputCls = 'h-form-7 rounded border border-brand-line bg-surface px-1.5 text-form-sm outline-none focus:border-brand'
   const chip = (on: boolean) => `h-form-6 px-2 rounded-full text-form-xs border transition-colors ${
     on ? 'bg-brand text-white border-brand' : 'border-brand-line text-ink-sub hover:bg-brand-tint'}`
+  // 저장 줄 — 고객 화면 공용 SaveBar 한 벌(2026-09-23 「저장 버튼 형태 동일하게」). 글씨에 「저장」 유지(plan-tab-view 규약)
   const saveBtn = (patch: Record<string, unknown>, label: string) => canManage && (
-    <div className="flex items-center gap-2">
-      <button onClick={() => { void saveKeys(patch, label) }} disabled={!dirty || isPending}
-        className="inline-flex items-center gap-1 h-form-8 px-3 rounded-lg bg-brand text-white text-form-sm font-medium disabled:opacity-50">
-        {isPending ? <Loader2 className="size-3.5 animate-spin" /> : <Save className="size-3.5" />} {label} 저장
-      </button>
-      {msg && <span className="text-form-sm text-ink-sub">{msg}</span>}
-    </div>
+    <SaveBar dirty={dirty} pending={isPending} onSave={() => { void saveKeys(patch, label) }} saveLabel={`${label} 저장`}
+      status={msg ? <span className={msg.startsWith('❌') ? 'text-red-600' : msg.startsWith('✅') ? 'text-green-700' : 'text-ink-sub'}>{msg}</span> : undefined} />
   )
 
   return (

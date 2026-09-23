@@ -15,6 +15,7 @@ import { useCustomerTabs } from '@/components/customers/customer-tabs'
 import { CardAnchorBar, NumField, PhoneField } from '@/components/ui/fields'
 import { formatTel } from '@/lib/format-contact'
 import { usePlanSaveHandler } from '@/components/ui/unsaved-nav'
+import { SaveBar } from '@/components/customers/key-fields'
 
 /** 소방계획서 정보 패널 (5+6차) — 준비율 게이지 + 항상 편집 폼(①시설 ②운영 ③화재보험) + 가져오기 (설계 §4·§5,
  *  소방계획서_10 §3-4: 요약/편집 모드·아코디언 폐기, 열자마자 편집 폼 노출) */
@@ -529,15 +530,12 @@ export function FirePlanInfoPanel({ customerId, initial, people }: {
           </div>
         </section>
 
-        <div className="flex items-center gap-3">
-          {/* 이 화면에 '저장'이라 쓰인 버튼이 여럿이다(소방안전관리자 패널 등) — `button:text-is("저장")`로
-              겨누면 Playwright가 첫 매치(비활성·비가시)를 집어 클릭이 타임아웃난다. 표적을 고정한다. */}
-          <button onClick={() => { void save() }} disabled={isPending} data-testid="fp-info-save"
-            className="h-form-8 px-5 rounded-lg bg-brand hover:bg-brand-strong text-white text-form-sm font-medium disabled:opacity-50 inline-flex items-center gap-1.5">
-            {isPending && <Loader2 className="size-3 animate-spin" />} 저장
-          </button>
-          {msg && <span className="text-form-sm text-ink-sub">{msg}</span>}
-        </div>
+        {/* 이 화면에 '저장'이라 쓰인 버튼이 여럿이다(소방안전관리자 패널 등) — `button:text-is("저장")`로
+            겨누면 Playwright가 첫 매치(비활성·비가시)를 집어 클릭이 타임아웃난다. 표적을 고정한다(saveTestId).
+            모양은 고객 화면 공용 SaveBar 한 벌(2026-09-23). 변경 추적이 없어 [저장]은 늘 켠다. */}
+        <SaveBar saveTestId="fp-info-save" dirty={false} alwaysEnabled pending={isPending} onSave={() => { void save() }}
+          idle="서식 1.1 — 소방계획서·별지 9호에 실립니다"
+          status={msg ? <span className={msg.startsWith('❌') ? 'text-red-600' : msg.startsWith('✅') ? 'text-green-700' : 'text-ink-sub'}>{msg}</span> : undefined} />
       </div>
     </div>
   )

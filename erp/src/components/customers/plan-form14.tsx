@@ -2,7 +2,7 @@
 
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
-import { ChevronDown, ChevronRight, Loader2, Save, ShieldCheck, Layers, Plus, Trash2, X, PanelRightOpen, Maximize2, Minimize2 } from 'lucide-react'
+import { ChevronDown, ChevronRight, ShieldCheck, Layers, Plus, Trash2, X, PanelRightOpen, Maximize2, Minimize2 } from 'lucide-react'
 import { saveFacilitiesAction, verifyFacilitiesAction, type FacilityRow, type FloorRow } from '@/app/(dashboard)/customers/facilities-actions'
 import { getActiveSpecialInspectionAction } from '@/app/(dashboard)/customers/facility-spec-actions'
 // 쓰기 액션은 더 이상 여기서 부르지 않는다 — 입력은 전용 화면 한 곳으로 모았다(소방계획서_28 S4).
@@ -15,6 +15,7 @@ import { PlanForm14Specs, type SpecsSaveResult } from '@/components/customers/pl
 import { PlanMultiUseCard, type MultiUseSection } from '@/components/customers/plan-multi-use-card'
 import { NumField, TableWrap } from '@/components/ui/fields'
 import { usePlanSaveHandler, useUnsavedNavGuard } from '@/components/ui/unsaved-nav'
+import { SaveBar } from '@/components/customers/key-fields'
 
 /** 서식 1.4 소방시설 현황 — 양식(image-1.png) 재현 입력 화면 (소방계획서_4.md §4)
  *  표 괘선·좌측 분류 세로 병합·셀 전체 클릭 토글·피난기구 하위 8종 연동·항목별 비고(detail.note)·
@@ -970,34 +971,34 @@ export function PlanForm14({ customerId, buildings, canManage, canRegister = fal
         </div>
       </details>
 
-      {/* 푸터 — 설치 요약·미저장 배지(U1)·확인 완료·통합 저장(U3) */}
-      <div className="flex items-center gap-2 flex-wrap">
-        <span className="text-form-xs text-ink-sub">설치 {installedCount}종{shownVerifiedAt ? ` · 마지막 확인 ${shownVerifiedAt.slice(5)}` : ''}</span>
-        {canManage && (
-          <div className="ml-auto flex items-center gap-2">
-            {dirty || specsDirty ? (
-              <span data-testid="form14-dirty-badge" className="text-form-xs font-medium text-amber-600">
-                ● 미저장 · {[dirty ? '본문' : null, specsDirty ? `제원 ${specsDirtyCount}섹션` : null].filter(Boolean).join(' · ')}
-              </span>
-            ) : (
-              <span data-testid="form14-clean-badge" className="text-form-xs text-ink-meta">변경 없음</span>
-            )}
+      {/* 푸터 — 설치 요약·미저장 배지(U1)·확인 완료·통합 저장(U3).
+          2026-09-23 고객 화면 공용 SaveBar 한 벌로(「저장 버튼 형태 동일하게」) — 배지 testid·설비 대장·확인 완료는 그대로 싣는다. */}
+      {canManage ? (
+        <SaveBar saveTestId="form14-save" dirty={dirty || specsDirty} pending={saving} onSave={() => { void save() }}
+          saveTitle="본문(설비·층별)과 설비 대장 제원을 한 번에 저장합니다 (Ctrl+S)"
+          left={<>
             <button onClick={openSpecs} data-testid="specs-open"
-              className="inline-flex items-center gap-1 h-form-8 px-3 rounded-lg border border-brand-line text-form-sm text-brand hover:bg-brand-tint">
+              className="inline-flex items-center gap-1 h-form-9 px-3 rounded-lg border border-brand-line text-form-sm text-brand hover:bg-brand-tint shrink-0">
               <PanelRightOpen className="size-3.5" /> 설비 대장
             </button>
             <button onClick={() => { void verifyOnly() }} disabled={saving}
-              className="inline-flex items-center gap-1 h-form-8 px-3 rounded-lg border border-brand-line text-form-sm text-ink-sub hover:bg-brand-tint disabled:opacity-50">
+              className="inline-flex items-center gap-1 h-form-9 px-3 rounded-lg border border-brand-line text-form-sm text-ink-sub hover:bg-brand-tint disabled:opacity-50 shrink-0">
               <ShieldCheck className="size-3.5" /> 시설 확인 완료
             </button>
-            <button data-testid="form14-save" onClick={() => { void save() }} disabled={!(dirty || specsDirty) || saving}
-              title="본문(설비·층별)과 설비 대장 제원을 한 번에 저장합니다 (Ctrl+S)"
-              className="inline-flex items-center gap-1 h-form-8 px-3 rounded-lg bg-brand text-white text-form-sm font-medium disabled:opacity-50">
-              {saving ? <Loader2 className="size-3.5 animate-spin" /> : <Save className="size-3.5" />} 저장
-            </button>
-          </div>
-        )}
-      </div>
+          </>}
+          status={<>
+            <span className="text-ink-sub mr-2">설치 {installedCount}종{shownVerifiedAt ? ` · 마지막 확인 ${shownVerifiedAt.slice(5)}` : ''}</span>
+            {dirty || specsDirty ? (
+              <span data-testid="form14-dirty-badge" className="font-semibold text-amber-700">
+                ● 미저장 · {[dirty ? '본문' : null, specsDirty ? `제원 ${specsDirtyCount}섹션` : null].filter(Boolean).join(' · ')}
+              </span>
+            ) : (
+              <span data-testid="form14-clean-badge" className="text-ink-meta">변경 없음</span>
+            )}
+          </>} />
+      ) : (
+        <p className="text-form-xs text-ink-sub">설치 {installedCount}종{shownVerifiedAt ? ` · 마지막 확인 ${shownVerifiedAt.slice(5)}` : ''}</p>
+      )}
       {msg && <p className="text-form-sm text-ink-sub">{msg}</p>}
 
       {/* H-19 설비 대장 — 우측 슬라이드 패널 (2026-08-05 사용자 확정: 본문 하단 인라인 → 옆 패널, 체크해도 화면이 밀리지 않음).
@@ -1054,20 +1055,17 @@ export function PlanForm14({ customerId, buildings, canManage, canRegister = fal
               이제 패널에서도 본문·제원을 함께 저장한다 — 본문 [저장]·Ctrl+S와 완전히 같은 경로다. */}
           {/* 닫혀 있을 때는 아예 렌더하지 않는다 — 패널은 항상 마운트라 그대로 두면 저장 버튼이 화면 밖에 하나 더
               남아 접근성 트리·테스트에서 '버튼 2개'로 보인다(B안의 취지가 흐려짐). 자식은 계속 마운트된다. */}
+          {/* 2026-09-23 — 고객 화면 공용 SaveBar 한 벌(본문 1.4 저장 줄과 같은 모양). 상태 글씨 testid 유지 */}
           {canManage && specsOpen && (
-            <div className="shrink-0 flex items-center gap-2 border-t border-brand-line-soft bg-surface px-4 py-2.5">
-              <span className="text-form-xs text-ink-sub" data-testid="specs-footer-status">
-                {dirty || specsDirty
-                  ? <>미저장 {dirty && <b className="text-amber-600">본문</b>}{dirty && specsDirty && ' · '}
-                    {specsDirty && <><b className="text-amber-600">제원 {specsDirtyCount}</b>개 섹션</>}</>
-                  : '모든 변경이 저장됐습니다'}
-              </span>
-              <button type="button" data-testid="specs-save" onClick={() => { void save() }}
-                disabled={!(dirty || specsDirty) || saving}
-                title="본문(설비·층별)과 세부 제원을 한 번에 저장합니다 (Ctrl+S)"
-                className="ml-auto inline-flex items-center gap-1 h-form-7 px-3 rounded-lg bg-brand hover:bg-brand-strong text-white text-form-xs font-medium disabled:opacity-50">
-                {saving ? <Loader2 className="size-3 animate-spin" /> : <Save className="size-3" />} 저장
-              </button>
+            <div className="shrink-0">
+              <SaveBar saveTestId="specs-save" dirty={dirty || specsDirty} pending={saving} onSave={() => { void save() }}
+                saveTitle="본문(설비·층별)과 세부 제원을 한 번에 저장합니다 (Ctrl+S)"
+                status={<span className="text-ink-sub" data-testid="specs-footer-status">
+                  {dirty || specsDirty
+                    ? <>미저장 {dirty && <b className="text-amber-600">본문</b>}{dirty && specsDirty && ' · '}
+                      {specsDirty && <><b className="text-amber-600">제원 {specsDirtyCount}</b>개 섹션</>}</>
+                    : '모든 변경이 저장됐습니다'}
+                </span>} />
             </div>
           )}
           {specsOpen && msg && <p className="shrink-0 px-4 pb-2 text-form-xs text-ink-sub">{msg}</p>}
