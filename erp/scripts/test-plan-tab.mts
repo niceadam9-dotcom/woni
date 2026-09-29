@@ -79,7 +79,12 @@ try {
   //   사용자가 실제로 받기를 누르는 시점은 한참 안쪽 서식을 채운 뒤다.
   for (const form of ['1.6', 'ch3', 'cover']) {
     await page.goto(`${BASE}/customers/${customerId}?tab=plan&form=${form}`)
-    await page.waitForSelector('[data-testid="fire-plan-xlsx"]')
+    /* 🚨 먼저 **화면 골격**(h1)을 기다리고, 생성 바에는 넉넉한 시간을 준다.
+       기본 대기(15초)로는 ch3에서 타임아웃이 났는데 **제품은 멀쩡했다** — 3장 피난계획은
+       패널이 무거워 dev 렌더가 그보다 오래 걸린다(실측: 여섯 서식 전부 `보임=true`).
+       계측기가 못 기다려 생긴 빨강을 제품 결함으로 읽지 않도록 여기서 못박는다. */
+    await page.waitForSelector('h1', { timeout: 30_000 })
+    await page.waitForSelector('[data-testid="fire-plan-xlsx"]', { state: 'visible', timeout: 30_000 })
     check(`생성 바 — ${form} 서식에서도 [엑셀 받기]가 보인다`,
       await page.isVisible('[data-testid="fire-plan-xlsx"]'))
     check(`생성 바 — ${form} 서식에서도 [PDF]가 보인다`,

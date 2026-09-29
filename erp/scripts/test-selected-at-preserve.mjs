@@ -52,8 +52,12 @@ try {
   const page = launched.page
   await login(page, EMAIL)
 
-  // ── ① 소방계획서 1.1을 먼저 연다 = 1.1 패널이 사람 축 '' 인 채로 마운트된다 (사고 재현 조건) ──
-  await page.goto(`${BASE}/customers/${cust}?tab=plan`)
+  /* ── ① 1.1을 먼저 연다 = 1.1 패널이 사람 축 '' 인 채로 마운트된다 (사고 재현 조건) ──
+     ⚠ 2026-09-21 갈아끼움: 1.1은 [공통] 탭으로 이사했다(2026-09-20 3분리). 종전 `?tab=plan`은
+       이제 소방계획서 트리(1.2 랜딩)를 열 뿐 1.1 패널을 마운트하지 않아, **사고 재현 조건 자체가
+       성립하지 않았다** — 이 검사는 그 뒤로 줄곧 타임아웃이었다.
+       딥링크를 새 탭으로 바꾼다. 지키는 뜻(「1.1을 먼저 마운트해 둔다」)은 그대로다. */
+  await page.goto(`${BASE}/customers/${cust}?tab=facilities&form=1.1`)
   await page.locator('[data-testid="fp-info-save"]').waitFor({ timeout: 60000 })
   await page.locator('[role=tab]:has-text("관계인")').waitFor({ timeout: 30000 })
   await page.waitForTimeout(1500)   // 하이드레이션 — 이르면 클릭이 씹혀 탭이 안 바뀐다
@@ -87,8 +91,11 @@ try {
     manager_appointment_type: '겸직', rep_role: '소유자',
   }).eq('id', cust)
 
-  // ── ④ 1.1로 돌아가 **다른 칸**을 고치고 저장한다 (사람 축은 건드리지 않는다) ──
-  await page.locator('[role=tab]:has-text("소방계획서")').click()
+  /* ── ④ 1.1로 돌아가 **다른 칸**을 고치고 저장한다 (사람 축은 건드리지 않는다) ──
+     ⚠ 2026-09-21 갈아끼움: 1.1이 사는 탭이 [소방계획서] → **[공통]**이다(3분리).
+       종전 그대로 두면 탭은 바뀌는데 1.1 패널은 hidden이라 `fp-info-save`가 영영 안 보인다
+       (실측: locator는 62번 hidden으로 잡혔다 — 「없다」가 아니라 「숨어 있다」였다). */
+  await page.locator('[role=tab]:has-text("공통")').click()
   await page.locator('[data-testid="fp-info-save"]').waitFor({ timeout: 30000 })
   await page.waitForTimeout(800)
 
@@ -122,7 +129,16 @@ try {
 
   await page.locator('[role=tab]:has-text("관계인")').click()
   await page.locator('#c-fire-safety-manager').waitFor({ state: 'visible', timeout: 30000 })
-  await panel.locator('input[placeholder="YYYY-MM-DD"]').nth(1).fill('2026-04-04')  // 교육이수일
+  /* 교육이수일 — **자리(nth)가 아니라 라벨로** 집는다(칸이 늘거나 순서가 바뀌어도 같은 뜻을 가리킨다).
+     🚨 그리고 **패널이 정착한 뒤에** 채운다. 바로 앞 ④에서 1.1을 저장했고 그 `router.refresh()`가
+       관계인 패널을 다시 그린다 — 정착 전에 채우면 새로 온 서버 값이 내 입력을 덮어써
+       「저장은 됐는데 값이 안 변한다」로 빨개진다(실측으로 잡았다: 칸도 선택자도 맞는데 DB가 안 변했다).
+       ③에서 DB에 넣어 둔 값(2026-02-02)이 화면에 보이면 그때가 정착한 순간이다. */
+  const eduInput = panel
+    .locator('div:has(> label:text-is("최근 교육이수일")) input[placeholder="YYYY-MM-DD"]').first()
+  await eduInput.waitFor({ state: 'visible', timeout: 30000 })
+  for (let i = 0; i < 40 && (await eduInput.inputValue()) !== '2026-02-02'; i++) await page.waitForTimeout(500)
+  await eduInput.fill('2026-04-04')
   await panel.locator('button:has-text("저장")').click()
   await waitCol('manager_edu_date', '2026-04-04')
 

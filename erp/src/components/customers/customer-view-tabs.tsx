@@ -1,5 +1,6 @@
 'use client'
 
+import type { ReactNode } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { Users, TableProperties } from 'lucide-react'
@@ -13,7 +14,11 @@ const TABS = [
   { href: '/customers/ledger', label: '점검 대장', icon: TableProperties },
 ]
 
-export function CustomerViewTabs() {
+export function CustomerViewTabs({ right }: {
+  /** 탭 줄 오른쪽 끝에 얹을 것 — 고객 목록은 「최근 본 고객」(2026-09-23 사용자 요청 「간격이 사용하기 편하게」:
+   *  따로 한 줄을 쓰던 스트립을 탭 줄 빈 오른쪽으로 올려 표를 한 줄 위로 당긴다) */
+  right?: ReactNode
+} = {}) {
   const pathname = usePathname()
 
   return (
@@ -36,6 +41,7 @@ export function CustomerViewTabs() {
           </Link>
         )
       })}
+      {right && <div className="ml-auto min-w-0 pl-3 pb-1">{right}</div>}
     </div>
   )
 }

@@ -85,10 +85,12 @@ export default async function CustomersPage({
   const headers = ['고객명', '점검유형', '계약일', '사용승인일', '점검일자', '담당직원', '상태', '문서', '소방계획서보고서']
 
   return (
-    <div className="space-y-6">
+    /* 간격을 줄여 **실제 고객 표가 빨리 보이게**(2026-09-23 사용자 「정렬 · 실제 데이터 내용까지 사이를 줄여줘」):
+       블록 간격 24px → 12px, 설명 줄은 제목 옆 작은 글씨로 올려 한 줄을 없앴다. */
+    <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Users className="size-6 text-brand" />
+        <div className="flex items-center gap-2.5">
+          <Users className="size-5 text-brand" />
           <div>
             {/* 고객 등록 — 제목 바로 옆 (2026-09-20 사용자 확정: 데스크탑에서 사이드바 [고객 관리]를
                 누른 직후 마우스가 화면 왼쪽에 있어, 검색줄 맨 오른쪽(2026-08-05 자리)보다 동선이 짧다) */}
@@ -103,17 +105,17 @@ export default async function CustomersPage({
                   고객 등록
                 </Link>
               )}
+              {/* 설명은 따로 한 줄을 쓰지 않는다 — 제목 줄 끝에 작게 */}
+              <span className="hidden md:inline text-xs text-ink-meta">행을 클릭하면 상세로 이동</span>
             </div>
-            <p className="text-sm text-ink-sub mt-0.5">소방 점검 계약 고객을 관리합니다 — 행을 클릭하면 상세로 이동</p>
           </div>
         </div>
       </div>
 
-      {/* 뷰 탭 — 고객 목록 / 점검 대장 (소방계획서_21 R8-3, 같은 원천을 다른 열 구성으로) */}
-      <CustomerViewTabs />
-
-      {/* 최근 본 고객 — 목록 정렬은 그대로 두고 바로가기만 얹는다(정렬을 섞으면 순서가 불안정해진다) */}
-      <RecentCustomersStrip userId={profile.id} />
+      {/* 뷰 탭 — 고객 목록 / 점검 대장 (소방계획서_21 R8-3, 같은 원천을 다른 열 구성으로)
+          + 오른쪽 끝에 최근 본 고객 — 따로 한 줄을 쓰지 않고 탭 줄 빈자리에(2026-09-23 「간격이 사용하기 편하게」).
+          목록 정렬은 그대로 두고 바로가기만 얹는다(정렬을 섞으면 순서가 불안정해진다) */}
+      <CustomerViewTabs right={<RecentCustomersStrip userId={profile.id} compact />} />
 
       {/* 검색/필터 */}
       <form method="GET" action="/customers" className="flex flex-wrap items-center gap-2">
@@ -164,19 +166,19 @@ export default async function CustomersPage({
             두 곳에 두지 않는다: 같은 링크가 두 개면 눈이 두 번 확인해야 한다. */}
       </form>
 
-      {/* 목록 테이블 — 전 컬럼 상시 표시 */}
+      {/* 목록 테이블 — 전 컬럼 상시 표시. TableScroll offset 300→236: 위쪽이 줄어든 만큼(설명 줄·간격 약 64px) 표를 길게(2026-09-23) */}
       <div className="bg-surface rounded-xl border border-line shadow-[rgba(18,43,165,0.08)_0px_1px_1px_-0.5px,rgba(18,43,165,0.08)_0px_3px_3px_-1.5px,rgba(18,43,165,0.08)_0px_6px_6px_-3px,rgba(18,43,165,0.08)_0px_12px_12px_-6px] overflow-hidden">
         {customers.length === 0 ? (
           <div className="py-16 text-center text-sm text-ink-sub">
             검색된 고객이 없습니다
           </div>
         ) : (
-          <TableScroll offset={300}>
+          <TableScroll offset={236}>
             <table className="w-full text-sm">
               <thead className={STICKY_THEAD}>
                 <tr className="border-b border-line bg-paper">
                   {headers.map(h => (
-                    <th key={h || '_actions'} className="text-left px-4 py-3 text-xs font-semibold text-ink-sub whitespace-nowrap">
+                    <th key={h || '_actions'} className="text-left px-4 py-2.5 text-xs font-semibold text-ink-sub whitespace-nowrap">
                       {h}
                     </th>
                   ))}

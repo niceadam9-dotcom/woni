@@ -28,10 +28,13 @@ export function RecordRecentCustomer({ userId, customerId, customerName }: {
  *  (localStorage 목록이라 링크를 미리 만들 수 없다 — by-customer/[customerId] 주석 참조).
  *
  *  localStorage는 서버에 없으므로 첫 렌더에선 아무것도 그리지 않는다(하이드레이션 불일치 방지). */
-export function RecentCustomersStrip({ userId, target = 'customer' }: {
+export function RecentCustomersStrip({ userId, target = 'customer', compact = false }: {
   userId: string
   /** 'customer'=고객 상세(고객관리) · 'inspection'=그 고객의 최근 점검 상세(점검업무, 없으면 고객 상세로 폴백) */
   target?: 'customer' | 'inspection'
+  /** 한 줄 고정판 — 탭 줄 오른쪽에 얹는다(2026-09-23 고객 목록). 줄바꿈 대신 **화면 폭만큼만** 칩을 보이고
+   *  (최근순 앞에서부터: 좁음 1 · md 3 · xl 5 · 2xl 전부) 나머지는 「+N」으로 접는다. */
+  compact?: boolean
 }) {
   const [items, setItems] = useState<RecentCustomer[]>([])
   const [ready, setReady] = useState(false)
@@ -43,17 +46,29 @@ export function RecentCustomersStrip({ userId, target = 'customer' }: {
 
   if (!ready || items.length === 0) return null
 
+  // compact — 폭 구간별로 보일 칩 수. Tailwind는 클래스 문자열을 통째로 읽으므로 조립하지 않고 적는다
+  const chipVis = (i: number) =>
+    !compact || i < 1 ? 'inline-flex'
+    : i < 3 ? 'hidden md:inline-flex'
+    : i < 5 ? 'hidden xl:inline-flex'
+    : 'hidden 2xl:inline-flex'
+  const more = compact ? ([
+    [1, 'inline-flex md:hidden'],
+    [3, 'hidden md:inline-flex xl:hidden'],
+    [5, 'hidden xl:inline-flex 2xl:hidden'],
+  ] as const).filter(([shown]) => items.length > shown) : []
+
   // 고객명은 아래 표에도 링크로 나온다 — 스트립 범위를 특정할 수 있게 표식을 남긴다(E2E 셀렉터)
   return (
-    <div data-recent-strip className="flex items-center gap-2 flex-wrap">
-      <span className="inline-flex items-center gap-1 text-form-xs font-semibold text-ink-meta shrink-0">
-        <Clock className="size-3" /> 최근 본 고객
+    <div data-recent-strip className={`flex items-center gap-2 ${compact ? 'flex-nowrap justify-end' : 'flex-wrap'}`}>
+      <span className="inline-flex items-center gap-1 text-form-xs font-semibold text-ink-meta shrink-0" title="최근 본 고객">
+        <Clock className="size-3" /> {compact ? '최근' : '최근 본 고객'}
       </span>
-      {items.map(c => (
+      {items.map((c, i) => (
         /* 칩 = 이름 링크('그 화면의 표와 같은 곳' 규약) + 📄 소방계획서 직행(2026-08-28 동선 검토).
            📄는 이름과 별개 어포던스라 규약 밖 — "어제 하던 계획서 마저"를 검색 없이 1클릭으로.
            ⚠ 이름 링크가 칩의 첫 <a>여야 한다 — test-recent-customers가 링크 순서로 최근순을 판정한다 */
-        <span key={c.id} className="inline-flex items-stretch h-7 rounded-full border border-brand-line bg-surface overflow-hidden shrink-0">
+        <span key={c.id} className={`${chipVis(i)} items-stretch ${compact ? 'h-6' : 'h-7'} rounded-full border border-brand-line bg-surface overflow-hidden shrink-0`}>
           <Link
             href={target === 'inspection' ? `/inspections/by-customer/${c.id}` : `/customers/${c.id}`}
             title={target === 'inspection' ? `${c.name} 최근 점검 상세로 이동` : `${c.name} 상세 조회로 이동`}
@@ -70,6 +85,12 @@ export function RecentCustomersStrip({ userId, target = 'customer' }: {
           >
             <FileText className="size-3" />
           </Link>
+        </span>
+      ))}
+      {more.map(([shown, vis]) => (
+        <span key={shown} className={`${vis} items-center h-6 px-2 rounded-full bg-brand-tint text-form-2xs font-semibold text-ink-sub shrink-0`}
+          title={items.slice(shown).map(c => c.name).join(', ')}>
+          +{items.length - shown}
         </span>
       ))}
       <button

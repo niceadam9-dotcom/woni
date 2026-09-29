@@ -62,9 +62,11 @@ try {
   await page.waitForURL(x => !x.pathname.includes('/login'))
   check('로그인', true)
 
-  await page.goto(`${BASE}/customers/${custId}`)
-  await page.click('text=소방계획서')
-  await page.click('button:has-text("1.4 소방시설")')
+  // 1.4는 [공통] 탭으로 이사했다(2026-09-20 3분리) — 소방계획서 탭에는 그 노드가 없다.
+  // **한 번에** 딥링크로 연다(구 경로: 고객 상세 → 소방계획서 탭 클릭 → 트리에서 1.4).
+  // 두 번 goto 하면 첫 화면을 다 그리는 동안 두 번째가 겹쳐 불안정해진다(실측).
+  // `?tab=facilities&form=1.4` 변환 자체는 _probe-annex-tab ②가 붙들어 여기서 중복 단언하지 않는다.
+  await page.goto(`${BASE}/customers/${custId}?tab=facilities&form=1.4`)
   await page.waitForSelector('text=서식 1.4 소방시설 현황')
   check('1.4 화면 도달', true)
 
@@ -162,9 +164,8 @@ try {
   // ── 픽스처 — 여기서 보는 것은 **1.4가 만든 링크가 옳은 시트로 보내는가**뿐이다.
   //    쓰기(일괄 ○ · 항목 ✕ · 불량내역 자동 등록)는 신규 test-sheet-entry-page.mts가 덮으므로
   //    여기서 중복 단언하지 않는다(입력구가 하나가 된 이상 두 스위트가 같은 것을 볼 이유가 없다).
-  await page.goto(`${BASE}/customers/${fixtureCustId}`)
-  await page.click('text=소방계획서')
-  await page.click('button:has-text("1.4 소방시설")')
+  // 1.4는 [공통] 탭으로 이사했다 — 한 번에 딥링크로 연다(위와 같은 규약)
+  await page.goto(`${BASE}/customers/${fixtureCustId}?tab=facilities&form=1.4`)
   await page.waitForSelector('text=서식 1.4 소방시설 현황')
   const hydBadge = page.locator('[data-testid="form14-result-link-옥내소화전설비"]')
   await hydBadge.waitFor({ timeout: 15_000 })
@@ -204,9 +205,11 @@ try {
   await page.waitForSelector('text=점검표 입력 —', { timeout: 15_000 })
   const hydOpened = ((await page.locator('h2').first().textContent({ timeout: 15_000 }).catch(() => '')) ?? '').trim()
   check('픽스처: 배지 클릭 → 옥내소화전 시트가 열린 채 도착', hydOpened === '옥내소화전설비', hydOpened || '(열린 시트 없음)')
-  // 뒤로가기 복귀(?from=) — 1.4에서 왔으면 1.4로 돌아가야 한다(종전엔 점검 상세로 떨어졌다, 2026-08-28)
+  /* 뒤로가기 복귀(?from=) — 1.4에서 왔으면 1.4로 돌아가야 한다(종전엔 점검 상세로 떨어졌다, 2026-08-28).
+     ⚠ 2026-09-21 갈아끼움: 기대값의 탭이 `plan` → **`facilities`**다. 1.4가 [공통] 탭으로
+       이사했기 때문이고(3분리), 지키는 뜻「온 자리로 돌아간다」는 그대로다. */
   const backHref = await page.locator('[data-testid="sheet-entry-back"]').getAttribute('href')
-  check('픽스처: 뒤로가기 = 1.4 소방시설로 복귀', backHref === `/customers/${fixtureCustId}?tab=plan&form=1.4`,
+  check('픽스처: 뒤로가기 = 1.4 소방시설로 복귀', backHref === `/customers/${fixtureCustId}?tab=facilities&form=1.4`,
     backHref ?? '(back 링크 없음)')
 
   // F-1 잔존 2종 — 고체에어로졸은 고시 별지4에 점검표가 없다(시트를 만들 근거가 없다).
@@ -243,9 +246,10 @@ try {
   const fireOpened = ((await page.locator('h2').first().textContent({ timeout: 15_000 }).catch(() => '')) ?? '').trim()
   check('부모 입력구 클릭 → 「소화기구 및 자동소화장치」 점검표가 열린 채 도착',
     fireOpened === fireParent, fireOpened || '(열린 시트 없음)')
+  // ⚠ 위와 같은 이유로 탭이 `facilities`다(1.4의 [공통] 탭 이사, 2026-09-20 3분리)
   check('부모 입력구도 ?from= 복귀 계약을 지킨다 (1.4로 돌아간다)',
     (await page.locator('[data-testid="sheet-entry-back"]').getAttribute('href'))
-      === `/customers/${fixtureCustId}?tab=plan&form=1.4`)
+      === `/customers/${fixtureCustId}?tab=facilities&form=1.4`)
 
   // 건물 전환 — 배지는 **선택한 건물의 설치 설비**에 매인다. 종전엔 패널이 열린 채 남아 새 건물에
   // 없는 설비를 그 자리에서 기록할 수 있었다(독립 검증 지적, 2026-08-21). 입력이 전용 화면으로
@@ -253,9 +257,8 @@ try {
   await raw.from('buildings').insert({
     customer_id: fixtureCustId, is_active: true, created_by: userId, building_name: '별관', purpose: '근린생활시설',
   })
-  await page.goto(`${BASE}/customers/${fixtureCustId}`)
-  await page.click('text=소방계획서')
-  await page.click('button:has-text("1.4 소방시설")')
+  // 1.4는 [공통] 탭으로 이사했다 — 한 번에 딥링크로 연다(위와 같은 규약)
+  await page.goto(`${BASE}/customers/${fixtureCustId}?tab=facilities&form=1.4`)
   await page.waitForSelector('text=서식 1.4 소방시설 현황')
   // 화면에 select가 여럿이라(담당자 등) 건물 셀렉트만 특정한다. 설비가 있는 '본관'을 먼저 고른다 —
   // 새 건물이 첫 항목으로 잡히면 설치 0이라 배지 자체가 없다.
@@ -312,9 +315,8 @@ try {
     check('F-1f 무퇴행: 서림사 실데이터 롤업 — 할론 ／ 유지(귀속 유지, 공란 아님)',
       resultMarks['할론소화설비'] === 'N', `실제 ${JSON.stringify(resultMarks['할론소화설비'] ?? '(공란=퇴행)')}`)
 
-    await page.goto(`${BASE}/customers/${srId}`)
-    await page.click('text=소방계획서')
-    await page.click('button:has-text("1.4 소방시설")')
+    // 1.4는 [공통] 탭으로 이사했다 — 한 번에 딥링크로 연다(위와 같은 규약)
+    await page.goto(`${BASE}/customers/${srId}?tab=facilities&form=1.4`)
     await page.waitForSelector('text=서식 1.4 소방시설 현황')
     await page.waitForSelector('text=/진행 중인 자체점검 회차가 없/', { timeout: 15_000 })
     check('F-1f: 서림사는 진행 중 회차 없음 — 입력 배지 미렌더 + 사유 안내(설계 사실)',

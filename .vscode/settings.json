@@ -8,5 +8,6 @@
   "search.exclude": {
     "**/node_modules": true,
     "**/.next": true
-  }
+  },
+  "git.ignoreLimitWarning": true
 }
