@@ -376,20 +376,22 @@ export function Sidebar({ role, redCount = 0, orangeCount = 0, canSeeSms = false
                       {showSection && (
                         <div className="flex items-center gap-1.5 pl-2.5 pr-1 pt-2 pb-1 select-none">
                           {/* S7-1 — 구역 이름은 메뉴를 찾는 단서다(장식인 구분선은 옆 span이 맡는다) */}
-                          <span className="text-form-2xs font-semibold tracking-wide text-ink-meta">{item.section}</span>
+                          <span className="text-xs font-semibold tracking-wide text-ink-meta">{item.section}</span>
                           <span className="flex-1 h-px bg-brand-line-soft" />
                         </div>
                       )}
                       <Link
                         href={item.href}
                         className={cn(
-                          'flex items-center gap-2 px-2.5 py-1.5 rounded-md text-form-xs font-medium transition-colors',
+                          // 글자 크기는 하단 대시보드·설정과 같은 고정 text-sm — text-form-xs는 글자 배율을 따라
+                          // 커져 좁은 사이드바에서 「세금계산서 발행」 등이 두 줄로 접혔다(2026-09-28)
+                          'flex items-center gap-2 px-2.5 py-1.5 rounded-md text-sm font-medium transition-colors',
                           isActive
                             ? 'bg-brand/10 text-brand'
                             : 'text-ink-sub hover:bg-brand-tint hover:text-brand'
                         )}
                       >
-                        <item.icon className={cn('size-3.5 shrink-0', isActive ? 'text-brand' : 'text-ink-soft')} />
+                        <item.icon className={cn('size-4 shrink-0', isActive ? 'text-brand' : 'text-ink-soft')} />
                         <span className="flex-1">{item.label}</span>
                         {BADGE_HREFS[item.href] === 'red' && redCount > 0 && (
                           <span className="shrink-0 min-w-[calc(18px*var(--fs-scale))] h-[calc(18px*var(--fs-scale))] px-1 rounded-full bg-red-500 text-white text-form-2xs font-bold flex items-center justify-center">
