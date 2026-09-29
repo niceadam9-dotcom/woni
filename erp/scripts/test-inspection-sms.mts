@@ -4,6 +4,9 @@
  *  서버 로직(수신자 선정·중복 접기·실패 처리·판정)은 _probe-sms-send.mts가 32건으로 덮는다.
  *  여기서 확인하는 것은 **프로브가 볼 수 없는 화면 배선**이다:
  *    · 모니터링이 실제로 사라지고 새 화면으로 이어지는가(S6)
+ *    · **보내는 일은 달력에서, 결과는 이력 화면에서**(2026-09-29) — 종전 「문자 발송」 화면의
+ *      승인 배너·임의 발송은 달력 문자 패널로, 목록은 발송 이력으로 갈렸다. 단언도 그 자리를 따라 옮겼다
+ *    · 달력에서 **골라** 보내면 그 고객만 체크된 채 열리고, 안 고른 고객은 목록에 남아 있는가
  *    · 달력 버튼이 그날 전 건을 띄우는가 — 달력이 로드하지 않는 자체점검까지(Q-14의 핵심)
  *    · (구)미확정 차단은 2026-09-12 폐지 — 전건 확정 체계라, 이제는 확정 건이 곧바로 발송 대상인가를 본다
  *    · 시점 태그를 추가·삭제하면 배너 줄 수가 따라오는가(Q-13)
@@ -70,6 +73,13 @@ async function main() {
     await raw.from('customer_contacts').insert([{ customer_id: cidC, role: '대표', name: '정기확정', phone: '01077778888' }])
     await mkItem(cidC, 'monthly', 'confirmed')
 
+    // E — **번호가 없는** 고객(내일 방문). 「보낼 수 없는 건」이 0이면 "뱃지 = 미발송 + 보낼 수 없음"
+    //     단언이 뒷항을 물지 못한다 — 산식에서 뒷항을 빼도 초록이다(변이가 살아남는 표본).
+    const cidE = await mkCustomer({ customer_name: `문자UI-무번호${SUF}`, created_by: userId, region_si: '양평군', region_myeon: '양평읍' })
+    custIds.push(cidE)
+    await raw.from('customer_contacts').insert([{ customer_id: cidE, role: '대표', name: '무번호', phone: null }])
+    await mkItem(cidE, 'monthly', 'confirmed')
+
     // 시점 규칙을 **알려진 기준값 [1]로 고정하고 시작**한다.
     // 앞선 실행이 [3,1]을 남기면 배너 첫 줄이 '3일 후'가 되고 태그 추가도 중복으로 막혀
     // 테스트가 자기 잔재에 걸린다(실제로 겪었다). 원래 값은 finally에서 되돌린다.
@@ -87,152 +97,46 @@ async function main() {
     // 텍스트 스크래핑('nav, aside' 첫 요소)은 다른 nav를 잡아 헛통과할 수 있다 — 링크로 직접 본다
     check('사이드바에서 [점검현황 모니터링] 링크가 사라졌다',
       await page.locator('a[href="/inspection-plans/monitor"]').count() === 0)
-    check('사이드바에 [문자 발송] 링크가 있다',
+    check('사이드바에 [문자 발송 이력] 링크가 있다',
       await page.locator('a[href="/inspections/sms"]').count() >= 1)
 
-    console.log('\n— S5: 문자 발송 화면')
-    await page.waitForSelector('[data-testid="sms-row"]', { timeout: 20000 })
-    const rowsTxt = await page.locator('[data-testid="sms-row"]').allInnerTexts()
-    check('★ 자체점검 건이 목록에 뜬다(달력 계획 칩 축에는 없는 종류)',
-      rowsTxt.some(t => t.includes(`문자UI-A${SUF}`)), rowsTxt.join(' | ').slice(0, 300))
-    check('정기 건도 뜬다', rowsTxt.some(t => t.includes(`문자UI-B${SUF}`)))
-    check('★ 태어나며 확정된 건도 곧바로 목록에 뜬다(구 미확정 차단 폐지 축)', rowsTxt.some(t => t.includes(`문자UI-C${SUF}`)))
-    check('지역 3단 묶음 헤더가 리까지 보여준다',
-      (await page.locator('[data-testid="sms-region-group"]').allInnerTexts()).some(t => t.includes('전수리')),
-      (await page.locator('[data-testid="sms-region-group"]').allInnerTexts()).join(' | '))
-    // '(리 없음)' 문구는 뺐다 — 읍/면이 있는 고객의 94%가 리 없음이라 화면이 그 문구로 뒤덮였다.
-    // 지켜야 할 것은 문구가 아니라 **그 고객이 목록에서 사라지지 않는가**다.
-    // 건수는 별도 span이라 라벨 텍스트에 안 들어온다 — 라벨 자체가 읍/면에서 끝나는지만 본다
-    check('리가 빈 고객도 목록에 남고, 라벨은 읍/면에서 끝난다',
-      rowsTxt.some(t => t.includes(`문자UI-B${SUF}`)) &&
-      (await page.locator('[data-testid="sms-region-group"]').allInnerTexts()).some(t => t.trim() === '양평군 · 양평읍'),
-      (await page.locator('[data-testid="sms-region-group"]').allInnerTexts()).join(' | '))
-    check('어느 라벨에도 (리 없음)이 남지 않는다',
-      !(await page.locator('[data-testid="sms-region-group"]').allInnerTexts()).some(t => t.includes('리 없음')))
-    // 설계 초안은 '기본 접힘'(S5-11)이었으나 실사용에서 뒤집혔다(2026-08-19 사용자 지시) —
-    // 접혀 있으면 좁힐 때마다 한 번 더 눌러야 하고, 무엇이 걸려 있는지도 요약 한 줄로만 보인다.
-    check('★ 필터가 항상 펼쳐져 있다(누르지 않아도 조회 조건이 보인다)',
-      await page.locator('[data-testid="sms-filter-toggle"]').isVisible() &&
-      await page.locator('[data-testid="period-all"]').isVisible())
-    // 기본은 **오늘부터 1개월**(2026-08-19 사용자 지시). 사용자가 건 필터는 없지만
-    // 범위는 1개월이다 — 라벨이 '전체'라고 하면 화면이 거짓말을 하게 되므로 문구까지 고정한다.
-    check('★ 기본 조회 범위가 오늘부터 1개월이라고 화면이 말한다',
-      /1개월/.test(await page.locator('[data-testid="sms-filter-summary"]').innerText()),
-      await page.locator('[data-testid="sms-filter-summary"]').innerText())
-    // 기본은 **발송됨 제외** — 이 화면의 일은 '아직 안 보낸 것'이다.
-    // 다만 실패·번호없음은 남아야 한다(조치가 필요한 건인데 함께 빠지면 영영 안 보인다).
-    check('★ 기본이 발송 제외라고 화면이 말한다',
-      /발송 제외/.test(await page.locator('[data-testid="sms-filter-summary"]').innerText()),
-      await page.locator('[data-testid="sms-filter-summary"]').innerText())
-    check('발송됨 상태의 행이 목록에 없다',
-      !(await page.locator('[data-testid="sms-row"]').allInnerTexts()).some(t => /발송됨/.test(t)))
-    check('기본 상태에서는 [필터 해제] 버튼이 없다(누를 게 없으니)',
-      await page.locator('[data-testid="sms-filter-clear"]').count() === 0)
-    {
-      // 서버가 실제로 1개월만 담는가 — 라벨과 결과가 어긋나면 안 된다
-      const dates = (await page.locator('[data-testid="sms-row"]').allInnerTexts())
-        .map(t => /\d{4}-\d{2}-\d{2}/.exec(t)?.[0]).filter(Boolean) as string[]
-      const limit = kst(30)
-      check('★ 목록에 1개월 밖 날짜가 섞이지 않는다',
-        dates.length > 0 && dates.every(d => d >= kst(0) && d <= limit),
-        `${dates.length}건 · 최대 ${dates.sort().at(-1)} (한계 ${limit})`)
-    }
-
-    // ★ 기간 해제(전체)로 넓히면 PostgREST의 **1000행 하드 상한**에 걸린다.
-    //   넘친 만큼은 오류 없이 그냥 빠져서 화면은 "그만큼밖에 없다"고 믿는다 —
-    //   발송 화면에서 잘리면 그 고객만 안내를 못 받는데 화면상으로는 멀쩡해 보인다.
-    //   실제로 이 화면이 1000/1001에서 오락가락했다(2026-08-19). 상한을 넘겨 받는지 못 박는다.
-    // (1000행 상한 검증은 화면이 아니라 _probe-sms-send.mts에서 한다 —
-    //  화면 행은 고객+방문일로 **접힌 그룹**이라 계획 항목 수와 비교할 수 없다.
-    //  실제로 1260건이 291행으로 접혀, UI에서 재면 잘림과 접힘을 구별하지 못한다.)
-
-    // ★ 필터를 바꾸면 **바로 조회돼야 한다** — [조회]를 눌러야만 반영되면
-    //   값만 바뀌고 목록은 옛 조건 그대로인 상태가 생긴다(특히 '해제했는데 목록이 그대로').
-    {
-      const before = await page.locator('[data-testid="sms-row"]').count()
-      // 필터는 이미 펼쳐져 있다 — 토글을 누르면 오히려 **닫혀서** select를 못 찾는다(실제로 겪음).
-      // 인덱스(nth=3)로 집던 것도 열이 늘면 조용히 다른 select를 집으므로 testid로 바꾼다.
-      await page.locator('[data-testid="filter-status"]').waitFor()
-      // 상태를 '실패'로 — 이 테스트 데이터에는 실패 건이 없으므로 목록이 줄어야 한다
-      await page.locator('[data-testid="filter-status"]').selectOption('failed')
+    console.log('\n— 발송 이력 화면: 보내는 수단이 없고, 기록만 보여준다')
+    const rowOf = (name: string) => page.locator('[data-testid="sms-row"]').filter({ hasText: name })
+    /** 이력은 비동기로 온다 — 「행이 없다」를 단언하려면 **조회가 끝났음**부터 확인해야 한다.
+     *  상태 칩의 건수는 조회가 끝나야 찍히므로 그것을 기다린다(빈 화면에서 공허 통과 방지). */
+    const historyReady = async () => {
       await page.waitForFunction(
-        (n) => document.querySelectorAll('[data-testid="sms-row"]').length !== n,
-        before, { timeout: 15000 }).catch(() => {})
-      const after = await page.locator('[data-testid="sms-row"]').count()
-      check('★ 필터를 바꾸면 [조회]를 누르지 않아도 목록이 따라온다', after !== before, `${before} → ${after}`)
-      check('필터가 걸리면 [필터 해제]가 나타난다',
-        await page.locator('[data-testid="sms-filter-clear"]').count() === 1)
-      // ★ 해제도 마찬가지 — 누르면 바로 되돌아와야 한다
-      await page.locator('[data-testid="sms-filter-clear"]').click()
-      await page.waitForFunction(
-        (n) => document.querySelectorAll('[data-testid="sms-row"]').length === n,
-        before, { timeout: 15000 }).catch(() => {})
-      check('★ [필터 해제]를 누르면 바로 전체가 다시 조회된다',
-        await page.locator('[data-testid="sms-row"]').count() === before,
-        `${await page.locator('[data-testid="sms-row"]').count()} vs ${before}`)
+        () => /전체\s*\d+/.test(document.querySelector('[data-testid="history-status-all"]')?.textContent ?? ''),
+        undefined, { timeout: 30000 })
     }
-
-    console.log('\n— S5-11 후반부: 마지막 사용 지역은 기억하되 **자동 적용하지 않는다**')
-    {
-      // 되살린 필터를 몰래 걸면 "필터를 건 적이 없는데 목록이 잘려 있는" 상태가 된다.
-      // 지역은 특히 위험하다 — 빠진 고객은 문자를 영영 못 받는데 화면은 조용하다.
-      const siSel = page.locator('select').filter({ hasText: '시/군 전체' }).first()
-      const opts = await siSel.locator('option').allInnerTexts()
-      const pick = opts.find(o => o !== '시/군 전체')
-      if (!pick) {
-        console.log('  ⚠ 지역 옵션이 없어 건너뜀(고객 지역 미설정)')
-      } else {
-        await siSel.selectOption({ label: pick })
-        await page.waitForTimeout(800)
-        // 새로 열어도 자동으로 걸려 있으면 안 된다
-        await page.reload({ waitUntil: 'domcontentloaded' })
-        await page.waitForSelector('[data-testid="sms-row"]', { timeout: 30000 })
-        const siAfter = await page.locator('select').filter({ hasText: '시/군 전체' }).first().inputValue()
-        check('★ 다시 열면 지역이 자동으로 걸려 있지 않다(몰래 좁히지 않는다)', siAfter === '', `값="${siAfter}"`)
-        check('대신 지난번 지역을 제안한다(1클릭 복원)',
-          await page.locator('[data-testid="last-region-apply"]').count() === 1)
-        await page.locator('[data-testid="last-region-apply"]').click()
-        await page.waitForTimeout(800)
-        check('제안을 누르면 그때 비로소 적용된다',
-          (await page.locator('select').filter({ hasText: '시/군 전체' }).first().inputValue()) === pick)
-        // 기억을 지우면 제안도 사라져야 한다 — 안 지워지면 끄는 수단이 없는 것과 같다
-        await page.locator('[data-testid="sms-filter-clear"]').click()
-        await page.waitForTimeout(600)
-        await page.locator('[data-testid="last-region-forget"]').click()
-        check('기억을 지우면 제안이 사라진다',
-          await page.locator('[data-testid="last-region"]').count() === 0)
-        await page.reload({ waitUntil: 'domcontentloaded' })
-        await page.waitForSelector('[data-testid="sms-row"]', { timeout: 30000 })
-        check('지운 기억은 새로고침 후에도 돌아오지 않는다',
-          await page.locator('[data-testid="last-region"]').count() === 0)
-      }
+    const reloadHistory = async () => {
+      await page.goto(`${BASE}/inspections/sms`, { waitUntil: 'domcontentloaded' })
+      await historyReady()
     }
-
-    console.log('\n— S5-7: 방문 준비 지도 (모니터링 폐지로 소실됐던 기능)')
+    await historyReady()
+    check('★ 보낸 적 없는 계획은 이력에 없다(이력은 계획이 아니라 기록에서 읽는다)',
+      await rowOf(`문자UI-A${SUF}`).count() === 0 && await rowOf(`문자UI-B${SUF}`).count() === 0)
+    check('★ 이력 화면에는 승인·발송 버튼이 없다(보내는 곳은 달력 하나)',
+      await page.locator('[data-testid="sms-approve"]').count() === 0 &&
+      await page.locator('[data-testid="sms-adhoc-toolbar"]').count() === 0)
+    check('★ 대신 달력 문자 패널로 가는 길이 있다',
+      (await page.locator('[data-testid="sms-go-calendar"]').getAttribute('href')) === '/inspections/calendar?sms=1',
+      await page.locator('[data-testid="sms-go-calendar"]').getAttribute('href') ?? '(없음)')
+    check('기본 상태는 전체다(이력이 자기 기록을 가리지 않는다)',
+      (await page.locator('[data-testid="history-status-all"]').getAttribute('data-active')) === '1')
     {
-      // 고객A는 주소가 없다(mkCustomer 기본) — 주소가 있는 고객에만 버튼이 떠야 한다.
-      // 눌렀는데 빈 지도가 뜨는 것은 버튼이 없는 것보다 나쁘다.
-      await raw.from('customers').update({ address: '경기도 양평군 강하면 강남로 1' }).eq('id', cidA)
-      await page.reload({ waitUntil: 'domcontentloaded' })
-      await page.waitForSelector('[data-testid="sms-row"]', { timeout: 30000 })
-      const withAddr = page.locator('[data-testid="sms-row"]').filter({ hasText: `문자UI-A${SUF}` }).first()
-      const noAddr = page.locator('[data-testid="sms-row"]').filter({ hasText: `문자UI-C${SUF}` }).first()
-      check('★ 주소가 있는 행에 [지도]가 있다(S5-7 복원)',
-        await withAddr.locator('[data-testid="row-map"]').count() === 1)
-      check('주소가 없으면 버튼도 없다 — 눌렀는데 빈 지도가 뜨지 않게',
-        await noAddr.locator('[data-testid="row-map"]').count() === 0)
-      await withAddr.locator('[data-testid="row-map"]').click()
-      await page.waitForSelector('[data-testid="address-map-modal"]', { timeout: 20000 })
-      const mapText = await page.locator('[data-testid="address-map-modal"]').innerText()
-      check('지도 모달이 주소와 [새 창]·[주소 복사]를 함께 준다 — iframe이 막혀도 길이 남는다',
-        /강남로 1/.test(mapText) && /새 창/.test(mapText) && /주소 복사/.test(mapText),
-        mapText.replace(/\n/g, ' ').slice(0, 120))
-      await page.keyboard.press('Escape').catch(() => {})
-      await page.locator('[data-testid="address-map-modal"]').press('Escape').catch(() => {})
-      await page.mouse.click(5, 5)
-      await raw.from('customers').update({ address: null }).eq('id', cidA)
-      await page.reload({ waitUntil: 'domcontentloaded' })
-      await page.waitForSelector('[data-testid="sms-row"]', { timeout: 30000 })
+      // ★ 지난 방문일의 발송도 남는다 — 종전 목록은 하한이 오늘이라 방문일이 지나는 순간
+      //   그 문자는 어느 화면에서도 볼 수 없었다. 이력 화면이 생긴 이유다.
+      await raw.from('sms_send_log').insert({
+        kind: 'pre_visit', customer_id: cidC, plan_item_ids: [], visit_date: kst(-3),
+        to_phone: '01077778888', content: 'x', status: 'sent', sent_by: userId,
+      })
+      await reloadHistory()
+      const past = rowOf(`문자UI-C${SUF}`).first()
+      check('★ 방문일이 지난 발송도 이력에 남는다', await past.count() === 1)
+      check('지난 방문에는 [다시 보내기]가 없다(보낼 수 없는 날짜다)',
+        await past.locator('[data-testid="row-resend"]').count() === 0)
+      await raw.from('sms_send_log').delete().eq('customer_id', cidC)
     }
 
     console.log('\n— D2·D3: 부분 실패와 굳은 행이 화면에서 덮이지 않는가')
@@ -246,8 +150,7 @@ async function main() {
         { kind: 'pre_visit', customer_id: cidA, plan_item_ids: [], visit_date: TOMORROW,
           to_phone: '01033334444', content: 'x', status: 'failed', error: '수신거부', sent_by: userId },
       ])
-      await page.reload({ waitUntil: 'domcontentloaded' })
-      await page.waitForSelector('[data-testid="sms-row"]', { timeout: 30000 })
+      await reloadHistory()
       // 상태는 **상태 칸의 data-status로 읽는다** — 행 전체 텍스트로 보면 사유 문구
       // "(1명 발송됨)"에 걸려 오탐이 난다(실제로 겪음).
       const rowLoc = page.locator('[data-testid="sms-row"]').filter({ hasText: `문자UI-A${SUF}` }).first()
@@ -263,8 +166,7 @@ async function main() {
         kind: 'pre_visit', customer_id: cidA, plan_item_ids: [], visit_date: TOMORROW,
         to_phone: '01011112222', content: 'x', status: 'sending', sent_by: userId,
       })
-      await page.reload({ waitUntil: 'domcontentloaded' })
-      await page.waitForSelector('[data-testid="sms-row"]', { timeout: 30000 })
+      await reloadHistory()
       const rowLocB = page.locator('[data-testid="sms-row"]').filter({ hasText: `문자UI-A${SUF}` }).first()
       const statusB = await rowLocB.locator('[data-testid="row-status"]').getAttribute('data-status')
       check('★ 결과가 안 기록된 행은 "확인필요" — 미발송으로 두면 재발송·이중 과금이 된다',
@@ -282,15 +184,17 @@ async function main() {
         { kind: 'pre_visit', customer_id: cidA, plan_item_ids: [], visit_date: TOMORROW,
           to_phone: '01011112222', content: 'x', status: 'sent', sent_by: userId, created_at: t1 },
       ])
-      await page.reload({ waitUntil: 'domcontentloaded' })
-      await page.waitForSelector('[data-testid="sms-row"]', { timeout: 30000 })
-      // ★ 해결된 건은 기본 필터('발송 제외')에서 **빠져야 한다** — 그게 이 수리의 요점이다.
-      //   종전엔 영구히 '실패'로 남아 목록에 계속 걸렸고, 그것이 사람을 재발송으로 밀었다.
-      check('★ 해결된 건은 "발송 제외" 목록에서 사라진다(재발송을 유도하지 않는다)',
-        await page.locator('[data-testid="sms-row"]').filter({ hasText: `문자UI-A${SUF}` }).count() === 0,
+      await reloadHistory()
+      // ★ 해결된 건은 [실패]로 좁혔을 때 **빠져야 한다** — 남아 있으면 사람을 재발송으로 민다.
+      //   전제부터 확인한다: 전체에는 그 행이 **있어야** 아래 「없다」가 뜻을 가진다(빈 화면 공허 통과 방지)
+      check('전제: 전체 목록에는 그 행이 있다', await rowOf(`문자UI-A${SUF}`).count() === 1)
+      await page.locator('[data-testid="history-status-failed"]').click()
+      check('★ 해결된 건은 [실패] 목록에서 사라진다(재발송을 유도하지 않는다)',
+        await rowOf(`문자UI-A${SUF}`).count() === 0,
         '아직 목록에 남아 있다 — 옛 실패가 이후 성공을 덮고 있다')
-      await page.locator('[data-testid="filter-status"]').selectOption('all')
-      await page.waitForTimeout(1200)
+      await page.locator('[data-testid="history-status-all"]').click()
+      check('★ 해결된 건에는 [다시 보내기]가 없다',
+        await rowOf(`문자UI-A${SUF}`).first().locator('[data-testid="row-resend"]').count() === 0)
       const rowLocC = page.locator('[data-testid="sms-row"]').filter({ hasText: `문자UI-A${SUF}` }).first()
       const statusC = await rowLocC.locator('[data-testid="row-status"]').getAttribute('data-status')
       check('★ 실패를 재발송으로 해결하면 상태가 "발송됨"이다(마지막 결과가 현재 상태)',
@@ -307,36 +211,25 @@ async function main() {
         { kind: 'pre_visit', customer_id: cidA, plan_item_ids: [], visit_date: TOMORROW,
           to_phone: '01011112222', content: 'x', status: 'sent', sent_by: userId, created_at: t1 },
       ])
-      await page.reload({ waitUntil: 'domcontentloaded' })
-      await page.waitForSelector('[data-testid="sms-row"]', { timeout: 30000 })
-      await page.locator('[data-testid="filter-status"]').selectOption('all')
-      await page.waitForTimeout(1200)
+      await reloadHistory()
       const rowLocD = page.locator('[data-testid="sms-row"]').filter({ hasText: `문자UI-A${SUF}` }).first()
       const statusD = await rowLocD.locator('[data-testid="row-status"]').getAttribute('data-status')
       check('★ 번호를 채우고 보냈으면 "번호없음"이 아니다',
         statusD === 'sent', `상태=${statusD} · ${(await rowLocD.innerText()).replace(/\n/g, ' ')}`)
 
       await raw.from('sms_send_log').delete().eq('customer_id', cidA).eq('visit_date', TOMORROW)
-      await page.locator('[data-testid="filter-status"]').selectOption('not_sent')
-      await page.waitForTimeout(800)
-      await page.reload({ waitUntil: 'domcontentloaded' })
-      await page.waitForSelector('[data-testid="sms-row"]', { timeout: 30000 })
     }
 
-    console.log('\n— D5·S5-0b: 계획 없는 행의 출구와 일정변경 배지')
+    console.log('\n— 실패를 본 자리에서 다시 보낸다')
     {
-      // 계획이 없는 이력(임의 발송 등)은 일괄 경로로 못 보낸다 — 체크가 막히고 전용 버튼이 있어야 한다.
-      // 종전엔 체크는 되는데 발송에서 조용히 빠져, 사용자는 보냈다고 믿었다.
+      // 계획이 없는 발송(임의) — 그날 목록이 없으므로 임의 발송 경로로 연다
       await raw.from('sms_send_log').insert({
         kind: 'adhoc', customer_id: cidD, plan_item_ids: [], visit_date: kst(3),
         to_phone: '01099990000', content: 'x', status: 'failed', error: '수신거부', sent_by: userId,
       })
-      await page.reload({ waitUntil: 'domcontentloaded' })
-      await page.waitForSelector('[data-testid="sms-row"]', { timeout: 30000 })
-      const adhocRow = page.locator('[data-testid="sms-row"]').filter({ hasText: `문자UI-무계획${SUF}` }).first()
-      check('★ 계획 없는 행은 체크가 막힌다(일괄 발송에서 조용히 빠지지 않게)',
-        await adhocRow.locator('[data-testid="row-check-disabled"]').count() === 1)
-      check('★ 대신 행에 [다시 보내기]가 있다 — 없으면 재발송할 방법이 아예 없다',
+      await reloadHistory()
+      const adhocRow = rowOf(`문자UI-무계획${SUF}`).first()
+      check('★ 실패한 임의 발송 행에 [다시 보내기]가 있다 — 없으면 재발송할 방법이 아예 없다',
         await adhocRow.locator('[data-testid="row-resend"]').count() === 1)
       await adhocRow.locator('[data-testid="row-resend"]').click()
       await page.waitForSelector('[data-testid="adhoc-date"]', { timeout: 20000 })
@@ -346,29 +239,39 @@ async function main() {
       await page.locator('[data-testid="sms-modal"] button', { hasText: '닫기' }).first().click()
       await raw.from('sms_send_log').delete().eq('customer_id', cidD)
 
-      // 일정변경 — 옛 날짜로 안내가 나간 뒤 점검일이 옮겨진 상황.
-      // 그 옛 날짜에는 계획이 없어야 '이동'으로 판정된다(다음 회차와 구별).
+      // 계획이 있는 방문 — 그날 목록은 그대로, 체크는 그 고객만
       await raw.from('sms_send_log').insert({
-        kind: 'pre_visit', customer_id: cidB, plan_item_ids: [], visit_date: kst(9),
-        to_phone: '01055556666', content: 'x', status: 'sent', sent_by: userId,
+        kind: 'pre_visit', customer_id: cidB, plan_item_ids: [], visit_date: TOMORROW,
+        to_phone: '01055556666', content: 'x', status: 'failed', error: '일시 오류', sent_by: userId,
       })
-      await page.reload({ waitUntil: 'domcontentloaded' })
-      await page.waitForSelector('[data-testid="sms-row"]', { timeout: 30000 })
-      const movedRow = page.locator('[data-testid="sms-row"]').filter({ hasText: `문자UI-B${SUF}` }).first()
-      check('★ 일정변경 배지가 뜬다 — 그냥 보내면 고객이 두 날짜를 안내받는다(S5-0b)',
-        await movedRow.locator('[data-testid="badge-moved"]').count() === 1,
-        (await movedRow.innerText()).replace(/\n/g, ' '))
+      await reloadHistory()
+      await rowOf(`문자UI-B${SUF}`).first().locator('[data-testid="row-resend"]').click()
+      await page.waitForSelector('[data-testid="sms-group"]', { timeout: 20000 })
+      const pickedOf = async (cid: string) =>
+        page.locator(`[data-testid="sms-group"][data-customer-id="${cid}"]`).getAttribute('data-picked')
+      check('★ 다시 보낼 고객만 체크돼 있다', await pickedOf(cidB) === '1', String(await pickedOf(cidB)))
+      check('★ 같은 날 다른 고객은 **목록에 남되 해제**돼 있다(옆 고객에게 또 나가지 않게)',
+        await pickedOf(cidA) === '0' && await pickedOf(cidC) === '0',
+        `A=${await pickedOf(cidA)} C=${await pickedOf(cidC)}`)
+      check('★ 발송 버튼의 통수가 그 1곳뿐이다',
+        /^1통 발송/.test((await page.locator('[data-testid="sms-send"]').innerText()).trim()),
+        await page.locator('[data-testid="sms-send"]').innerText())
+      await page.locator('[data-testid="sms-modal"] button', { hasText: '닫기' }).first().click()
       await raw.from('sms_send_log').delete().eq('customer_id', cidB)
-      await page.reload({ waitUntil: 'domcontentloaded' })
-      await page.waitForSelector('[data-testid="sms-row"]', { timeout: 30000 })
     }
 
-    console.log('\n— Q-12: 승인 배너')
+    console.log('\n— 달력 문자 패널: 자동 준비')
+    await page.goto(`${BASE}/inspections/calendar?sms=1`, { waitUntil: 'domcontentloaded' })
+    await page.waitForSelector('[data-testid="cal-sms-panel"]', { timeout: 30000 })
+    check('★ ?sms=1로 들어오면 문자 패널이 열린 채 시작한다(위젯·이력 화면의 착지점)',
+      await page.locator('[data-testid="cal-sms-panel"]').isVisible())
+    await page.waitForSelector('[data-testid="sms-notice"]', { timeout: 30000 })
+
     const notices = await page.locator('[data-testid="sms-notice"]').allInnerTexts()
-    check('배너 줄이 그려진다', notices.length >= 1, notices.join(' | '))
+    check('자동 준비 줄이 그려진다', notices.length >= 1, notices.join(' | '))
     check('★ 내일 방문 건이 미발송으로 집계된다', notices.some(t => /내일/.test(t) && /미발송/.test(t)), notices.join(' | '))
 
-    console.log('\n— S8: 모달 (배너 승인 경로)')
+    console.log('\n— S8: 모달 (자동 준비 → 확인·발송)')
     // 첫 줄이 아니라 **'내일' 줄**을 눌러야 한다 — 시점 규칙이 [3,1]이면 첫 줄은 3일 후이고
     // 그날 방문 고객은 이 테스트가 만든 건이 아니다(앞선 실행이 남긴 규칙에 걸려 오탐이 났다)
     const tomorrowNotice = page.locator('[data-testid="sms-notice"]').filter({ hasText: '내일' })
@@ -457,16 +360,65 @@ async function main() {
     await page.keyboard.press('Escape').catch(() => {})
     await page.locator('[data-testid="sms-modal"] button', { hasText: '닫기' }).first().click().catch(() => {})
 
-    console.log('\n— Q-14: 달력 진입 (날짜 전달 방식)')
-    await page.goto(`${BASE}/inspections/calendar`, { waitUntil: 'networkidle' })
-    check('툴바에 [사전안내 문자]가 있다', await page.locator('[data-testid="calendar-sms-toolbar"]').isVisible())
-    await page.locator('[data-testid="calendar-sms-toolbar"]').click()
+    console.log('\n— Q-14: 달력 날짜 패널 (날짜 전달 방식)')
+    await page.goto(`${BASE}/inspections/calendar?day=${TOMORROW}`, { waitUntil: 'domcontentloaded' })
+    await page.waitForSelector('[data-testid="calendar-sms-day"]', { timeout: 30000 })
+    check('툴바에 [문자 보내기]가 있다', await page.locator('[data-testid="calendar-sms-toolbar"]').isVisible())
+    // 패널 고객명 검색으로 화면을 이 실행이 심은 행으로 좁힌다(실데이터가 있는 DB에서도 돌게)
+    await page.locator('input[placeholder="고객명 검색..."]').fill(`문자UI-`)
+    await page.waitForTimeout(400)
+    await page.locator('[data-testid="calendar-sms-day"]').click()
     await page.waitForSelector('[data-testid="sms-group"]', { timeout: 20000 })
     const calGroups = await page.locator('[data-testid="sms-group"]').allInnerTexts()
     check('★ 달력에서 열어도 자체점검 포함 전 건이 뜬다 — 달력이 무엇을 로드했는지와 무관(Q-14)',
       calGroups.some(t => t.includes(`문자UI-A${SUF}`)) && calGroups.some(t => t.includes(`문자UI-B${SUF}`)),
       calGroups.join(' | ').slice(0, 300))
+    check('★ 날짜 전체로 열면 전원이 체크돼 있다(고른 적이 없으니)',
+      await page.locator(`[data-testid="sms-group"][data-customer-id="${cidB}"]`).getAttribute('data-picked') === '1' &&
+      await page.locator(`[data-testid="sms-group"][data-customer-id="${cidC}"]`).getAttribute('data-picked') === '1')
     await page.locator('[data-testid="sms-modal"] button', { hasText: '닫기' }).first().click()
+
+    console.log('\n— 달력 날짜 패널: 골라 보내기')
+    {
+      const picked = async (cid: string) =>
+        page.locator(`[data-testid="sms-group"][data-customer-id="${cid}"]`).getAttribute('data-picked')
+      const sendText = async () => (await page.locator('[data-testid="sms-send"]').innerText()).trim()
+      const closeModal = async () => page.locator('[data-testid="sms-modal"] button', { hasText: '닫기' }).first().click()
+
+      // 한 곳 — 행의 문자 아이콘
+      await page.locator(`[data-testid="day-sms-row"][data-customer-id="${cidB}"]`).click()
+      await page.waitForSelector('[data-testid="sms-group"]', { timeout: 20000 })
+      check('★ 행 아이콘으로 열면 그 고객만 체크돼 있다', await picked(cidB) === '1', String(await picked(cidB)))
+      check('★ 안 고른 고객은 **목록에 남되 해제**돼 있다(「안 고른 것」과 「없는 것」이 구별된다)',
+        await picked(cidA) === '0' && await picked(cidC) === '0', `A=${await picked(cidA)} C=${await picked(cidC)}`)
+      check('★ 통수가 1통이다', /^1통 발송/.test(await sendText()), await sendText())
+      await closeModal()
+
+      // 여러 곳 — 선택 모드
+      await page.locator('[data-testid="day-sms-toggle"]').click()
+      check('선택 모드에서는 행 아이콘이 사라진다(두 가지 길이 한 화면에 겹치지 않게)',
+        await page.locator('[data-testid="day-sms-row"]').count() === 0)
+      const sendBtn = page.locator('[data-testid="day-sms-send"]')
+      check('★ 아무것도 안 고르면 [문자]가 잠긴다', await sendBtn.isDisabled())
+      await page.locator(`[data-testid="day-sms-check"][data-customer-id="${cidB}"]`).check()
+      await page.locator(`[data-testid="day-sms-check"][data-customer-id="${cidC}"]`).check()
+      check('★ 고른 수가 버튼에 찍힌다', /문자 2곳/.test(await sendBtn.innerText()), await sendBtn.innerText())
+      await sendBtn.click()
+      await page.waitForSelector('[data-testid="sms-group"]', { timeout: 20000 })
+      check('★ 고른 두 곳만 체크돼 있다',
+        await picked(cidB) === '1' && await picked(cidC) === '1' && await picked(cidA) === '0',
+        `A=${await picked(cidA)} B=${await picked(cidB)} C=${await picked(cidC)}`)
+      check('★ 달력에서 고른 수 = 발송 통수(수신자 1명씩)', /^2통 발송/.test(await sendText()), await sendText())
+      await closeModal()
+
+      // [전체]는 보이는 것만
+      await page.locator('[data-testid="day-sms-clear"]').click()
+      await page.locator('input[placeholder="고객명 검색..."]').fill(`문자UI-B${SUF}`)
+      await page.waitForTimeout(400)
+      await page.locator('[data-testid="day-sms-all"]').click()
+      check('★ [전체]는 **지금 화면에 보이는 방문만** 담는다', /문자 1곳/.test(await sendBtn.innerText()), await sendBtn.innerText())
+      await page.locator('[data-testid="day-sms-toggle"]').click()
+    }
 
     console.log('\n— S5-b: 고객관리 수신 지정')
     await page.goto(`${BASE}/customers/${cidA}?tab=contacts`, { waitUntil: 'networkidle' })
@@ -521,9 +473,9 @@ async function main() {
       (await page.locator('[data-testid="template-bytes"]').count()) === 1)
 
     console.log('\n— S9-5: 사이드바 뱃지·대시보드 위젯·툴바 임의 발송')
-    await page.goto(`${BASE}/inspections/sms`, { waitUntil: 'networkidle' })
-    await page.waitForSelector('[data-testid="sms-notice"]')
-    // 배너가 세는 미발송 곳 수 — 뱃지·위젯이 이 수와 같아야 한다(같은 함수로 세므로)
+    await page.goto(`${BASE}/inspections/calendar?sms=1`, { waitUntil: 'domcontentloaded' })
+    await page.waitForSelector('[data-testid="sms-notice"]', { timeout: 30000 })
+    // 배너(달력 문자 패널의 자동 준비)가 세는 미발송 곳 수 — 뱃지·위젯이 이 수와 같아야 한다(같은 함수로 세므로)
     const bannerUnsent = (await page.locator('[data-testid="sms-notice"]').allInnerTexts())
       // 단위는 '건'(고객+방문일)이다 — '곳'은 한 고객이 두 번 방문할 때 거짓이 되어 바꿨다
       .map(t => /미발송 (\d+)건/.exec(t)?.[1]).filter(Boolean).reduce((n, v) => n + Number(v), 0)
@@ -539,7 +491,14 @@ async function main() {
     // 뱃지는 '보낼 것' + '보낼 수 **없는** 것'을 함께 센다. 후자를 빼면 번호 없는 고객만
     // 골라 뱃지에서 지우는 셈이라, 내일 방문 전부가 번호 없음인 날 뱃지가 사라진다.
     const bannerBlocked = Number(
-      /보낼 수 없는 건 (\d+)건/.exec(await page.locator('[data-testid="sms-banner"], body').first().innerText())?.[1] ?? 0)
+      /보낼 수 없는 건 (\d+)건/.exec(await page.locator('[data-testid="cal-sms-panel"]').innerText())?.[1] ?? 0)
+    check('전제: 보낼 수 없는 건이 1건 이상 잡혀 있다(번호 없는 고객 E)', bannerBlocked >= 1, String(bannerBlocked))
+    // 도구줄 버튼의 숫자도 같은 값이어야 한다 — 패널을 열기 전에 보는 유일한 신호다
+    const toolbarCount = page.locator('[data-testid="calendar-sms-count"]')
+    await toolbarCount.waitFor({ timeout: 30000 }).catch(() => {})
+    check('★ 도구줄 버튼 숫자 = 패널의 (미발송 + 보낼 수 없음)',
+      (await toolbarCount.innerText().catch(() => '(없음)')).trim() === String(bannerUnsent + bannerBlocked),
+      `버튼 ${await toolbarCount.innerText().catch(() => '(없음)')} vs 패널 ${bannerUnsent}+${bannerBlocked}`)
     check('★ 뱃지 수 = 배너의 (미발송 + 보낼 수 없음) — 두 곳이 다르면 어느 쪽을 믿을지 모른다',
       (await badge.innerText()).trim() === String(bannerUnsent + bannerBlocked),
       `뱃지 ${await badge.innerText()} vs 배너 미발송 ${bannerUnsent} + 보낼수없음 ${bannerBlocked}`)
@@ -560,12 +519,12 @@ async function main() {
     // /dashboard에서는 문자 발송 항목 자체가 DOM에 없다. 없는 것을 기다리면 20초 타임아웃이고,
     // catch로 삼키면 '뱃지 0'과 구별이 안 돼 거짓 실패가 된다(둘 다 실제로 겪었다).
     // 세 화면 일치는 **배너를 축으로** 이미 닫혀 있다: 위(540행) 뱃지=배너, 여기(553행) 위젯=배너.
-    check('위젯이 문자 발송 화면으로 잇는다',
-      (await widget.getAttribute('href')) === '/inspections/sms', await widget.getAttribute('href') ?? '')
+    check('★ 위젯이 **보내는 곳**(달력 문자 패널)으로 잇는다 — 이력 화면으로 가면 보낼 수단이 없다',
+      (await widget.getAttribute('href')) === '/inspections/calendar?sms=1', await widget.getAttribute('href') ?? '')
 
-    await page.goto(`${BASE}/inspections/sms`, { waitUntil: 'networkidle' })
-    await page.waitForSelector('[data-testid="sms-row"]')
-    check('툴바에 [임의 발송]이 있다(Q-17 세 번째 진입)',
+    await page.goto(`${BASE}/inspections/calendar?sms=1`, { waitUntil: 'domcontentloaded' })
+    await page.waitForSelector('[data-testid="cal-sms-panel"]', { timeout: 30000 })
+    check('패널에 [고객 골라 보내기]가 있다(Q-17 세 번째 진입)',
       await page.locator('[data-testid="sms-adhoc-toolbar"]').isVisible())
     await page.locator('[data-testid="sms-adhoc-toolbar"]').click()
     await page.waitForSelector('[data-testid="sms-adhoc-picker"]')
@@ -607,9 +566,9 @@ async function main() {
     await page.locator('[data-testid="sms-modal"] button', { hasText: '닫기' }).first().click()
 
     console.log('\n— 배너가 설정 시점을 따라온다')
-    await page.goto(`${BASE}/inspections/sms`, { waitUntil: 'networkidle' })
-    await page.waitForSelector('[data-testid="sms-notice"]')
-    check('★ 배너 줄 수 = 설정된 시점 수', await page.locator('[data-testid="sms-notice"]').count() === 2,
+    await page.goto(`${BASE}/inspections/calendar?sms=1`, { waitUntil: 'domcontentloaded' })
+    await page.waitForSelector('[data-testid="sms-notice"]', { timeout: 30000 })
+    check('★ 자동 준비 줄 수 = 설정된 시점 수', await page.locator('[data-testid="sms-notice"]').count() === 2,
       String(await page.locator('[data-testid="sms-notice"]').count()))
   } finally {
     if (savedRules) {

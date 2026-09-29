@@ -1,6 +1,8 @@
 /** 발송 결과 확인 동선 — 소방계획서_24 S8-10. 정적 배선 검사(무서버·무DB).
  *
- *  주 발송 경로는 달력인데 결과 창구는 문자 발송 화면이다(Q-14·Q-15). 그 사이를 잇는 링크
+ *  주 발송 경로는 달력인데 결과 창구는 문자 발송 **이력** 화면이다(Q-14·Q-15).
+ *  (2026-09-29 그 화면이 이력 전용으로 줄었다 — 받는 쪽 파일이 sms-history-client로 바뀌었고
+ *   기본 상태가 '발송 제외'에서 '전체'로 뒤집혔다. 링크가 실어 보내는 값의 계약은 그대로다.) 그 사이를 잇는 링크
  *  하나가 끊기면 **실패를 못 보고 닫는다** — 이 설계에서 가장 비싼 실수로 규정된 것이다(G-26).
  *
  *  링크 자체는 예전부터 있었다. 문제는 **약속한 화면에 도착하지 못했다**는 것이고, 실패 방향이
@@ -26,7 +28,7 @@ import { join } from 'path'
 const read = (...p: string[]) => readFileSync(join(process.cwd(), 'src', ...p), 'utf8')
 const modal = read('components', 'sms', 'inspection-sms-modal.tsx')
 const page = read('app', '(dashboard)', 'inspections', 'sms', 'page.tsx')
-const client = read('components', 'sms', 'sms-status-client.tsx')
+const client = read('components', 'sms', 'sms-history-client.tsx')
 
 let pass = 0, fail = 0
 const check = (n: string, c: boolean, d = '') => {
@@ -78,8 +80,14 @@ check('page가 날짜 형식을 검증한다', /\\d\{4\}-\\d\{2\}-\\d\{2\}/.test
 check('client가 initialFrom/To를 초기 상태로 쓴다',
   /useState\(initialFrom\s*\?\?/.test(client) && /useState\(initialTo\s*\?\?/.test(client))
 check('client가 initialStatus를 초기 상태로 쓴다', /useState<[^>]*>\(initialStatus\s*\?\?/.test(client))
-check('기본값은 그대로 not_sent다(링크 없이 들어오면 종전 동작)',
-  /initialStatus\s*\?\?\s*'not_sent'/.test(client))
+// 종전 계약(기본 not_sent = 할 일 목록)을 **반대 방향으로 갈아끼운다** — 이력 화면이 기본으로
+// 무언가를 가리면, 링크 없이 들어온 사람은 자기가 보낸 문자를 못 찾는다.
+check('기본값은 all이다(이력 화면은 자기 기록을 가리지 않는다)',
+  /initialStatus\s*\?\?\s*'all'/.test(client))
+check('이력 화면에 not_sent가 남아 있지 않다(할 일 목록의 필터였다)', !/not_sent/.test(client))
+// 받은 방문일 범위가 **조회에 실제로 쓰이는가** — 상태에만 담고 서버에 안 넘기면 링크는 장식이다
+check('받은 방문일 범위를 조회에 넘긴다(visitFrom·visitTo)',
+  /listSmsHistoryAction\(\{[^}]*\bvisitFrom\b[^}]*\bvisitTo\b/.test(client))
 
 console.log(`\n합계 ${pass}/${pass + fail} · 실패 ${fail}`)
 process.exit(fail === 0 ? 0 : 1)

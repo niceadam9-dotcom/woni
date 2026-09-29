@@ -6,7 +6,7 @@ import { getProfile } from '@/lib/auth'
 import { can } from '@/lib/permissions'
 import {
   loadSmsTargets, loadAdhocTarget, prepareSms, sendInspectionSms, loadSentPairs, smsGuards,
-  loadLeadRules, countUnsentNotices, loadSmsEpoch, overdueFloor, OVERDUE_WINDOW_DAYS,
+  loadLeadRules, countUnsentNotices, loadPendingNotices, loadSmsEpoch, overdueFloor, OVERDUE_WINDOW_DAYS,
 } from '@/lib/sms'
 import {
   groupTargets, resolvePendingNotices, validateLeadRules,
@@ -505,6 +505,153 @@ export async function countUnsentNoticesAction() {
   // 실패를 0으로 뭉개지 않는다 — 호출부(사이드바 뱃지)가 '모름'으로 표시해야 한다
   const r = await countUnsentNotices(createAdminClient())
   return { count: r.count, messages: r.messages, blockedCount: r.blockedCount, nearest: r.nearest }
+}
+
+/** 달력 문자 패널의 「자동 준비」 줄 — 시점 규칙별로 보낼 안내를 계산해 준다.
+ *
+ *  뱃지와 **같은** loadPendingNotices를 쓴다(버튼 숫자와 패널 줄이 다른 말을 하지 않게).
+ *  발송은 하지 않는다 — 사람이 [확인·발송]을 눌러야 나간다(Q-12 승인 방식). */
+export async function listPendingNoticesAction() {
+  const g = await guard('inspection_sms_send')
+  if (g.error) return { error: g.error }
+  try {
+    const { notices, overdue, rules } = await loadPendingNotices(createAdminClient())
+    const p = await getProfile()
+    return {
+      notices: notices.map(n => ({
+        leadDays: n.leadDays, visitDate: n.visitDate, label: n.label,
+        unsentCount: n.unsentCount, messageCount: n.messageCount,
+        blockedCount: n.blockedCount,
+        blocked: n.blocked.map(b => ({ customerName: b.customerName, reason: b.reason })),
+      })),
+      overdueCount: overdue.count,
+      rules,
+      canEditRules: !!p && can(p.role, 'message_template_manage'),
+    }
+  } catch (e) {
+    // 실패를 빈 목록으로 뭉개면 패널이 "보낼 안내 없음 ✓"가 된다 — 사유를 올린다
+    return { error: e instanceof Error ? e.message : String(e) }
+  }
+}
+
+/** 문자 발송 이력 — **발송한 날** 축으로 읽는다 (2026-09-29, 발송 화면을 이력 전용으로 축소).
+ *
+ *  listSmsStatusAction은 「앞으로 방문할 계획」 축이라 하한이 오늘이다 — 지난주에 보낸 문자는
+ *  방문일이 지나는 순간 어디에서도 볼 수 없었다. 이력은 계획이 아니라 **기록**에서 읽는다.
+ *
+ *  · 기본은 최근 30일에 보낸 것. `visitFrom/visitTo`는 발송 모달의 [발송 결과 전체 보기]가
+ *    실어 보내는 방문일 범위다 — 그게 오면 발송일 기본값을 걸지 않는다(방금 보낸 건을 가리지 않게).
+ *  · 한 줄 = (고객, 방문일). 사람마다 **마지막 시도**가 현재 상태다(listSmsStatusAction과 같은 규칙:
+ *    조치가 필요한 상태가 앞 — 확인필요 → 실패 → 번호없음 → 발송됨). */
+export async function listSmsHistoryAction(filters: {
+  sentFrom?: string
+  sentTo?: string
+  visitFrom?: string
+  visitTo?: string
+  status?: 'all' | 'sent' | 'failed' | 'no_phone' | 'stuck'
+}) {
+  const g = await guard('inspection_sms_send')
+  if (g.error) return { error: g.error }
+  const admin = createAdminClient()
+  const today = todayKst()
+  const isDate = (s?: string) => !!s && /^\d{4}-\d{2}-\d{2}$/.test(s)
+
+  const visitFrom = isDate(filters.visitFrom) ? filters.visitFrom! : null
+  const visitTo = isDate(filters.visitTo) ? filters.visitTo! : null
+  const byVisit = !!(visitFrom || visitTo)
+  const sentFrom = isDate(filters.sentFrom) ? filters.sentFrom! : (byVisit ? null : addDays(today, -30))
+  const sentTo = isDate(filters.sentTo) ? filters.sentTo! : null
+
+  const page = await fetchAllRows((f, t) => {
+    let q = admin
+      .from('sms_send_log')
+      .select('id, kind, trigger, customer_id, visit_date, status, error, contact_name, contact_role, to_phone, msg_type, created_at, customers:customer_id ( customer_name ), sender:sent_by ( name )')
+    // 발송일은 KST 하루로 자른다 — created_at은 UTC라 날짜만 비교하면 자정~09시가 전날로 밀린다
+    if (sentFrom) q = q.gte('created_at', `${sentFrom}T00:00:00+09:00`)
+    if (sentTo) q = q.lte('created_at', `${sentTo}T23:59:59.999+09:00`)
+    if (visitFrom) q = q.gte('visit_date', visitFrom)
+    if (visitTo) q = q.lte('visit_date', visitTo)
+    return q.order('created_at', { ascending: false }).order('id').range(f, t)
+  })
+  // 실패를 빈 목록으로 뭉개면 「보낸 적 없음」으로 읽힌다 — 사유를 올린다
+  if (page.error) return { error: `발송 이력을 불러오지 못했습니다: ${page.error}` }
+
+  const logs = page.rows as unknown as Array<{
+    id: string; kind: string; trigger: string; customer_id: string; visit_date: string
+    status: string; error: string | null; contact_name: string | null; contact_role: string | null
+    to_phone: string | null; msg_type: string | null; created_at: string
+    customers: { customer_name: string } | null
+    sender: { name: string } | null
+  }>
+
+  const byPair = new Map<string, typeof logs>()
+  for (const l of logs) {
+    const k = `${l.customer_id}|${l.visit_date}`
+    const arr = byPair.get(k) ?? []
+    arr.push(l); byPair.set(k, arr)
+  }
+
+  const rows = [...byPair.entries()].map(([pair, ls]) => {
+    // ls는 created_at 내림차순 — 번호마다 첫 행이 그 사람의 마지막 시도다
+    const cur = new Map<string, (typeof ls)[number]>()
+    for (const l of ls) {
+      if (!l.to_phone) continue
+      if (!cur.has(l.to_phone)) cur.set(l.to_phone, l)
+    }
+    const now = [...cur.values()]
+    const sentRows = now.filter(l => l.status === 'sent' || l.status === 'unverified')
+    const failedRows = now.filter(l => l.status === 'failed')
+    const stuckRows = now.filter(l => l.status === 'sending')
+    const noPhoneActive = ls[0]?.status === 'no_phone'
+    const status =
+      stuckRows.length ? 'stuck'
+      : failedRows.length ? 'failed'
+      : noPhoneActive ? 'no_phone'
+      : 'sent'
+    const partial = failedRows.length > 0 && sentRows.length > 0
+      ? `${now.length}명 중 ${failedRows.length}명 실패 (${sentRows.length}명 발송됨) · `
+      : ''
+    const last = ls[0]
+    return {
+      key: pair,
+      customerId: last.customer_id,
+      customerName: last.customers?.customer_name ?? '(고객 미상)',
+      visitDate: last.visit_date,
+      recipients: now.map(l => ({
+        name: l.contact_name, role: l.contact_role, phoneMasked: maskPhone(l.to_phone),
+        status: l.status,
+      })),
+      status,
+      unverified: sentRows.some(l => l.status === 'unverified'),
+      lastAt: last.created_at,
+      attempts: ls.length,
+      reason:
+        stuckRows.length ? '발송 결과가 기록되지 않았습니다 — 실제 발송 여부를 확인해주세요'
+        : failedRows.length ? partial + (failedRows[0]?.error ?? '')
+        : noPhoneActive ? (ls[0]?.error ?? null)
+        : null,
+      isAdhoc: ls.every(x => x.kind === 'adhoc'),
+      senderName: last.sender?.name ?? null,
+      // 지난 방문일에는 다시 보낼 수 없다(서버도 막는다). 확인필요는 **나갔을 수 있어** 재발송을 권하지 않는다
+      canResend: last.visit_date >= today && (status === 'failed' || status === 'no_phone'),
+    }
+  })
+
+  const st = filters.status ?? 'all'
+  const out = st === 'all' ? rows : rows.filter(r => r.status === st)
+  return {
+    rows: out.sort((a, b) => b.lastAt.localeCompare(a.lastAt)),
+    counts: {
+      all: rows.length,
+      sent: rows.filter(r => r.status === 'sent').length,
+      failed: rows.filter(r => r.status === 'failed').length,
+      no_phone: rows.filter(r => r.status === 'no_phone').length,
+      stuck: rows.filter(r => r.status === 'stuck').length,
+    },
+    truncated: page.truncated,
+    range: { sentFrom, sentTo, visitFrom, visitTo },
+    today,
+  }
 }
 
 /** 임의 발송용 고객 후보 — **전 활성 고객** (S9-6③).

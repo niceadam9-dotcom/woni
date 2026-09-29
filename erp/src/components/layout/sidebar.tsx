@@ -68,7 +68,8 @@ export const NAV_GROUPS: NavGroup[] = [
       // 소방계획서_24 Q-8 — [점검현황 모니터링] 폐지. 그 화면은 6단계를 inspection_steps와
       // 이중 추적했고(P-14·P-15) 정작 "내일 방문할 미발송 고객"은 찾을 수 없었다(P-17).
       // 6단계는 작업대·점검 업무 목록·달력이 이미 보여주므로, 이 자리는 문자 발송이 가져간다.
-      { label: '문자 발송',        href: '/inspections/sms',            icon: Send,           roles: ['employee', 'manager', 'admin'], section: '현황' },
+      // 2026-09-29 — 보내는 일은 점검 달력으로 갔다(문자 패널). 이 화면은 결과 확인 전용이라 이름도 「이력」
+      { label: '문자 발송 이력',   href: '/inspections/sms',            icon: Send,           roles: ['employee', 'manager', 'admin'], section: '현황' },
       // '안전관리 대장'(실체=월별 수금 현황)은 정산현황 [월별 대장] 탭으로 흡수 (R15-b)
       { label: '정산현황',         href: '/billing/status',             icon: Wallet,         roles: ['manager', 'admin'], section: '정산' },
       { label: '세금계산서 발행',  href: '/tax-invoices',               icon: Receipt,        roles: ['manager', 'admin'], section: '정산' },
@@ -227,11 +228,13 @@ interface SidebarProps {
 // 붙어 있었는데 그 화면이 폐지됐다(Q-8). 같은 자리를 문자 발송이 가져갔지만 **의미가 다르므로**
 // 뱃지를 그대로 물려주지 않는다 — 주황은 6단계를 실제로 보여주는 [점검 업무]로 옮기고,
 // 문자 발송에는 '미발송 안내 곳 수'를 뜻하는 별도 축(보라)을 둔다.
-const BADGE_HREFS: Record<string, 'red' | 'orange' | 'sms'> = {
+const BADGE_HREFS: Record<string, 'red' | 'orange'> = {
   '/inspections/calendar': 'red',
   '/inspections': 'orange',
-  '/inspections/sms': 'sms',
 }
+/** 미발송 안내 뱃지가 붙는 메뉴 — **문자를 보내는 곳**이다(2026-09-29부터 점검 달력).
+ *  이력 화면에 붙여 두면 뱃지를 눌러 간 곳에 보낼 수단이 없다. 달력은 빨강 뱃지와 나란히 단다. */
+const SMS_BADGE_HREF = '/inspections/calendar'
 
 export function Sidebar({ role, redCount = 0, orangeCount = 0, canSeeSms = false, companyName = '승진소방 ERP', logoUrl }: SidebarProps) {
   const pathname = usePathname()
@@ -405,12 +408,12 @@ export function Sidebar({ role, redCount = 0, orangeCount = 0, canSeeSms = false
                         )}
                         {/* 미발송 안내 (소방계획서_24 S9-5) — 배너와 **같은 함수**로 센다.
                             뱃지와 배너의 수가 다르면 사용자는 어느 쪽을 믿을지 모른다. */}
-                        {BADGE_HREFS[item.href] === 'sms' && smsCount !== 0 && (
+                        {item.href === SMS_BADGE_HREF && smsCount !== 0 && (
                           <span data-testid="sidebar-sms-badge"
                             title={smsCount < 0
                               ? '사전 안내 건수를 불러오지 못했습니다 — 화면을 열어 확인해주세요'
                               /* 단위는 배너·위젯과 같은 **건**(고객+방문일) */
-                              : `손봐야 할 사전 안내 ${smsCount}건`}
+                              : `보낼 사전 안내 ${smsCount}건 — 달력의 [문자 보내기]에서 확인합니다`}
                             className={`shrink-0 min-w-[calc(18px*var(--fs-scale))] h-[calc(18px*var(--fs-scale))] px-1 rounded-full text-white text-form-2xs font-bold flex items-center justify-center ${
                               smsCount < 0 ? 'bg-[#b0acd6]' : 'bg-brand'}`}>
                             {smsCount < 0 ? '?' : smsCount > 99 ? '99+' : smsCount}

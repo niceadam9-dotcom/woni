@@ -798,23 +798,7 @@ export async function countUnsentNotices(admin: Admin): Promise<{
   /** 안내 못 하고 지나간 방문 — 발송은 못 하지만 **알려는 줘야 한다** */
   overdueCount: number
 }> {
-  const today = todayKst()
-  const rules = await loadLeadRules(admin)
-  const to = addDays(today, Math.max(...rules, 1))
-  // ★ 지난 방문일도 함께 싣는다(includePast) — 종전에는 from을 today로 clamp해서
-  //   overdue가 **구조적으로 항상 0**이었고 '시기 지남' 줄이 렌더될 수 없었다.
-  //   OVERDUE_WINDOW만 거슬러 본다: 몇 달 전 건까지 계속 띄우면 경고가 소음이 된다.
-  //   그리고 **기능을 쓰기 시작한 날**보다 앞으로는 가지 않는다(loadSmsEpoch) —
-  //   그 전 방문은 안내를 '놓친' 것이 아니라 안내라는 기능이 없던 시절의 방문이다.
-  const epoch = await loadSmsEpoch(admin)
-  const from = overdueFloor(addDays(today, -OVERDUE_WINDOW_DAYS), epoch)
-  const targets = await loadSmsTargets(admin, { from, to, includePast: true })
-  // noPhone도 함께 넘긴다 — 안 넘기면 번호 없는 고객이 뱃지·위젯에서 통째로 빠져
-  // "보낼 안내가 없습니다 ✓"가 된다(resolvePendingNotices blockedCount 주석)
-  const { groups, noPhone } = groupTargets(targets)
-  const sent = await loadSentPairs(admin, from, to)
-  const { notices, overdue } = resolvePendingNotices(
-    groups, rules, today, (c, v) => sent.has(`${c}|${v}`), noPhone)
+  const { notices, overdue, rules } = await loadPendingNotices(admin)
 
   // '보낼 것'뿐 아니라 '못 보내는 것'도 할 일이다 — 뱃지에서 빠지면 초록불이 거짓말이 된다
   const withWork = [...notices].sort((a, b) => a.leadDays - b.leadDays)
@@ -835,6 +819,31 @@ export async function countUnsentNotices(admin: Admin): Promise<{
     } : null,
     overdueCount: overdue.count,
   }
+}
+
+/** 시점 규칙별 「보낼 안내」 줄 — 뱃지·위젯(countUnsentNotices)과 달력 문자 패널이 **같이** 쓴다.
+ *
+ *  세는 규칙을 두 벌로 두면 뱃지 숫자와 패널 줄이 다른 말을 한다. 그래서 조회·판정은 여기
+ *  한 곳이고, countUnsentNotices는 이 결과를 접기만 한다. */
+export async function loadPendingNotices(admin: Admin) {
+  const today = todayKst()
+  const rules = await loadLeadRules(admin)
+  const to = addDays(today, Math.max(...rules, 1))
+  // ★ 지난 방문일도 함께 싣는다(includePast) — 종전에는 from을 today로 clamp해서
+  //   overdue가 **구조적으로 항상 0**이었고 '시기 지남' 줄이 렌더될 수 없었다.
+  //   OVERDUE_WINDOW만 거슬러 본다: 몇 달 전 건까지 계속 띄우면 경고가 소음이 된다.
+  //   그리고 **기능을 쓰기 시작한 날**보다 앞으로는 가지 않는다(loadSmsEpoch) —
+  //   그 전 방문은 안내를 '놓친' 것이 아니라 안내라는 기능이 없던 시절의 방문이다.
+  const epoch = await loadSmsEpoch(admin)
+  const from = overdueFloor(addDays(today, -OVERDUE_WINDOW_DAYS), epoch)
+  const targets = await loadSmsTargets(admin, { from, to, includePast: true })
+  // noPhone도 함께 넘긴다 — 안 넘기면 번호 없는 고객이 뱃지·위젯에서 통째로 빠져
+  // "보낼 안내가 없습니다 ✓"가 된다(resolvePendingNotices blockedCount 주석)
+  const { groups, noPhone } = groupTargets(targets)
+  const sent = await loadSentPairs(admin, from, to)
+  const { notices, overdue } = resolvePendingNotices(
+    groups, rules, today, (c, v) => sent.has(`${c}|${v}`), noPhone)
+  return { notices, overdue, rules, today }
 }
 
 /** 이미 보낸 (고객, 방문일) 쌍 — '미발송' 판정의 단일 규칙 (S5-10).

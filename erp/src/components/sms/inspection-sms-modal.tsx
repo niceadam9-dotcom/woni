@@ -15,7 +15,10 @@ import { smsByteLength, smsKind, unresolvedVars } from '@/lib/sms-recipients'
 
 export type SmsModalSource =
   | { kind: 'items'; planItemIds: string[]; title?: string }
-  | { kind: 'range'; from: string; to: string; title?: string }
+  /** preselectCustomerIds — 달력에서 **골라서** 들어온 경우. 목록은 그대로 서버가 만든 그날 전체이고
+   *  (Q-14), 체크만 이 고객들로 시작한다. 목록 자체를 좁히면 빠뜨린 고객이 화면에서 사라져
+   *  「안 고른 것」과 「없는 것」을 구별할 수 없다. */
+  | { kind: 'range'; from: string; to: string; title?: string; preselectCustomerIds?: string[] }
   /** visitDate를 주면 방문일을 미리 채운다 — 목록에서 [다시 보내기]로 들어올 때
    *  이미 아는 날짜를 사용자가 다시 입력하게 만들 이유가 없다 */
   | { kind: 'adhoc'; customerId: string; customerName: string; visitDate?: string; title?: string }
@@ -83,7 +86,13 @@ export function InspectionSmsModal({ source, onClose, onSent }: {
       if ('error' in res && res.error) { setErr(res.error); setLoaded(true); return }
       const p = res as unknown as Prep
       setPrep(p)
-      setPicked(Object.fromEntries(p.groups.map(g => [key(g), g.recipients.map(r => r.phone ?? '')])))
+      const pre = source.kind === 'range' && source.preselectCustomerIds
+        ? new Set(source.preselectCustomerIds) : null
+      setPicked(Object.fromEntries(p.groups.map(g => [
+        key(g),
+        // 발송 불가 건은 체크하지 않는다 — 고른 고객이라도 보낼 수 없으면 셈에 넣지 않는다
+        pre && !(pre.has(g.customerId) && g.sendable) ? [] : g.recipients.map(r => r.phone ?? ''),
+      ])))
       setLoaded(true)
     })
   }
@@ -355,8 +364,8 @@ export function InspectionSmsModal({ source, onClose, onSent }: {
                        방문일이 그 밖이면 안 보인다.
                   그래서 방금 보낸 **그 방문일 범위**와 **보러 가는 상태**를 함께 실어 보낸다.
 
-                  ⚠ `<Link>`가 아니라 `<a>`인 이유: 이 모달은 **문자 발송 화면 자체에서도 열린다**
-                    (sms-status-client가 setModal로 연다). 그 경우 이동이 `/inspections/sms` →
+                  ⚠ `<Link>`가 아니라 `<a>`인 이유: 이 모달은 **발송 이력 화면 자체에서도 열린다**
+                    (sms-history-client의 [다시 보내기]). 그 경우 이동이 `/inspections/sms` →
                     `/inspections/sms?…`가 되는데, **같은 경로로 가는 Link는 서버를 재렌더하지 않아**
                     URL만 바뀌고 searchParams가 다시 읽히지 않는다 — 필터가 조용히 무시된다.
                     달력에서 눌렀을 때만 동작하고 정작 결과 창구에서 누르면 안 되는, 경로에 따라
@@ -421,7 +430,8 @@ export function InspectionSmsModal({ source, onClose, onSent }: {
                     // 수신자 1명 = 대표면 한 줄로 끝낸다(대다수 케이스)
                     const inlineOne = g.sendable && g.recipients.length === 1 && rep?.isRecipient === true
                     return (
-                      <div key={key(g)} data-testid="sms-group"
+                      <div key={key(g)} data-testid="sms-group" data-customer-id={g.customerId}
+                        data-picked={sel.length > 0 ? '1' : '0'}
                         className={`px-3 py-1.5 ${g.sendable ? 'hover:bg-brand-tint' : 'bg-paper'}`}>
                         <div className="flex items-center gap-2">
                           <input type="checkbox" disabled={!g.sendable} checked={sel.length > 0}

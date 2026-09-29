@@ -3,7 +3,7 @@ import { MessageSquare, ChevronRight, CheckCircle2 } from 'lucide-react'
 
 /** 대시보드 사전 안내 위젯 (소방계획서_24 S9-5)
  *
- *  문자 발송 화면의 승인 배너를 **축약해** 보여준다. 두 곳이 같은 함수
+ *  달력 문자 패널의 「자동 준비」를 **축약해** 보여준다. 두 곳이 같은 함수
  *  (countUnsentNotices → resolvePendingNotices)로 세므로 수가 갈라지지 않는다.
  *
  *  보낼 것이 없을 때도 한 줄을 남긴다 — 위젯이 통째로 사라지면 "오늘 보낼 게 없다"와
@@ -27,9 +27,9 @@ export function SmsNoticeWidget({ count, messages, nearest, blockedCount = 0, er
         <MessageSquare className="size-4 text-red-500 shrink-0" />
         <div className="flex-1 min-w-0">
           <p className="text-sm font-semibold text-red-700">사전 안내 건수를 불러오지 못했습니다</p>
-          <p className="text-xs text-red-600 mt-0.5 truncate">보낼 것이 없다는 뜻이 아닙니다 — 문자 발송 화면에서 직접 확인해주세요.</p>
+          <p className="text-xs text-red-600 mt-0.5 truncate">보낼 것이 없다는 뜻이 아닙니다 — 점검 달력의 [문자 보내기]에서 직접 확인해주세요.</p>
         </div>
-        <Link href="/inspections/sms" className="shrink-0 text-xs font-medium text-red-700">확인하러 가기</Link>
+        <Link href="/inspections/calendar?sms=1" className="shrink-0 text-xs font-medium text-red-700">확인하러 가기</Link>
         <ChevronRight className="size-4 text-red-400 shrink-0" />
       </div>
     )
@@ -38,7 +38,8 @@ export function SmsNoticeWidget({ count, messages, nearest, blockedCount = 0, er
 
   return (
     <Link
-      href="/inspections/sms"
+      /* 할 일이 있으면 **보내는 곳**(달력 문자 패널)으로, 없으면 이력으로 — 라벨이 말하는 그곳으로 간다 */
+      href={has ? '/inspections/calendar?sms=1' : '/inspections/sms'}
       data-testid="dash-sms-widget"
       className={`flex items-center gap-3 rounded-xl border px-5 py-4 transition-colors ${
         has

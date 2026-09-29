@@ -29,8 +29,23 @@ function movedOf(text: string): number {
   return m ? Number(m[1]) : -1
 }
 function failedReasons(text: string): string[] {
-  // failed 배열의 reason 값들만 — 순서는 요청 순서를 따른다
-  return [...text.matchAll(/"reason":"((?:[^"\\]|\\.)*)"/g)].map(m => m[1])
+  // failed 배열의 reason 값들만 — 순서는 요청 순서를 따른다.
+  // ⚠ 응답 **전체**에서 "reason"을 긁으면 안 된다. 액션 응답에는 그 화면의 갱신 페이로드가 함께
+  //   실리는데, 호출 화면을 점검 달력으로 옮기자(2026-09-29) 달력의 「점검일자 변경 불가 사유」
+  //   (dateChange.reason)가 섞여 들어와 실패 1건이 9건으로 세어졌다 — 제품은 맞고 자가 틀렸다.
+  //   액션 반환 객체의 "failed":[ … ] 구간만 잘라 읽는다.
+  const at = text.lastIndexOf('"failed":[')
+  if (at < 0) return []
+  let depth = 0, end = -1, inStr = false
+  for (let i = at + '"failed":'.length; i < text.length; i++) {
+    const ch = text[i]
+    if (inStr) { if (ch === '\\') i++; else if (ch === '"') inStr = false; continue }
+    if (ch === '"') inStr = true
+    else if (ch === '[') depth++
+    else if (ch === ']') { depth--; if (depth === 0) { end = i; break } }
+  }
+  if (end < 0) return []
+  return [...text.slice(at, end + 1).matchAll(/"reason":"((?:[^"\\]|\\.)*)"/g)].map(m => m[1])
 }
 
 async function main() {
@@ -59,10 +74,10 @@ async function main() {
     const p1 = await ensurePlan(y, mo, userId); plansCreated.push(p1)
     const planId = p1.id
 
-    // 액션 id는 **그 화면 번들**에만 실린다 — 점검확정 화면 폐지(2026-09-12) 후에는
-    // 문자 발송 화면 번들에서 bulkMove만 뽑는다. 특별점검의 날짜 적용(확정=시작)도
+    // 액션 id는 **그 화면 번들**에만 실린다 — 문자 발송 화면이 이력 전용으로 줄면서(2026-09-29)
+    // 일괄 이동의 호출부는 점검 달력 하나가 됐다. 달력 번들에서 bulkMove를 뽑는다. 특별점검의 날짜 적용(확정=시작)도
     // bulkMove 1건 호출로 태운다 — 내부에서 confirmPlanItemStageOneAction으로 간다(같은 코드 경로).
-    await page.goto(`${BASE}/inspections/sms`, { waitUntil: 'networkidle' })
+    await page.goto(`${BASE}/inspections/calendar`, { waitUntil: 'networkidle' })
     const urls = [...scripts]
     const bulkMoveId = await findActionId(page, 'bulkMovePlanDatesAction', urls)
     check('서버 액션 id 추출(bulkMove)', !!bulkMoveId, `bulkMove=${!!bulkMoveId}`)

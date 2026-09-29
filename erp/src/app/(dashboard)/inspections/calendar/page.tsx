@@ -14,7 +14,7 @@ import type { InspectionType, InspectionStatus, UserRole } from '@/types'
 export default async function InspectionCalendarPage({
   searchParams,
 }: {
-  searchParams: Promise<{ filter?: string; cust?: string; insp?: string; day?: string }>
+  searchParams: Promise<{ filter?: string; cust?: string; insp?: string; day?: string; sms?: string }>
 }) {
   const profile = await getProfile()
   if (!profile) redirect('/login')
@@ -304,6 +304,8 @@ export default async function InspectionCalendarPage({
       holidays={holidays}
       canMovePlan={can(profile.role as UserRole, 'inspection_plan_manage')}
       canSendSms={can(profile.role as UserRole, 'inspection_sms_send')}
+      // 문자 패널을 연 채 시작 — 대시보드 위젯·사이드바 뱃지가 `?sms=1`로 보낸다
+      initialSmsPanelOpen={params.sms === '1'}
       // 달력에서 고객을 등록할 수 있는가 — 버튼 **자체를** 가린다(안 그러면 눌러 봐야 서버가 던진다).
       // 권한 축은 등록 액션과 같은 `customer_manage`.
       canCreateCustomer={can(profile.role as UserRole, 'customer_manage')}
