@@ -697,7 +697,8 @@ export async function getSmsSettingsAction() {
 export async function saveSmsSettingsAction(rulesInput: unknown) {
   const g = await guard('message_template_manage')
   if (g.error) return { error: g.error }
-  const { rules, error } = validateLeadRules(rulesInput)
+  // 빈 배열 = 사용 안 함(설정 화면의 체크박스가 보낸다)
+  const { rules, error } = validateLeadRules(rulesInput, { allowEmpty: true })
   if (error) return { error }
   const admin = createAdminClient()
   const { data: row } = await admin.from('company_profile').select('id')
@@ -707,6 +708,8 @@ export async function saveSmsSettingsAction(rulesInput: unknown) {
     .update({ sms_lead_rules: rules } as Record<string, unknown>).eq('id', (row as { id: string }).id)
   if (upErr) return { error: '시점 저장에 실패했습니다.' }
   revalidatePath('/inspections/sms')
+  revalidatePath('/inspections/calendar')
+  revalidatePath('/dashboard')
   revalidatePath('/settings/message-templates')
   return { rules }
 }

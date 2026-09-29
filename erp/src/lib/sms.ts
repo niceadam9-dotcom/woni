@@ -762,7 +762,9 @@ export async function loadLeadRules(admin: Admin): Promise<number[]> {
   //   **7일 전 안내 줄이 통째로 사라진다.** 사용자는 "이번 주엔 대상이 없나 보다"로 읽는다.
   //   설정을 못 읽은 것과 설정이 [1]인 것은 완전히 다른 상태다.
   if (error) throw new Error(`발송 시점 설정을 불러오지 못했습니다: ${error.message}`)
-  return validateLeadRules((data as { sms_lead_rules?: unknown } | null)?.sms_lead_rules ?? [1]).rules
+  // 빈 배열은 **사용 안 함**이다(설정 화면의 체크박스). NULL(설정한 적 없음)의 기본 [1]과는 다른 상태다
+  return validateLeadRules(
+    (data as { sms_lead_rules?: unknown } | null)?.sms_lead_rules ?? [1], { allowEmpty: true }).rules
 }
 
 /** '시기 지남'을 어디까지 거슬러 볼 것인가의 **하한**.
@@ -828,6 +830,11 @@ export async function countUnsentNotices(admin: Admin): Promise<{
 export async function loadPendingNotices(admin: Admin) {
   const today = todayKst()
   const rules = await loadLeadRules(admin)
+  // 사전 안내 시점 「사용 안 함」 — 미리 골라 둘 것도, '안내 못 하고 지난 방문'도 없다.
+  // 끈 사람에게 놓친 방문을 세어 보이면 끄는 수단이 없는 것과 같다. 조회도 하지 않는다.
+  if (rules.length === 0) {
+    return { notices: [], overdue: { groups: [], count: 0, blocked: [] }, rules, today }
+  }
   const to = addDays(today, Math.max(...rules, 1))
   // ★ 지난 방문일도 함께 싣는다(includePast) — 종전에는 from을 today로 clamp해서
   //   overdue가 **구조적으로 항상 0**이었고 '시기 지남' 줄이 렌더될 수 없었다.

@@ -10,7 +10,9 @@ import { MessageSquare, ChevronRight, CheckCircle2 } from 'lucide-react'
  *  "위젯이 고장났다"를 구분할 수 없다.
  *
  *  서버 컴포넌트다: 대시보드가 이미 서버에서 데이터를 모으고, 이 값도 그때 함께 계산된다. */
-export function SmsNoticeWidget({ count, messages, nearest, blockedCount = 0, error }: {
+export function SmsNoticeWidget({ count, messages, nearest, blockedCount = 0, error, disabled = false }: {
+  /** 설정에서 사전 안내 시점을 꺼 두었다(시점 0개) */
+  disabled?: boolean
   count: number
   messages: number
   nearest: { leadDays: number; visitDate: string; label: string; unsentCount: number; messageCount: number; totalCount: number; blockedCount?: number } | null
@@ -20,6 +22,9 @@ export function SmsNoticeWidget({ count, messages, nearest, blockedCount = 0, er
   /** 집계 실패 — 위젯을 숨기지 않는다. 숨기면 '할 일 없음'과 구별되지 않는다. */
   error?: string
 }) {
+  // 사전 안내 시점 「사용 안 함」 — 위젯을 그리지 않는다. "오늘 보낼 안내가 없습니다 ✓"를 띄우면
+  // 꺼 둔 기능이 '확인했고 할 일이 없다'고 말하는 셈이다. 오류는 끈 것과 무관하게 아래에서 드러낸다.
+  if (!error && disabled) return null
   if (error) {
     return (
       <div data-testid="dash-sms-widget"

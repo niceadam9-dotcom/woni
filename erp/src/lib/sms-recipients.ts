@@ -304,8 +304,14 @@ export function addDays(baseDate: string, n: number): string {
 // ── 배너 시점 규칙 (Q-12·Q-13) ────────────────────────────────
 export type LeadRuleError = string | null
 
-/** 시점 규칙 검증 — 중복·음수·비정수를 거부한다. 저장 전에 막지 않으면 배너가 이상해진다. */
-export function validateLeadRules(input: unknown): { rules: number[]; error: LeadRuleError } {
+/** 시점 규칙 검증 — 중복·음수·비정수를 거부한다. 저장 전에 막지 않으면 배너가 이상해진다.
+ *
+ *  `allowEmpty` — **빈 배열 = 「사전 안내 시점 사용 안 함」**(2026-09-29 사용자 요청).
+ *  설정을 읽고 저장하는 쪽만 켠다. 기본은 종전대로 거부다: 시점 태그를 하나씩 지우다
+ *  마지막까지 지워 **모르는 사이에 꺼지는** 길을 막는다 — 끄는 것은 체크박스로만 한다. */
+export function validateLeadRules(
+  input: unknown, opts: { allowEmpty?: boolean } = {},
+): { rules: number[]; error: LeadRuleError } {
   if (!Array.isArray(input)) return { rules: [], error: '시점 목록의 형식이 올바르지 않습니다.' }
   const nums: number[] = []
   for (const v of input) {
@@ -316,7 +322,9 @@ export function validateLeadRules(input: unknown): { rules: number[]; error: Lea
     if (nums.includes(n)) return { rules: [], error: `중복된 시점이 있습니다: ${dDayLabel(n)}` }
     nums.push(n)
   }
-  if (nums.length === 0) return { rules: [], error: '시점을 최소 1개 지정해주세요.' }
+  if (nums.length === 0) {
+    return opts.allowEmpty ? { rules: [], error: null } : { rules: [], error: '시점을 최소 1개 지정해주세요.' }
+  }
   // 먼 시점부터 — 배너에서 급한 것이 아래로 오면 눈이 헤맨다
   return { rules: nums.sort((a, b) => b - a), error: null }
 }

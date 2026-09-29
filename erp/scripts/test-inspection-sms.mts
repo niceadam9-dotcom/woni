@@ -570,6 +570,62 @@ async function main() {
     await page.waitForSelector('[data-testid="sms-notice"]', { timeout: 30000 })
     check('★ 자동 준비 줄 수 = 설정된 시점 수', await page.locator('[data-testid="sms-notice"]').count() === 2,
       String(await page.locator('[data-testid="sms-notice"]').count()))
+
+    console.log('\n— 사전 안내 시점 「사용 안 함」')
+    {
+      const rulesInDb = async () => {
+        const { data } = await raw.from('company_profile')
+          .select('sms_lead_rules').order('id', { ascending: true }).limit(1).maybeSingle()
+        return JSON.stringify((data as { sms_lead_rules: unknown } | null)?.sms_lead_rules)
+      }
+      const waitRules = async (want: string) => {
+        const start = Date.now()
+        while (Date.now() - start < 15000) { if (await rulesInDb() === want) return true; await page.waitForTimeout(400) }
+        return false
+      }
+      await page.goto(`${BASE}/settings/message-templates`, { waitUntil: 'domcontentloaded' })
+      await page.waitForSelector('[data-testid="lead-rule-tag"]', { timeout: 30000 })
+      const offBox = page.locator('[data-testid="lead-rule-off"]')
+      check('전제: 켜져 있는 상태(시점 2개·체크 해제)',
+        await page.locator('[data-testid="lead-rule-tag"]').count() === 2 && !(await offBox.isChecked()))
+      await offBox.click()   // check()는 즉시 상태를 확인한다 — 이 체크박스는 저장이 끝나야 바뀐다(DB로 기다린다)
+      check('★ 체크하면 빈 시점으로 저장된다', await waitRules('[]'), await rulesInDb())
+      await page.waitForSelector('[data-testid="lead-rule-off-note"]', { timeout: 15000 })
+      check('★ 꺼졌다고 화면이 말하고, 시점 입력이 사라진다',
+        await page.locator('[data-testid="lead-rule-tag"]:visible').count() === 0 &&
+        await page.locator('[data-testid="lead-rule-input"]').count() === 0)
+      await page.reload({ waitUntil: 'domcontentloaded' })
+      await page.waitForSelector('[data-testid="lead-rule-off-note"]', { timeout: 30000 })
+      check('★ 새로 열어도 체크가 유지된다(빈 값을 기본 [내일]로 되살리지 않는다)', await offBox.isChecked())
+
+      await page.goto(`${BASE}/inspections/calendar?sms=1`, { waitUntil: 'domcontentloaded' })
+      await page.waitForSelector('[data-testid="sms-auto-off"]', { timeout: 30000 })
+      check('★ 달력 패널이 「사용하지 않습니다」를 말한다 — "보낼 안내 없음 ✓"가 아니다',
+        await page.locator('[data-testid="sms-notice"]').count() === 0 &&
+        !/보낼 안내 없음/.test(await page.locator('[data-testid="cal-sms-panel"]').innerText()))
+      check('★ 꺼 둔 사람에게 「안내 못 하고 지난 방문」을 세어 보이지 않는다',
+        await page.locator('[data-testid="sms-overdue"]').count() === 0)
+      check('★ 직접 보내기는 그대로 있다',
+        await page.locator('[data-testid="cal-sms-date"]').isVisible() &&
+        await page.locator('[data-testid="sms-adhoc-toolbar"]').isVisible())
+      // 숫자는 마운트 후에 온다 — 「없다」를 단언하려면 올 시간을 준 뒤에 본다(내일 미발송은 여전히 있다)
+      await page.waitForTimeout(4000)
+      check('★ 도구줄 버튼·사이드바에 숫자가 없다',
+        await page.locator('[data-testid="calendar-sms-count"]').count() === 0 &&
+        await page.locator('[data-testid="sidebar-sms-badge"]').count() === 0)
+      await page.goto(`${BASE}/dashboard`, { waitUntil: 'domcontentloaded' })
+      await page.waitForTimeout(3000)
+      check('★ 대시보드 알림도 뜨지 않는다',
+        await page.locator('[data-testid="dash-sms-widget"]').count() === 0)
+
+      await page.goto(`${BASE}/settings/message-templates`, { waitUntil: 'domcontentloaded' })
+      await page.waitForSelector('[data-testid="lead-rule-off-note"]', { timeout: 30000 })
+      await offBox.click()
+      check('★ 다시 켜면 끄기 전 시점이 되살아난다(껐다 켠 것만으로 설정을 잃지 않는다)',
+        await waitRules('[3,1]'), await rulesInDb())
+      await page.waitForSelector('[data-testid="lead-rule-tag"]', { timeout: 15000 })
+      check('시점 태그가 다시 보인다', await page.locator('[data-testid="lead-rule-tag"]:visible').count() === 2)
+    }
   } finally {
     if (savedRules) {
       // 모든 행을 되돌린다 — 행이 갈라지면 다음 실행이 어느 행을 볼지에 따라 결과가 달라진다

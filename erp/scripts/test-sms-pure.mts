@@ -207,6 +207,15 @@ ok('중복 거부', /중복/.test(validateLeadRules([1, 1]).error ?? ''))
 ok('음수 거부', /0\(당일\) 이상/.test(validateLeadRules([-1]).error ?? ''))
 ok('비정수 거부', /정수/.test(validateLeadRules([1.5]).error ?? ''))
 ok('빈 배열 거부', /최소 1개/.test(validateLeadRules([]).error ?? ''))
+// 사용 안 함(2026-09-29) — 빈 배열은 **설정을 읽고 저장하는 쪽에서만** 통한다.
+// 기본이 거부인 것이 요점이다: 태그를 지우다 모르는 사이에 꺼지지 않는다.
+ok('allowEmpty면 빈 배열 = 사용 안 함(오류 없음)',
+  validateLeadRules([], { allowEmpty: true }).error === null
+  && validateLeadRules([], { allowEmpty: true }).rules.length === 0)
+ok('allowEmpty여도 나머지 검증은 그대로(중복 거부)', /중복/.test(validateLeadRules([1, 1], { allowEmpty: true }).error ?? ''))
+ok('allowEmpty여도 배열 아님은 거부', /형식/.test(validateLeadRules(null as unknown, { allowEmpty: true }).error ?? ''))
+ok('시점이 없으면 보낼 안내 줄도 없다',
+  resolvePendingNotices([], [], '2026-09-29', () => false).notices.length === 0)
 ok('배열 아님 거부', /형식/.test(validateLeadRules('1' as unknown).error ?? ''))
 
 console.log('\n— resolvePendingNotices (Q-12의 심장)')

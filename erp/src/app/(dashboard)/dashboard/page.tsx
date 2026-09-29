@@ -469,7 +469,8 @@ export default async function DashboardPage() {
       {smsNotice && ('error' in smsNotice
         ? <SmsNoticeWidget count={0} messages={0} nearest={null} error={smsNotice.error} />
         : <SmsNoticeWidget count={smsNotice.count} messages={smsNotice.messages}
-            nearest={smsNotice.nearest} blockedCount={smsNotice.blockedCount} />
+            nearest={smsNotice.nearest} blockedCount={smsNotice.blockedCount}
+            disabled={smsNotice.rules.length === 0} />
       )}
 
       {/* ── 문서 할 일 위젯 (소방계획서_5 R0-9) — 하루의 시작점 ── */}

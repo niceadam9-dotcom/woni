@@ -73,6 +73,7 @@ export function CalendarSmsPanel({ onClose, onOpenModal, reloadKey }: {
   const custPick = custOptions.find(c => c.name === custQuery) ?? null
 
   const notices = data?.notices ?? []
+  const autoOff = !!data && data.rules.length === 0
   const blockedTotal = notices.reduce((n, x) => n + x.blockedCount, 0)
   const blockedNames = [...new Set(notices.flatMap(n => n.blocked).map(b => `${b.customerName}(${b.reason})`))]
   const md = (d: string) => `${+d.slice(5, 7)}월 ${+d.slice(8, 10)}일`
@@ -108,6 +109,18 @@ export function CalendarSmsPanel({ onClose, onOpenModal, reloadKey }: {
             {!data && !err && (
               <p className="mt-3 flex items-center gap-2 text-xs text-ink-sub">
                 <Loader2 className="size-3.5 animate-spin" /> 보낼 안내를 계산하는 중…
+              </p>
+            )}
+
+            {/* 사전 안내 시점 「사용 안 함」 — 빈 목록을 「보낼 안내 없음 ✓」로 읽히게 두지 않는다.
+                할 일이 없는 것과 기능을 꺼 둔 것은 다른 상태다 */}
+            {autoOff && (
+              <p data-testid="sms-auto-off"
+                className="mt-2 rounded-lg bg-paper border border-line px-3 py-2 text-form-xs text-ink-sub">
+                자동 준비를 <b>사용하지 않습니다.</b> 아래 「직접 보내기」로 보냅니다.
+                {data!.canEditRules && (
+                  <> <Link href="/settings/message-templates" className="text-brand hover:underline">다시 켜기</Link></>
+                )}
               </p>
             )}
 
@@ -152,7 +165,7 @@ export function CalendarSmsPanel({ onClose, onOpenModal, reloadKey }: {
               </p>
             )}
 
-            {data && (
+            {data && !autoOff && (
               <p className="mt-3 flex items-center gap-1.5 text-form-2xs text-ink-soft">
                 안내 시점: {[...data.rules].sort((a, b) => a - b).map(dDayLabel).join(' · ')}
                 {data.canEditRules && (
