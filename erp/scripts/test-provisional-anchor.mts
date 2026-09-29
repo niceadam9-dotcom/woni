@@ -134,8 +134,16 @@ check('⑤ 권한이 없으면 안 그린다', /canCreateCustomer && \([\s\S]{0,
 /* 데이 패널 버튼은 이 줄에서 **유일한 채움**이어야 뜻이 산다 */
 check('⑤ 데이 패널 등록 버튼이 채움색이다',
   /daypanel-new-customer[\s\S]{0,900}?bg-brand text-white/.test(calCode))
+/* 사전안내 버튼은 「이 날 문자」 카드(day-sms-card)로 이사했다(2026-09-29). 달력 파일에서 찾으면
+   식별자가 없어 **공허하게 초록**이 된다 — 버튼이 실제로 사는 파일에서, **있는 것부터** 확인한다.
+   범위는 그 버튼 하나(</button>까지)다: 옆의 [골라서 보내기]는 켜졌을 때 채워지는 토글이라 다른 계약이다. */
+const cardCode = codeOnly(read('../src/components/sms/day-sms-card.tsx'))
+const smsDayAt = cardCode.indexOf('data-testid="calendar-sms-day"')
+const smsDayBtn = smsDayAt >= 0 ? cardCode.slice(smsDayAt, cardCode.indexOf('</button>', smsDayAt)) : ''
+check('⑤ 사전안내 버튼이 카드에 있다(검사 자체가 성립)', smsDayBtn.length > 0)
 check('⑤ 형제 버튼(사전안내)은 테두리 그대로다 — 채움이 둘이면 강조가 죽는다',
-  !/calendar-sms-day[\s\S]{0,600}?bg-brand text-white/.test(calCode))
+  smsDayBtn.length > 0 && !/bg-brand text-white/.test(smsDayBtn) && /btnOutline/.test(smsDayBtn))
+check('⑤ 달력 파일에는 옛 사전안내 버튼이 남아 있지 않다(두 벌 금지)', !calCode.includes('calendar-sms-day'))
 /* ⛔ R8b 드래그와 충돌하는 슬롯 선택은 여전히 끄고 간다 */
 check('⑤⛔ onSelectSlot은 켜지 않았다(칸 버튼으로 푼다)', !/onSelectSlot=/.test(calCode))
 

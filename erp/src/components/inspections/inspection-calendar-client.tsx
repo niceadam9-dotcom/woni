@@ -16,6 +16,7 @@ import {
 } from 'lucide-react'
 import { InspectionSmsModal, type SmsModalSource } from '@/components/sms/inspection-sms-modal'
 import { CalendarSmsPanel } from '@/components/sms/calendar-sms-panel'
+import { DaySmsCard } from '@/components/sms/day-sms-card'
 import { completeStepAction, bulkCompleteStepsAction, bulkStartCompletePlanItemsAction } from '@/app/(dashboard)/inspections/actions'
 import { moveMonthlyPlanItemAction, previewInspectionDateChangeAction, changeInspectionDateAction } from '@/app/(dashboard)/inspections/plan-date-actions'
 import { type WorkbookNoticePart } from '@/lib/workbook-notice'
@@ -2098,23 +2099,33 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
                     <X className="size-5" strokeWidth={2.75} />
                   </button>
                 </div>
+                {/* 「이 날 문자」 카드 — 날짜를 누르면 **보낼지 말지부터** 보인다(2026-09-29 사용자 요청).
+                    문자 버튼 둘([사전안내 문자]·[문자 선택])은 아래 버튼 줄에서 이리로 옮겼다.
+                    ⚠ 날짜만 넘기던 원칙(Q-14)은 그대로다: 발송 창의 목록은 서버가 만든 그날 전체이고,
+                      카드는 「아직 안 보낸 곳」을 미리 체크해 줄 뿐이다. */}
+                {smsDayOpen && dayPanelDate && (
+                  <DaySmsCard
+                    date={dayPanelDate}
+                    reloadKey={smsReloadKey}
+                    selectMode={smsSelectMode}
+                    canSelect={smsDayCustomerIds.length > 1}
+                    onSend={ids => setSmsSource({
+                      kind: 'range', from: dayPanelDate, to: dayPanelDate,
+                      title: `${format(d, 'M월 d일', { locale: ko })} 방문 — 사전 안내`,
+                      preselectCustomerIds: ids,
+                    })}
+                    onToggleSelect={() => {
+                      setSmsSelectMode(v => !v)
+                      setSmsChecked(new Set())
+                      setMoveSelectMode(false)
+                      setMoveChecked(new Set())
+                    }}
+                  />
+                )}
                 {/* 버튼이 셋이라 한 줄에 같이 두면 400px에서 요약 글자가 3줄로 접힌다 → 줄을 나눈다 */}
-                <div className="mt-0.5">
+                <div className="mt-1.5">
                   <p className="text-xs text-ink-sub">단계 일정 {dayPanelSteps.length}건 · 계획 일정 {dayPanelPlans.length}건</p>
                   <span className="flex items-center gap-1 flex-wrap mt-1.5">
-                    {/* 사전 안내 문자 — **주 발송 경로**(소방계획서_24 Q-14·Q-15).
-                        칩을 체크하지 않고 **날짜만 넘긴다**: 서버가 그날 방문 전 건을 계산하므로
-                        ①달력 쪽 신규 상태가 0개이고 ②②~⑥ 서류 마감 칩에 "내일 방문" 문자가
-                        나가는 사고가 원천 차단되며 ③달력이 로드하지 않는 자체점검도 목록에 든다. */}
-                    {canSendSms && (
-                      <button
-                        data-testid="calendar-sms-day"
-                        onClick={() => setSmsSource({ kind: 'range', from: dayPanelDate, to: dayPanelDate, title: `${format(d, 'M월 d일', { locale: ko })} 방문 — 사전 안내` })}
-                        className="text-form-xs font-medium text-brand border border-brand-line rounded-lg px-2 py-0.5 hover:bg-brand-tint transition-colors inline-flex items-center gap-1 whitespace-nowrap"
-                        title="이 날짜에 방문하는 고객에게 사전 안내 문자를 보냅니다">
-                        <MessageSquare className="size-3" /> 사전안내 문자
-                      </button>
-                    )}
                     {/* 이 날짜로 고객 등록 (2026-09-22) — 달력의 단위가 곧 점검일자 칸이라
                         짚은 날짜가 그대로 프리필된다. 등록하면 그 자리에 칩이 바로 뜬다.
                         🚨 **패널을 닫지 않는다.** 닫으면 위 effect가 주소에서 `?day=`를 지워
@@ -2141,25 +2152,6 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
                         className="text-form-xs font-medium text-brand border border-brand-line rounded-lg px-2 py-0.5 hover:bg-brand-tint transition-colors inline-flex items-center gap-1 whitespace-nowrap disabled:opacity-40"
                         title={moveSelectMode ? '날짜 이동 선택 중에는 사용할 수 없습니다' : '이 날짜의 미완료 단계·미시작 정기·일반 계획을 한 번에 완료 처리'}>
                         <Check className="size-3" /> 이날 전체 완료 ({bulkTotal})
-                      </button>
-                    )}
-                    {/* 문자 골라 보내기 — 켜면 **방문 행**에 체크박스가 생긴다(서류 마감 행은 대상이 아니다) */}
-                    {smsDayCustomerIds.length > 1 && (
-                      <button
-                        data-testid="day-sms-toggle"
-                        onClick={() => {
-                          setSmsSelectMode(v => !v)
-                          setSmsChecked(new Set())
-                          setMoveSelectMode(false)
-                          setMoveChecked(new Set())
-                        }}
-                        disabled={isBulkMoving}
-                        className={`text-form-xs font-medium border rounded-lg px-2 py-0.5 transition-colors inline-flex items-center gap-1 whitespace-nowrap disabled:opacity-50 ${
-                          smsSelectMode
-                            ? 'bg-brand border-brand text-white'
-                            : 'text-brand border-brand-line hover:bg-brand-tint'}`}
-                        title="이 날짜에 방문하는 고객 중 골라서 문자를 보냅니다">
-                        <MessageSquare className="size-3" /> {smsSelectMode ? '선택 취소' : '문자 선택'}
                       </button>
                     )}
                     {/* 정기 여러 건 날짜 이동 — 켜면 이동 가능한 정기 행에 체크박스가 생긴다 */}

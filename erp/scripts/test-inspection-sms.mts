@@ -362,7 +362,42 @@ async function main() {
 
     console.log('\n— Q-14: 달력 날짜 패널 (날짜 전달 방식)')
     await page.goto(`${BASE}/inspections/calendar?day=${TOMORROW}`, { waitUntil: 'domcontentloaded' })
-    await page.waitForSelector('[data-testid="calendar-sms-day"]', { timeout: 30000 })
+    // 「이 날 문자」 카드 — 날짜를 누르면 보낼지 말지부터 보인다. 세는 일이 끝난 뒤에 읽는다
+    await page.waitForSelector('[data-testid="day-sms-card"][data-state="unsent"]', { timeout: 30000 })
+    {
+      const cardText = await page.locator('[data-testid="day-sms-card"]').innerText()
+      const total = Number(/이 날 방문 (\d+)곳/.exec(cardText)?.[1] ?? -1)
+      const unsent = Number(/아직 안 보냄 (\d+)곳/.exec(cardText)?.[1] ?? -1)
+      // 이 실행이 심은 방문: A·B·C(보낼 수 있음) + E(번호 없음). 실데이터가 더 있을 수 있어 하한으로 본다
+      check('★ 카드가 그날 방문 수와 아직 안 보낸 수를 말한다', total >= 4 && unsent >= 3 && unsent < total,
+        cardText.replace(/\n/g, ' '))
+      check('★ 보낼 수 없는 곳도 카드에서 말한다(번호 없는 고객 E가 분모에 있다)',
+        /보낼 수 없음 \d+곳/.test(cardText), cardText.replace(/\n/g, ' '))
+      check('★ 버튼에 찍힌 수 = 아직 안 보낸 수',
+        (await page.locator('[data-testid="calendar-sms-day"]').innerText()).includes(`${unsent}곳에 보내기`),
+        await page.locator('[data-testid="calendar-sms-day"]').innerText())
+
+      // 이미 보낸 곳은 체크에서 빠진다 — 날짜를 누를 때마다 같은 고객에게 또 나가지 않게
+      await raw.from('sms_send_log').insert({
+        kind: 'pre_visit', customer_id: cidB, plan_item_ids: [], visit_date: TOMORROW,
+        to_phone: '01055556666', content: 'x', status: 'sent', sent_by: userId,
+      })
+      await page.reload({ waitUntil: 'domcontentloaded' })
+      await page.waitForSelector('[data-testid="day-sms-card"][data-state="unsent"]', { timeout: 30000 })
+      const after = Number(/아직 안 보냄 (\d+)곳/.exec(await page.locator('[data-testid="day-sms-card"]').innerText())?.[1] ?? -1)
+      check('★ 한 곳을 보내면 「아직 안 보냄」이 하나 준다', after === unsent - 1, `${unsent} → ${after}`)
+      await page.locator('[data-testid="calendar-sms-day"]').click()
+      await page.waitForSelector('[data-testid="sms-group"]', { timeout: 20000 })
+      const pk = async (cid: string) =>
+        page.locator(`[data-testid="sms-group"][data-customer-id="${cid}"]`).getAttribute('data-picked')
+      check('★ [N곳에 보내기]는 **이미 보낸 곳을 체크하지 않는다**(목록에는 남는다)',
+        await pk(cidB) === '0' && await pk(cidA) === '1' && await pk(cidC) === '1',
+        `A=${await pk(cidA)} B=${await pk(cidB)} C=${await pk(cidC)}`)
+      await page.locator('[data-testid="sms-modal"] button', { hasText: '닫기' }).first().click()
+      await raw.from('sms_send_log').delete().eq('customer_id', cidB)
+      await page.reload({ waitUntil: 'domcontentloaded' })
+      await page.waitForSelector('[data-testid="day-sms-card"][data-state="unsent"]', { timeout: 30000 })
+    }
     check('툴바에 [문자 보내기]가 있다', await page.locator('[data-testid="calendar-sms-toolbar"]').isVisible())
     // 패널 고객명 검색으로 화면을 이 실행이 심은 행으로 좁힌다(실데이터가 있는 DB에서도 돌게)
     await page.locator('input[placeholder="고객명 검색..."]').fill(`문자UI-`)
@@ -373,7 +408,7 @@ async function main() {
     check('★ 달력에서 열어도 자체점검 포함 전 건이 뜬다 — 달력이 무엇을 로드했는지와 무관(Q-14)',
       calGroups.some(t => t.includes(`문자UI-A${SUF}`)) && calGroups.some(t => t.includes(`문자UI-B${SUF}`)),
       calGroups.join(' | ').slice(0, 300))
-    check('★ 날짜 전체로 열면 전원이 체크돼 있다(고른 적이 없으니)',
+    check('★ 아무에게도 안 보낸 날은 전원이 체크돼 있다',
       await page.locator(`[data-testid="sms-group"][data-customer-id="${cidB}"]`).getAttribute('data-picked') === '1' &&
       await page.locator(`[data-testid="sms-group"][data-customer-id="${cidC}"]`).getAttribute('data-picked') === '1')
     await page.locator('[data-testid="sms-modal"] button', { hasText: '닫기' }).first().click()

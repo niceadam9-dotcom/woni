@@ -21,7 +21,7 @@ try {
   await page.screenshot({ path: `${OUT}/1-panel.png` })
 
   await page.goto(`${BASE}/inspections/calendar?day=${kst(1)}`, { waitUntil: 'domcontentloaded' })
-  await page.waitForSelector('[data-testid="calendar-sms-day"]')
+  await page.waitForSelector(`[data-testid="day-sms-card"]:not([data-state="loading"])`)
   await page.waitForTimeout(1500)
   await page.screenshot({ path: `${OUT}/2-day.png` })
   if (await page.locator('[data-testid="day-sms-toggle"]').count()) {

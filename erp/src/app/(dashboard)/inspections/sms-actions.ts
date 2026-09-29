@@ -534,6 +534,40 @@ export async function listPendingNoticesAction() {
   }
 }
 
+/** 달력 날짜 패널의 「이 날 문자」 카드 — 그날 방문 중 **아직 안 보낸 곳**을 세어 준다.
+ *
+ *  날짜를 누른 사람이 발송 창을 열어 보기 전에 "보낼 것이 있는가"를 알게 하려는 것이다.
+ *  세는 규칙은 발송 창·자동 준비와 같다: 대상 = loadSmsTargets, 보냄 = loadSentPairs의 (고객, 방문일) 쌍.
+ *  시점 규칙과는 무관하다 — 「사용 안 함」이어도 날짜를 골라 직접 보내는 길은 열려 있다. */
+export async function getDaySmsSummaryAction(date: string) {
+  const g = await guard('inspection_sms_send')
+  if (g.error) return { error: g.error }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return { error: '날짜 형식이 올바르지 않습니다.' }
+  if (date < todayKst()) return { error: '지난 날짜에는 방문 안내를 보낼 수 없습니다.' }
+  try {
+    const admin = createAdminClient()
+    const { groups, noPhone } = groupTargets(await loadSmsTargets(admin, { from: date, to: date }))
+    const sent = await loadSentPairs(admin, date, date)
+    const sendable = groups.filter(x => x.sendable)
+    const unsent = sendable.filter(x => !sent.has(`${x.customerId}|${x.visitDate}`))
+    return {
+      date,
+      /** 그날 방문하는 곳 전부(보낼 수 없는 곳 포함) — "N곳 중"의 분모 */
+      total: groups.length + noPhone.length,
+      sentCount: sendable.length - unsent.length,
+      unsentCustomerIds: unsent.map(x => x.customerId),
+      messageCount: unsent.reduce((n, x) => n + x.recipients.length, 0),
+      blocked: [
+        ...groups.filter(x => !x.sendable).map(x => ({ customerName: x.customerName, reason: x.unsendableReason ?? '발송 불가' })),
+        ...noPhone.map(n => ({ customerName: n.customerName, reason: n.reason })),
+      ],
+    }
+  } catch (e) {
+    // 실패를 0곳으로 뭉개면 "보낼 곳 없음"으로 읽힌다 — 사유를 올린다
+    return { error: e instanceof Error ? e.message : String(e) }
+  }
+}
+
 /** 문자 발송 이력 — **발송한 날** 축으로 읽는다 (2026-09-29, 발송 화면을 이력 전용으로 축소).
  *
  *  listSmsStatusAction은 「앞으로 방문할 계획」 축이라 하한이 오늘이다 — 지난주에 보낸 문자는
