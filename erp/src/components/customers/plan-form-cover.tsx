@@ -2,7 +2,6 @@
 
 import { useState, useTransition } from 'react'
 import { BookMarked } from 'lucide-react'
-import { useRouter } from 'next/navigation'
 import { saveFirePlanSectionsAction } from '@/app/(dashboard)/customers/fire-plan-form-actions'
 import { useUnsavedWarning } from '@/components/ui/fields'
 import { SaveBar } from '@/components/customers/key-fields'
@@ -21,7 +20,6 @@ export function PlanFormCover({ customerId, canManage, initial, defaults }: {
   /** 자동값 미리보기 — 업체명=고객명, 연도=올해 (서버 생성 폴백과 동일 규약) */
   defaults: { company: string; year: string }
 }) {
-  const router = useRouter()
   const [v, setV] = useState<ReportCoverSection>({ company: '', year: '', sub: '', ...initial })
   const [dirty, setDirty] = useState(false)
   const [msg, setMsg] = useState('')
@@ -39,7 +37,6 @@ export function PlanFormCover({ customerId, canManage, initial, defaults }: {
         if (res.error) { setMsg(`❌ ${res.error}`); resolve(false); return }
         setDirty(false)
         setMsg('✅ 보고서 커버 저장됨')
-        router.refresh()
         resolve(true)
       })
     })

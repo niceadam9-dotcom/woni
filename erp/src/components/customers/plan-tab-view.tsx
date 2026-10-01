@@ -158,7 +158,9 @@ export function PlanTabView({
     url.searchParams.set('tab', 'plan')
     url.searchParams.set('form', key)
     url.searchParams.delete('sub')
-    window.history.replaceState(window.history.state, '', url.toString())
+    // state는 null — window.history.state(Next 표식 __NA 포함)를 넘기면 라우터가 자기 호출로 보고 URL 동기화를
+    // 건너뛰어, 다음 서버 액션 응답에서 form=이 옛 값으로 돌아간다(customer-tabs applySwitchTab 주석, 2026-10-01)
+    window.history.replaceState(null, '', url.toString())
     // 포커스를 **이동이 실제로 일어난 여기서만** 옮긴다 — 키 핸들러에서 옮기면 미저장 확인창이 떠서
     // 이동이 보류된 경우에도 포커스가 앞서 나간다(2026-09-21 실측). tab-form-tree와 같은 규약.
     focusTreeNode(treeRef.current, key)
@@ -223,7 +225,6 @@ export function PlanTabView({
         const res = await autoApplyLedgerEmptyAction(customerId)
         if (res.filled && res.filled > 0) {
           setMsg(`✅ 건축물대장 값 ${res.filled}개를 자동으로 채웠습니다 (빈 칸만) — 필수 완성도에 반영됩니다.`)
-          router.refresh()
         }
       } catch { /* best-effort */ }
     })
@@ -240,7 +241,6 @@ export function PlanTabView({
         const res = await applyPlanTextDefaultsAction(customerId)
         if (res.filled && res.filled.length > 0) {
           setMsg(`✅ 공통 기본 서술 ${res.filled.length}개 서식을 채웠습니다 (빈 칸만) — ${res.filled.map(f => f.title).join(' · ')} — 각 서식에서 확인·수정하세요.`)
-          router.refresh()
         }
       } catch { /* best-effort */ }
     })
@@ -323,7 +323,6 @@ export function PlanTabView({
       if (res.error) { setMsg(`❌ ${res.error}`); setImportHidden(true); return }
       setMsg(`✅ 이전 생성 데이터에서 가져왔습니다 (${(res.imported ?? []).length}개 섹션) — 서식 전체 모드에서 확인해주세요.`)
       setImportHidden(true)
-      router.refresh()
     })
   }
 

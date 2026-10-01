@@ -523,7 +523,6 @@ export function BuildingListPanel({ customerId, customerName, customerAddress, b
         // buildingId 없는 응답(구버전 폴백) — 신규 폼을 열어 두면 중복 등록 통로라 종전대로 접는다
         close()
       }
-      router.refresh()
     })
   }
 
@@ -542,7 +541,6 @@ export function BuildingListPanel({ customerId, customerName, customerAddress, b
       // 마이그레이션 160 미적용 DB에서는 컬럼이 없어 실패한다 — 사용자에게 그대로 알린다
       // (조용히 삼키면 '눌렀는데 안 바뀐다'가 되고, 원인을 찾을 단서가 사라진다)
       if (res.error) { setError(res.error); return }
-      router.refresh()
     })
   }
 
@@ -552,7 +550,6 @@ export function BuildingListPanel({ customerId, customerName, customerAddress, b
       const res = await deleteBuildingAction(b.id)
       if (res.error) { setError(res.error); return }
       if (editing === b.id) close()
-      router.refresh()
     })
   }
 

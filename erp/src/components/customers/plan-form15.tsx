@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { useRouter } from 'next/navigation'
 import { Plus, Trash2 } from 'lucide-react'
 import { saveFirePlanSectionsAction } from '@/app/(dashboard)/customers/fire-plan-form-actions'
 import { useUnsavedWarning, NumStepper } from '@/components/ui/fields'
@@ -72,7 +71,6 @@ export function PlanForm15({ customerId, canManage, initialEvacFire, initialMaps
   /** 계단 4종 개소(대표동) — **읽기 전용 표시**다. 입력구는 건물·시설 탭 하나뿐이다(마이그 165) */
   stairCounts?: Partial<Record<StairKind, string>>
 }) {
-  const router = useRouter()
   const tabs = useCustomerTabs()   // 탭 셸 밖에서는 null — 옵셔널로 부른다
   const [ef, setEf] = useState<EvacFireSection>({ ...EMPTY_EVAC_FIRE, ...initialEvacFire })
   const [maps, setMaps] = useState<EvacMapRow[]>(initialMaps)
@@ -93,7 +91,6 @@ export function PlanForm15({ customerId, canManage, initialEvacFire, initialMaps
         if (res.error) { setMsg(`❌ ${res.error}`); resolve(false); return }
         setDirty(false)
         setMsg('✅ 서식 1.5 저장됨')
-        router.refresh()
         resolve(true)
       })
     })

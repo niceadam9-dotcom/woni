@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useTransition, type ReactNode } from 'react'
 import { Loader2, ImagePlus, Trash2, ClipboardPaste, Download, MoveUpRight, X, ImageIcon } from 'lucide-react'
-import { useRouter } from 'next/navigation'
+import { listFireStationCandidatesAction } from '@/app/(dashboard)/customers/fire-plan-info-actions'
 import {
   saveFirePlanSectionsAction, uploadPlanAssetAction, deletePlanAssetAction, getPlanAssetUrlAction,
   suggestSurroundingsAction,
@@ -344,7 +344,7 @@ export function goPlanNode(key: string) {
 
 export function PlanForm13({
   customerId, canManage, initialLocation, initialFireAccess, initialPhotos = [], assetsSlot,
-  hasMapAsset = false, autoFireStation = '', fireStationEstimated = false, stationCandidates = [],
+  hasMapAsset = false, autoFireStation = '', fireStationEstimated = false, stationCandidates,
 }: {
   customerId: string
   canManage: boolean
@@ -355,9 +355,10 @@ export function PlanForm13({
   hasMapAsset?: boolean        // [지도·사진] map_location 슬롯 등록 여부 (D-1 단일 원천 판정)
   autoFireStation?: string     // 고객 정보의 관할 소방서 — 1.3이 비면 이 값이 인쇄된다 (D-3)
   fireStationEstimated?: boolean  // 그 값이 '추정'(fire_station_source='estimate')인지 (C-1)
-  stationCandidates?: string[] // 행정구역 매핑 드롭다운 후보 — 같은 시/군 → 같은 시/도 순 (listFireStationCandidates)
+  /** 행정구역 매핑 드롭다운 후보 — 같은 시/군 → 같은 시/도 순 (listFireStationCandidates).
+   *  주지 않으면(undefined) 마운트 때 액션으로 받는다(3단계, 2026-10-01 — 고객 페이지 서버 렌더에서 뺐다) */
+  stationCandidates?: string[]
 }) {
-  const router = useRouter()
   const [loc, setLoc] = useState(initialLocation)
   const [fa, setFa] = useState(initialFireAccess)
   const [photos, setPhotos] = useState<PlanPhotoRow[]>(initialPhotos)
@@ -374,11 +375,22 @@ export function PlanForm13({
 
   // 관할 소방서 드롭다운 — 관할은 행정구역 기준이라 좌표 근접이 아닌 매핑 후보를 쓴다.
   // 목록에 없는 값(수동 입력·구 명칭)이 저장돼 있으면 직접 입력 모드로 시작한다.
-  const stationOptions = [...new Set([autoFireStation, ...stationCandidates].map(st => st.trim()).filter(Boolean))]
-  const [stationCustom, setStationCustom] = useState(() => {
-    const v = initialLocation.fireStation.trim()
-    return !!v && !stationOptions.includes(v)
-  })
+  // 후보를 prop으로 받지 않았으면 마운트 때 액션으로 받는다(3단계). 받기 전엔 자동 지정값만 목록에 있다.
+  const [fetchedCandidates, setFetchedCandidates] = useState<string[] | null>(null)
+  useEffect(() => {
+    if (stationCandidates !== undefined) return
+    let alive = true
+    listFireStationCandidatesAction(customerId)
+      .then(r => { if (alive && r.candidates) setFetchedCandidates(r.candidates) })
+      .catch(() => { /* 후보 없이도 직접 입력으로 저장할 수 있다 */ })
+    return () => { alive = false }
+  }, [customerId, stationCandidates])
+  const stationOptions = [...new Set([autoFireStation, ...(stationCandidates ?? fetchedCandidates ?? [])].map(st => st.trim()).filter(Boolean))]
+  // 직접 입력 모드 — 사용자가 고르기 전(null)에는 **저장값이 후보 목록에 있는가**로 매 렌더 판정한다.
+  // 후보가 액션으로 늦게 오면 그 판정도 따라 바뀐다(마운트 때 후보가 비어 「목록에 없는 값」이던 것이 풀린다).
+  const [stationCustomChoice, setStationCustom] = useState<boolean | null>(null)
+  const savedStation = initialLocation.fireStation.trim()
+  const stationCustom = stationCustomChoice ?? (!!savedStation && !stationOptions.includes(savedStation))
 
   function patchLoc(p: Partial<LocationSection>) { setLoc(v => ({ ...v, ...p })); setDirty(true) }
   function patchFa(p: Partial<FireAccessSection>) { setFa(v => ({ ...v, ...p })); setDirty(true) }
@@ -565,7 +577,6 @@ export function PlanForm13({
         if (res.error) { setMsg(`❌ ${res.error}`); resolve(false); return }
         setDirty(false)
         setMsg('✅ 서식 1.3 저장됨')
-        router.refresh()
         resolve(true)
       })
     })

@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useMemo, useState, useTransition } from 'react'
-import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Loader2, Building2, Shield, Clock, Flame, UserPlus, RefreshCw, Sparkles, Mail, ShieldCheck, ExternalLink } from 'lucide-react'
 import { saveFirePlanInfoAction, refreshLedgerAction, type FirePlanInfoInput, type BrigadeMemberInput } from '@/app/(dashboard)/customers/fire-plan-info-actions'
@@ -55,7 +54,6 @@ export function FirePlanInfoPanel({ customerId, initial, people }: {
   initial: FirePlanInfoInitial
   people: Array<{ name: string; phone: string; kind: string }>  // 관계인 + 직원 (가져오기 후보)
 }) {
-  const router = useRouter()
   const openPostcode = useDaumPostcode()
   const tabs = useCustomerTabs()   // 탭 셸 안에서만 non-null (§6-C-4·5)
   const [d, setD] = useState<FirePlanInfoInput>(initial)
@@ -138,7 +136,6 @@ export function FirePlanInfoPanel({ customerId, initial, people }: {
     const got = [res.structure && `구조 ${res.structure}`, res.roof && `지붕 ${res.roof}`,
       res.height && `높이 ${res.height}m`].filter(Boolean).join(' · ')
     setMsg(`✅ 건축물대장 갱신 완료${got ? ` — ${got}` : ' (대장에 구조·지붕·높이 값 없음)'}`)
-    router.refresh()
   }
 
   function refetchLedger() {
@@ -170,7 +167,6 @@ export function FirePlanInfoPanel({ customerId, initial, people }: {
         setDirty(false)
         tabs?.setTabDirty('plan', false)
         setSuggested({})
-        router.refresh()
         resolve(true)
       })
     })

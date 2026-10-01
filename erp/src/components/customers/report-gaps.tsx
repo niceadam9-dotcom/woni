@@ -9,7 +9,7 @@ import { useCustomerTabs } from '@/components/customers/customer-tabs'
  *
  *  탭 뱃지(빈칸 수)와 탭 상단 목록이 **같은 한 번의 조회**를 나눠 쓴다 — 각자 부르면 둘이 다른 순간의
  *  답을 보여 줄 수 있다. 조회는 화면이 뜬 **뒤**에 한다(`/customers/[id]/report-gaps` 주석 참고).
- *  탭을 옮길 때마다 다시 센다 — 저장하고 다음 탭으로 가면 방금 채운 칸이 뱃지에서 빠진다. */
+ *  저장 뒤(서버 재렌더 = renderedAt 변경)에 다시 센다 — 저장하고 다음 탭으로 가면 방금 채운 칸이 뱃지에서 빠진다. */
 
 type ByTab = Record<ReportInputTab, ReportGap[]>
 type State = { byTab: ByTab | null; roundLabel: string | null; loaded: boolean }
@@ -24,12 +24,16 @@ export const REPORT_TAB_LABEL: Record<ReportInputTab, string> = {
   info: '기본정보', buildings: '건물·시설', contacts: '관계인', facilities: '공통', reports: '보고서',
 }
 
-export function ReportGapsProvider({ customerId, returnHref = '', enabled = true, children }: {
+export function ReportGapsProvider({ customerId, returnHref = '', enabled = true, renderedAt, children }: {
   customerId: string
   /** 보고서 엑셀을 받을 권한이 없으면 부르지 않는다(라우트가 403) — 목록·뱃지는 그대로 안 그려진다 */
   enabled?: boolean
   /** 달력 등에서 왔을 때의 복귀 주소(서버가 내부 경로로 검증한 값) — 다 채웠을 때 돌아갈 길 */
   returnHref?: string
+  /** 서버가 이 페이지를 그린 시각 — 저장 액션이 revalidatePath로 페이지를 다시 그리면 값이 바뀌고,
+   *  그때 빈칸을 다시 센다(3단계, 2026-10-01). 종전엔 **탭을 열 때마다** 셌다(한 번에 ~1초짜리 조회) —
+   *  탭 전환이 서버를 깨우지 않게 된 뒤에는 이 신호가 「무언가 저장됐다」를 정확히 가리킨다. */
+  renderedAt?: number
   children: ReactNode
 }) {
   const [state, setState] = useState<State>({ byTab: null, roundLabel: null, loaded: false })
@@ -39,13 +43,8 @@ export function ReportGapsProvider({ customerId, returnHref = '', enabled = true
   // 늦게 도착한 옛 응답이 새 응답을 덮지 않게 — 마지막 요청만 반영한다
   const seqRef = useRef(0)
 
-  const lastAtRef = useRef(0)
   const refresh = useCallback(() => {
     if (!enabled) return
-    // 마운트 직후 공급자와 열린 탭의 목록이 동시에 부른다 — 0.8초 안의 중복은 하나로 친다
-    const now = Date.now()
-    if (now - lastAtRef.current < 800) return
-    lastAtRef.current = now
     const seq = ++seqRef.current
     const q = inspRef.current ? `?inspection=${inspRef.current}` : ''
     fetch(`/customers/${customerId}/report-gaps${q}`, { cache: 'no-store' })
@@ -60,7 +59,8 @@ export function ReportGapsProvider({ customerId, returnHref = '', enabled = true
       .catch(() => { if (seq === seqRef.current) setState(s => ({ ...s, loaded: true })) })
   }, [customerId, enabled])
 
-  useEffect(() => { refresh() }, [refresh])
+  // 마운트 1회 + 서버 재렌더(renderedAt 변경)마다 — 저장하고 다음 탭으로 가면 방금 채운 칸이 빠져 있다
+  useEffect(() => { refresh() }, [refresh, renderedAt])
 
   return (
     <ReportGapsContext.Provider value={{ ...state, refresh, returnHref }}>
@@ -111,14 +111,8 @@ export function ReportGapCount({ tabKey }: { tabKey: string }) {
 export function ReportGapsStrip({ tabKey }: { tabKey: ReportInputTab }) {
   const g = useReportGaps()
   const tabs = useCustomerTabs()
-  // 이 탭이 **열릴 때** 다시 센다 — 앞 탭에서 저장하고 넘어오면 방금 채운 칸이 빠져 있어야 한다.
-  // ⚠ 첫 마운트를 건너뛰면 안 된다: 공통·보고서는 지연 마운트라 **처음 열 때가 곧 마운트**다.
-  //   공급자의 첫 조회와 겹치는 것은 공급자가 합친다(짧은 간격 중복 무시).
-  const active = tabs?.activeTab === tabKey
-  const refresh = g?.refresh
-  useEffect(() => {
-    if (active) refresh?.()
-  }, [active, refresh])
+  // 다시 세는 시점은 공급자가 정한다(서버 재렌더 = 저장 뒤) — 탭을 열 때마다 세지 않는다(3단계).
+  // 앞 탭에서 저장하고 넘어오면 그 저장이 이미 재조회를 일으켰으므로 방금 채운 칸은 빠져 있다.
   if (!g?.byTab) return null
   const mine = g.byTab[tabKey]
   const next = nextGapTab(g.byTab, tabKey)

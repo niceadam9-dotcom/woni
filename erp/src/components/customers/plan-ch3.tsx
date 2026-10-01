@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { useRouter } from 'next/navigation'
 import { Plus, Trash2 } from 'lucide-react'
 import { saveFirePlanSectionsAction, deletePlanAssetAction } from '@/app/(dashboard)/customers/fire-plan-form-actions'
 import { stampPlanTextAppliedAction } from '@/app/(dashboard)/customers/plan-text-library-actions'
@@ -62,7 +61,6 @@ export function PlanCh3({ customerId, canManage, evacFire, headcount, initialDet
   initialMethods: Record<string, string>
   initialEquip: EvacEquipRow[]
 }) {
-  const router = useRouter()
   const [detail, setDetail] = useState<EvacDetailRow[]>(initialDetail)
   const [hcNote, setHcNote] = useState(initialHeadcountNote)
   // 🚨 `initialPlan ?? 기본값`은 **자료가 있기만 하면** 빠진 키를 안 채웠다 — routes 없는 저장값(스테이징 6건)에서
@@ -100,7 +98,6 @@ export function PlanCh3({ customerId, canManage, evacFire, headcount, initialDet
         // 공통 서술을 가져와 저장까지 마친 섹션만 출처 스탬프 (§3-2)
         for (const [key, m] of Object.entries(libMetas)) void stampPlanTextAppliedAction(customerId, key, m.libraryId, m.version)
         setLibMetas({})
-        router.refresh()
         resolve(true)
       })
     })

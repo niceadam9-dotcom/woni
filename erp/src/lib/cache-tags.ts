@@ -12,3 +12,7 @@ export const STEP_BADGE_TAG = 'step-badge'
 
 /** 미발송 사전 안내 건수(사이드바 문자 뱃지·달력 도구줄 버튼) — 발송·시점 규칙 저장·계획일 이동 시 무효화 */
 export const SMS_BADGE_TAG = 'sms-badge'
+
+/** 건물 용도 선택지(building_purposes) — 관리자 > 건물 용도 관리의 추가·삭제·순서 변경 시 무효화.
+ *  고객 상세가 매 방문 읽던 전역 표(3단계, 2026-10-01). 60초 백스톱은 다른 두 캐시와 같은 이유. */
+export const BUILDING_PURPOSES_TAG = 'building-purposes'

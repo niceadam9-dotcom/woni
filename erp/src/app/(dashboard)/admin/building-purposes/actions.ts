@@ -1,6 +1,7 @@
 'use server'
 
-import { revalidatePath } from 'next/cache'
+import { revalidatePath, updateTag } from 'next/cache'
+import { BUILDING_PURPOSES_TAG } from '@/lib/cache-tags'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getProfile } from '@/lib/auth'
 
@@ -35,6 +36,7 @@ export async function addBuildingPurposeAction(name: string): Promise<{ error?: 
     return { error: '추가에 실패했습니다.' }
   }
   revalidatePath('/admin/building-purposes')
+  updateTag(BUILDING_PURPOSES_TAG)  // 고객 상세·등록 폼의 용도 datalist 캐시(lib/building-purposes) 즉시 무효화
   return {}
 }
 
@@ -44,6 +46,7 @@ export async function deleteBuildingPurposeAction(id: string): Promise<{ error?:
   const { error } = await admin.from('building_purposes').delete().eq('id', id)
   if (error) return { error: '삭제에 실패했습니다.' }
   revalidatePath('/admin/building-purposes')
+  updateTag(BUILDING_PURPOSES_TAG)  // 고객 상세·등록 폼의 용도 datalist 캐시(lib/building-purposes) 즉시 무효화
   return {}
 }
 
@@ -74,5 +77,6 @@ export async function moveBuildingPurposeAction(
   await admin.from('building_purposes').update({ sort_order: a.sort_order } as Record<string, unknown>).eq('id', b.id)
 
   revalidatePath('/admin/building-purposes')
+  updateTag(BUILDING_PURPOSES_TAG)  // 고객 상세·등록 폼의 용도 datalist 캐시(lib/building-purposes) 즉시 무효화
   return {}
 }

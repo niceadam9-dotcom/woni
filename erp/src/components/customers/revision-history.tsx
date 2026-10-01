@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { useRouter } from 'next/navigation'
 import { Loader2, Plus, Pencil, Trash2, Save, X, ChevronRight, ChevronDown } from 'lucide-react'
 import {
   addRevisionAction, updateRevisionAction, deleteRevisionAction, listRevisionsAction,
@@ -30,7 +29,6 @@ export function RevisionHistory({ customerId, canManage, initialYears, currentYe
   initialYears: RevisionYearGroup[]
   currentYear: number
 }) {
-  const router = useRouter()
   const [years, setYears] = useState<RevisionYearGroup[]>(initialYears)
   // 최신 연도만 펼친다 — 이력이 쌓일수록 과거 연도는 접혀 있는 편이 읽기 쉽다
   const [openYears, setOpenYears] = useState<Set<number>>(new Set(initialYears.slice(0, 1).map(g => g.year)))
@@ -91,7 +89,6 @@ export function RevisionHistory({ customerId, canManage, initialYears, currentYe
         cancel()
         await reload()
         setMsg('✅ 개정이력 저장됨')
-        router.refresh()
         resolve(true)
       })
     })
@@ -104,7 +101,6 @@ export function RevisionHistory({ customerId, canManage, initialYears, currentYe
       if (res.error) { setMsg(`❌ ${res.error}`); return }
       await reload()
       setMsg('✅ 삭제됨')
-      router.refresh()
     })
   }
 

@@ -1,7 +1,6 @@
 'use client'
 
 import { useCallback, useRef, useState, useTransition } from 'react'
-import { useRouter } from 'next/navigation'
 import { saveFirePlanSectionsAction } from '@/app/(dashboard)/customers/fire-plan-form-actions'
 import { NumField, useUnsavedWarning } from '@/components/ui/fields'
 import { ETC_ITEMS_PLAN } from '@/lib/facility-codes'
@@ -54,7 +53,6 @@ export function PlanForm16({ customerId, canManage, initial, etcBuildings, etcDe
   /** 카드의 점검표 링크·진행 배지 축(inspection_register) */
   canRegister?: boolean
 }) {
-  const router = useRouter()
   const [v, setV] = useState<EtcFacilitySection>({ ...EMPTY_ETC_FACILITY, ...initial })
   const [dirty, setDirty] = useState(false)
   const [msg, setMsg] = useState('')
@@ -90,7 +88,6 @@ export function PlanForm16({ customerId, canManage, initial, etcBuildings, etcDe
         if (!etcOk) { ok = false; parts.push('❌ 기타(해당 여부) 저장 실패') }
         else if (etcDirty) parts.push('✅ 기타(해당 여부) 저장됨')
         setMsg(parts.join(' · '))
-        if (ok) router.refresh()
         resolve(ok)
       })
     })

@@ -6,7 +6,11 @@ import { isProvisionalAnchor } from '@/lib/plan-anchor'
 import type { InspectionType } from '@/types'
 
 /** 고객 목록 공용 조회 (서버 전용) — 목록 페이지와 상세 [◀ 이전|다음 ▶] 네비가 같은 필터·정렬을 공유한다.
- *  (탭개편 설계 §6-B·§6-C-3 — 미완료 판정은 고객 상세 탭 뱃지(§4)와 동일 기준) */
+ *  (탭개편 설계 §6-B·§6-C-3 — 미완료 판정은 고객 상세 탭 뱃지(§4)와 동일 기준)
+ *
+ *  속도 개선 3단계(2026-10-01): 종전엔 **전 고객+건물 임베드**를 받아 JS에서 50건을 잘랐다 —
+ *  308곳에서 조회 1.3초 + 300행 가공. 이제 계산형 필터(inc)가 없으면 DB가 한 쪽만 돌려준다
+ *  (`.range()` + count). 판정용 배치 조회도 **그 쪽의 id**만 묻는다. */
 
 export type CustomerListFilter = {
   q?: string
@@ -66,6 +70,36 @@ function applyTypeFilter<Q extends { eq(col: string, v: string): any }>(query: Q
   return query
 }
 
+/** 담당자 이름 검색용 — 검색어와 이름이 맞는 직원 id (통합 검색 V10 §6 스마트 감지) */
+async function matchEmployeeIds(admin: SupabaseClient, q: string): Promise<string[]> {
+  const { data } = await admin.from('profiles').select('id').ilike('name', `%${q}%`)
+  return ((data ?? []) as { id: string }[]).map(e => e.id)
+}
+
+/** 목록·네비가 **같은** 필터·정렬을 타게 하는 한 벌 — 여기 말고 다른 곳에서 where/order를 쓰지 않는다.
+ *  정렬은 created_at desc + id: 둘째 키가 없으면 같은 초에 등록된 고객이 쪽마다 자리를 바꿔
+ *  서버 페이징(.range)에서 건너뛰거나 두 번 나온다(paginate.ts 규약). */
+function applyListFilter<Q>(query: Q, f: CustomerListFilter, empIds: string[]): Q {
+  // PostgREST 빌더 타입을 제네릭으로 그대로 통과시키면 tsc가 TS2589(무한 인스턴스화)를 낸다 — 안에서만 any
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let b = query as any
+  const q = (f.q ?? '').trim()
+  if (q) {
+    const ors = [
+      `customer_name.ilike.%${q}%`,
+      `address.ilike.%${q}%`,
+      `region_myeon.ilike.%${q}%`,
+      `region_ri.ilike.%${q}%`,
+    ]
+    if (empIds.length > 0) ors.push(`assigned_employee_id.in.(${empIds.join(',')})`)
+    b = b.or(ors.join(','))
+  }
+  b = applyTypeFilter(b, f.type)
+  if (f.active === 'active' || !f.active) b = b.eq('is_active', true)
+  if (f.active === 'inactive') b = b.eq('is_active', false)
+  return b.order('created_at', { ascending: false }).order('id') as Q
+}
+
 /** 상세 [◀ 이전|다음 ▶] 내비 전용 경량 ID 목록 (2026-08-04 성능 개선) —
  *  구 구현은 이전/다음 ID 2개를 위해 전체 목록 로직(건물 조인+배치 5쿼리+문서 판정)을 실행해
  *  상세 열람·저장 refresh마다 큰 비용을 냈다. 계산형 필터(inc)가 없으면 id만 같은 필터·정렬로 조회.
@@ -78,24 +112,9 @@ export async function fetchCustomerNavIds(
     const items = await fetchCustomerList(admin, f)
     return items.map(i => i.id)
   }
-  let query = admin.from('customers').select('id').order('created_at', { ascending: false })
   const q = (f.q ?? '').trim()
-  if (q) {
-    const { data: matchedEmps } = await admin.from('profiles').select('id').ilike('name', `%${q}%`)
-    const empIds = ((matchedEmps ?? []) as { id: string }[]).map(e => e.id)
-    const ors = [
-      `customer_name.ilike.%${q}%`,
-      `address.ilike.%${q}%`,
-      `region_myeon.ilike.%${q}%`,
-      `region_ri.ilike.%${q}%`,
-    ]
-    if (empIds.length > 0) ors.push(`assigned_employee_id.in.(${empIds.join(',')})`)
-    query = query.or(ors.join(','))
-  }
-  query = applyTypeFilter(query, f.type)
-  if (f.active === 'active' || !f.active) query = query.eq('is_active', true)
-  if (f.active === 'inactive') query = query.eq('is_active', false)
-  const { data } = await query
+  const empIds = q ? await matchEmployeeIds(admin, q) : []
+  const { data } = await applyListFilter(admin.from('customers').select('id'), f, empIds)
   return ((data ?? []) as Array<{ id: string }>).map(r => r.id)
 }
 
@@ -112,71 +131,117 @@ export async function fetchInputTodo(admin: SupabaseClient, limit = 12): Promise
     .map(i => ({ id: i.id, name: i.customer_name, areas: i.incompleteAreas }))
 }
 
-export async function fetchCustomerList(
-  admin: SupabaseClient,
-  f: CustomerListFilter,
-): Promise<CustomerListItem[]> {
-  let query = admin
-    .from('customers')
-    .select(`id, customer_code, customer_name, contract_date, use_approval_date, plan_anchor_date,
+const LIST_SELECT = `id, customer_code, customer_name, contract_date, use_approval_date, plan_anchor_date,
       plan_anchor_manual,
       inspection_type, inspection_sub_type, address, is_active, assigned_employee_id, assigned_source, created_at,
       region_si, region_myeon, region_ri,
       manager_selected_at, building_grade, insurance_joined, op_hours_weekday,
       headcount_worker, headcount_resident, headcount_max, manager_appointment_type,
       buildings(id, building_name, total_area, floors_above, floors_below, purpose, is_active,
-        receiver_location, main_structure, roof_structure)`)
-    .order('created_at', { ascending: false })
+        receiver_location, main_structure, roof_structure)`
 
-  // 통합 검색 (V10 §6 스마트 감지): 건물명·주소·읍면·리 + 담당자 이름
-  const q = (f.q ?? '').trim()
-  if (q) {
-    const { data: matchedEmps } = await admin.from('profiles').select('id').ilike('name', `%${q}%`)
-    const empIds = ((matchedEmps ?? []) as { id: string }[]).map(e => e.id)
-    const ors = [
-      `customer_name.ilike.%${q}%`,
-      `address.ilike.%${q}%`,
-      `region_myeon.ilike.%${q}%`,
-      `region_ri.ilike.%${q}%`,
-    ]
-    if (empIds.length > 0) ors.push(`assigned_employee_id.in.(${empIds.join(',')})`)
-    query = query.or(ors.join(','))
+type Raw = Record<string, unknown> & { buildings: Array<Record<string, unknown>> | null }
+
+/** 한 쪽(page) — 계산형 필터(inc)가 없을 때의 서버 페이징 경로. `pageSize` 0 = 전체(종전 「전체」 옵션). */
+export async function fetchCustomerListPage(
+  admin: SupabaseClient,
+  f: CustomerListFilter,
+  paging: { page: number; pageSize: number },
+): Promise<{ items: CustomerListItem[]; total: number }> {
+  // 계산형 필터는 판정값(미완료·문서 스트립)이 있어야 걸러진다 — 전체를 받아 JS에서 거르고 자른다(종전 경로)
+  if (f.inc) {
+    const all = await fetchCustomerList(admin, f)
+    const { page, pageSize } = paging
+    const items = pageSize === 0 ? all : all.slice((page - 1) * pageSize, page * pageSize)
+    return { items, total: all.length }
   }
-  query = applyTypeFilter(query, f.type)
-  if (f.active === 'active' || !f.active) query = query.eq('is_active', true)
-  if (f.active === 'inactive') query = query.eq('is_active', false)
+  const q = (f.q ?? '').trim()
+  const empIds = q ? await matchEmployeeIds(admin, q) : []
+  let query = applyListFilter(admin.from('customers').select(LIST_SELECT, { count: 'exact' }), f, empIds)
+  if (paging.pageSize > 0) {
+    const from = (paging.page - 1) * paging.pageSize
+    query = query.range(from, from + paging.pageSize - 1)
+  }
+  const { data, error, count } = await query
+  if (error) console.error('[customer-list] 목록 조회 실패:', error.message)
+  const rows = (data ?? []) as unknown as Raw[]
+  return { items: await decorateRows(admin, rows), total: count ?? rows.length }
+}
 
-  const { data } = await query
-  type Raw = Record<string, unknown> & { buildings: Array<Record<string, unknown>> | null }
+/** 필터에 맞는 **전체** 목록 — 계산형 필터(inc)·네비 id·대시보드 큐가 쓴다. 목록 화면은 fetchCustomerListPage. */
+export async function fetchCustomerList(
+  admin: SupabaseClient,
+  f: CustomerListFilter,
+): Promise<CustomerListItem[]> {
+  const q = (f.q ?? '').trim()
+  const empIds = q ? await matchEmployeeIds(admin, q) : []
+  const { data, error } = await applyListFilter(admin.from('customers').select(LIST_SELECT), f, empIds)
+  if (error) console.error('[customer-list] 목록 조회 실패:', error.message)
   const rows = (data ?? []) as unknown as Raw[]
   if (rows.length === 0) return []
+  const items = await decorateRows(admin, rows)
 
-  // 미완료 판정용 배치 조회 (관계인 대표·사업자·자위소방대) — 고객 수만큼 개별 조회하지 않음
+  // 미완료 필터 (조회 후 판정 — 판정값이 있어야 걸러지므로 JS 필터)
+  if (f.inc === 'any') return items.filter(i => i.incompleteAreas.length > 0)
+  if (f.inc === 'plan') return items.filter(i => i.planDone < i.planTotal)
+  /* 잠정 기산점만 (2026-09-22) — 「사용승인일을 아직 못 받은 고객」 목록이 이 제품에 없었다.
+     종전엔 사용승인일·점검일자·담당자가 **한 덩어리**로 '기본정보'에 뭉쳐 있어,
+     미완료로 걸러도 무엇이 빠졌는지 알 수 없었다. 실측 56명(활성의 18%)이 여기 걸린다. */
+  if (f.inc === 'approval') return items.filter(i => i.provisionalAnchor)
+  // 문서 미비만 (§4-B-2) — 스트립에 warn 1개 이상
+  if (f.inc === 'doc') return items.filter(i => {
+    const d = i.docStrip
+    return [d.plan, d.a4, d.a9, d.a10, d.a11].includes('warn')
+  })
+  return items
+}
+
+/** 고객 행 → 목록 항목: 미완료 판정·문서 스트립을 **배치**로 붙인다(고객 수만큼 개별 조회하지 않음).
+ *
+ *  🚨 id 목록은 전부 `fetchAllRowsByIds`로 쪼개 보낸다(paginate.ts) — `.in()`의 id는 URL에 실려
+ *    400건부터 요청이 실패한다(§S12 실측). 종전엔 다섯 조회가 전 고객 id를 한 번에 실었고
+ *    error를 보지 않아, 실패하면 **빈 집합 = 「관계인 없음·청구 없음」**으로 조용히 오표시됐다
+ *    (고객 300곳 임박). 이제 실패는 로그로 남기고, 판정은 「못 잰 것은 할 일로 본다」 쪽으로 기운다. */
+async function decorateRows(admin: SupabaseClient, rows: Raw[]): Promise<CustomerListItem[]> {
+  if (rows.length === 0) return []
   const ids = rows.map(r => r.id as string)
-  const [repsRes, billingRes, brigadeRes] = await Promise.all([
-    admin.from('customer_contacts').select('customer_id').in('customer_id', ids).eq('role', '대표'),
-    admin.from('billing_profiles').select('customer_id').in('customer_id', ids),
-    admin.from('fire_brigade_members').select('customer_id').in('customer_id', ids),
+  const curYear = new Date(Date.now() + 9 * 3600_000).getFullYear()
+
+  // 한 물결 — 다섯 조회가 전부 고객 id만 필요하다(종전엔 3+2로 두 물결이었다)
+  const byCustomer = <T extends { customer_id: string }>(
+    build: (c: string[], from: number, to: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>,
+  ) => fetchAllRowsByIds<T, string>(ids, build)
+  const [repsRes, billingRes, brigadeRes, planRes, inspRes] = await Promise.all([
+    byCustomer<{ customer_id: string }>((c, from, to) => admin.from('customer_contacts').select('customer_id')
+      .in('customer_id', c).eq('role', '대표').order('id').range(from, to)),
+    byCustomer<{ customer_id: string }>((c, from, to) => admin.from('billing_profiles').select('customer_id')
+      .in('customer_id', c).order('id').range(from, to)),
+    // 자위소방대는 고객당 여러 명 — 「전체」에서 1000행을 넘길 수 있는 유일한 표라 끝까지 받는다
+    byCustomer<{ customer_id: string }>((c, from, to) => admin.from('fire_brigade_members').select('customer_id')
+      .in('customer_id', c).order('id').range(from, to)),
+    // 계 셀 = 서식 입력 존재 (2026-09-02 보관함 폐지 — 파일 행(fire_plans)은 더 안 만들어져
+    // 그 축으로 재면 전 고객이 영원히 '없음'이 된다). 빈 껍데기 행({})은 입력이 아니다. PK = customer_id
+    byCustomer<{ customer_id: string }>((c, from, to) => admin.from('fire_plan_forms').select('customer_id')
+      .in('customer_id', c).neq('sections', '{}').order('customer_id').range(from, to)),
+    // 당해 연도 자체점검(special_*·null) — 고객별 최신 1건 판정용
+    byCustomer<{ id: string; customer_id: string; inspection_start_date: string | null }>((c, from, to) =>
+      admin.from('inspections').select('id, customer_id, inspection_start_date')
+        .in('customer_id', c).eq('year', curYear).or('plan_type.is.null,plan_type.like.special_*')
+        .order('id').range(from, to)),
   ])
-  const repIds = new Set(((repsRes.data ?? []) as Array<{ customer_id: string }>).map(r => r.customer_id))
-  const billingIds = new Set(((billingRes.data ?? []) as Array<{ customer_id: string }>).map(r => r.customer_id))
-  const brigadeIds = new Set(((brigadeRes.data ?? []) as Array<{ customer_id: string }>).map(r => r.customer_id))
+  for (const [name, r] of [['관계인', repsRes], ['청구', billingRes], ['자위소방대', brigadeRes], ['계획서 입력', planRes], ['당해 점검', inspRes]] as const) {
+    if (r.error || r.truncated) console.error(`[customer-list] ${name} 조회 불완전 — 미완료·문서 판정이 보수적으로 기웁니다:`, r.error ?? '(상한)')
+  }
+  const repIds = new Set(repsRes.rows.map(r => r.customer_id))
+  const billingIds = new Set(billingRes.rows.map(r => r.customer_id))
+  const brigadeIds = new Set(brigadeRes.rows.map(r => r.customer_id))
 
   // ── 문서 상태 스트립 (§4-B-2) — 당해 연도 기준, DB 배치 판정(storage 미조회, 목록 성능) ──
-  const curYear = new Date(Date.now() + 9 * 3600_000).getFullYear()
-  const [planRes, inspRes] = await Promise.all([
-    // 계 셀 = 서식 입력 존재 (2026-09-02 보관함 폐지 — 파일 행(fire_plans)은 더 안 만들어져
-    // 그 축으로 재면 전 고객이 영원히 '없음'이 된다). 빈 껍데기 행({})은 입력이 아니다.
-    admin.from('fire_plan_forms').select('customer_id').in('customer_id', ids).neq('sections', '{}'),
-    // 당해 연도 자체점검(special_*·null) — 고객별 최신 1건 판정용
-    admin.from('inspections').select('id, customer_id, inspection_start_date')
-      .in('customer_id', ids).eq('year', curYear).or('plan_type.is.null,plan_type.like.special_*'),
-  ])
-  const planHave = new Set(((planRes.data ?? []) as Array<{ customer_id: string }>).map(r => r.customer_id))
+  const planHave = new Set(planRes.rows.map(r => r.customer_id))
   // 고객별 최신 자체점검(시작일 desc) 1건
   const latestInsp = new Map<string, string>()  // customer_id → inspection_id
   const inspOrder = new Map<string, string>()    // inspection_id → start_date(정렬 키)
-  for (const r of ((inspRes.data ?? []) as Array<{ id: string; customer_id: string; inspection_start_date: string | null }>)) {
+  for (const r of inspRes.rows) {
     const prev = latestInsp.get(r.customer_id)
     const cur = r.inspection_start_date ?? ''
     if (!prev || cur > (inspOrder.get(prev) ?? '')) { latestInsp.set(r.customer_id, r.id); inspOrder.set(r.id, cur) }
@@ -188,9 +253,6 @@ export async function fetchCustomerList(
   // ⚠ 세 조회 모두 1000행 상한 미대비였다 — 불량은 회차당 수십 건이라 고객 수백이면 넘긴다.
   // 잘리면 defCount가 낮아져 **'해당없음'으로 뒤집히는**(할 일이 사라지는) 방향이라 감싼다.
   const empty = { rows: [] as never[], error: null, truncated: false }
-  // ⚠ 고객 목록은 「전체」에서 수백~수천 고객이라 latestInspIds도 같은 규모다 — id 목록이 URL에
-  // 실려 400건부터 요청이 실패하므로(§S12 실측) 쪼개 보낸다(그 실패는 조용하지 않지만, 이 함수는
-  // 종전에 error를 한 번도 안 봤다 = 조용히 '해당없음'이 되는 형태였다).
   const [jobsRes, defRes, xRes] = latestInspIds.length > 0 ? await Promise.all([
     fetchAllRowsByIds<{ inspection_id: string; report_type: string }, string>(latestInspIds,
       (c, from, to) => admin.from('fire_plan_gen_jobs').select('inspection_id, report_type')
@@ -238,7 +300,7 @@ export async function fetchCustomerList(
   }
 
   const s = (v: unknown) => (v == null ? '' : String(v))
-  const items = rows.map(r => {
+  return rows.map(r => {
     const buildings = ((r.buildings ?? []) as Array<Record<string, unknown>>).map(b => ({
       id: b.id as string, building_name: b.building_name as string,
       total_area: (b.total_area as number | null) ?? null,
@@ -285,6 +347,7 @@ export async function fetchCustomerList(
       address: (r.address as string | null) ?? null,
       is_active: r.is_active as boolean,
       assigned_employee_id: (r.assigned_employee_id as string | null) ?? null,
+      assigned_source: (r.assigned_source as string | null) ?? null,
       created_at: r.created_at as string,
       buildings,
       planDone: readiness.done, planTotal: readiness.total,
@@ -297,18 +360,4 @@ export async function fetchCustomerList(
       docStrip: docStripOf(r.id as string),
     }
   })
-
-  // 미완료 필터 (조회 후 판정 — 대상 규모가 작아 JS 필터로 충분)
-  if (f.inc === 'any') return items.filter(i => i.incompleteAreas.length > 0)
-  if (f.inc === 'plan') return items.filter(i => i.planDone < i.planTotal)
-  /* 잠정 기산점만 (2026-09-22) — 「사용승인일을 아직 못 받은 고객」 목록이 이 제품에 없었다.
-     종전엔 사용승인일·점검일자·담당자가 **한 덩어리**로 '기본정보'에 뭉쳐 있어(위 264줄),
-     미완료로 걸러도 무엇이 빠졌는지 알 수 없었다. 실측 56명(활성의 18%)이 여기 걸린다. */
-  if (f.inc === 'approval') return items.filter(i => i.provisionalAnchor)
-  // 문서 미비만 (§4-B-2) — 스트립에 warn 1개 이상
-  if (f.inc === 'doc') return items.filter(i => {
-    const d = i.docStrip
-    return [d.plan, d.a4, d.a9, d.a10, d.a11].includes('warn')
-  })
-  return items
 }

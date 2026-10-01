@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { useRouter } from 'next/navigation'
 import { saveFirePlanSectionsAction } from '@/app/(dashboard)/customers/fire-plan-form-actions'
 import { MULTI_USE_CATEGORIES } from '@/lib/doc-requirements'
 import { NumStepper, formatPhoneKR, useUnsavedWarning } from '@/components/ui/fields'
@@ -43,7 +42,6 @@ export function PlanMultiUseCard({ customerId, canManage, initialMultiUse }: {
   canManage: boolean
   initialMultiUse: MultiUseSection | null
 }) {
-  const router = useRouter()
   const [mu, setMu] = useState<MultiUseSection>(initialMultiUse ?? EMPTY_MULTI_USE)
   const [dirty, setDirty] = useState(false)
   const [msg, setMsg] = useState('')
@@ -62,7 +60,6 @@ export function PlanMultiUseCard({ customerId, canManage, initialMultiUse }: {
         if (res.error) { setMsg(`❌ ${res.error}`); resolve(false); return }
         setDirty(false)
         setMsg('✅ 1.10.3 저장됨')
-        router.refresh()
         resolve(true)
       })
     })

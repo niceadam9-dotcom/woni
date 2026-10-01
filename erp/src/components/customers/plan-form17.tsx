@@ -2,7 +2,6 @@
 
 import { useState, useTransition } from 'react'
 import { Plus, Trash2, ExternalLink } from 'lucide-react'
-import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { saveFirePlanSectionsAction } from '@/app/(dashboard)/customers/fire-plan-form-actions'
 import { TableWrap, useUnsavedWarning } from '@/components/ui/fields'
@@ -29,7 +28,6 @@ export function PlanForm17({ customerId, canManage, initialRows, initialEmergenc
   /** 주 선임자 — 관계인 탭 [소방안전관리]에서 온 읽기 전용 표시값 */
   autoRow: { name: string; selectedAt: string }
 }) {
-  const router = useRouter()
   // 보조자만 편집한다 — 과거에 저장된 관리자 행은 화면에서 감추고 저장에서도 뺀다(합성으로 인쇄되므로 유실 아님)
   const [rows, setRows] = useState<ManagerRow[]>(initialRows.filter(r => (r.role ?? '').includes('보조')))
   const [emergency, setEmergency] = useState(initialEmergency)
@@ -55,7 +53,6 @@ export function PlanForm17({ customerId, canManage, initialRows, initialEmergenc
         if (res.error) { setMsg(`❌ ${res.error}`); resolve(false); return }
         setDirty(false)
         setMsg('✅ 서식 1.7 저장됨')
-        router.refresh()
         resolve(true)
       })
     })

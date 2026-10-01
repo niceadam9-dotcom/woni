@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useState, useTransition } from 'react'
-import { useRouter } from 'next/navigation'
 import { Loader2, ExternalLink } from 'lucide-react'
 import { saveFirePlanSectionsAction, getPrevYearDutyAction } from '@/app/(dashboard)/customers/fire-plan-form-actions'
 import { annexStatusMarks, type AnnexStatusSection, type DutyMark, type PlanStoredMark, type PlanWrittenMark, type PrevYearDutyAuto } from '@/lib/prev-year-duty'
@@ -23,7 +22,6 @@ export function PlanAnnexStatusCard({ customerId, canManage }: {
   customerId: string
   canManage: boolean
 }) {
-  const router = useRouter()
   const [annex, setAnnex] = useState<AnnexStatusSection | null>(null)
   const [dutyAuto, setDutyAuto] = useState<PrevYearDutyAuto | null>(null)
   const [dirty, setDirty] = useState(false)
@@ -66,7 +64,6 @@ export function PlanAnnexStatusCard({ customerId, canManage }: {
         if (res.error) { setMsg(`❌ ${res.error}`); resolve(false); return }
         setDirty(false)
         setMsg('✅ 전년도 업무 실시사항 저장됨')
-        router.refresh()
         resolve(true)
       })
     })

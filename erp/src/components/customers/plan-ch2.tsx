@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { useRouter } from 'next/navigation'
 import { Plus, Trash2, Users } from 'lucide-react'
 import { saveFirePlanSectionsAction, saveBrigadeAction, type BrigadeRowInput } from '@/app/(dashboard)/customers/fire-plan-form-actions'
 import { stampPlanTextAppliedAction } from '@/app/(dashboard)/customers/plan-text-library-actions'
@@ -42,7 +41,6 @@ export function PlanCh2({ customerId, canManage, initialType, initialTeams, init
   initialValuables: ValuableRow[]
   people: Array<{ name: string; phone: string; kind: string }>
 }) {
-  const router = useRouter()
   const [type, setType] = useState(initialType)
   const [teams, setTeams] = useState<Record<string, string>>(() => {
     const map: Record<string, string> = {}
@@ -75,7 +73,6 @@ export function PlanCh2({ customerId, canManage, initialType, initialTeams, init
         setMsg('✅ 2장 저장됨 (편성표는 1.1 계획서 정보 패널과 동일 데이터)')
         // 공통 서술을 가져와 저장까지 마친 시점에만 출처 스탬프 (§3-2)
         if (libMeta) { void stampPlanTextAppliedAction(customerId, 'brigadeTeams', libMeta.libraryId, libMeta.version); setLibMeta(null) }
-        router.refresh()
         resolve(true)
       })
     })

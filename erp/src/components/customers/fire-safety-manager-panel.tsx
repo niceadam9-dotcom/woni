@@ -1,7 +1,6 @@
 'use client'
 
 import { useMemo, useState, useTransition } from 'react'
-import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { ShieldCheck, ExternalLink, Phone } from 'lucide-react'
 import { DateInput } from '@/components/ui/date-input'
@@ -39,7 +38,6 @@ export function FireSafetyManagerPanel({ customerId, contacts, canManage, initia
   canManage: boolean
   initial: FireSafetyManagerInitial
 }) {
-  const router = useRouter()
   const [d, setD] = useState<FireSafetyManagerInput>(initial)
   const [dirty, setDirty] = useState(false)
   // 이 패널의 dirty는 탭 셸(setTabDirty)에 안 잡힌다 — <a> 전체 이동(보조자 링크 등)의 미저장 보호는 여기서
@@ -65,14 +63,14 @@ export function FireSafetyManagerPanel({ customerId, contacts, canManage, initia
       if (res.error) { setMsg(`❌ ${res.error}`); return }
       setDirty(false)
       setMsg('✅ 저장됨 — 별지 9호 2쪽 소방안전정보에 반영됩니다')
-      // 계획서 1.1은 여기서 채운 선임일을 prop으로 읽어 준비율·표시에 쓴다. 서버의 revalidatePath는
-      // **클라이언트 라우터 캐시**까지 비우지 않으므로 짝으로 걸어 준다(1.1 패널 save()와 같은 규약).
-      //
-      // ⚠ 이 줄은 dev E2E로 고정되지 않는다 — dev에서는 탭 전환(router.replace)이 어차피 매번
-      //   RSC를 다시 받아 와서, 지워도 test-selected-at-preserve가 초록이다(2026-09-14 변이 실험에서
-      //   MUTANT-2가 살아남았다). 남겨 두는 근거는 **운영의 라우터 캐시**다: 같은 라우트 재방문이
-      //   캐시로 처리되면 방금 저장한 선임일이 안 내려와 "채웠는데 1.1은 누락" 증상이 그대로 돌아온다.
-      router.refresh()
+      // 계획서 1.1은 여기서 채운 선임일을 prop으로 읽어 준비율·표시에 쓴다. 종전엔 「revalidatePath는
+      // 클라이언트 라우터 캐시를 비우지 않는다」는 전제로 router.refresh()를 짝으로 걸었다(2026-09-14).
+      // 그 전제는 이 Next 판에서 사실이 아니다 — node_modules/next/dist/docs …/revalidatePath.md:
+      // 「Server Functions: Updates the UI immediately (if viewing the affected path) … This will purge the
+      // Client Cache」. 액션(saveFireSafetyManagerAction)이 이 경로를 revalidatePath하므로 응답에 새 RSC가
+      // 실려 오고, 뒤에 refresh를 더 걸면 같은 페이지를 **한 번 더** 그린다(1·2단계 달력·작업대와 같은 처방,
+      // 3단계 2026-10-01). 탭 전환은 더는 서버를 깨우지 않으므로(customer-tabs replaceState) 이 한 번의
+      // 재렌더가 1.1이 새 선임일을 받는 유일한 길이다 — test-selected-at-preserve가 그 축을 단언한다.
     })
   }
 

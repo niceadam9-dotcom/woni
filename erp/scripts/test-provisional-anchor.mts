@@ -107,7 +107,10 @@ check('④ 목록이 잠정을 계산해 싣는다', listCode.includes('provisio
 check('④ 판정은 공용 함수 한 벌 — 목록이 자기 식으로 다시 세지 않는다',
   listCode.includes('isProvisionalAnchor(') && !/!\w*\.?use_approval_date\s*&&/.test(listCode.split('provisionalAnchor:')[1] ?? ''))
 check('④ 판정 재료(plan_anchor_manual)를 실제로 조회한다 — 안 실으면 항상 레거시로 읽힌다',
-  /select\(`?[^`]*plan_anchor_manual/.test(listCode))
+  // 3단계(2026-10-01)부터 목록 select는 상수 LIST_SELECT 한 벌이다(한 쪽·전체 두 경로가 같은 열을 읽게) —
+  // 인라인이든 상수든 「실제로 그 열을 고르는가」만 본다
+  /select\(`?[^`]*plan_anchor_manual/.test(listCode)
+  || (/\.select\(LIST_SELECT\b/.test(listCode) && /LIST_SELECT = `[^`]*plan_anchor_manual/.test(listCode)))
 check('④ 「잠정 기산점만」 필터가 있다', /f\.inc === 'approval'/.test(listCode))
 check('④ 그 필터가 provisionalAnchor로 거른다',
   /f\.inc === 'approval'\)\s*return items\.filter\(i => i\.provisionalAnchor\)/.test(listCode))

@@ -132,7 +132,6 @@ export function EditCustomerInfoClient({ customer, typeSlot, annualLabel, lastCh
         if (a.buildings > 0) parts.push(`건물 주소 ${a.buildings}건 채움`)
         alert(`✅ ${parts.join(' · ')}`)
       }
-      router.refresh()
     })
   }
 
@@ -216,7 +215,6 @@ export function EditCustomerInfoClient({ customer, typeSlot, annualLabel, lastCh
     startTransition(async () => {
       const result = await updateCustomerAction(customer.id, buildInput())
       if (result.error) { setError(result.error); return }
-      router.refresh()
     })
   }
 

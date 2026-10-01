@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { useRouter } from 'next/navigation'
 import { Plus, Trash2, Wand2 } from 'lucide-react'
 import { saveFirePlanSectionsAction } from '@/app/(dashboard)/customers/fire-plan-form-actions'
 import { stampPlanTextAppliedAction } from '@/app/(dashboard)/customers/plan-text-library-actions'
@@ -71,7 +70,6 @@ export function PlanForm111({ customerId, canManage, initial, presetType }: {
   initial: TrainingSection | null
   presetType: string // 용도 기반 추천 (주택형/상가형/공장형)
 }) {
-  const router = useRouter()
   // 🚨 `initial ?? EMPTY_TRAINING`은 자료가 있기만 하면 빠진 키를 안 채웠다 — headcount 없는 부분 저장값
   //   (스테이징 3건)에서 `t.headcount[k]`가 죽었다(2026-09-23, 3장과 같은 부류). 빠진 키만 채운다(lib/evac-plan-normalize).
   const [t, setT] = useState<TrainingSection>(() => normalizeTraining(initial))
@@ -121,7 +119,6 @@ export function PlanForm111({ customerId, canManage, initial, presetType }: {
         setMsg('✅ 서식 1.11 저장됨 — 별지 9호 교육훈련 실시 판정에도 사용됩니다')
         // 공통 서술을 가져와 저장까지 마친 시점에만 출처 스탬프 (§3-2)
         if (libMeta) { void stampPlanTextAppliedAction(customerId, 'training', libMeta.libraryId, libMeta.version); setLibMeta(null) }
-        router.refresh()
         resolve(true)
       })
     })

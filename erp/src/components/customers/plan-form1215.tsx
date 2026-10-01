@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { useRouter } from 'next/navigation'
 import { Plus, Trash2 } from 'lucide-react'
 import { saveFirePlanSectionsAction } from '@/app/(dashboard)/customers/fire-plan-form-actions'
 import { stampPlanTextAppliedAction } from '@/app/(dashboard)/customers/plan-text-library-actions'
@@ -65,7 +64,6 @@ export function PlanForm1215({ customerId, canManage, initial, initialPromoPlan,
   /** 1.14.2 결과 증빙 사진 2칸 — sections.promoPhotos (2026-09-18) */
   initialPromoPhotos?: PromoPhotoRow[]
 }) {
-  const router = useRouter()
   const [logs, setLogs] = useState<Record<string, LogRow[]>>(() =>
     Object.fromEntries(CARDS.map(c => [c.key, initial[c.key] ?? []])))
   const [promoPlan, setPromoPlan] = useState<PromoPlan>(() => initialPromoPlan ?? {})
@@ -119,7 +117,6 @@ export function PlanForm1215({ customerId, canManage, initial, initialPromoPlan,
         // 공통 서술을 가져와 저장까지 마친 섹션만 출처 스탬프 (§3-2)
         for (const [key, m] of Object.entries(libMetas)) void stampPlanTextAppliedAction(customerId, key, m.libraryId, m.version)
         setLibMetas({})
-        router.refresh()
         resolve(true)
       })
     })

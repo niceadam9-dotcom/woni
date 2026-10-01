@@ -1,7 +1,6 @@
 'use client'
 
 import { useTransition } from 'react'
-import { useRouter } from 'next/navigation'
 import { Loader2, UserCheck } from 'lucide-react'
 import { patchCustomerFieldAction } from '@/app/(dashboard)/customers/actions'
 
@@ -12,14 +11,12 @@ export function RecommendAssignClient({ customerId, employeeId, employeeName, re
   employeeName: string
   regionLabel: string
 }) {
-  const router = useRouter()
   const [isPending, startTransition] = useTransition()
 
   function assign() {
     startTransition(async () => {
       const res = await patchCustomerFieldAction(customerId, 'assigned_employee_id', employeeId)
       if (res.error) { alert(res.error); return }
-      router.refresh()
     })
   }
 

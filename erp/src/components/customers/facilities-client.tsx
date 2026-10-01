@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { useRouter } from 'next/navigation'
 import { Check, Plus, X, Loader2, ShieldCheck, Sparkles, Copy, Layers } from 'lucide-react'
 import { saveFacilitiesAction, verifyFacilitiesAction, type FacilityRow, type FloorRow } from '@/app/(dashboard)/customers/facilities-actions'
 import { suggestFacilitySet, DETAIL_TYPE_PRESETS, parseDetailChips, serializeDetailChips, type DetailChip } from '@/lib/facility-presets'
@@ -25,7 +24,6 @@ type Building = {
 export function FacilitiesClient({ customerId, buildings, canManage }: {
   customerId: string; buildings: Building[]; canManage: boolean
 }) {
-  const router = useRouter()
   const [bidx, setBidx] = useState(0)
   const b = buildings[bidx]
   const [isPending, startTransition] = useTransition()
@@ -119,14 +117,13 @@ export function FacilitiesClient({ customerId, buildings, canManage }: {
     startTransition(async () => {
       const res = await saveFacilitiesAction(b.id, customerId, Object.values(fac), floors)
       if (res.error) { setError(res.error); return }
-      setEditing(false); router.refresh()
+      setEditing(false)
     })
   }
   function verify() {
     startTransition(async () => {
       const res = await verifyFacilitiesAction(b.id, customerId)
       if (res.error) { setError(res.error); return }
-      router.refresh()
     })
   }
 

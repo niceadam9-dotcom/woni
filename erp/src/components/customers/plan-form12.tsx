@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { useRouter } from 'next/navigation'
 import { Plus, Trash2, Layers } from 'lucide-react'
 import { saveFirePlanSectionsAction } from '@/app/(dashboard)/customers/fire-plan-form-actions'
 import { TableWrap, useUnsavedWarning } from '@/components/ui/fields'
@@ -36,7 +35,6 @@ export function PlanForm12({ customerId, canManage, initialZones, initialHazards
   /** 건물 주용도 — [층 자동 생성] 시 명칭/용도 기본값(2026-08-06, 1.2.2 프리셋과 같은 취지) */
   purpose?: string | null
 }) {
-  const router = useRouter()
   const [zones, setZones] = useState<ZoneRow[]>(initialZones.length > 0 ? initialZones : [{ ...EMPTY_ZONE }])
   const [hazards, setHazards] = useState<HazardRow[]>(initialHazards)
   const [tenants, setTenants] = useState<TenantRow[]>(initialTenants)
@@ -94,7 +92,6 @@ export function PlanForm12({ customerId, canManage, initialZones, initialHazards
         if (res.error) { setMsg(`❌ ${res.error}`); resolve(false); return }
         setDirty(false)
         setMsg('✅ 서식 1.2 저장됨')
-        router.refresh()
         resolve(true)
       })
     })

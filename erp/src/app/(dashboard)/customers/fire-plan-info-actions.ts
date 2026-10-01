@@ -6,6 +6,7 @@ import { requirePermission, getProfile, can } from '@/lib/auth'
 import type { UserRole } from '@/types'
 import { fetchBuildingLedgerAction, geocodeAddressToBcodeAction } from './actions'
 import { combinedRangeError } from '@/lib/date-range'
+import { listFireStationCandidates } from '@/lib/fire-station'
 
 /** bcode·지번 확보 — 저장값 우선, 없으면 저장된 주소로 Juso 지오코딩 후 buildings에 백필(B안, 2026-08-05).
  *  반환 null = 확보 실패(주소 없음·키 미설정·매칭 실패 → 호출부는 needAddress로 처리). */
@@ -397,4 +398,19 @@ export async function autoApplyLedgerEmptyAction(
 
   revalidatePath(`/customers/${customerId}`)
   return { filled }
+}
+
+/** 1.3 관할 소방서 드롭다운 후보 — 행정구역 매핑 기반(관할은 좌표 근접이 아니라 행정 관할).
+ *  속도 개선 3단계(2026-10-01): 종전엔 고객 페이지 서버 렌더가 탭과 무관하게 매 방문 조회했다.
+ *  이제 서식 1.3(PlanForm13)이 마운트할 때 부른다 — 소방계획서 탭이 lazy라 그때가 첫 필요 시점이다. */
+export async function listFireStationCandidatesAction(
+  customerId: string,
+): Promise<{ candidates?: string[]; error?: string }> {
+  const profile = await getProfile()
+  if (!profile) return { error: '로그인이 필요합니다.' }
+  const admin = createAdminClient()
+  const { data } = await admin.from('customers').select('region_si, region_myeon, address').eq('id', customerId).maybeSingle()
+  if (!data) return { error: '고객을 찾을 수 없습니다.' }
+  const c = data as { region_si: string | null; region_myeon: string | null; address: string | null }
+  return { candidates: await listFireStationCandidates(admin, { regionSi: c.region_si, regionMyeon: c.region_myeon, address: c.address }) }
 }

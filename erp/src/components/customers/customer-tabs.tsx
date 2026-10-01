@@ -5,7 +5,8 @@ import { usePathname, useRouter } from 'next/navigation'
 import { collectPlanSaveHandlers, useUnsavedNavGuard } from '@/components/ui/unsaved-nav'
 
 /** 고객 상세 탭 셸 (설계 §2·§4·§6-C) — URL ?tab= 동기화 + 상태 뱃지 + 미저장 경고 + 다음 탭 전환.
- *  패널은 전부 서버 렌더 후 show/hide — 탭 전환에도 각 폼의 입력 상태가 유지된다. */
+ *  패널은 전부 서버 렌더 후 show/hide — 탭 전환에도 각 폼의 입력 상태가 유지된다.
+ *  (lazyKeys 패널만 처음 열 때 마운트 — 그 뒤로는 같은 계약) */
 
 export type CustomerTabDef = {
   key: string
@@ -119,7 +120,16 @@ export function CustomerTabs({ initialTab, tabs, panels, summary, banner, fullWi
     setActive(key)
     const sp = new URLSearchParams(window.location.search)
     sp.set('tab', key)
-    router.replace(`${pathname}?${sp.toString()}`, { scroll: false })
+    // 속도 개선 3단계(2026-10-01): `router.replace` → `history.replaceState`. 활성 탭은 위 state가 들고
+    // 있고 패널은 이미 다 내려와 있으므로 서버가 할 일이 없는데, router.replace는 ?tab=만 바뀐 같은
+    // 경로에도 **RSC를 다시 받아 왔다**(실측: 탭 클릭마다 상세 페이지 전체 재렌더 1.2~1.5s + report-gaps
+    // 1.0s). Next는 네이티브 history API를 라우터와 동기화하므로(usePathname·useSearchParams 갱신)
+    // URL 딥링크·뒤로가기는 그대로다.
+    // 🚨 state 인자는 **null**이어야 한다 — `window.history.state`를 그대로 넘기면 그 안의 Next 표식(__NA)
+    //   때문에 라우터가 「자기 호출」로 보고 동기화를 건너뛴다. 그러면 다음 서버 액션 응답이 라우터가 아는
+    //   옛 URL로 돌아가 저장 직후 ?tab=이 사라졌다(2026-10-01 _perf-probe-cust-save 실측). null을 주면
+    //   Next가 내부 트리를 복사해 얹고 라우터 상태(canonicalUrl)도 새 URL로 맞춘다.
+    window.history.replaceState(null, '', `${pathname}?${sp.toString()}`)
     // 포커스는 **이동이 실제로 일어난 여기서만** 옮긴다 — 키 핸들러에서 옮기면 미저장 확인창이
     // 떠서 이동이 보류된 경우에도 포커스가 앞서 나간다(2026-09-21, 트리와 같은 규약).
     // 확인창에서 [이동]을 고른 경우에도 이 경로를 지나므로 포커스가 목적지 탭을 따라온다.

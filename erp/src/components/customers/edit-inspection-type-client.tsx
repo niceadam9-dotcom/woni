@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { useRouter } from 'next/navigation'
 import { Pencil, X, Loader2 } from 'lucide-react'
 import { updateCustomerAction } from '@/app/(dashboard)/customers/actions'
 import type { InspectionType } from '@/types'
@@ -44,7 +43,6 @@ type Props = {
 }
 
 export function EditInspectionTypeClient({ customerId, currentType, currentSubType }: Props) {
-  const router = useRouter()
   const [open, setOpen] = useState(false)
   const current = comboOf(currentType, currentSubType)
   const [selected, setSelected] = useState<string>(current.key)
@@ -62,7 +60,6 @@ export function EditInspectionTypeClient({ customerId, currentType, currentSubTy
         ...(combo.type === '일반관리' ? { inspection_sub_type: combo.sub } : {}),
       })
       if (result.error) { setError(result.error); return }
-      router.refresh()
       setOpen(false)
     })
   }

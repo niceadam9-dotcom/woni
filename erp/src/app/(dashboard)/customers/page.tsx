@@ -15,7 +15,7 @@ import { assigneeLabel } from '@/lib/default-assignee'
 import { firePlanPdfUrl } from '@/lib/fire-plan-doc-urls'
 import { TableScroll, STICKY_THEAD } from '@/components/ui/table-scroll'
 import { AddressMapButton } from '@/components/ui/address-map-button'
-import { fetchCustomerList, parseListFilter } from '@/lib/customer-list'
+import { fetchCustomerListPage, parseListFilter } from '@/lib/customer-list'
 import type { InspectionType, UserRole } from '@/types'
 
 // 법정 자체점검 횟수 — 유형·종류 파생 라벨 (§6-B 병기, 일반관리는 종류 따라 연 2회/1회 상이 — 2026-08-05)
@@ -29,23 +29,22 @@ export default async function CustomersPage({
 }: {
   searchParams: Promise<{ q?: string; type?: string; active?: string; inc?: string; page?: string; per_page?: string }>
 }) {
-  const profile = await getProfile()
-  if (!profile) redirect('/login')
-
   const params = await searchParams
   const filter = parseListFilter(params)
   const page = Math.max(1, parseInt(params.page ?? '1', 10))
   const pageSize = Math.max(0, parseInt(params.per_page ?? '50', 10))  // 0 = 전체
 
   const admin = createAdminClient()
-  const [allCustomers, profilesRes] = await Promise.all([
-    fetchCustomerList(admin, filter),
+  // 속도 개선 3단계(2026-10-01): 인증 확인을 목록 조회와 **같은 물결**에 — 인증은 redirect로만 반응하므로
+  // 병렬 시작해도 안전하다(고객 상세와 같은 규약). 목록은 DB가 한 쪽만 돌려준다(fetchCustomerListPage).
+  const [profile, { items: customers, total: totalCount }, profilesRes] = await Promise.all([
+    getProfile(),
+    fetchCustomerListPage(admin, filter, { page, pageSize }),
     admin.from('profiles').select('id, name').eq('is_active', true).eq('is_system', false).order('name'),
   ])
+  if (!profile) redirect('/login')
 
-  const totalCount = allCustomers.length
   const totalPages = pageSize === 0 ? 1 : Math.max(1, Math.ceil(totalCount / pageSize))
-  const customers = pageSize === 0 ? allCustomers : allCustomers.slice((page - 1) * pageSize, page * pageSize)
   const employees = (profilesRes.data ?? []) as Array<{ id: string; name: string }>
   const empMap = new Map(employees.map(e => [e.id, e.name]))
 

@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Receipt, Landmark, Eye, ShieldCheck, Users, Download, ExternalLink } from 'lucide-react'
 import {
@@ -58,7 +57,6 @@ export function BillingClient({ customerId, profile, autopay, owners, ownerId, c
   repName?: string | null
   customerAddress?: string | null
 }) {
-  const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [msg, setMsg] = useState('')
   const [err, setErr] = useState('')
@@ -73,7 +71,7 @@ export function BillingClient({ customerId, profile, autopay, owners, ownerId, c
     setErr(''); setMsg(''); setCurOwner(id)
     startTransition(async () => {
       const res = await assignOwnerAction(customerId, id || null)
-      if (res.error) { setErr(res.error) } else { setMsg('소유자 그룹을 저장했습니다.'); router.refresh() }
+      if (res.error) { setErr(res.error) } else { setMsg('소유자 그룹을 저장했습니다.') }
     })
   }
   function addOwner() {
@@ -105,7 +103,7 @@ export function BillingClient({ customerId, profile, autopay, owners, ownerId, c
   const [revealed, setRevealed] = useState<string | null>(null)
 
   function notify(res: { error?: string }, ok: string) {
-    if (res.error) { setErr(res.error); setMsg('') } else { setMsg(ok); setErr(''); router.refresh() }
+    if (res.error) { setErr(res.error); setMsg('') } else { setMsg(ok); setErr('') }
   }
   function saveProfile() {
     setErr(''); setMsg('')

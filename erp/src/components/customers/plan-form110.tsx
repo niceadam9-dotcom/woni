@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useState, useTransition } from 'react'
-import { useRouter } from 'next/navigation'
 import { Plus, Trash2 } from 'lucide-react'
 import { saveFirePlanSectionsAction } from '@/app/(dashboard)/customers/fire-plan-form-actions'
 import { CardAnchorBar, MonthField, useUnsavedWarning } from '@/components/ui/fields'
@@ -60,7 +59,6 @@ export function PlanForm110({ customerId, canManage, isComprehensive, autoOpMont
   initialHistory: FireHistoryRow[]
   initialDutyLog?: DutyLogRow[]
 }) {
-  const router = useRouter()
   const [insp, setInsp] = useState<InspectionPlanSection>(initialInspection ?? {
     ...EMPTY_INSPECTION, opMonth: autoOpMonth, compMonth: isComprehensive ? autoCompMonth : '',
   })
@@ -87,7 +85,6 @@ export function PlanForm110({ customerId, canManage, isComprehensive, autoOpMont
         if (res.error) { setMsg(`❌ ${res.error}`); resolve(false); return }
         setDirty(false)
         setMsg('✅ 서식 1.10 저장됨')
-        router.refresh()
         resolve(true)
       })
     })

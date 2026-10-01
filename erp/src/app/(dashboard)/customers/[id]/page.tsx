@@ -3,8 +3,9 @@ import Link from 'next/link'
 import { ChevronLeft, FileText, ClipboardList, History } from 'lucide-react'
 import { getProfile, can } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { listFireStationCandidates } from '@/lib/fire-station'
-import { loadFacilityFormData, type FacilityBuildingRow } from '@/lib/facility-form-data'
+import { fetchFacilityRowsByCustomer, assembleFacilityFormData, type FacilityBuildingRow } from '@/lib/facility-form-data'
+import { getCompanyProfile } from '@/lib/company-profile'
+import { InspectionHistoryTable } from '@/components/customers/inspection-history-table'
 import { formatBizNo, formatTel } from '@/lib/format-contact'
 import { AssignEmployeeInline } from '@/components/customers/assign-employee-inline'
 import { GroupBox, SubRow, Cell } from '@/components/customers/key-fields'
@@ -63,12 +64,9 @@ import { listCustomerAssetEntries } from '@/lib/customer-assets'
 import { listBuildingPurposes } from '@/lib/building-purposes'
 import { todayKst } from '@/lib/kst-date'
 import { fetchCustomerNavIds, parseListFilter } from '@/lib/customer-list'
-import { inspectionNatureBadge } from '@/lib/inspection-nature'
-import { fetchAllRows } from '@/lib/supabase/paginate'
-import { isSelfInspection, visibleStepNums } from '@/lib/inspection-step-status'
 import { PlanAnnexSection } from '@/components/customers/plan-annex-section'
 import { getCustomerRoundsAction } from '@/app/(dashboard)/reports/docs-actions'
-import type { Customer, CustomerContact, Inspection, InspectionStatus, InspectionType, UserRole } from '@/types'
+import type { Customer, CustomerContact, Inspection, InspectionType, UserRole } from '@/types'
 import { inspectionTypeLabel } from '@/types'
 
 type ActivityLog = {
@@ -87,19 +85,7 @@ const TYPE_COLORS: Record<InspectionType, string> = {
   '일반관리': 'bg-gray-100 text-gray-600',
 }
 
-const STATUS_LABELS: Record<InspectionStatus, string> = {
-  scheduled: '예정',
-  in_progress: '진행중',
-  completed: '완료',
-  overdue: '기한초과',
-}
-
-const STATUS_COLORS: Record<InspectionStatus, string> = {
-  scheduled: 'bg-blue-50 text-blue-600',
-  in_progress: 'bg-brand-tint text-brand',
-  completed: 'bg-green-50 text-green-700',
-  overdue: 'bg-red-50 text-red-600',
-}
+// 점검 상태 라벨·색은 이력 표 컴포넌트(inspection-history-table)로 이사 (3단계, 2026-10-01)
 
 export default async function CustomerDetailPage({
   params,
@@ -138,16 +124,30 @@ export default async function CustomerDetailPage({
 
   // ── 성능(2026-08-11): 원격 DB 왕복(~240ms)이 순차 10여 회 쌓여 페이지당 ~2.5초를 소모하던 것을
   //    2개 물결로 재편 — A: 인증 확인 + 고객 id만으로 가능한 조회 전부, B: A 결과(건물·점검·지역)에 의존하는 조회.
-  //    인증은 렌더 없이 redirect로만 반응하므로 데이터 조회와 병렬 시작해도 안전하다(결과는 아래에서 즉시 확인). ──
+  //    인증은 렌더 없이 redirect로만 반응하므로 데이터 조회와 병렬 시작해도 안전하다(결과는 아래에서 즉시 확인).
+  //    속도 개선 3단계(2026-10-01): 물결 B를 거의 비웠다 — 소방시설 세 표는 고객 id 조인 필터로 물결 A에,
+  //    단계 진행바(fetchAllRows 3회)는 [이력] 탭을 열 때 액션으로, 관할소방서 후보는 1.3 서식 마운트 때,
+  //    회차 프리페치는 인증 직후 같은 물결에서 시작. 남은 B는 「미배정 고객의 지역 추천」 1건(조건부). ──
   const navFilter = parseListFilter(Object.fromEntries(new URLSearchParams(lq ?? '')) as Record<string, string | undefined>)
+  const profileP = getProfile()
+  // 회차 프리페치(2026-09-02 성능 결정 — ?tab=annex·reports 진입에만): 권한을 알아야 부를 수 있으므로
+  // 인증 결과에 **체인**해 같은 물결에서 시작한다(종전엔 물결 B 뒤 직렬이라 +0.4s).
+  // ⚠ 조건을 넓히지 말 것 — 기본정보만 보고 나가는 고객까지 전원이 이 왕복을 문다.
+  const wantRounds = initialTab === 'annex' || initialTab === 'reports'
+  const annexInitialP = wantRounds
+    ? profileP.then(p => (p && can(p.role as UserRole, 'inspection_register'))
+        ? getCustomerRoundsAction(id).then(r => r.data ?? null).catch(() => null)
+        : null)
+    : Promise.resolve(null)
   const [
     profile,
-    [customerRes, contactsRes, employeesRes, allProfilesRes, inspectionsRes, buildingsRes, activityLogsRes, firePlansRes, billingProfileRes, autopayRes, ownersRes, brigadeRes],
-    // 건물 용도 선택지 (049) — 건물 패널 용도 datalist 제안
+    [customerRes, contactsRes, profilesRes, inspectionsRes, buildingsRes, activityLogsRes, firePlansRes, billingProfileRes, autopayRes, ownersRes, brigadeRes],
+    // 건물 용도 선택지 (049) — 건물 패널 용도 datalist 제안 (60초 캐시 — 전역 표)
     buildingPurposes,
     // 소방계획서 서식 입력 저장소 (096) — 목차 완성도(§1-4)·탭 뱃지 합산에 선행 조회
     // + 공통 서술 기본항목 자동주입 대상 판정 (119, 소방계획서_15_별도라이브러리 §4-0) — 둘 다 인덱스 소량 조회
-    [fpFormRes, companyRes, textDefaultsRes, textStampsRes],
+    // 회사 정보는 레이아웃이 같은 요청에서 이미 읽은 것(getCompanyProfile — React cache)을 재사용
+    [fpFormRes, companyRow, textDefaultsRes, textStampsRes],
     // 개정이력 — 연도별 히스토리(120). 연도 desc·연도 내 seq desc(최신이 위) — 소방계획서_17.md §2
     revRowsRes,
     // 지도·사진 자산 존재 여부 (소방계획서_7 §5 — H-10) — 서명 URL 발급은 슬롯 UI 마운트로 지연(2026-08-11 성능)
@@ -157,14 +157,17 @@ export default async function CustomerDetailPage({
     // [◀ 이전|다음 ▶] 네비 (§6-C-3) — 목록 필터 컨텍스트(lq) 그대로 같은 순서로 이동
     // 2026-08-04 성능: 전체 목록 로직 대신 경량 ID 조회(fetchCustomerNavIds) — 상세 열람·저장 refresh 비용 대폭 절감
     navIds,
+    // 소방시설 현황(건물별)+층별 수량+세부제원 원시 행 — 고객 id 조인 필터라 건물 조회를 기다리지 않는다.
+    // 조립은 아래 assembleFacilityFormData 단일 원천(소방계획서_40 S1, /inspections/[id]/facilities와 공유)
+    facilityRows,
+    annexInitial,
   ] = await Promise.all([
-    getProfile(),
+    profileP,
     Promise.all([
     admin.from('customers').select('*').eq('id', id).single(),
     admin.from('customer_contacts').select('*').eq('customer_id', id).order('role'),
-    admin.from('profiles').select('id, name, position').eq('is_active', true).eq('is_system', false).order('name'),
-    // 변경 이력의 담당직원 UUID → 이름 변환용 (퇴사·시스템 계정 포함 전체)
-    admin.from('profiles').select('id, name'),
+    // 직원 선택지(활성·비시스템)와 변경 이력의 UUID→이름 변환(퇴사·시스템 포함 전체)을 **한 번에** — 종전 2회
+    admin.from('profiles').select('id, name, position, is_active, is_system').order('name'),
     admin.from('inspections')
       .select('id, year, sequence_num, inspection_type, plan_type, inspection_start_date, status, assigned_employee_id')
       .eq('customer_id', id)
@@ -198,7 +201,7 @@ export default async function CustomerDetailPage({
     listBuildingPurposes(),
     Promise.all([
       admin.from('fire_plan_forms').select('sections').eq('customer_id', id).maybeSingle(),
-      admin.from('company_profile').select('company_name, representative, business_number, address, phone').limit(1).maybeSingle(),
+      getCompanyProfile(),
       admin.from('plan_text_library').select('section_key').eq('is_default', true).eq('is_active', true),
       admin.from('plan_text_applied').select('section_key').eq('customer_id', id),
     ]),
@@ -209,6 +212,8 @@ export default async function CustomerDetailPage({
       .order('seq', { ascending: false }),
     listCustomerAssetEntries(id),
     fetchCustomerNavIds(admin, navFilter),
+    fetchFacilityRowsByCustomer(admin, id),
+    annexInitialP,
   ])
 
   if (!profile) redirect('/login')
@@ -216,7 +221,10 @@ export default async function CustomerDetailPage({
 
   const customer = customerRes.data as Customer
   const contacts = (contactsRes.data ?? []) as CustomerContact[]
-  const employees = (employeesRes.data ?? []) as Array<{ id: string; name: string; position: string | null }>
+  const allProfiles = (profilesRes.data ?? []) as Array<{ id: string; name: string; position: string | null; is_active: boolean; is_system: boolean }>
+  const employees: Array<{ id: string; name: string; position: string | null }> = allProfiles
+    .filter(p => p.is_active && !p.is_system)
+    .map(p => ({ id: p.id, name: p.name, position: p.position }))
   const buildings = (buildingsRes.data ?? []) as Array<{
     id: string; building_name: string; address: string | null
     total_area: number | null; floors_above: number | null; floors_below: number | null
@@ -234,46 +242,19 @@ export default async function CustomerDetailPage({
   const regionSi = (customer as unknown as Record<string, unknown>).region_si as string | null
   const regionMyeon = (customer as unknown as Record<string, unknown>).region_myeon as string | null
 
-  // ── 물결 B: 물결 A 결과(건물·점검·지역)에 의존하는 조회 — 한 번에 병렬 ──
-  const [facilityFormData, stepsRes, defectsRes, sheetXRes, regionRowsRes, stationCandidates] = await Promise.all([
-    // 소방시설 현황(건물별)+층별 수량+세부제원 — 조립은 loadFacilityFormData 단일 원천(소방계획서_40 S1,
-    // /inspections/[id]/facilities와 공유). buildings는 물결 A에서 이미 조회했으므로 재사용
-    loadFacilityFormData(admin, id, buildings as unknown as FacilityBuildingRow[]),
-    // 점검별 단계 진행 카운트 — **유효 단계만** 센다(소방계획서_45). step_num이 없으면 필터가 불가능해
-    // 종전에는 6행을 그대로 세어, 모두 합격 자체점검이 고객 화면에서 영원히 4/6으로 남았다(목록은 4/4).
-    // ⚠ 2026-09-08 2차 독립 판정: 세 조회 중 이것만 fetchAllRows가 빠져 있었다 — 하필 분모·분자의
-    // 원천이라, 한 고객의 누적 점검이 167건을 넘으면 뒤쪽 회차의 진행바가 통째로 결측된다. 목록
-    // 페이지에서 **똑같은 결함을 고쳐 놓고** 같은 물결의 형제에 적용하지 않은 자리다.
-    inspections.length > 0
-      ? fetchAllRows<{ inspection_id: string; step_num: number; status: string }>((from, to) =>
-          admin.from('inspection_steps').select('inspection_id, step_num, status')
-            .in('inspection_id', inspections.map(i => i.id)).order('id').range(from, to))
-      : Promise.resolve({ rows: [] as Array<{ inspection_id: string; step_num: number; status: string }>, error: null, truncated: false }),
-    // ⑤⑥ 활성 축 = 등록 불량 ∪ 점검표 ✕ (목록·작업대·현황판과 같은 원천)
-    inspections.length > 0
-      ? fetchAllRows<{ inspection_id: string }>((from, to) => admin.from('inspection_defects')
-          .select('inspection_id').in('inspection_id', inspections.map(i => i.id)).order('id').range(from, to))
-      : Promise.resolve({ rows: [] as Array<{ inspection_id: string }>, error: null, truncated: false }),
-    inspections.length > 0
-      ? fetchAllRows<{ inspection_id: string }>((from, to) => admin.from('inspection_sheet_responses')
-          .select('inspection_id').in('inspection_id', inspections.map(i => i.id)).eq('result', 'X').order('id').range(from, to))
-      : Promise.resolve({ rows: [] as Array<{ inspection_id: string }>, error: null, truncated: false }),
-    // §6-E: 지역 기반 담당 추천 — 같은 시군구+읍면 고객들의 최빈 담당 (미배정일 때만)
-    (() => {
-      if (customer.assigned_employee_id || !regionSi) return Promise.resolve({ data: null })
-      let rq = admin.from('customers').select('assigned_employee_id')
-        .eq('is_active', true).eq('region_si', regionSi).not('assigned_employee_id', 'is', null).neq('id', id)
-      if (regionMyeon) rq = rq.eq('region_myeon', regionMyeon)
-      return rq
-    })(),
-    // 1.3 관할 소방서 드롭다운 후보 — 행정구역 매핑 기반 (관할은 좌표 근접이 아니라 행정 관할)
-    listFireStationCandidates(admin, { regionSi, regionMyeon, address: customer.address }),
-  ])
-  const { facilityBuildings, specsByBuilding } = facilityFormData
+  // ── 물결 B(조건부): §6-E 지역 기반 담당 추천 — 같은 시군구+읍면 고객들의 최빈 담당. **미배정일 때만** 돈다.
+  //    (종전 물결 B의 소방시설·단계 진행·관할소방서 후보는 위 주석대로 자리를 옮겼다 — 3단계) ──
+  const regionRowsRes = (customer.assigned_employee_id || !regionSi)
+    ? { data: null }
+    : await (() => {
+        let rq = admin.from('customers').select('assigned_employee_id')
+          .eq('is_active', true).eq('region_si', regionSi).not('assigned_employee_id', 'is', null).neq('id', id)
+        if (regionMyeon) rq = rq.eq('region_myeon', regionMyeon)
+        return rq
+      })()
+  const { facilityBuildings, specsByBuilding } = assembleFacilityFormData(buildings as unknown as FacilityBuildingRow[], facilityRows)
   const activityLogs = (activityLogsRes.data ?? []) as ActivityLog[]
-  const profileNameMap = new Map(
-    ((allProfilesRes.data ?? []) as Array<{ id: string; name: string }>).map(p => [p.id, p.name])
-  )
+  const profileNameMap = new Map(allProfiles.map(p => [p.id, p.name]))
   // 과거 이력에 담당직원이 UUID로 저장된 행 표시 보정 (감사 로그 원본은 불변 — 표시 시점에만 변환)
   const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
   function displayChangeValue(field: string, v: string | null): string | null {
@@ -297,32 +278,8 @@ export default async function CustomerDetailPage({
     }))
     .filter(x => x.actionLabel || x.changes.length > 0)
 
-  // 점검별 단계 진행 카운트 (물결 B에서 조회) — 소방계획서_45: **유효 단계만** 분모에 넣는다.
-  // 점검표 모두 합격이면 ⑤⑥은 '해당없음'이라 세지 않는다(행은 DB에 그대로 두고 조회 시 필터).
-  // R4-8이 목록에만 적용돼 있어 같은 점검이 목록 4/4 · 여기 4/6으로 갈라져 있었다.
-  // ⚠ 조용한 폴백 금지 — ✕·불량 조회가 실패하면 needsRepair가 **말없이 종전 축으로 되돌아가** 미조치
-  // 불량이 남은 회차까지 '모두 합격 4/4'로 보인다. 크론(inspection-deadline-notify)과 같이 실패는
-  // **보수적으로 전 단계 활성**으로 기운다 — 조치가 필요한 회차를 '완료'로 보이게 하는 쪽이 더 위험하다.
-  const repairAxisIncomplete = !!(defectsRes.error || defectsRes.truncated || sheetXRes.error || sheetXRes.truncated)
-  if (repairAxisIncomplete) {
-    console.error('[customers/[id]] 불량·✕ 조회 불완전 — ⑤⑥을 전 단계 활성으로 보수 판정합니다:',
-      { defects: defectsRes.error, defectsTruncated: defectsRes.truncated, sheetX: sheetXRes.error, sheetXTruncated: sheetXRes.truncated })
-  }
-  if (stepsRes.error) console.error('[customers/[id]] 단계 조회 실패 — 진행바가 부정확할 수 있습니다:', stepsRes.error)
-  else if (stepsRes.truncated) console.error('[customers/[id]] 단계 조회가 상한에서 잘렸습니다 — 진행바가 부정확합니다')
-  const needsRepairByInsp = new Set([...defectsRes.rows, ...sheetXRes.rows].map(r => r.inspection_id))
-  // 소방계획서_48 — 진행바는 **표시 축**(불량 0이면 ④도 즉시 감춤). 완료 판정은 의무 축 그대로.
-  const activeNumsByInsp = new Map(inspections.map(i => [
-    i.id,
-    new Set<number>(visibleStepNums(isSelfInspection(i.plan_type), repairAxisIncomplete || needsRepairByInsp.has(i.id))),
-  ]))
-  const stepCounts: Record<string, { total: number; completed: number }> = {}
-  for (const r of stepsRes.rows) {
-    if (!activeNumsByInsp.get(r.inspection_id)?.has(r.step_num)) continue
-    if (!stepCounts[r.inspection_id]) stepCounts[r.inspection_id] = { total: 0, completed: 0 }
-    stepCounts[r.inspection_id].total++
-    if (r.status === 'completed') stepCounts[r.inspection_id].completed++
-  }
+  // 점검별 단계 진행 카운트는 [이력] 탭을 열 때 inspection-history-table이 액션으로 받는다
+  // (판정식은 lib/customer-step-progress 한 벌 — 소방계획서_45·_48 주석은 그 파일에).
 
   // firePlans 매핑 폐지(2026-09-02 보관함 폐지) — firePlansRes는 아래 importCandidate 판정에만 쓴다
 
@@ -402,7 +359,6 @@ export default async function CustomerDetailPage({
 
   // ── 소방계획서 서식 입력 저장소 (096) — 물결 A에서 조회 완료 ──
   const fpForm = fpFormRes.data
-  const companyRow = companyRes.data
   const textDefaults = textDefaultsRes.data
   const textStamps = textStampsRes.data
   // 기본항목이 있는 섹션 중 이 고객에 스탬프(주입/가져오기 이력)가 없는 게 하나라도 있으면 진입 시 자동주입 시도
@@ -821,7 +777,7 @@ export default async function CustomerDetailPage({
         hasMapAsset={assetEntries.some(a => a.slot === 'map_location')}
         autoFireStation={s(cRec.fire_station)}
         fireStationEstimated={s(cRec.fire_station_source) === 'estimate'}
-        stationCandidates={stationCandidates} />}
+        /* 관할소방서 후보는 서식이 마운트할 때 액션으로 받는다(3단계) — 소방계획서 탭이 lazy라 그때가 첫 필요 시점 */ />}
       form15={<PlanForm15 customerId={customer.id} canManage={canManage}
         initialEvacFire={fpSections.evacFire ?? EMPTY_EVAC_FIRE} initialMaps={fpSections.evacMaps ?? []}
         presetType={recommendPresetType(planInfoInitial.purpose) ?? ''}
@@ -951,13 +907,7 @@ export default async function CustomerDetailPage({
   // "회차를 불러오는 중…" 클라이언트 왕복을 없앤다. 다른 탭 진입 시엔 비용 0(종전과 동일).
   // ⭐ [보고서] 탭도 같은 조회를 쓴다(2026-09-21) — 그 탭 머리줄이 「어느 회차 문서인가」와
   //   [별지 엑셀]을 내주려면 회차가 필요하다. 조회는 **한 번만** 돈다(두 탭이 같은 변수를 읽는다).
-  //   ⚠ 조건을 `true`로 넓히지 말 것 — 지금은 두 탭에 들어갈 때만 비용을 문다. 상시로 바꾸면
-  //     기본정보만 보고 나가는 고객까지 전원이 이 왕복을 문다(2026-09-02 성능 결정의 취지).
-  const needRounds = (initialTab === 'annex' || initialTab === 'reports')
-    && can(profile.role as UserRole, 'inspection_register')
-  const annexInitial = needRounds
-    ? await getCustomerRoundsAction(customer.id).then(r => r.data ?? null).catch(() => null)
-    : null
+  //   조회 자체는 위 물결 A(annexInitialP)에서 인증 직후 시작한다(3단계 — 종전 직렬 +0.4s).
   // 보고서 탭 머리줄이 가리킬 회차 — 회차 탭과 **같은 판정**을 쓴다(lib/customer-rounds 정본).
   // 두 탭이 서로 다른 회차의 문서를 내주면 사용자는 그걸 화면만 보고는 알 수 없다.
   const reportsRound = initialTab === 'reports' ? currentRoundOf(annexInitial?.rounds ?? []) : null
@@ -1089,66 +1039,15 @@ export default async function CustomerDetailPage({
         ) : (
           <div className="space-y-1">
             {/* 점검 이력 테이블 */}
+            {/* 점검 이력 표 — 행은 여기서, 진행바는 탭을 열 때 액션으로(3단계 — 이 탭은 lazy 마운트) */}
             {inspFiltered.length > 0 && (
-              <div className="overflow-x-auto mb-4">
-                <table className="w-full text-form-base">
-                  <thead>
-                    <tr className="border-b border-brand-line-soft">
-                      <th className="text-left text-form-sm font-medium text-ink-sub pb-2 pr-4">연도/차수</th>
-                      <th className="text-left text-form-sm font-medium text-ink-sub pb-2 pr-4">유형</th>
-                      <th className="text-left text-form-sm font-medium text-ink-sub pb-2 pr-4">시작일</th>
-                      <th className="text-left text-form-sm font-medium text-ink-sub pb-2 pr-4">담당자</th>
-                      <th className="text-left text-form-sm font-medium text-ink-sub pb-2 pr-4">진행</th>
-                      <th className="text-left text-form-sm font-medium text-ink-sub pb-2">상태</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {inspFiltered.map(insp => {
-                      const emp = employees.find(e => e.id === insp.assigned_employee_id)
-                      const steps = stepCounts[insp.id] ?? { total: 0, completed: 0 }
-                      return (
-                        <tr key={insp.id} className="border-b border-paper last:border-0 hover:bg-paper transition-colors">
-                          <td className="py-3 pr-4">
-                            <Link href={`/inspections/${insp.id}`} className="font-medium text-ink hover:text-brand">
-                              {insp.year}년 {insp.sequence_num}차
-                            </Link>
-                          </td>
-                          <td className="py-3 pr-4">
-                            {(() => {
-                              const nb = inspectionNatureBadge(insp.inspection_type, insp.plan_type)
-                              return <span className={`text-form-sm font-medium px-2 py-0.5 rounded-full ${nb.className}`}>{nb.label}</span>
-                            })()}
-                          </td>
-                          <td className="py-3 pr-4 text-ink-sub">{insp.inspection_start_date}</td>
-                          <td className="py-3 pr-4 text-ink-sub">
-                            {emp?.name ?? <span className="text-ink-faint">미배정</span>}
-                          </td>
-                          <td className="py-3 pr-4">
-                            {steps.total > 0 ? (
-                              <div className="flex items-center gap-2">
-                                <div className="w-16 h-1.5 bg-brand-line-soft rounded-full overflow-hidden">
-                                  <div
-                                    className="h-full bg-brand rounded-full"
-                                    style={{ width: `${(steps.completed / steps.total) * 100}%` }}
-                                  />
-                                </div>
-                                <span className="text-form-sm text-ink-sub">{steps.completed}/{steps.total}</span>
-                              </div>
-                            ) : (
-                              <span className="text-form-sm text-ink-faint">—</span>
-                            )}
-                          </td>
-                          <td className="py-3">
-                            <span className={`text-form-sm font-medium px-2 py-0.5 rounded-full ${STATUS_COLORS[insp.status as InspectionStatus]}`}>
-                              {STATUS_LABELS[insp.status as InspectionStatus]}
-                            </span>
-                          </td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
+              <InspectionHistoryTable customerId={customer.id}
+                rows={inspFiltered.map(insp => ({
+                  id: insp.id, year: insp.year, sequence_num: insp.sequence_num,
+                  inspection_type: insp.inspection_type, plan_type: insp.plan_type,
+                  inspection_start_date: insp.inspection_start_date, status: insp.status,
+                  employeeName: employees.find(e => e.id === insp.assigned_employee_id)?.name ?? null,
+                }))} />
             )}
 
             {/* 변경 이력 — 필수 고객관리 사항만 (담당직원·점검유형·사용승인일·계약일·활성상태·등록) */}
@@ -1262,7 +1161,11 @@ export default async function CustomerDetailPage({
 
       {/* 탭 셸 + 우측 요약 패널 (설계 §2·§6-C-2) — 소방계획서 탭은 전체 폭(요약 패널 접힘, 2026-08-05) */}
       <ReportGapsProvider customerId={customer.id} returnHref={returnHref}
-        enabled={can(profile.role as UserRole, 'inspection_register')}>
+        enabled={can(profile.role as UserRole, 'inspection_register')}
+        /* 서버가 다시 그린 순간(저장 액션의 revalidatePath) 빈칸을 다시 센다 — 탭 전환마다가 아니라.
+           서버 컴포넌트는 요청마다 한 번 그리므로 「그린 시각」이 곧 그 신호다(클라이언트 재렌더 멱등성과 무관) */
+        // eslint-disable-next-line react-hooks/purity
+        renderedAt={Date.now()}>
       <CustomerTabs
         initialTab={effectiveTab}
         tabs={tabDefs}
@@ -1290,7 +1193,9 @@ export default async function CustomerDetailPage({
         // 별지 패널은 마운트 즉시 회차 조회를 왕복한다(plan-annex-section의 reload) —
         // 이 셸은 패널을 전부 렌더하므로 지연 마운트가 없으면 기본정보 탭만 열어도 그 왕복이 돈다 (소방계획서_34 S2)
         // 공통·보고서 패널도 같은 부류다 — PlanForm14·EtcItemsPanel·PlanAnnexStatusCard가 마운트 즉시 서버액션을 왕복한다
-        lazyKeys={['annex', 'facilities', 'reports']}
+        // 소방계획서(3단계, 2026-10-01): 숨은 마운트만으로 자동 대장 반영·공통 서술 주입 액션 2개가 **매 방문** 돌았다.
+        // 이력: 진행바 조회(단계·불량·✕ 3회)를 탭을 열 때로 미뤘으므로, 열지 않으면 돌지 않아야 한다.
+        lazyKeys={['annex', 'facilities', 'reports', 'plan', 'history']}
         summary={
           <CustomerSummaryPanel
             customerName={customer.customer_name}

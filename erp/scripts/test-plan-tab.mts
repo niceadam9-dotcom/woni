@@ -292,7 +292,9 @@ try {
   })
   check('B안 카드 순서 ①→②→③', cardOrder[0] >= 0 && cardOrder[0] < cardOrder[1] && cardOrder[1] < cardOrder[2], cardOrder.join(','))
   const stationSel = page.locator('[data-testid="form13-station-select"]')
-  check('A-1 관할 소방서 드롭다운', await stationSel.isVisible())
+  // 후보는 서식이 마운트한 뒤 액션으로 온다(3단계, 2026-10-01 — 고객 페이지 서버 렌더에서 뺐다) — 뜰 때까지 기다린다
+  check('A-1 관할 소방서 드롭다운',
+    await stationSel.waitFor({ state: 'visible', timeout: 15000 }).then(() => true).catch(() => false))
   const stOpts = await stationSel.evaluate((el: HTMLSelectElement) =>
     Array.from(el.options).map(o => o.value).filter(v => v && v !== '__custom__'))
   check('A-1 소방서 후보 존재(행정구역 매핑)', stOpts.length > 0, stOpts.join(','))

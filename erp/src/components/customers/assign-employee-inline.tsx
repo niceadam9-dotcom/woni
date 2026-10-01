@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { useRouter } from 'next/navigation'
 import { Loader2 } from 'lucide-react'
 import { assignEmployeeAction } from '@/app/(dashboard)/customers/actions'
 import { assigneeLabel } from '@/lib/default-assignee'
@@ -18,7 +17,6 @@ export function AssignEmployeeInline({ customerId, currentEmployeeId, assignedSo
   /** 격자 칸을 **꽉 채운다**(칸 폭 전체·옆 칸과 같은 높이 h-12) — 기본정보 그룹 상자 첫 줄용(2026-09-23) */
   fill?: boolean
 }) {
-  const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [err, setErr] = useState('')
   const unassigned = !currentEmployeeId
@@ -40,7 +38,6 @@ export function AssignEmployeeInline({ customerId, currentEmployeeId, assignedSo
     startTransition(async () => {
       const res = await assignEmployeeAction(customerId, v || null)
       if (res.error) { setErr(res.error); return }
-      router.refresh()
     })
   }
 
