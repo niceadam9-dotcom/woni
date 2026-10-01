@@ -95,7 +95,8 @@ try {
       if (notCovered.length) { mismatch++; if (samples.length < 4) samples.push(`${i.year}-${i.sequence_num}: 보여야 할 ${notCovered} 행 없음`) }
     }
     check('C 보여야 할 단계의 행이 전부 있다', mismatch === 0, samples.join(' · '))
-    const cal = codeOnly(src('src/app/(dashboard)/inspections/calendar/page.tsx'))
+    // 2026-10-01 — 달력의 조회·판정은 lib/calendar-data.ts로 옮겨졌다(page.tsx와 보충 조회 액션이 같이 쓴다)
+    const cal = codeOnly(src('src/lib/calendar-data.ts'))
     check('🚨 C 달력도 같은 표시 축을 쓴다(isStepVisible)', /isStepVisible\(/.test(cal))
   }
 

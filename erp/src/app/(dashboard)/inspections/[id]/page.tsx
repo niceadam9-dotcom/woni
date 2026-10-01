@@ -15,7 +15,9 @@ import { PumpTestPanel } from '@/components/inspections/pump-test-panel'
 import { PUMP_TEST_SHEETS } from '@/lib/pump-test'
 import { listPumpTestsAction } from '@/app/(dashboard)/inspections/pump-test-actions'
 import { ExteriorMonthProvider } from '@/components/inspections/exterior-month'
-import { syncInspectionSteps, loadStepEvidence } from '@/lib/inspection-step-sync'
+import { syncInspectionSteps, loadStepEvidence, fetchEvidenceLogs, type EvidencePreload, type SyncInspRow } from '@/lib/inspection-step-sync'
+import { fetchAllRows } from '@/lib/supabase/paginate'
+import { getSheets } from '@/lib/sheet-catalog'
 import { InspectionReport9Client, type Report9CheckRow } from '@/components/inspections/inspection-report9-client'
 import { type TimelineData } from '@/components/inspections/inspection-timeline-client'
 import { InspectionWorkbench } from '@/components/inspections/inspection-workbench'
@@ -123,14 +125,80 @@ export default async function InspectionDetailPage({
 
   const admin = createAdminClient()
 
-  const [inspRes, stepsRes] = await Promise.all([
-    admin.from('inspections').select('*').eq('id', id).single(),
+  /* 🎯 2026-10-01 조회 통합 — 한 요청 안에서 `inspections`를 3회, 점검표 응답을 4회, 스토리지 list를 2회,
+     송달 이력을 2회 읽고 있었다(이 페이지·단계 동기화·시트 집계가 **각자** 읽었다). 층을 셋으로 줄인다:
+       1층: 점검 **id만** 있으면 되는 것 전부 — 점검 행(+고객 임베드)·단계·보고서·불량·참여자·직원·생성 이력·
+            응답 전량·생성 작업·송달·별지10·증거 마커 로그·보관 정리·② 기록
+       2층: 점검 행이 필요한 것 — 관계인·담당·스토리지 목록·펌프시험·고객 상세·건물·공휴일 + 시트 집계
+            (1층 재료를 preloaded로 받아 자기 1층 왕복이 0 → 건물/제원/서식 → 시설 2왕복만 남는다)
+       3층: 단계 동기화 — 1·2층 재료를 전부 받으므로 **읽기 0회**, 불일치일 때만 쓴다
+     ⚠ 동기화의 신선도 계약은 종전과 같다: 바뀐 경우에만 단계를 재조회한다. */
+  type DefectRow = {
+    id: string; defect_code: string | null; defect_name: string
+    defect_detail: string | null; photo_url: string | null
+    after_photo_url: string | null; action_taken: string | null; action_completed_at: string | null
+    action_plan: string | null; action_start: string | null; action_end: string | null
+    severity: '경미' | '보통' | '중대'; created_at: string
+  }
+  type CustomerEmbed = { id: string; customer_name: string; customer_code: string; inspection_type: InspectionType; address: string | null }
+  const [inspRes, stepsRes, reportsRes, defectsRes, participantsRes, allEmpRes, genReportsRes, responsesRes,
+    genJobsRes, deliveryRes, annex10Res, evidenceLogsRes, archivedSet, certPaper, certReported] = await Promise.all([
+    // 고객은 임베드로 함께 — 시트 집계(관리유형)·헤더·링크가 쓰는 5컬럼. FK는 customer_id 하나라 힌트 불필요
+    admin.from('inspections').select('*, customer:customers(id, customer_name, customer_code, inspection_type, address)').eq('id', id).single(),
     admin.from('inspection_steps').select('*').eq('inspection_id', id).order('step_num'),
+    admin.from('inspection_reports')
+      .select('id, report_type, file_name, file_size, submitted_at, submitted_by')
+      .eq('inspection_id', id)
+      .order('submitted_at'),
+    admin.from('inspection_defects')
+      .select('id, defect_code, defect_name, defect_detail, photo_url, after_photo_url, action_taken, action_completed_at, action_plan, action_start, action_end, severity, created_at')
+      .eq('inspection_id', id)
+      .order('created_at'),
+    admin.from('inspection_participants')
+      .select('id, employee_id, role, sort_order, profiles:employee_id (name, license_no)')
+      .eq('inspection_id', id).eq('role', '보조').order('sort_order'),
+    admin.from('profiles').select('id, name, position, license_no')
+      .eq('is_active', true).eq('is_system', false).order('name'),
+    admin.from('generated_reports')
+      .select('id, report_kind, file_name, generated_at, generated_by')
+      .eq('inspection_id', id).order('generated_at', { ascending: false }),
+    // 응답 **전량** — 종전엔 상한 없이 한 번에 읽어 1000행에서 조용히 잘렸다(✕ 집계·외관 체크가 틀어진다).
+    // 동기화·시트 집계가 이 배열을 그대로 받으므로 여기서 끝까지 받아야 한다.
+    fetchAllRows<{ item_code: string; result: 'O' | 'X' | 'N'; memo: string | null }>((from, to) =>
+      admin.from('inspection_sheet_responses').select('item_code, result, memo')
+        .eq('inspection_id', id).order('id').range(from, to)),
+    // 생성 작업 — 외관(exterior)·별지9(report9) 두 종류를 한 번에(종류별 최신 1건을 아래서 고른다)
+    admin.from('fire_plan_gen_jobs')
+      .select('id, status, missing, error, created_at, report_type')
+      .eq('inspection_id', id).in('report_type', ['exterior', 'report9'])
+      .order('created_at', { ascending: false }),
+    admin.from('report_deliveries').select('recipient_email, sent_at')
+      .eq('inspection_id', id).eq('doc_kind', 'report9_owner')
+      .order('sent_at', { ascending: false }).limit(1),
+    // ⑥ 기한의 기산점은 **총 이행기간 종료일**이다 — 별지 10호에 사람이 적은 그 값이 정본이고,
+    // 불량별 action_end는 그것이 비었을 때의 폴백이다(같은 사슬을 문서 조립도 쓴다).
+    admin.from('annex_inputs').select('fields')
+      .eq('inspection_id', id).eq('annex_no', 'report10').maybeSingle(),
+    // 증거 마커 로그·보관 정리 — 동기화가 쓰던 질의 그대로(preloaded로 넘긴다)
+    fetchEvidenceLogs(admin, id),
+    findArchivedCertInspections(admin, [id]),
+    // ② 종이 보관 기록·신고 표시 — 종전엔 자체점검 블록 안에서 직렬로 읽었다
+    loadCertPaperRecord(admin, id),
+    loadCertReported(admin, id),
   ])
 
   if (!inspRes.data) notFound()
-  const inspection = inspRes.data as Inspection
+  const { customer: customerEmbed, ...inspRaw } = inspRes.data as Inspection & { customer: CustomerEmbed | null }
+  const inspection = inspRaw as Inspection
+  const customer = (customerEmbed ?? null) as CustomerEmbed | null
   let steps = (stepsRes.data ?? []) as InspectionStep[]
+  if (responsesRes.error || responsesRes.truncated) {
+    console.error('[inspection-detail] 점검표 응답 조회 불완전 — ✕ 집계·단계 판정이 보수적으로 흐릅니다:', responsesRes.error)
+  }
+  const respRows = responsesRes.rows
+  const defectRows = (defectsRes.data ?? []) as DefectRow[]
+  const genJobs = (genJobsRes.data ?? []) as Array<Report9Job & { report_type: string }>
+  const deliveryRow = (deliveryRes.data?.[0] ?? null) as { recipient_email: string; sent_at: string } | null
 
   // §9-9a: 자체점검 여부 — plan_type 축 단독 판정 (special_*·null=자체점검 / monthly·레거시 event=정기·일반).
   // 관리유형 무관 — 일반관리 자체점검도 소방시설등점검표·별지 9호 대상 (소방계획서_6 W-4)
@@ -148,40 +216,11 @@ export default async function InspectionDetailPage({
      ⚠ 이 함수는 **쓰기도 한다**(inspection_steps.status). 바로 아래에서 읽는 `steps`와 겹치지만
        종전에도 `inspection`·`steps`는 이 호출 **이전**에 읽혔고, 바뀐 경우의 재조회(`stepsChanged>0`)가
        그 자리를 이미 막고 있다 — 신선도 계약은 그대로다. */
-  const syncPromise = syncInspectionSteps(admin, id, profile.id)
+  // (2026-10-01) 동기화는 아래 3층에서 **읽기 0회**로 돈다 — 1·2층 재료를 전부 넘기므로 여기서 던질 것이 없다.
 
-  // 고객, 관계인, 담당직원, 보고서 병렬 조회
-  // 🚨 2026-09-11: `action_plans` 조회를 걷어냈다 — 그 행은 「이행계획 자동생성」 버튼의 마커였을 뿐
-  //   문서 조립기가 한 번도 읽지 않는 옛 축이다. 버튼과 함께 이 왕복도 없앤다.
-  const [customerRes, contactRes, employeeRes, reportsRes, defectsRes, participantsRes, allEmpRes, genReportsRes, sheetsRes, responsesRes] = await Promise.all([
-    admin.from('customers').select('id, customer_name, customer_code, inspection_type, address').eq('id', inspection.customer_id).single(),
-    inspection.contact_id
-      ? admin.from('customer_contacts').select('id, role, name, phone, email').eq('id', inspection.contact_id).single()
-      : Promise.resolve({ data: null }),
-    admin.from('profiles').select('id, name, position, license_no').eq('id', inspection.assigned_employee_id).single(),
-    admin.from('inspection_reports')
-      .select('id, report_type, file_name, file_size, submitted_at, submitted_by')
-      .eq('inspection_id', id)
-      .order('submitted_at'),
-    admin.from('inspection_defects')
-      .select('id, defect_code, defect_name, defect_detail, photo_url, after_photo_url, action_taken, action_completed_at, action_plan, action_start, action_end, severity, created_at')
-      .eq('inspection_id', id)
-      .order('created_at'),
-    admin.from('inspection_participants')
-      .select('id, employee_id, role, sort_order, profiles:employee_id (name, license_no)')
-      .eq('inspection_id', id).eq('role', '보조').order('sort_order'),
-    admin.from('profiles').select('id, name, position, license_no')
-      .eq('is_active', true).eq('is_system', false).order('name'),
-    admin.from('generated_reports')
-      .select('id, report_kind, file_name, generated_at, generated_by')
-      .eq('inspection_id', id).order('generated_at', { ascending: false }),
-    // 정기·일반 = 외관점검표 시트(EXT, 별지 6호 v2022 — §9-8d·§9-9a) / 특별 = 소방시설등점검표(STD v2025)
-    admin.from('inspection_sheets').select('id, sheet_code, sheet_name')
-      .eq('version', sheetVersion).order('sheet_code'),
-    admin.from('inspection_sheet_responses').select('item_code, result, memo').eq('inspection_id', id),
-  ])
-  const sheets = (sheetsRes.data ?? []) as Array<{ id: string; sheet_code: string; sheet_name: string }>
-  const respRows = (responsesRes.data ?? []) as Array<{ item_code: string; result: 'O' | 'X' | 'N'; memo: string | null }>
+  // 정기·일반 = 외관점검표 시트(EXT, 별지 6호 v2022 — §9-8d·§9-9a) / 특별 = 소방시설등점검표(STD v2025)
+  // 마스터 데이터라 카탈로그 캐시에서 읽는다(sheet-catalog.ts) — 종전엔 매 렌더 1왕복이었다
+  const sheets = (await getSheets(sheetVersion)).map(s => ({ id: s.id, sheet_code: s.sheet_code, sheet_name: s.sheet_name }))
   const responses: Record<string, { result: 'O' | 'X' | 'N'; memo: string | null }> = {}
   for (const r of respRows) responses[r.item_code] = { result: r.result, memo: r.memo }
   const xCount = respRows.filter(r => r.result === 'X').length
@@ -192,13 +231,65 @@ export default async function InspectionDetailPage({
     .map(s => Number((s.sheet_code.match(/^STD-(\d+)$/)?.[1] ?? '')))
     .filter(n => (PUMP_TEST_SHEETS as readonly number[]).includes(n))
     .sort((a, b) => a - b)
-  const pumpRows = pumpSheetNos.length > 0 ? (await listPumpTestsAction(id)).rows : []
+  type ReportRow = {
+    id: string; report_type: string; file_name: string; file_size: number | null
+    submitted_at: string | null; submitted_by: string | null
+  }
+  const rawReports = (reportsRes.data ?? []) as ReportRow[]
+  const submitterIds = [...new Set(rawReports.map(r => r.submitted_by).filter(Boolean))] as string[]
+  const storagePrefix = `${inspection.customer_id}/inspections/${id}`
+  // ④⑥ 기한이 **영업일**이라 공휴일 표가 필요하다(2026-09-09 확정). 점검 연도 ±1년이면
+  // 어떤 기한도 덮는다 — ⑥이 가장 멀어야 점검 종료 + 15영업일 + 20일 + 10영업일 남짓이다.
+  const today = new Date(Date.now() + 9 * 3600_000).toISOString().split('T')[0]  // KST 기준 — D-day는 doc-status.ts todayKst()와 동일 기산
+  const dueYear = Number(String((inspection as unknown as Record<string, unknown>).inspection_start_date ?? today).slice(0, 4))
 
-  // 시트별 진행률 — sheet_id 조인 집계(sheet-overview.ts). 종전 item_code 접두 파싱은
-  // 분모·O/X/N 집계를 못 구하고 MU 시트 다수를 한 버킷으로 뭉개서 폐기했다.
-  // 회차별 작성·조회 트리와 같은 소스라 두 화면의 진행률이 어긋날 수 없다.
-  // withGroups: 머더 카드 보드(소방계획서_23 S5-7)가 중분류 버킷을 쓴다 — 점검 상세만 true
-  const { overviews } = await buildSheetOverviews(admin, [id], { id: profile.id, role: profile.role as UserRole }, { withGroups: true })
+  /* 2층 — 점검 행이 필요한 것들. 서로 독립이라 함께 던진다.
+     시트별 진행률은 sheet_id 조인 집계(sheet-overview.ts) — 회차별 작성·조회 트리와 같은 소스라
+     두 화면의 진행률이 어긋날 수 없다. withGroups: 머더 카드 보드(소방계획서_23 S5-7)가 중분류 버킷을 쓴다.
+     preloaded: 점검 행·응답 전량은 1층에서 받았다 → 집계의 1층 왕복이 0. */
+  const [contactRes, employeeRes, filesRes, overviewRes, defects, submittersRes, pumpRows, custFullRes, bldRes9, holidayRes, ownerRes] = await Promise.all([
+    inspection.contact_id
+      ? admin.from('customer_contacts').select('id, role, name, phone, email').eq('id', inspection.contact_id).single()
+      : Promise.resolve({ data: null }),
+    admin.from('profiles').select('id, name, position, license_no').eq('id', inspection.assigned_employee_id).single(),
+    // 스토리지 목록 **한 번** — 종전엔 이 페이지와 동기화가 각자 list했다. 외관(50)·자체(100) 중 큰 쪽으로
+    admin.storage.from('fire-plans').list(storagePrefix, { limit: 100, sortBy: { column: 'name', order: 'desc' } }),
+    buildSheetOverviews(admin, [id], { id: profile.id, role: profile.role as UserRole }, {
+      withGroups: true,
+      preloaded: {
+        insps: [{ id, customer_id: inspection.customer_id, plan_type: inspPlanType, assigned_employee_id: inspection.assigned_employee_id,
+          customer: customer ? { inspection_type: customer.inspection_type } : null }],
+        responses: respRows.map(r => ({ inspection_id: id, item_code: r.item_code, result: r.result })),
+      },
+    }),
+    // 사진은 비공개 버킷이라 표시 직전에 서명한다 — DB엔 경로만 있다(lib/defect-photos)
+    withSignedDefectPhotos(admin, defectRows),
+    // 제출자 이름
+    submitterIds.length > 0
+      ? admin.from('profiles').select('id, name').in('id', submitterIds)
+      : Promise.resolve({ data: [] as Array<{ id: string; name: string }> }),
+    pumpSheetNos.length > 0 ? listPumpTestsAction(id).then(r => r.rows) : Promise.resolve([]),
+    // ── 아래 넷은 타임라인 블록이 쓴다(자체점검 셋·외관 하나) — 해당 없는 쪽은 비운다 ──
+    isSpecial
+      ? admin.from('customers')
+          .select('address, use_approval_date, manager_selected_at, building_grade, insurance_joined, op_hours_weekday, headcount_worker, headcount_resident, headcount_max, email_delivery_consent, report_email')
+          .eq('id', inspection.customer_id).single()
+      : Promise.resolve({ data: null }),
+    isSpecial
+      ? admin.from('buildings').select('purpose, total_area, building_area, floors_above, floors_below, height, households, building_count, permit_date, parking_summary, elevator_count, emergency_elevator_count, receiver_location, main_structure, roof_structure')
+          .eq('customer_id', inspection.customer_id).eq('is_active', true)
+          .order('created_at', { ascending: true }).limit(1).maybeSingle()
+      : Promise.resolve({ data: null }),
+    isSpecial
+      ? admin.from('holidays').select('date')
+          .gte('date', `${dueYear - 1}-01-01`).lte('date', `${dueYear + 1}-12-31`)
+      : Promise.resolve({ data: [] as Array<{ date: string }> }),
+    !isSpecial
+      ? admin.from('customer_contacts').select('id').eq('customer_id', inspection.customer_id).limit(1)
+      : Promise.resolve({ data: [] as Array<{ id: string }> }),
+  ])
+  const { overviews } = overviewRes
+  const allObjects = filesRes.data ?? []
   const sheetProgress: Record<string, SheetProgress> = Object.fromEntries(
     (overviews[id]?.sheets ?? []).map(p => [p.sheetId, p]))
 
@@ -214,35 +305,11 @@ export default async function InspectionDetailPage({
   const genHistory = ((genReportsRes.data ?? []) as Array<{ id: string; report_kind: string; file_name: string; generated_at: string; generated_by: string | null }>)
     .map(g => ({ id: g.id, report_kind: g.report_kind, file_name: g.file_name, generated_at: g.generated_at, by_name: g.generated_by ? (empNameMap.get(g.generated_by) ?? null) : null }))
 
-  const customer = customerRes.data as { id: string; customer_name: string; customer_code: string; inspection_type: InspectionType; address: string | null } | null
   const contact = contactRes.data as { id: string; role: string; name: string; phone: string | null; email: string | null } | null
   const employee = employeeRes.data as { id: string; name: string; position: string | null; license_no: string | null } | null
 
-  type DefectRow = {
-    id: string; defect_code: string | null; defect_name: string
-    defect_detail: string | null; photo_url: string | null
-    after_photo_url: string | null; action_taken: string | null; action_completed_at: string | null
-    action_plan: string | null; action_start: string | null; action_end: string | null
-    severity: '경미' | '보통' | '중대'; created_at: string
-  }
-  // 사진은 비공개 버킷이라 표시 직전에 서명한다 — DB엔 경로만 있다(lib/defect-photos)
-  const defects = await withSignedDefectPhotos(admin, (defectsRes.data ?? []) as DefectRow[])
-
-  type ReportRow = {
-    id: string; report_type: string; file_name: string; file_size: number | null
-    submitted_at: string | null; submitted_by: string | null
-  }
-  const rawReports = (reportsRes.data ?? []) as ReportRow[]
-
-  // 제출자 이름 조회
-  const submitterIds = [...new Set(rawReports.map(r => r.submitted_by).filter(Boolean))] as string[]
   const submitterMap = new Map<string, string>()
-  if (submitterIds.length > 0) {
-    const { data: submitters } = await admin.from('profiles').select('id, name').in('id', submitterIds)
-    for (const s of (submitters ?? []) as Array<{ id: string; name: string }>) {
-      submitterMap.set(s.id, s.name)
-    }
-  }
+  for (const s of (submittersRes.data ?? []) as Array<{ id: string; name: string }>) submitterMap.set(s.id, s.name)
 
   const reports = rawReports.map(r => ({
     ...r,
@@ -255,10 +322,25 @@ export default async function InspectionDetailPage({
   const canDelete = userRole === 'manager' || userRole === 'admin'
   const canEdit = isAssigned || userRole === 'manager' || userRole === 'admin'
 
-  const today = new Date(Date.now() + 9 * 3600_000).toISOString().split('T')[0]  // KST 기준 — D-day는 doc-status.ts todayKst()와 동일 기산
-
-  // 위에서 던져 둔 단계 동기화를 여기서 받는다(호출 자리는 이 파일 앞쪽 `syncPromise`)
-  const { changed: stepsChanged, completionHeld, evidence: syncedEvidence } = await syncPromise
+  /* 3층 — 단계 동기화(R4-7 누락 방어, 소방계획서_21 B-4): 상세 진입 시 계산 증거와 저장 status를 맞춘다.
+     **불일치일 때만 쓰기**라 과거 데이터도 열람하는 순간 스스로 정합해진다.
+     2026-10-01 — 1·2층 재료를 전부 넘기므로 이 호출의 **읽기는 0회**다(종전 7~9왕복 + 점검·단계 재조회).
+     ⚠ 증거 재료는 전량이어야 한다(responses·defects — 1층이 끝까지 받았다). */
+  const evidencePre: EvidencePreload = {
+    responses: respRows,
+    storageObjects: allObjects,
+    deliveryExists: !!deliveryRow,
+    defects: defectRows,
+    logs: evidenceLogsRes.data ?? [],
+    archived: archivedSet,
+  }
+  const { changed: stepsChanged, completionHeld, evidence: syncedEvidence } = await syncInspectionSteps(admin, id, profile.id, {
+    preloaded: {
+      insp: inspection as unknown as SyncInspRow,   // select('*') 행 — 동기화가 보는 9컬럼을 전부 담고 있다
+      steps: steps.map(s => ({ id: s.id, step_num: s.step_num, status: s.status })),
+      evidence: evidencePre,
+    },
+  })
   if (stepsChanged > 0) {
     // 위 Promise.all에서 이미 읽은 steps가 낡았다 — 바뀐 경우에만 다시 읽는다(평시 왕복 0회)
     const { data: fresh } = await admin.from('inspection_steps')
@@ -282,14 +364,9 @@ export default async function InspectionDetailPage({
   let exteriorChecks: Report9CheckRow[] | null = null
   let timelineData: TimelineData | null = null
   if (!isSpecial && customer) {
-    const [ownerRes, jobResExt, filesResExt] = await Promise.all([
-      admin.from('customer_contacts').select('id').eq('customer_id', inspection.customer_id).limit(1),
-      admin.from('fire_plan_gen_jobs')
-        .select('id, status, missing, error, created_at')
-        .eq('inspection_id', id).eq('report_type', 'exterior')
-        .order('created_at', { ascending: false }).limit(1),
-      admin.storage.from('fire-plans').list(`${inspection.customer_id}/inspections/${id}`, { limit: 50, sortBy: { column: 'name', order: 'desc' } }),
-    ])
+    // 관계인·생성 작업·스토리지 목록은 1·2층에서 받았다(2026-10-01) — 여기서 다시 읽지 않는다
+    const jobResExt = { data: genJobs.filter(j => j.report_type === 'exterior').slice(0, 1) }
+    const filesResExt = { data: allObjects }
     exteriorChecks = [
       {
         label: '① 외관점검 응답', ok: respRows.length > 0,
@@ -334,35 +411,13 @@ export default async function InspectionDetailPage({
     }
   }
   if (isSpecial && customer) {
-    // ④⑥ 기한이 **영업일**이라 공휴일 표가 필요하다(2026-09-09 확정). 점검 연도 ±1년이면
-    // 어떤 기한도 덮는다 — ⑥이 가장 멀어야 점검 종료 + 15영업일 + 20일 + 10영업일 남짓이다.
-    const dueYear = Number(String((inspection as unknown as Record<string, unknown>).inspection_start_date ?? today).slice(0, 4))
+    // ④⑥ 기한의 공휴일 표(dueYear ±1년)는 2층에서 받았다(holidayRes)
     /* 🚨 2026-09-11 — `brigadeRes9`(의용소방대원 1행 조회)를 **뺐다**. 그 값을 읽던 곳은
        「제출 전제」 체크(`report9Checks`) 하나뿐이었고, 그 UI가 폐지되면서(소방계획서_49 §13)
        조회만 남아 매 렌더 왕복을 하나 더 쓰고 있었다. 되살리려면 3번째 자리에 함께 넣을 것 —
        이 배열은 **위치 기반 구조분해**라 질의만 지우거나 이름만 지우면 전부 한 칸씩 밀린다. */
-    const [custFullRes, bldRes9, jobRes9, filesRes9, deliveryRes, holidayRes, annex10Res] = await Promise.all([
-      admin.from('customers')
-        .select('address, use_approval_date, manager_selected_at, building_grade, insurance_joined, op_hours_weekday, headcount_worker, headcount_resident, headcount_max, email_delivery_consent, report_email')
-        .eq('id', inspection.customer_id).single(),
-      admin.from('buildings').select('purpose, total_area, building_area, floors_above, floors_below, height, households, building_count, permit_date, parking_summary, elevator_count, emergency_elevator_count, receiver_location, main_structure, roof_structure')
-        .eq('customer_id', inspection.customer_id).eq('is_active', true)
-        .order('created_at', { ascending: true }).limit(1).maybeSingle(),
-      admin.from('fire_plan_gen_jobs')
-        .select('id, status, missing, error, created_at')
-        .eq('inspection_id', id).eq('report_type', 'report9')
-        .order('created_at', { ascending: false }).limit(1),
-      admin.storage.from('fire-plans').list(`${inspection.customer_id}/inspections/${id}`, { limit: 100, sortBy: { column: 'name', order: 'desc' } }),
-      admin.from('report_deliveries').select('recipient_email, sent_at')
-        .eq('inspection_id', id).eq('doc_kind', 'report9_owner')
-        .order('sent_at', { ascending: false }).limit(1),
-      admin.from('holidays').select('date')
-        .gte('date', `${dueYear - 1}-01-01`).lte('date', `${dueYear + 1}-12-31`),
-      // ⑥ 기한의 기산점은 **총 이행기간 종료일**이다 — 별지 10호에 사람이 적은 그 값이 정본이고,
-      // 불량별 action_end는 그것이 비었을 때의 폴백이다(같은 사슬을 문서 조립도 쓴다).
-      admin.from('annex_inputs').select('fields')
-        .eq('inspection_id', id).eq('annex_no', 'report10').maybeSingle(),
-    ])
+    // 고객 상세·건물·공휴일(2층)과 생성 작업·송달·별지10(1층)은 위에서 받았다(2026-10-01) — 여기서 다시 읽지 않는다
+    const jobRes9 = { data: genJobs.filter(j => j.report_type === 'report9').slice(0, 1) }
     const cf = (custFullRes.data ?? {}) as Record<string, unknown>
     const b9 = (bldRes9.data ?? null) as Record<string, unknown> | null
     /* 🚨 「제출 전제」 4줄(①대상물 공통정보 ②점검 인력 ③점검표 응답 ④송달 동의)을 **폐지했다**
@@ -378,8 +433,6 @@ export default async function InspectionDetailPage({
        데이터는 만들어지는데 아무도 안 읽거나, 화면이 없는 값을 읽는다. */
     const consent = cf.email_delivery_consent as boolean | null | undefined
     report9Job = (jobRes9.data?.[0] as Report9Job | undefined) ?? null
-    const storagePrefix = `${inspection.customer_id}/inspections/${id}`
-    const allObjects = (filesRes9.data ?? [])
     report9Files = allObjects
       // 필터는 lib/generated-docs 한 곳 — 종전엔 여기만 report9·10·11이라 위임장·공문·표지가
       // 만들면 보였다가 새로고침하면 사라졌다(생성 직후 갱신은 넓은 필터를 쓴다)
@@ -400,13 +453,8 @@ export default async function InspectionDetailPage({
        activity_logs 조회 세 건이 한 줄로 서서 왕복 3회를 순서대로 기다렸다. 함께 던진다.
        ⚠ certArchived는 `stepEvidence`가 **같은 함수**(findArchivedCertInspections)로 이미 구해 둔
          값이라 묻지 않는다 — 증거가 없을 때(점검 행 소실)만 직접 조회로 물러난다. */
-    const [certPaper, certReported, archivedFallback] = await Promise.all([
-      loadCertPaperRecord(admin, id),
-      loadCertReported(admin, id),
-      stepEvidence ? Promise.resolve(null) : findArchivedCertInspections(admin, [id]),
-    ])
-    const certArchived = !certObj && (stepEvidence ? stepEvidence.certArchived : !!archivedFallback?.has(id))
-    const deliveryRow = (deliveryRes.data?.[0] ?? null) as { recipient_email: string; sent_at: string } | null
+    // (2026-10-01) 셋 다 1층에서 받았다 — certPaper·certReported·archivedSet. 증거가 있으면 증거의 값이 우선(같은 함수의 값)
+    const certArchived = !certObj && (stepEvidence ? stepEvidence.certArchived : archivedSet.has(id))
     const iRec = inspection as unknown as Record<string, unknown>
     const endDate = (iRec.inspection_end_date as string | null) ?? (iRec.inspection_start_date as string | null)
     /** 공휴일 집합. 조회가 실패하면 **주말만** 제외하고 계산한다 — 조용히 달력일로 떨어지지 않게.

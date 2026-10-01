@@ -32,6 +32,10 @@ export type ActiveSteps = {
  *  @param label 로그에 찍을 호출부 이름 — 어느 화면이 눈멀었는지 운영에서 가려내기 위한 것 */
 export async function activeStepsByInspection(
   admin: Admin, ids: string[], label: string,
+  /** 호출부가 **이미 읽어 둔** `inspections.plan_type`이 있으면 넘긴다 — 같은 행을 다시 조회하지 않는다.
+   *  (달력은 라운드 A에서 3년치 inspections를 통째로 받아 두고도 여기서 id·plan_type을 또 읽고 있었다.)
+   *  ids 전부가 담겨 있어야 한다 — 빠진 id는 '모름'(isStepActive가 참)으로 남는다. */
+  known?: { planTypes: ReadonlyMap<string, string | null> },
 ): Promise<ActiveSteps> {
   const map = new Map<string, Set<number>>()
   const visibleMap = new Map<string, Set<number>>()
@@ -40,8 +44,13 @@ export async function activeStepsByInspection(
   // ⚠ `fetchAllRowsByIds` — id 목록은 URL에 실리므로 **400건부터 요청 자체가 실패**한다(실측).
   // 1000행 상한을 푸는 것만으로는 부족하다: 여기 오는 ids는 목록 「전체」 보기에서 수천이 될 수 있다.
   const [inspRes, defRes, xRes] = await Promise.all([
-    fetchAllRowsByIds<{ id: string; plan_type: string | null }, string>(ids, (c, from, to) => admin
-      .from('inspections').select('id, plan_type').in('id', c).order('id').range(from, to)),
+    known
+      ? Promise.resolve({
+          rows: ids.flatMap(id => known.planTypes.has(id) ? [{ id, plan_type: known.planTypes.get(id) ?? null }] : []),
+          error: null as string | null, truncated: false,
+        })
+      : fetchAllRowsByIds<{ id: string; plan_type: string | null }, string>(ids, (c, from, to) => admin
+          .from('inspections').select('id, plan_type').in('id', c).order('id').range(from, to)),
     fetchAllRowsByIds<{ inspection_id: string }, string>(ids, (c, from, to) => admin
       .from('inspection_defects').select('inspection_id').in('inspection_id', c).order('id').range(from, to)),
     fetchAllRowsByIds<{ inspection_id: string }, string>(ids, (c, from, to) => admin

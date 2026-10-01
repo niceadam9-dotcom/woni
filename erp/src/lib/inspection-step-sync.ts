@@ -42,36 +42,75 @@ type InspRow = {
 
 /** 증거 수집 — 단계 판정에 필요한 값만 모은다. 화면(page.tsx)이 이미 같은 값을 조회하지만
  *  서버 액션에서도 불려야 하므로 여기서 독립적으로 모은다(같은 판정 함수를 쓰므로 결과는 일치). */
+/** 증거 마커 로그(③ 오프라인 보고·강제 완료·철회) — `gatherStepEvidence`와 화면이 같은 질의를 쓴다 */
+export type EvidenceLogRow = { action: string; metadata: Record<string, unknown> | null; created_at: string }
+export function fetchEvidenceLogs(admin: Admin, inspectionId: string) {
+  // created_at을 함께 읽는다: append-only라 철회는 '나중 마커'로만 표현된다(D1)
+  return admin.from('activity_logs').select('action, metadata, created_at')
+    .eq('entity_type', 'inspection').eq('entity_id', inspectionId)
+    .in('action', [
+      OWNER_REPORT_OFFLINE_ACTION, OWNER_REPORT_OFFLINE_UNDO_ACTION,
+      STEP_FORCE_COMPLETE_ACTION, STEP_FORCE_UNDO_ACTION,
+    ])
+    .order('created_at')
+    .limit(500)
+}
+
+/** 동기화가 읽는 점검 행의 꼴 — 호출부가 `preloaded.insp`로 넘길 때 이 컬럼이 전부 있어야 한다 */
+export type SyncInspRow = InspRow
+
+/** 호출부가 **이미 읽어 둔** 증거 재료 (2026-10-01 점검 상세 중복 조회 통합).
+ *  점검 상세는 응답·불량·스토리지 목록·송달·마커 로그를 자기 화면용으로 이미 받는데, 동기화가 같은 것을
+ *  한 번 더 읽고 있었다(응답 4회·스토리지 2회·송달 2회 — 2026-10-01 실측). 있는 것만 넘기면 되고,
+ *  없는 축은 종전대로 직접 읽는다. 같은 요청 안의 값이라 신선도는 같다.
+ *  ⚠ `responses`·`defects`는 **전량**이어야 한다(1000행 상한 밖에서 받은 것) — 일부만 넘기면
+ *    ✕·불량 집합 차가 틀어져 ⑤⑥ 판정이 조용히 갈린다. */
+export type EvidencePreload = {
+  responses?: ReadonlyArray<{ item_code: string; result: string }>
+  storageObjects?: ReadonlyArray<{ name: string }>
+  deliveryExists?: boolean
+  defects?: ReadonlyArray<{ action_completed_at: string | null; defect_code: string | null }>
+  logs?: ReadonlyArray<EvidenceLogRow>
+  archived?: ReadonlySet<string>
+}
+
 export async function gatherStepEvidence(
-  admin: Admin, insp: InspRow,
+  admin: Admin, insp: InspRow, pre?: EvidencePreload,
 ): Promise<StepEvidence> {
   const prefix = `${insp.customer_id}/inspections/${insp.id}`
+  type Paged<T> = { rows: T[]; error: string | null; truncated: boolean }
   const [respRes, xRes, filesRes, deliveryRes, defectsRes, logsRes, archivedSet] = await Promise.all([
-    admin.from('inspection_sheet_responses').select('id', { count: 'exact', head: true }).eq('inspection_id', insp.id),
+    pre?.responses
+      ? Promise.resolve({ count: pre.responses.length })
+      : admin.from('inspection_sheet_responses').select('id', { count: 'exact', head: true }).eq('inspection_id', insp.id),
     // ✕ 응답의 **항목 코드** (소방계획서_45 R-5) — 개수만으로는 '미등록 ✕'를 셀 수 없어 코드를 받는다.
     // 종전에는 `count:'exact', head:true`로 수만 셌고 미등록 여부는 `defectsTotal===0`으로 근사했다.
     // 회차당 ✕는 많아야 수백이지만 상한에 기대지 않는다(fetchAllRows).
-    fetchAllRows<{ item_code: string }>((from, to) => admin.from('inspection_sheet_responses')
-      .select('item_code').eq('inspection_id', insp.id).eq('result', 'X').order('id').range(from, to)),
-    admin.storage.from('fire-plans').list(prefix, { limit: 100 }),
-    admin.from('report_deliveries').select('id').eq('inspection_id', insp.id).eq('doc_kind', 'report9_owner').limit(1),
+    pre?.responses
+      ? Promise.resolve<Paged<{ item_code: string }>>({
+          rows: pre.responses.filter(r => r.result === 'X').map(r => ({ item_code: r.item_code })), error: null, truncated: false })
+      : fetchAllRows<{ item_code: string }>((from, to) => admin.from('inspection_sheet_responses')
+          .select('item_code').eq('inspection_id', insp.id).eq('result', 'X').order('id').range(from, to)),
+    pre?.storageObjects
+      ? Promise.resolve({ data: [...pre.storageObjects] })
+      : admin.storage.from('fire-plans').list(prefix, { limit: 100 }),
+    pre?.deliveryExists !== undefined
+      ? Promise.resolve({ data: pre.deliveryExists ? [{ id: 'preloaded' }] : [] })
+      : admin.from('report_deliveries').select('id').eq('inspection_id', insp.id).eq('doc_kind', 'report9_owner').limit(1),
     // ⚠ 3차 독립 판정(R-2): 집합 차의 **반대편**인 이 조회만 맨몸이었다 — 상한 미대비·error 미확인.
     // 실패하면 registered가 비어 ✕ 전건이 미등록으로 부풀고, applyStepSideEffects가 completed였던
     // 점검을 in_progress로 **되돌리는 쓰기**까지 한다. 두 집합은 같은 규약으로 받아야 한다.
-    fetchAllRows<{ action_completed_at: string | null; defect_code: string | null }>((from, to) =>
-      admin.from('inspection_defects').select('action_completed_at, defect_code')
-        .eq('inspection_id', insp.id).order('id').range(from, to)),
+    pre?.defects
+      ? Promise.resolve<Paged<{ action_completed_at: string | null; defect_code: string | null }>>({
+          rows: pre.defects.map(d => ({ action_completed_at: d.action_completed_at, defect_code: d.defect_code })), error: null, truncated: false })
+      : fetchAllRows<{ action_completed_at: string | null; defect_code: string | null }>((from, to) =>
+          admin.from('inspection_defects').select('action_completed_at, defect_code')
+            .eq('inspection_id', insp.id).order('id').range(from, to)),
     // ③ 오프라인 보고·강제 완료·철회 마커 — 마이그레이션 없이 activity_logs를 근거로 쓴다(D34-2).
-    // created_at을 함께 읽는다: append-only라 철회는 '나중 마커'로만 표현된다(D1)
-    admin.from('activity_logs').select('action, metadata, created_at')
-      .eq('entity_type', 'inspection').eq('entity_id', insp.id)
-      .in('action', [
-        OWNER_REPORT_OFFLINE_ACTION, OWNER_REPORT_OFFLINE_UNDO_ACTION,
-        STEP_FORCE_COMPLETE_ACTION, STEP_FORCE_UNDO_ACTION,
-      ])
-      .order('created_at')
-      .limit(500),
-    findArchivedCertInspections(admin, [insp.id]),
+    pre?.logs
+      ? Promise.resolve({ data: [...pre.logs] })
+      : fetchEvidenceLogs(admin, insp.id),
+    pre?.archived ?? findArchivedCertInspections(admin, [insp.id]),
   ])
 
   const defects = defectsRes.rows
@@ -226,6 +265,9 @@ export async function recalcStepDueDates(
  *  상태가 실제로 바뀐 행만 갱신한다(무의미한 쓰기·revalidate 폭풍 방지). */
 export async function syncInspectionSteps(
   admin: Admin, inspectionId: string, actorId: string | null,
+  /** 호출부가 이미 읽어 둔 점검 행·단계 행·증거 재료 — 점검 상세가 넘긴다(중복 조회 통합, 2026-10-01).
+   *  `insp`는 아래 InspRow의 컬럼을 **전부** 담아야 한다(`select('*')` 행이면 된다). */
+  opts: { preloaded?: { insp?: SyncInspRow; steps?: Array<{ id: string; step_num: number; status: string }>; evidence?: EvidencePreload } } = {},
 ): Promise<{
   changed: number; justCompleted?: boolean; error?: string
   /** 39 S3 — 완료 보류 사유(필수 미입력 항목 수·그중 ●). 있으면 status가 completed로 안 올라갔다 */
@@ -241,17 +283,22 @@ export async function syncInspectionSteps(
   evidence?: StepEvidence
 }> {
   // 점검 행과 단계 행은 서로 독립 — 병렬 조회로 왕복 1회 절약(저장 경로 최적화, 2026-08-15)
+  const pre = opts.preloaded
   const [{ data: inspRaw }, { data: stepRaw }] = await Promise.all([
-    admin.from('inspections')
-      .select('id, customer_id, status, inspection_start_date, inspection_end_date, inspection_type, plan_type, report9_submitted_at, report11_submitted_at')
-      .eq('id', inspectionId).maybeSingle(),
-    admin.from('inspection_steps')
-      .select('id, step_num, status').eq('inspection_id', inspectionId),
+    pre?.insp
+      ? Promise.resolve({ data: pre.insp })
+      : admin.from('inspections')
+          .select('id, customer_id, status, inspection_start_date, inspection_end_date, inspection_type, plan_type, report9_submitted_at, report11_submitted_at')
+          .eq('id', inspectionId).maybeSingle(),
+    pre?.steps
+      ? Promise.resolve({ data: pre.steps })
+      : admin.from('inspection_steps')
+          .select('id, step_num, status').eq('inspection_id', inspectionId),
   ])
   const insp = inspRaw as InspRow | null
   if (!insp) return { changed: 0, error: '점검을 찾을 수 없습니다.' }
 
-  const evidence = await gatherStepEvidence(admin, insp)
+  const evidence = await gatherStepEvidence(admin, insp, pre?.evidence)
   const done = evidenceDone(evidence)
   const isSpecial = isSelfInspection(insp.plan_type)
   const active = activeStepNums(isSpecial, hasSheetDefect(evidence))

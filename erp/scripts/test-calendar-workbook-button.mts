@@ -83,7 +83,8 @@ console.log('\n— ★ badge를 축으로 쓰면 무너진다는 것을 표본�
 }
 
 console.log('\n— ② 배선 — 서버가 그 판정으로 싣고, 클라이언트가 그 값으로만 가린다')
-const page = codeOnly(readFileSync(new URL('../src/app/(dashboard)/inspections/calendar/page.tsx', import.meta.url), 'utf8'))
+// 2026-10-01 — 달력의 조회·판정은 lib/calendar-data.ts로 옮겨졌다(page.tsx와 보충 조회 액션이 같이 쓴다)
+const page = codeOnly(readFileSync(new URL('../src/lib/calendar-data.ts', import.meta.url), 'utf8'))
 const client = codeOnly(readFileSync(new URL('../src/components/inspections/inspection-calendar-client.tsx', import.meta.url), 'utf8'))
 
 ok('서버가 isSelfInspection을 들여온다', /import\s*\{[^}]*isSelfInspection/.test(page))

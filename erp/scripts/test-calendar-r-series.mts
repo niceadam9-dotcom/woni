@@ -33,6 +33,8 @@ import { daysFromRange, periodSummary } from '../src/lib/inspection-period'
 const read = (p: string) => readFileSync(new URL(p, import.meta.url), 'utf8')
 const PAGE = '../src/app/(dashboard)/inspections/calendar/page.tsx'
 const CLIENT = '../src/components/inspections/inspection-calendar-client.tsx'
+// 2026-10-01 — 달력의 조회·판정(closedVerdict 등)은 lib/calendar-data.ts로 옮겨졌다(page.tsx와 보충 조회 액션이 같이 쓴다)
+const DATA = '../src/lib/calendar-data.ts'
 
 // ══ 계측기 자기 검사 — 「걷어냈다고 믿는 것」과 「걷어낸 것」은 다르다 ═══════════════
 for (const [label, path] of [['page', PAGE], ['client', CLIENT]] as const) {
@@ -96,16 +98,17 @@ check('R7① completed_at이 전부 비어도 종료는 말한다(시각만 null
   (() => { const v = closedVerdict([step(1, 'completed', null)], MONTHLY); return v.closed === true && v.closedAt === null })())
 
 // ══ R7 ② 배선 — 서버가 **의무 축**을 넘기는가 ═══════════════════════════════
-check('R7② page가 closedVerdict를 부른다', pageCode.includes('closedVerdict('))
+const dataCode = codeOnly(read(DATA))
+check('R7② page가 closedVerdict를 부른다', dataCode.includes('closedVerdict('))
 /* 🚨 개수가 아니라 **인자**를 묻는다. `closedVerdict(stepsMap...)`로 바뀌면 여기가 빨개져야 한다 */
 check('R7② 1인자가 allStepsMap(**거르기 전** 의무 축)이다',
-  /closedVerdict\(\s*allStepsMap\.get\(insp\.id\)\s*\?\?\s*\[\]/.test(pageCode))
+  /closedVerdict\(\s*allStepsMap\.get\(insp\.id\)\s*\?\?\s*\[\]/.test(dataCode))
 /* ⚠ `[^)]*`로 쓰면 안 된다 — 1인자 안의 `get(insp.id)` 닫는 괄호를 못 넘어 **멀쩡한 제품이
    빨갛게** 나온다(이 검사를 처음 돌렸을 때 실제로 그랬다). 두 인자를 통째로 적어 묻는다. */
 check('R7② 2인자가 activeCal.map(의무)이다 — visibleMap(표시)이 아니다',
-  /closedVerdict\(\s*allStepsMap\.get\(insp\.id\)\s*\?\?\s*\[\]\s*,\s*activeCal\.map\.get\(insp\.id\)\s*\)/.test(pageCode))
+  /closedVerdict\(\s*allStepsMap\.get\(insp\.id\)\s*\?\?\s*\[\]\s*,\s*activeCal\.map\.get\(insp\.id\)\s*\)/.test(dataCode))
 check('R7② 표시 축(stepsMap·visibleMap)을 closedVerdict에 넘기지 않는다',
-  !/closedVerdict\([^)]*(stepsMap|visibleMap)/.test(pageCode))
+  !/closedVerdict\([^)]*(stepsMap|visibleMap)/.test(dataCode))
 /* 화면이 판정을 **다시 세지 않는가** — 서버가 준 값만 읽어야 한다 */
 check('R7② 화면은 서버가 준 closed를 읽기만 한다(steps로 다시 세지 않는다)',
   clientCode.includes('closed?.closed') && !/closed:\s*.*steps\.filter/.test(clientCode))
@@ -218,10 +221,11 @@ check('R3① 저장값이 없으면 어긋났다고 말하지 않는다(비교�
 check('R3① 시작일이 없으면 —', periodSummary(null, null, 1).text === '—')
 
 // ══ R3 ② 배선 ═════════════════════════════════════════════════════════════
+// 2026-10-01 — 점검 조회는 lib/calendar-data.ts로 옮겨졌다(dataCode는 위 R7②에서 읽었다)
 check('R3② 서버가 종료일·일수를 싣는다',
-  pageCode.includes('inspection_end_date') && pageCode.includes('inspection_days'))
+  dataCode.includes('inspection_end_date') && dataCode.includes('inspection_days'))
 check('R3② select 문에 두 칸이 들어 있다',
-  /\.select\('id, customer_id, inspection_type, plan_type, year, sequence_num, inspection_start_date, inspection_end_date, inspection_days,/.test(pageCode))
+  /\.select\('id, customer_id, inspection_type, plan_type, year, sequence_num, inspection_start_date, inspection_end_date, inspection_days,/.test(dataCode))
 /* 🚨 「periodMismatch가 소스에 있는가」로 물으면 안 된다 — 식별자만 남기고 `= false`로 바꿔도
    초록이다(변이 M14가 그렇게 뚫었다). 셈과 판정을 **순수 함수로 밀어내고** 값은 위 ①이 센다.
    여기서는 화면이 그 함수를 쓰는지, 자기 손으로 다시 세지 않는지만 묻는다. */

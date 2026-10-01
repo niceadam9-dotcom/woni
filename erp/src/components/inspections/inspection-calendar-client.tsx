@@ -28,6 +28,8 @@ import { firePlanNoticeHref } from '@/lib/fire-plan-chip-target'
 // 여러 건 날짜 이동 액션 — 같은 달·미시작·1단계 완료 가드가 이 경로에만 있다.
 // (문자 발송 화면에서 태어나 파일이 sms-actions다. 그 화면이 이력 전용이 되면서 호출부는 여기뿐이다)
 import { bulkMovePlanDatesAction, countUnsentNoticesAction } from '@/app/(dashboard)/inspections/sms-actions'
+import { loadCalendarRangeAction } from '@/app/(dashboard)/inspections/calendar/actions'
+import { monthCovered, monthRange, monthsIn, windowAround, type DateRange } from '@/lib/calendar-window'
 import { stepInputLink } from '@/lib/inspection-step-links'
 import { planRowInspectionEntry } from '@/lib/calendar-plan-row'
 import { smsDayOpen as smsDayOpenOf, isSmsStepRow as smsStepRow, isSmsPlanRow as smsPlanRow } from '@/lib/calendar-sms-row'
@@ -356,9 +358,20 @@ function chipStyle(r: CalEventResource): React.CSSProperties {
 type QuickFilter = 'all' | 'today' | 'week' | 'overdue'
 
 interface Props {
+  /** 서버가 첫 진입에 실은 창(`initialRange`)의 점검 — 그 밖의 달은 `loadCalendarRangeAction`으로 보충한다 */
   inspections: CalendarInspection[]
-  /** 정기·일반관리 계획 항목 (전체/정기점검 모드에서 표시) */
+  /** 정기·일반관리 계획 항목 (전체/정기점검 모드에서 표시) — 위와 같은 창 */
   planItems?: CalendarPlanItem[]
+  /** 위 두 배열이 덮는 날짜 창(기준 달 ±1개월) — 2026-10-01 조회 창 축소. 없으면 전부 실린 것으로 본다 */
+  initialRange?: DateRange
+  /** 기한초과 진입의 착지 날짜 — 서버가 전 기간에서 고른다(창 축소 뒤 클라이언트는 창 밖을 모른다) */
+  initialOverdueDate?: string | null
+  /** 서버가 창을 맞춘 기준 달('YYYY-MM') — `?m=`·`?day=`·기한초과·오늘 중 하나. 달력도 이 달에서 연다 */
+  initialMonth?: string
+  /** 고객 검색 후보 — 활성 고객 전부(창 밖 고객도 검색되게). 없으면 실린 일정에서 뽑는다 */
+  customerOptions?: Array<{ id: string; name: string; code: string }>
+  /** 퇴사 담당 미완료 일정 수 — 서버가 전 기간을 센다. 없으면 실린 일정에서 센다 */
+  orphanCount?: number
   employees: Array<{ id: string; name: string; position: string | null }>
   currentUserId: string
   currentUserRole: UserRole
@@ -382,11 +395,42 @@ interface Props {
 }
 
 // ─── Component ───────────────────────────────────────────────────────────────
-export function InspectionCalendarClient({ inspections, planItems = [], employees, currentUserId, currentUserRole, initialFilter = 'all', initialCustomerQuery = '', initialInspectionId = '', initialDayPanelDate = '', holidays = [], canMovePlan = false, canSendSms = false, canCreateCustomer = false, initialSmsPanelOpen = false }: Props) {
+export function InspectionCalendarClient({ inspections: serverInspections, planItems: serverPlanItems = [], initialRange, initialMonth, initialOverdueDate = null, customerOptions, orphanCount: serverOrphanCount, employees, currentUserId, currentUserRole, initialFilter = 'all', initialCustomerQuery = '', initialInspectionId = '', initialDayPanelDate = '', holidays = [], canMovePlan = false, canSendSms = false, canCreateCustomer = false, initialSmsPanelOpen = false }: Props) {
   const router = useRouter()
   // B-3 복귀 경로 재료 — 지금 보고 있는 달까지 포함해 되돌아가려고 쓴다(하이드레이션 안전)
   const pathname = usePathname()
   const searchParams = useSearchParams()
+
+  /* ── 조회 창 보충 (2026-10-01) ────────────────────────────────────────────────
+   *  서버는 **기준 달 ±1개월**만 싣는다(종전 3년치 → 계획 5,360행·HTML 415KB·조회 3초가 첫 화면의 7할).
+   *  그 밖의 달로 넘어가면 아래 effect가 달 단위로 `loadCalendarRangeAction`을 불러 `extra`에 쌓고,
+   *  이 컴포넌트의 나머지는 **합쳐진** `inspections`·`planItems`만 본다(종전 코드는 한 줄도 안 바뀐다).
+   *  ⚠ 서버 props가 바뀌면(저장 뒤 revalidate·새로고침) extra를 **비운다** — 옮긴 계획의 옛 날짜가
+   *    extra에 남아 두 날짜에 그려지는 것을 막는다. 보던 달이 새 창 밖이면 effect가 다시 받아 온다. */
+  type Extra = { ranges: DateRange[]; inspections: CalendarInspection[]; planItems: CalendarPlanItem[] }
+  const EMPTY_EXTRA = useMemo<Extra>(() => ({ ranges: [], inspections: [], planItems: [] }), [])
+  const [extra, setExtra] = useState<Extra>(EMPTY_EXTRA)
+  const [rangeLoading, setRangeLoading] = useState(false)
+  const [rangeError, setRangeError] = useState<string | null>(null)
+  const inflightMonths = useRef(new Set<string>())
+  const mountedOnce = useRef(false)
+  useEffect(() => {
+    if (!mountedOnce.current) { mountedOnce.current = true; return }
+    setExtra(EMPTY_EXTRA)
+  }, [serverInspections, serverPlanItems, initialRange, EMPTY_EXTRA])
+  const inspections = useMemo<CalendarInspection[]>(() => {
+    if (extra.inspections.length === 0) return serverInspections
+    const seen = new Set(serverInspections.map(i => i.id))
+    return [...serverInspections, ...extra.inspections.filter(i => !seen.has(i.id))]
+  }, [serverInspections, extra.inspections])
+  const planItems = useMemo<CalendarPlanItem[]>(() => {
+    if (extra.planItems.length === 0) return serverPlanItems
+    const seen = new Set(serverPlanItems.map(p => p.id))
+    return [...serverPlanItems, ...extra.planItems.filter(p => !seen.has(p.id))]
+  }, [serverPlanItems, extra.planItems])
+  const loadedRanges = useMemo<DateRange[]>(
+    () => initialRange ? [initialRange, ...extra.ranges] : [{ from: '0000-01-01', to: '9999-12-31' }],
+    [initialRange, extra.ranges])
 
   // 사전 안내 문자 — 날짜만 넘기고 서버가 대상을 계산한다(Q-14). 달력 쪽 상태는 이 하나뿐이다.
   const [smsSource, setSmsSource] = useState<SmsModalSource | null>(null)
@@ -449,29 +493,25 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
     return () => document.removeEventListener('mousedown', onDown)
   }, [])
 
-  // 기한초과 진입 시 가장 오래된 미완료 초과 마감 — 초기 점프·안내 배너 공용
-  const earliestOverdue = useMemo(() => {
-    if (initialFilter !== 'overdue') return null
-    const todayStr = todayKst()
-    let earliest: string | null = null
-    for (const insp of inspections) {
-      for (const s of insp.steps) {
-        if (s.due_date && s.status !== 'completed' && s.due_date < todayStr) {
-          if (!earliest || s.due_date < earliest) earliest = s.due_date
-        }
-      }
-    }
-    return earliest
+  // 기한초과 진입 시 가장 오래된 미완료 초과 마감 — 초기 점프·안내 배너 공용.
+  // 2026-10-01 — 서버가 전 기간에서 고른다(`earliestOverdueDue`). 종전엔 여기서 3년치 단계를 훑었는데
+  // 창 축소 뒤로는 클라이언트가 창 밖을 모르고, 서버는 그 달에 창을 맞춰 보낸다.
+  const earliestOverdue = useMemo(
+    () => (initialFilter === 'overdue' ? initialOverdueDate : null),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+    [])
 
   // Calendar view state
   const [calView, setCalView] = useState<View>(initialFilter === 'overdue' ? Views.AGENDA : Views.MONTH)
   /* ⚠ `?day=`가 가장 세다 — 그 날짜의 데이 패널을 열어 놓고 **보던 달**을 기한초과 점프가
      덮으면, 복귀했을 때 패널은 11월인데 달력은 7월인 어긋난 화면이 된다. */
+  /* `?m=`(initialMonth)이 기한초과 점프보다 세다 — 서버가 같은 우선순위로 창을 맞췄다(page.tsx).
+     기한초과 착지 달과 initialMonth가 같으면 종전처럼 그 **날짜**에서 연다(목록 보기가 거기서 시작). */
   const [calDate, setCalDate] = useState(() =>
     initialDayPanelDate ? new Date(initialDayPanelDate + 'T12:00:00')
-      : earliestOverdue ? new Date(earliestOverdue + 'T12:00:00') : new Date())
+      : earliestOverdue && (!initialMonth || initialMonth === earliestOverdue.slice(0, 7)) ? new Date(earliestOverdue + 'T12:00:00')
+      : initialMonth ? new Date(initialMonth + '-01T12:00:00')
+      : new Date())
   // 과거 달로 점프했을 때만 안내 배너 — "8월인데 왜 7월?" 혼동 방지 (2026-08-04)
   const [overdueJumpNotice, setOverdueJumpNotice] = useState(() =>
     // F-14 잔여 축 — **월** 비교도 같은 결함이다. 상대(earliestOverdue)는 due_date(DATE=달력
@@ -479,6 +519,46 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
     // 재현이 더 드물 뿐, 축은 같다 — 그래서 todayKst()에서 잘라 쓴다.
     !!earliestOverdue && earliestOverdue.slice(0, 7) !== todayKst().slice(0, 7))
   const [quickFilter, setQuickFilter] = useState<QuickFilter>(initialFilter)
+
+  /* 보는 달이 실린 창 밖이면 그 달(앞뒤 1개월 포함)을 달 단위로 받아 온다 — 월·주·목록 보기 모두
+   *  calDate 기준 ±1개월이면 덮인다(주 7일·목록 30일). 같은 달을 두 번 묻지 않는다(inflight). */
+  useEffect(() => {
+    if (!initialRange) return
+    const ym = format(calDate, 'yyyy-MM')
+    const missing = monthsIn(windowAround(ym)).filter(m => !monthCovered(loadedRanges, m) && !inflightMonths.current.has(m))
+    if (missing.length === 0) return
+    setRangeError(null)
+    for (const m of missing) {
+      inflightMonths.current.add(m)
+      setRangeLoading(true)
+      const r = monthRange(m)
+      loadCalendarRangeAction(r)
+        .then(res => {
+          if ('error' in res) { setRangeError(res.error); return }
+          setExtra(prev => ({
+            ranges: [...prev.ranges, r],
+            inspections: [...prev.inspections, ...res.inspections],
+            planItems: [...prev.planItems, ...res.planItems],
+          }))
+        })
+        .catch(e => setRangeError(e instanceof Error ? e.message : String(e)))
+        .finally(() => {
+          inflightMonths.current.delete(m)
+          if (inflightMonths.current.size === 0) setRangeLoading(false)
+        })
+    }
+  }, [calDate, loadedRanges, initialRange])
+
+  /* 보는 달을 URL에 기록(`?m=`) — 아래 `?cust=`·`?insp=`·`?day=`와 같은 규약(replaceState).
+   *  저장 뒤 revalidate·새로고침에서 서버가 **이 달**에 창을 맞춰 보내므로 보충 왕복이 없다.
+   *  이번 달이면 지운다 — 주소에 늘 붙어 다니지 않게(없으면 서버가 오늘 달로 잡는다). */
+  useEffect(() => {
+    const sp = new URLSearchParams(window.location.search)
+    const ym = format(calDate, 'yyyy-MM')
+    if (ym === todayKst().slice(0, 7)) sp.delete('m'); else sp.set('m', ym)
+    const qs = sp.toString()
+    window.history.replaceState(window.history.state, '', qs ? `?${qs}` : window.location.pathname)
+  }, [calDate])
 
   // Filter state
   const [viewMode, setViewMode] = useState<'employee' | 'customer'>('employee')
@@ -506,7 +586,9 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
     window.history.replaceState(window.history.state, '', qs ? `?${qs}` : window.location.pathname)
   }, [custQuery])
   const [selectedCustomerIds, setSelectedCustomerIds] = useState<Set<string>>(
-    () => new Set([...inspections.map(i => i.customer_id), ...planItems.map(p => p.customer_id)])
+    // 창 축소 뒤로는 서버가 준 **전체 고객**이 기본 — 실린 일정에서만 뽑으면 나중에 받아 온 달의
+    // 고객이 고객 뷰에서 체크 밖이라 조용히 숨는다
+    () => new Set([...(customerOptions ?? []).map(c => c.id), ...inspections.map(i => i.customer_id), ...planItems.map(p => p.customer_id)])
   )
   const [typeFilters, setTypeFilters] = useState<Set<string>>(
     () => new Set(['종합', '작동', '일반관리'])
@@ -560,18 +642,21 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
 
   // 사이드바 직원 목록(활성)에 없는 담당(퇴사자 등) 항목은 필터로 숨기지 않고 항상 표시
   const knownEmployeeIds = useMemo(() => new Set(employees.map(e => e.id)), [employees])
-  // 재배정 배너 카운트 — 완료·취소 항목은 이력이므로 재배정 대상에서 제외
+  // 재배정 배너 카운트 — 완료·취소 항목은 이력이므로 재배정 대상에서 제외.
+  // 서버가 전 기간을 세어 주면 그 값(창 축소 뒤 실린 일정은 3개월뿐이라 여기서 세면 창 밖이 빠진다)
   const orphanCount = useMemo(() => {
+    if (serverOrphanCount !== undefined) return serverOrphanCount
     const needsReassign = (status: string, employeeId: string | null) =>
       status !== 'completed' && status !== 'cancelled'
       && !!employeeId && !knownEmployeeIds.has(employeeId)
     return inspections.filter(i => needsReassign(i.status, i.assigned_employee_id)).length
       + planItems.filter(p => needsReassign(p.status, p.assigned_employee_id)).length
-  }, [inspections, planItems, knownEmployeeIds])
+  }, [serverOrphanCount, inspections, planItems, knownEmployeeIds])
 
-  // Unique customers derived from inspection + plan item data
+  // Unique customers — 서버가 준 활성 고객 전부 + 실린 일정의 고객(비활성 고객의 과거 건 등)
   const uniqueCustomers = useMemo(() => {
     const map = new Map<string, { id: string; name: string; code: string }>()
+    for (const c of customerOptions ?? []) map.set(c.id, c)
     for (const insp of inspections) {
       if (!map.has(insp.customer_id)) {
         map.set(insp.customer_id, { id: insp.customer_id, name: insp.customer_name, code: insp.customer_code })
@@ -583,7 +668,7 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
       }
     }
     return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name, 'ko'))
-  }, [inspections, planItems])
+  }, [customerOptions, inspections, planItems])
 
   const filteredCustomerList = useMemo(() => {
     if (!custQuery) return uniqueCustomers
@@ -877,9 +962,12 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
     // `day`도 **같은 이유로** 여기서 덮어쓴다(replaceState는 useSearchParams에 안 잡힌다).
     // 데이 패널이 열려 있으면 복귀 주소가 그 사이드바까지 되살린다 — 2026-09-22 사용자 요청.
     if (dayPanelDate) sp.set('day', dayPanelDate); else sp.delete('day')
+    // 보던 달(`m`)도 — 돌아왔을 때 서버가 그 달에 창을 맞춘다(이번 달이면 생략, 위 effect와 같은 규약)
+    const ym = format(calDate, 'yyyy-MM')
+    if (ym === todayKst().slice(0, 7)) sp.delete('m'); else sp.set('m', ym)
     const qs = sp.toString()
     return `${pathname}${qs ? `?${qs}` : ''}`
-  }, [searchParams, pathname, custQuery, selectedInspectionId, dayPanelDate])
+  }, [searchParams, pathname, custQuery, selectedInspectionId, dayPanelDate, calDate])
 
   const panelEntryQuery = (() => {
     const q = new URLSearchParams()
@@ -1050,7 +1138,8 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
       const res = await moveMonthlyPlanItemAction(moveConfirm.planItemId, moveConfirm.to)
       setMoveConfirm(null)
       if (res.error) { alert(res.error); return }
-      router.refresh()
+      // 액션이 revalidatePath('/inspections/calendar')로 이 화면의 RSC를 응답에 실어 보낸다 —
+      // 여기서 router.refresh()를 또 부르면 같은 페이지를 **두 번** 다시 그린다(2026-10-01 제거)
     })
   }
 
@@ -1235,7 +1324,7 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
           + (failed.length > 0 ? ` · 실패 ${failed.length}건 — ${failed.map(f => `${f.label}(${f.error})`).join(' / ')}` : '')
           + heldMsg)
       }
-      router.refresh()
+      // 액션의 revalidatePath가 화면을 갱신한다 — router.refresh() 중복 호출 제거(2026-10-01)
     })
   }
 
@@ -1253,7 +1342,7 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
     const res = await moveMonthlyPlanItemAction(p.id, to)
     setMovingPlanId(null)
     if (res.error) { alert(res.error); return }
-    router.refresh()
+    // 액션의 revalidatePath가 화면을 갱신한다 — router.refresh() 중복 호출 제거(2026-10-01)
   }
 
   // ── 데이 패널: 정기 여러 건 날짜 이동 (선택 모드) ─────────────
@@ -1305,7 +1394,7 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
       setBulkMoveResult(res.failed.length === 0
         ? { ok: true, text: `${res.moved}건을 ${to}로 이동했습니다.` }
         : { ok: false, text: `${res.moved}건 이동 · ${res.failed.length}건 실패 — ${res.failed.map(f => `${f.name}(${f.reason})`).join(' / ')}` })
-      router.refresh()
+      // 액션의 revalidatePath가 화면을 갱신한다 — router.refresh() 중복 호출 제거(2026-10-01)
     })
   }
 
@@ -1343,7 +1432,7 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
     setStartingPlanId(null)
     if (res.error) { alert(res.error); return }
     if (res.failed.length > 0) { alert(res.failed[0].error); return }
-    router.refresh()
+    // 액션의 revalidatePath가 화면을 갱신한다 — router.refresh() 중복 호출 제거(2026-10-01)
   }
 
   async function handleCompleteStep(stepId: string, inspId: string) {
@@ -1370,7 +1459,7 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
           + `${result.completionHeld.comp > 0 ? ` (종합 필수 ● ${result.completionHeld.comp}건 포함)` : ''}이 남아 있습니다.\n`
           + `설치된 설비의 점검표는 항목마다 ○/✕/／ 중 하나를 기재해야 합니다 — 점검표 입력 화면에서 채우면 자동으로 완료됩니다.`)
       }
-      router.refresh()
+      // 액션의 revalidatePath가 화면을 갱신한다 — router.refresh() 중복 호출 제거(2026-10-01)
     }
   }
 
@@ -1602,6 +1691,17 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
             글자로 달을 읽는다. 월/주/목록이 오른쪽 끝으로 가도 같은 줄 안이라 계약이 그대로 선다. */}
         <div data-testid="cal-nav" className="flex items-center gap-3 flex-wrap">
           {renderCalToolbar(navLabel, navigateCal)}
+          {/* 창 밖의 달을 받아 오는 중 — 조회가 끝나면 사라진다. 실패는 숨기지 않는다(빈 달과 구별) */}
+          {rangeLoading && (
+            <span data-testid="cal-range-loading" className="text-xs text-ink-sub inline-flex items-center gap-1">
+              <Loader2 className="size-3.5 animate-spin" /> 불러오는 중
+            </span>
+          )}
+          {!rangeLoading && rangeError && (
+            <span data-testid="cal-range-error" className="text-xs text-red-600" title={rangeError}>
+              이 달을 불러오지 못했습니다
+            </span>
+          )}
           <div className="flex-1 min-w-[16rem] max-w-2xl">
               {/* 고객명 검색 — 달력에 실린 고객에서 바로 고른다(서버 왕복 없음). 뷰 모드와 무관하게 적용 */}
               <CustomerFilterSearch
@@ -2619,7 +2719,7 @@ export function InspectionCalendarClient({ inspections, planItems = [], employee
                     const res = await changeInspectionDateAction(inspectionId, to)
                     if (res.error) { setDateChange(d => (d ? { ...d, error: res.error } : d)); return }
                     setDateChange(null)
-                    router.refresh()
+                    // 액션의 revalidatePath가 화면을 갱신한다 — router.refresh() 중복 호출 제거(2026-10-01)
                   })
                 }}
                 className="h-8 px-3 rounded-lg bg-brand text-white text-xs font-medium hover:opacity-90 disabled:opacity-40 inline-flex items-center gap-1">

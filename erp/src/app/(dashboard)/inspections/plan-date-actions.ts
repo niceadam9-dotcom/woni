@@ -1,8 +1,9 @@
 'use server'
 
-import { revalidatePath } from 'next/cache'
+import { revalidatePath, updateTag } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requirePermission } from '@/lib/auth'
+import { SMS_BADGE_TAG, STEP_BADGE_TAG } from '@/lib/cache-tags'
 import { startInspectionCore, syncInspectionStepDates, syncInspectionVisitDate, isStepOneCompleted } from '@/lib/inspection-start'
 import { resolveStepDates } from '@/lib/plan-step-dates'
 import { recalcStepDueDates } from '@/lib/inspection-step-sync'
@@ -77,6 +78,9 @@ export async function confirmPlanItemStageOneAction(
     revalidatePath('/inspections')
     revalidatePath('/inspections/calendar')
     revalidatePath('/customers')
+    // 방문일이 옮겨지면 단계 마감(뱃지)과 사전 안내 대상(문자 뱃지)이 둘 다 바뀐다
+    updateTag(STEP_BADGE_TAG)
+    updateTag(SMS_BADGE_TAG)
     return {}
   }
 
@@ -112,6 +116,8 @@ export async function confirmPlanItemStageOneAction(
   revalidatePath('/inspections/sms')
   revalidatePath('/inspections')
   revalidatePath('/inspections/calendar')
+  updateTag(STEP_BADGE_TAG)
+  updateTag(SMS_BADGE_TAG)
 
   // 점검일 입력(재확정) = 점검 시작과 동일 효과 (2026-07-23 사용자 확정) —
   // 자체점검(special_* — 일반관리 포함)은 날짜 적용 즉시 inspections 자동 생성 → 점검달력·점검 업무·보고서 반영.

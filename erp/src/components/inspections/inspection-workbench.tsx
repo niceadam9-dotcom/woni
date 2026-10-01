@@ -450,7 +450,8 @@ export function InspectionWorkbench({
       const res = await uploadTimelineFileAction(inspectionId, slot, fd)
       if (res.error) { setMsg(`❌ ${res.error}`); return }
       setMsg(`✅ ${slot === 'cert' ? '배치확인서' : '계약서'} 업로드됨`)
-      deferredRefresh()
+      // 액션이 revalidatePath로 이 상세의 RSC를 응답에 실어 온다 — deferredRefresh()는 같은 페이지를
+      // **두 번째** 그리는 중복이었다(2026-10-01 제거). 항상 revalidate하는 액션에서만 뺐다.
     })
   }
   function uploadSlot(slot: 'cert' | 'contract', e: React.ChangeEvent<HTMLInputElement>) {
@@ -483,7 +484,7 @@ export function InspectionWorkbench({
       if (res.error) { setAnchorMsg(`❌ ${res.error}`); return }
       setAnchorEdit(false)
       setAnchorMsg('✅ 기산일 변경 — 마감일을 다시 계산했습니다.')
-      deferredRefresh()
+      // 액션의 revalidatePath가 화면을 갱신한다 — 중복 refresh 제거(2026-10-01)
     })
   }
   function sendOwner() {
@@ -493,7 +494,7 @@ export function InspectionWorkbench({
       if (res.error) { setMsg(`❌ ${res.error}`); return }
       setMsg(`✅ 관계인 보고 발송됨 → ${res.sentTo} (발송 이력 기록)`)
       setJustDone(p => ({ ...p, 3: true })); setCelebrate('ownerReport')
-      deferredRefresh()
+      // 액션의 revalidatePath가 화면을 갱신한다 — 중복 refresh 제거(2026-10-01)
     })
   }
   function submit(kind: 'report9' | 'report11', date: string) {
@@ -549,7 +550,7 @@ export function InspectionWorkbench({
       setCompleting(null)
       if (res.error) { setMsg(`❌ ${res.error}`); return }
       setMsg('✅ 사유와 함께 완료 처리했습니다.')
-      deferredRefresh()
+      // 액션의 revalidatePath가 화면을 갱신한다 — 중복 refresh 제거(2026-10-01)
     })
   }
 
@@ -568,7 +569,7 @@ export function InspectionWorkbench({
       setCompleting(null)
       if (res.error) { setMsg(`❌ ${res.error}`); return }
       setMsg('✅ 사유 완료를 철회했습니다 — 증거 기준으로 다시 판정합니다.')
-      deferredRefresh()
+      // 액션의 revalidatePath가 화면을 갱신한다 — 중복 refresh 제거(2026-10-01)
     })
   }
 
@@ -582,7 +583,7 @@ export function InspectionWorkbench({
       setOfflineOpen(false); setOfflineMemo('')
       setMsg('✅ 오프라인 보고를 기록했습니다 — ③이 근거로 완료됩니다.')
       setJustDone(p => ({ ...p, 3: true })); setCelebrate('ownerReport')
-      deferredRefresh()
+      // 액션의 revalidatePath가 화면을 갱신한다 — 중복 refresh 제거(2026-10-01)
     })
   }
 
@@ -601,7 +602,7 @@ export function InspectionWorkbench({
       setMsg('✅ 방문·유선 보고 기록을 철회했습니다 — 증거 기준으로 다시 판정합니다.')
       // 이메일 발송 이력이 남아 있으면 ③은 여전히 완료다 — 선반영도 같은 규칙으로
       setJustDone(p => ({ ...p, 3: !!data.delivery })); setCelebrate(null)
-      deferredRefresh()
+      // 액션의 revalidatePath가 화면을 갱신한다 — 중복 refresh 제거(2026-10-01)
     })
   }
 
@@ -618,7 +619,7 @@ export function InspectionWorkbench({
       // 해제해도 과거 근거(파일·종이 보관)가 있으면 ②는 완료로 남는다 — 서버 판정과 같은 규칙
       setJustDone(p => ({ ...p, 2: !undo || !!data.certFile || !!data.certArchived }))
       setCelebrate(undo ? null : 'cert')
-      deferredRefresh()
+      // 액션의 revalidatePath가 화면을 갱신한다 — 중복 refresh 제거(2026-10-01)
     })
   }
 
@@ -630,7 +631,7 @@ export function InspectionWorkbench({
       const res = await deleteTimelineFileAction(inspectionId, slot)
       if (res.error) { setMsg(`❌ ${res.error}`); return }
       setMsg(`✅ ${label} 파일을 삭제했습니다 (${res.deleted ?? 0}건).`)
-      deferredRefresh()
+      // 액션의 revalidatePath가 화면을 갱신한다 — 중복 refresh 제거(2026-10-01)
     })
   }
 

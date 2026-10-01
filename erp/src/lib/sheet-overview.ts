@@ -97,10 +97,20 @@ export async function buildSheetOverviews(
   admin: Admin,
   inspectionIds: string[],
   viewer: { id: string; role: UserRole },
-  opts: { withGroups?: boolean; withFacilityAxis?: boolean } = {},
+  opts: {
+    withGroups?: boolean; withFacilityAxis?: boolean
+    /** 호출부가 **이미 읽어 둔** 1층 재료 — 점검 상세는 점검 행·응답 전량을 자기 조회에서 이미 받는다
+     *  (2026-10-01). 넘기면 1층 왕복이 0이 된다. 같은 요청 안의 값이라 신선도는 같다. */
+    preloaded?: {
+      insps?: Array<{ id: string; customer_id: string; plan_type: string | null; assigned_employee_id: string | null; customer: { inspection_type: string } | null }>
+      /** ids 전체의 응답 — **전량**이어야 한다(1000행 상한 밖에서 받은 것). 일부만 넘기면 진행률이 조용히 준다 */
+      responses?: Array<{ inspection_id: string; item_code: string; result: SheetResult }>
+    }
+  } = {},
 ): Promise<{ overviews: Record<string, SheetOverview>; error?: string }> {
   const ids = [...new Set(inspectionIds.filter(Boolean))]
   if (ids.length === 0) return { overviews: {} }
+  const pre = opts.preloaded
 
   /* 🎯 2026-09-11 — 종전에는 ①②③④⑤⑥⑦이 **한 줄로 직렬**이라 왕복 6회를 순서대로 기다렸다
      (점검 상세 실측 ~1,060ms = 전체 서버 렌더의 35%. 원격 Supabase 왕복이 건당 ~180ms다).
@@ -115,17 +125,22 @@ export async function buildSheetOverviews(
   // ②③ 시트·항목 카탈로그 — 마스터 데이터라 캐시에서 읽는다(sheet-catalog.ts, 2026-08-20).
   // ④ 응답 — 전 점검 1회 (회차당 수백 행이라 페이징 필수)
   const [inspQ, catalogQ, respQ] = await Promise.all([
-    admin.from('inspections')
-      .select('id, customer_id, plan_type, assigned_employee_id, customer:customers(inspection_type)')
-      .in('id', ids),
+    pre?.insps
+      ? Promise.resolve({ data: pre.insps, error: null })
+      : admin.from('inspections')
+          .select('id, customer_id, plan_type, assigned_employee_id, customer:customers(inspection_type)')
+          .in('id', ids),
     // 캐시 함수는 throw하므로 여기서 종전 error 계약으로 되돌린다 — Promise.all이 통째로
     // 터지지 않도록 **각자 잡는다**(한 축의 실패가 다른 축의 조회까지 버리게 하지 않는다)
     Promise.all([getSheets(), getAllSheetItems()])
       .then(v => ({ ok: true as const, v }))
       .catch((e: unknown) => ({ ok: false as const, e })),
-    fetchAllRows<{ inspection_id: string; item_code: string; result: SheetResult }>(
-      (from, to) => admin.from('inspection_sheet_responses')
-        .select('inspection_id, item_code, result').in('inspection_id', ids).range(from, to)),
+    pre?.responses
+      ? Promise.resolve({ rows: pre.responses, error: null as string | null, truncated: false })
+      : fetchAllRows<{ inspection_id: string; item_code: string; result: SheetResult }>(
+          // ⚠ 페이징 규약 — 동점 없는 정렬(id)이 없으면 페이지가 겹치거나 건너뛴다(2026-10-01 보강)
+          (from, to) => admin.from('inspection_sheet_responses')
+            .select('inspection_id, item_code, result').in('inspection_id', ids).order('id').range(from, to)),
   ])
   const { data: inspRaw, error: inspErr } = inspQ
   if (inspErr) return { overviews: {}, error: `점검 조회 실패: ${inspErr.message}` }

@@ -1,8 +1,9 @@
 'use server'
 
-import { revalidatePath } from 'next/cache'
+import { revalidatePath, unstable_cache, updateTag } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getProfile } from '@/lib/auth'
+import { SMS_BADGE_TAG, STEP_BADGE_TAG } from '@/lib/cache-tags'
 import { can } from '@/lib/permissions'
 import {
   loadSmsTargets, loadAdhocTarget, prepareSms, sendInspectionSms, loadSentPairs, smsGuards,
@@ -185,6 +186,7 @@ export async function sendInspectionSmsAction(input: {
   }
   revalidatePath('/inspections/sms')
   revalidatePath('/inspections/calendar')
+  updateTag(SMS_BADGE_TAG)
   return res
 }
 
@@ -503,7 +505,15 @@ export async function countUnsentNoticesAction() {
   const g = await guard('inspection_sms_send')
   if (g.error) return { count: 0, messages: 0, blockedCount: 0, nearest: null }
   // 실패를 0으로 뭉개지 않는다 — 호출부(사이드바 뱃지)가 '모름'으로 표시해야 한다
-  const r = await countUnsentNotices(createAdminClient())
+  // 요청 간 60초 캐시 — 이 집계는 규칙→기준일→대상(고객·관계인 임베드 전량)→발송 쌍 4단 직렬로 실측 0.5초인데,
+  // 사이드바(화면 이동마다)와 달력 도구줄(진입마다)이 **각각** 부른다. 회사 단위 값이라 키는 하나다.
+  // 발송·규칙 저장·계획일 이동 액션이 updateTag로 즉시 무효화하고, 그 밖은 TTL이 따라잡는다.
+  // ⚠ 캐시 안에서 **던지면** 캐시되지 않고 그대로 올라온다 — 호출부의 '모름' 처리는 종전과 같다.
+  const r = await unstable_cache(
+    () => countUnsentNotices(createAdminClient()),
+    ['sms-unsent-count'],
+    { tags: [SMS_BADGE_TAG], revalidate: 60 },
+  )()
   return { count: r.count, messages: r.messages, blockedCount: r.blockedCount, nearest: r.nearest }
 }
 
@@ -745,6 +755,7 @@ export async function saveSmsSettingsAction(rulesInput: unknown) {
   revalidatePath('/inspections/calendar')
   revalidatePath('/dashboard')
   revalidatePath('/settings/message-templates')
+  updateTag(SMS_BADGE_TAG)
   return { rules }
 }
 
@@ -892,6 +903,8 @@ export async function bulkCancelPlanItemsAction(planItemIds: string[]) {
   revalidatePath('/inspections/sms')
   revalidatePath('/inspections')
   revalidatePath('/inspections/calendar')
+  updateTag(SMS_BADGE_TAG)
+  updateTag(STEP_BADGE_TAG)
   return { cancelled, failed, warnings }
 }
 
@@ -941,5 +954,7 @@ export async function bulkMovePlanDatesAction(planItemIds: string[], newDate: st
   }
   revalidatePath('/inspections/sms')
   revalidatePath('/inspections/calendar')
+  updateTag(SMS_BADGE_TAG)
+  updateTag(STEP_BADGE_TAG)
   return { moved, failed }
 }

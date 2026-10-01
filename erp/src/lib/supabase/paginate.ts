@@ -49,18 +49,28 @@ export async function fetchAllRowsByIds<T, I>(
 export async function fetchAllRows<T>(
   /** from~to(양끝 포함) 구간을 받아오는 질의를 만들어 준다 — `.range(from, to)`를 붙여 반환할 것 */
   buildQuery: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>,
-  opts: { pageSize?: number; maxRows?: number } = {},
+  /** `parallel` — 한 번에 동시에 요청할 페이지 수(기본 1 = 종전처럼 한 장씩 순차).
+   *  수천 행이 **확실한** 목록(달력의 3년치 계획 항목 5,000여 행 = 6페이지)은 순차로 받으면 왕복이
+   *  페이지 수만큼 직렬로 쌓인다(실측 3.0초). 4장씩 묶어 보내면 두 묶음이면 끝난다(실측 0.7초).
+   *  묶음 안의 빈 페이지는 0행을 돌려줄 뿐이라 결과는 같다 — 정렬 규약(동점 없는 id)은 그대로 필요하다. */
+  opts: { pageSize?: number; maxRows?: number; parallel?: number } = {},
 ): Promise<{ rows: T[]; error: string | null; truncated: boolean }> {
   const pageSize = opts.pageSize ?? 1000
   // 폭주 방지 상한 — 여기 걸리면 truncated로 알린다(조용히 자르지 않는다)
   const maxRows = opts.maxRows ?? 20_000
+  const parallel = Math.max(1, Math.floor(opts.parallel ?? 1))
   const rows: T[] = []
-  for (let from = 0; from < maxRows; from += pageSize) {
-    const { data, error } = await buildQuery(from, from + pageSize - 1)
-    if (error) return { rows, error: error.message, truncated: false }
-    const batch = data ?? []
-    rows.push(...batch)
-    if (batch.length < pageSize) return { rows, error: null, truncated: false }
+  for (let from = 0; from < maxRows; from += pageSize * parallel) {
+    const starts: number[] = []
+    for (let k = 0; k < parallel && from + k * pageSize < maxRows; k++) starts.push(from + k * pageSize)
+    const results = await Promise.all(starts.map(s => buildQuery(s, s + pageSize - 1)))
+    for (const { data, error } of results) {
+      if (error) return { rows, error: error.message, truncated: false }
+      const batch = data ?? []
+      rows.push(...batch)
+      // 짧은 페이지가 나오면 그 뒤 페이지는 비어 있다(같은 묶음의 뒤 페이지도 0행) — 여기서 끝
+      if (batch.length < pageSize) return { rows, error: null, truncated: false }
+    }
   }
   return { rows, error: null, truncated: true }
 }

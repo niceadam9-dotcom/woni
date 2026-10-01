@@ -1,5 +1,7 @@
 import { redirect } from 'next/navigation'
+import { unstable_cache } from 'next/cache'
 import { getProfile } from '@/lib/auth'
+import { STEP_BADGE_TAG } from '@/lib/cache-tags'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getCompanyProfile } from '@/lib/company-profile'
 import { can } from '@/lib/permissions'
@@ -87,6 +89,20 @@ async function getStepBadgeCounts(profileId: string, role: string) {
   }
 }
 
+/** 뱃지 건수의 **요청 간 캐시** — 사용자·역할별 키, 60초 백스톱, 단계가 바뀌는 액션이 태그로 즉시 무효화.
+ *
+ *  이 레이아웃은 모든 화면·모든 `router.refresh()`가 지난다. 캐시가 없던 동안 화면 이동마다
+ *  count 2회 + ⑤⑥ 후보 전량 2회 + activeSteps 3묶음(총 7~10 왕복, 실측 0.3~0.5초)을 다시 셌다.
+ *  단계는 사용자가 **이 ERP 안에서** 바꾸므로(완료·점검일 변경·삭제) 그 액션들이 `updateTag`를 부르고,
+ *  크론이 바꾸는 몫은 60초 TTL이 따라잡는다. [[cache-tags.ts]] */
+function getStepBadgeCountsCached(profileId: string, role: string) {
+  return unstable_cache(
+    () => getStepBadgeCounts(profileId, role),
+    ['step-badge', profileId, role],
+    { tags: [STEP_BADGE_TAG], revalidate: 60 },
+  )()
+}
+
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const profile = await getProfile()
   if (!profile) redirect('/login')
@@ -98,7 +114,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   // theme·form_font_scale은 PROFILE_COLS(30초 캐시) 밖 — 관용 조회를 기존 병렬 묶음에
   // 태워 **왕복 추가 0**. 컬럼이 없으면 둘 다 null이라 화면은 기본값으로 그려진다.
   const [{ redCount, orangeCount }, company, dbTheme, dbFontScale] = await Promise.all([
-    getStepBadgeCounts(profile.id, profile.role),
+    getStepBadgeCountsCached(profile.id, profile.role),
     getCompanyProfile(),
     readProfileTheme(profile.id),
     readProfileFontScale(profile.id),

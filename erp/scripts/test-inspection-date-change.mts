@@ -98,7 +98,8 @@ console.log('\n— 경계')
 
 console.log('\n— 배선 — 판정이 **한 벌**이고, 서버가 **거르기 전 축**으로 잰다')
 {
-  const page = codeOnly(readFileSync(new URL('../src/app/(dashboard)/inspections/calendar/page.tsx', import.meta.url), 'utf8'))
+  // 2026-10-01 — 달력의 조회·판정은 lib/calendar-data.ts로 옮겨졌다(page.tsx와 보충 조회 액션이 같이 쓴다)
+  const page = codeOnly(readFileSync(new URL('../src/lib/calendar-data.ts', import.meta.url), 'utf8'))
   const client = codeOnly(readFileSync(new URL('../src/components/inspections/inspection-calendar-client.tsx', import.meta.url), 'utf8'))
   const actions = codeOnly(readFileSync(new URL('../src/app/(dashboard)/inspections/plan-date-actions.ts', import.meta.url), 'utf8'))
 

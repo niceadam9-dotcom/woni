@@ -1,8 +1,9 @@
 'use server'
 
-import { revalidatePath } from 'next/cache'
+import { revalidatePath, updateTag } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requirePermission, getSessionUser } from '@/lib/auth'
+import { STEP_BADGE_TAG } from '@/lib/cache-tags'
 import { generateRollingPlanItems } from '@/lib/inspection-plan-generator'
 import { rowInspectionType, rowSubType, isInitialByLaw, planTypeSub } from '@/lib/inspection-round'
 import { startInspectionCore } from '@/lib/inspection-start'
@@ -273,6 +274,7 @@ export async function completeStepAction(
     revalidatePath('/inspections')
     revalidatePath('/inspections/calendar')
     revalidatePath('/inspections/sms')
+    updateTag(STEP_BADGE_TAG)
   }
   return res
 }
@@ -413,6 +415,7 @@ export async function bulkCompleteStepsAction(
   revalidatePath('/inspections')
   revalidatePath('/inspections/calendar')
   revalidatePath('/inspections/sms')
+  updateTag(STEP_BADGE_TAG)
   return { done, failed, held }
 }
 
@@ -480,6 +483,7 @@ export async function bulkStartCompletePlanItemsAction(
   revalidatePath('/inspections')
   revalidatePath('/inspections/calendar')
   revalidatePath('/inspections/sms')
+  updateTag(STEP_BADGE_TAG)
   return { done, failed }
 }
 
@@ -515,6 +519,7 @@ export async function deleteInspectionAction(
   revalidatePath('/inspections')
   revalidatePath('/inspections/calendar')
   revalidatePath('/inspections/sms')
+  updateTag(STEP_BADGE_TAG)
   return {}
 }
 

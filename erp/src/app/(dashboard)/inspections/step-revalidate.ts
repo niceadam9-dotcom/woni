@@ -12,9 +12,10 @@
  *  철회 버튼 노출축 등. 그래서 같은 가드를 복붙하면 8곳이 조용히 깨진다.
  *  → 판단을 옵션으로 **명시**하게 만들고, 각 호출부가 "무엇이 바뀌는지" 한 줄로 남긴다.
  */
-import { revalidatePath } from 'next/cache'
+import { revalidatePath, updateTag } from 'next/cache'
 import { syncInspectionSteps } from '@/lib/inspection-step-sync'
 import { shouldRevalidate, stepsChangedFrom } from '@/lib/step-revalidate-rule'
+import { STEP_BADGE_TAG } from '@/lib/cache-tags'
 
 /** lib 쪽 Admin 타입을 그대로 따라간다 — 여기서 다시 선언하면 두 정의가 갈라진다 */
 type Admin = Parameters<typeof syncInspectionSteps>[0]
@@ -28,6 +29,8 @@ type Admin = Parameters<typeof syncInspectionSteps>[0]
 export function revalidateInspection(inspectionId: string): void {
   revalidatePath(`/inspections/${inspectionId}`)
   revalidatePath('/inspections')
+  // 사이드바 뱃지(60초 캐시)도 함께 — 단계가 바뀌었는데 빨강이 1분 남으면 「완료했는데 왜 아직」이 된다
+  updateTag(STEP_BADGE_TAG)
 }
 
 /**

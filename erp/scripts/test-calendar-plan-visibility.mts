@@ -119,7 +119,8 @@ for (const t of ['special_종합', 'special_작동', 'event']) {
 // ── B. 배선 ① — 서버가 자체점검 계획을 싣는가 ────────────────────
 // 순수 함수만 단언하면 「규칙은 옳은데 서버가 그 행을 안 준다」가 초록으로 통과한다.
 // 실제로 그게 ①의 정체였다.
-const PAGE_RAW = read('src', 'app', '(dashboard)', 'inspections', 'calendar', 'page.tsx')
+// 2026-10-01 — 달력의 조회·판정은 lib/calendar-data.ts로 옮겨졌다(page.tsx와 보충 조회 액션이 같이 쓴다)
+const PAGE_RAW = read('src', 'lib', 'calendar-data.ts')
 const PAGE = codeOnly(PAGE_RAW)
 
 // 계측기 자기 검사 — 이 파일이 특히 위험하다: 주석에 「종전엔 monthly·event만 실어」가 적혀 있어
