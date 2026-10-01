@@ -160,6 +160,20 @@ export function InspectionWorkbench({
    *  실패하면 되돌린다. prop이 갱신되면 그 값으로 수렴한다. */
   const [reportedOn, setReportedOn] = useState(!!data.certReported)
   useEffect(() => { setReportedOn(!!data.certReported) }, [data.certReported])
+  /** ②③ 완료 **선반영** (2026-10-01 단계 인지 개선).
+   *  ④⑥은 justSubmitted, ⑤는 defectsLocal이 같은 역할을 하는데 ②③만 없어서, 체크·기록 뒤
+   *  router.refresh()(이 화면은 ~5초)가 끝날 때까지 스텝 칩이 그대로였다 — 사용자는 "체크했는데
+   *  초록이 안 된다"로 읽었다. 서버가 새 값을 실어 오면(아래 effect) 선반영은 역할을 다한다. */
+  const [justDone, setJustDone] = useState<Partial<Record<StepNum, boolean>>>({})
+  const serverDoneKey = `${!!data.certReported}-${!!data.delivery}-${!!data.evidence?.offlineReport}`
+  const prevServerDone = useRef(serverDoneKey)
+  useEffect(() => {
+    if (prevServerDone.current === serverDoneKey) return
+    prevServerDone.current = serverDoneKey
+    setJustDone({})
+  }, [serverDoneKey])
+  /** 방금 완료된 단계 — 완료 토스트([다음 단계 →])와 칩 펄스의 원천. 칸을 옮기면 접는다. */
+  const [celebrate, setCelebrate] = useState<StepKey | null>(null)
   // 재방문 안내 (소방계획서_24 Q-17) — 계획에 없는 방문을 담는 그릇이 시스템에 없어서(P-20)
   // 지금까지는 "가야 하는데 문자를 못 보내는" 상태였다
   const [adhocSms, setAdhocSms] = useState(false)
@@ -256,7 +270,7 @@ export function InspectionWorkbench({
   const submit11At = data.submit11.submittedAt ?? justSubmitted.report11
   // S3-6 — 불량 집계도 같은 방식으로 선반영한다. 이걸 빼면 칸 제목은 즉시 맞는데
   // 스텝바 ⑤만 굳어 **같은 화면의 두 숫자가 갈라져** 보인다(위험 ①).
-  const doneByNum = data.evidence
+  const doneByNumServer = data.evidence
     ? evidenceDone({
       ...data.evidence, submit9At, submit11At,
       // ⑤ 판정은 done/total만 본다(planned는 칸 제목 전용) — StepEvidence에 planned는 없다
@@ -270,6 +284,8 @@ export function InspectionWorkbench({
       5: hasDefects && defectStat.done >= defectStat.total,
       6: !!submit11At,
     } as Record<StepNum, boolean>)
+  // ②③ 선반영을 덮는다 — 서버 왕복이 끝나면 justDone이 비워져 서버 판정으로 수렴한다
+  const doneByNum = { ...doneByNumServer, ...justDone } as Record<StepNum, boolean>
   const done = Object.fromEntries(
     (Object.keys(STEP_NUM) as StepKey[]).map(k => [k, doneByNum[STEP_NUM[k] as StepNum]]),
   ) as Record<StepKey, boolean>
@@ -305,6 +321,36 @@ export function InspectionWorkbench({
   const stepByNum = new Map(data.inspectionSteps.map(s => [s.step_num, s]))
   const stepOf = (k: StepKey) => stepByNum.get(STEP_NUM[k]) ?? null
 
+  /** 미완료 → 완료로 **방금 넘어간** 칩에 1.5초 펄스를 준다 — 눈이 딴 데 있어도 "저 칩이 변했다"가
+   *  보이게. 의존은 done 맵의 서명 문자열이다(객체는 렌더마다 새로 만들어져 effect가 매번 돈다). */
+  const doneKey = data.steps.map(k => (done[k] ? '1' : '0')).join('')
+  const prevDoneKey = useRef(doneKey)
+  const [pulseStep, setPulseStep] = useState<StepKey | null>(null)
+  useEffect(() => {
+    const before = prevDoneKey.current
+    prevDoneKey.current = doneKey
+    const flipped = data.steps.find((_, i) => doneKey[i] === '1' && before[i] === '0')
+    if (!flipped) return
+    setPulseStep(flipped)
+    const t = setTimeout(() => setPulseStep(null), 1500)
+    return () => clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [doneKey])
+  // 완료 토스트는 그 칸을 떠나면 접는다 — 다른 칸에서 남의 완료를 축하하지 않는다(칸 전환은 이 함수로만)
+  const goStep = (k: StepKey) => { setSel(k); setCelebrate(null) }
+  /** 완료 토스트가 가리킬 다음 단계 — 지금 칸 **뒤**의 첫 미완료, 없으면 앞쪽 첫 미완료 */
+  const nextAfter = (k: StepKey): StepKey | undefined => {
+    const i = visibleSteps.indexOf(k)
+    return visibleSteps.slice(i + 1).find(s => !done[s]) ?? visibleSteps.find(s => !done[s] && s !== k)
+  }
+  /** 칩 라벨 — 단계 이름에 진척 수치를 붙인다(①응답 수·⑤조치 수). 둘째 줄은 마감이 차지한다. */
+  const stepLabel = (k: StepKey) => {
+    // ⚠ 응답 수를 0과 비교하는 리터럴 판정을 여기 다시 쓰지 않는다 — 폴백 한 곳뿐이어야 한다(_judge2-r4-static이 센다)
+    if (k === 'checklist' && !done[k] && data.responded) return `${TIMELINE_STEP_LABELS[k]} ${data.responded}건`
+    if (k === 'repair' && defectStat.total > 0) return `${TIMELINE_STEP_LABELS[k]} ${defectStat.done}/${defectStat.total}`
+    return TIMELINE_STEP_LABELS[k]
+  }
+
   /** ⑤ [사유 완료]를 감추는 구간 (소방계획서_45 R-3) — 미등록 ✕가 있으면 판정이 그 완료를
    *  무효로 돌린다(isForced5Void). 버튼을 남겨두면 **눌러도 아무 일도 일어나지 않는** 것처럼
    *  보이므로 아예 내리고, 위 ⑤ 배너의 [① 점검표에서 불량 등록하기]가 유일한 출구가 되게 한다. */
@@ -329,6 +375,12 @@ export function InspectionWorkbench({
     if (st?.status === 'completed') return { text: `완료 ${mmdd(kstDate(st.completed_at))}`, cls: 'text-green-600' }
     const legalAt = k === 'submit9' ? submit9At : k === 'submit11' ? submit11At : null
     if (legalAt) return { text: `제출 ${mmdd(legalAt)}`, cls: 'text-green-600' }
+    // 증거·선반영으로 완료인데 서버 status가 아직 안 따라온 구간 — 초록 칩 밑에 빨간 「초과」가
+    // 남으면 두 말을 하는 칩이 된다. ②는 신고일을 함께 말한다.
+    if (done[k]) {
+      const at = k === 'cert' ? (data.certReported?.date ?? reportedDate) : null
+      return { text: at ? `완료 ${mmdd(at)}` : '완료', cls: 'text-green-600' }
+    }
     const due = st?.due_date ?? null
     if (!due) return null
     const d = Math.round((new Date(due).getTime() - new Date(today).getTime()) / 86400000)
@@ -440,6 +492,7 @@ export function InspectionWorkbench({
       const res = await sendOwnerReportAction(inspectionId)
       if (res.error) { setMsg(`❌ ${res.error}`); return }
       setMsg(`✅ 관계인 보고 발송됨 → ${res.sentTo} (발송 이력 기록)`)
+      setJustDone(p => ({ ...p, 3: true })); setCelebrate('ownerReport')
       deferredRefresh()
     })
   }
@@ -451,6 +504,7 @@ export function InspectionWorkbench({
       // 저장이 확인된 값을 먼저 화면에 세운다 — router.refresh()는 상세 전체를 다시 그려 느리다
       setJustSubmitted(prev => ({ ...prev, [kind]: date || null }))
       setMsg(date ? `✅ 제출일 ${date} 기록됨` : '✅ 제출일 지움')
+      if (date) setCelebrate(kind === 'report9' ? 'submit9' : 'submit11')
       deferredRefresh()
     })
   }
@@ -527,6 +581,7 @@ export function InspectionWorkbench({
       if (res.error) { setMsg(`❌ ${res.error}`); return }
       setOfflineOpen(false); setOfflineMemo('')
       setMsg('✅ 오프라인 보고를 기록했습니다 — ③이 근거로 완료됩니다.')
+      setJustDone(p => ({ ...p, 3: true })); setCelebrate('ownerReport')
       deferredRefresh()
     })
   }
@@ -544,6 +599,8 @@ export function InspectionWorkbench({
       const res = await undoOwnerReportOfflineAction(inspectionId)
       if (res.error) { setMsg(`❌ ${res.error}`); return }
       setMsg('✅ 방문·유선 보고 기록을 철회했습니다 — 증거 기준으로 다시 판정합니다.')
+      // 이메일 발송 이력이 남아 있으면 ③은 여전히 완료다 — 선반영도 같은 규칙으로
+      setJustDone(p => ({ ...p, 3: !!data.delivery })); setCelebrate(null)
       deferredRefresh()
     })
   }
@@ -552,10 +609,15 @@ export function InspectionWorkbench({
    *  대표가 협회에서 직접 신고하므로 ERP가 받을 것은 파일이 아니라 **신고했다는 사실과 날짜**뿐이다. */
   function toggleReported(undo: boolean) {
     if (undo && !window.confirm('배치신고 완료 표시를 해제합니다.\n② 단계가 다시 미완료로 돌아갑니다. 계속할까요?')) return
+    // 체크는 즉시 바뀐다(선언은 :157 주석에 있었는데 실제 setReportedOn 호출이 없었다 — 2026-10-01 배선)
+    setReportedOn(!undo)
     startTransition(async () => {
       const res = await markCertReportedAction(inspectionId, undo ? { undo: true } : { date: reportedDate })
-      if (res.error) { setMsg(`❌ ${res.error}`); return }
+      if (res.error) { setReportedOn(undo); setMsg(`❌ ${res.error}`); return }
       setMsg(undo ? '✅ 배치신고 완료 표시를 해제했습니다.' : '✅ 배치신고 완료로 기록했습니다 — ②가 완료됩니다.')
+      // 해제해도 과거 근거(파일·종이 보관)가 있으면 ②는 완료로 남는다 — 서버 판정과 같은 규칙
+      setJustDone(p => ({ ...p, 2: !undo || !!data.certFile || !!data.certArchived }))
+      setCelebrate(undo ? null : 'cert')
       deferredRefresh()
     })
   }
@@ -655,26 +717,37 @@ export function InspectionWorkbench({
           const na = !needsRepairSteps && (k === 'repair' || k === 'submit11')
           const d = ddayText(k)
           const active = sel === k
+          /* 🎯 2026-10-01 — **색은 상태, 테두리는 선택.** 종전엔 보라 바탕이 '지금 열린 칸'을 뜻했고
+             완료는 ✓ 아이콘뿐이었는데, 열린 칸에선 아이콘·글자가 전부 흰색이라 **체크하는 바로 그
+             칩이 완료 전후 모양이 같았다**(사용자: "체크하면 초록으로 바뀌는지 알 수가 없다").
+             이제 바탕색이 상태(초록 완료·빨강 초과·앰버 임박)를 말하고, 열린 칸은 보라 테두리(ring)다.
+             ring-inset — 스텝바가 overflow-x-auto라 바깥 ring은 잘린다. */
+          const tone = na ? 'bg-paper text-ink-faint'
+            : done[k] ? 'bg-green-50 text-green-800 hover:bg-green-100'
+            : d?.cls.includes('text-red') ? 'bg-red-50 text-red-800 hover:bg-red-100'
+            : d?.cls.includes('text-amber') ? 'bg-amber-50 text-amber-900 hover:bg-amber-100'
+            : 'bg-surface text-ink-sub hover:bg-brand-tint'
+          const pulse = pulseStep === k ? 'animate-pulse ring-2 ring-inset ring-green-500' : ''
           return (
-            <button key={k} onClick={() => setSel(k)} disabled={na}
+            <button key={k} onClick={() => goStep(k)} disabled={na}
               /* aria-current — 지금 열린 차수를 **색 말고도** 알린다(스크린리더·검사 양쪽).
                  종전엔 활성 표시가 bg-brand뿐이라, 하이드레이션 전 클릭이 조용히 무시돼도
                  E2E가 '전환됐다'고 믿고 다음 칸을 기다리다 타임아웃났다(2026-09-07). */
               aria-current={active ? 'step' : undefined}
-              title={TIMELINE_STEP_TOOLTIPS[k]} data-step={k}
+              title={TIMELINE_STEP_TOOLTIPS[k]} data-step={k} data-done={done[k] ? '1' : '0'}
               /* ink-faint:장식 — na 가지는 `disabled={na}`가 실제로 걸린 **진짜 비활성**이다(WCAG 1.4.3 예외) */
               className={`flex min-w-[8.5rem] flex-1 items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-left transition-colors
-                ${active ? 'bg-brand text-white' : na ? 'bg-paper text-ink-faint' : 'text-ink-sub hover:bg-brand-tint'}`}>
-              {done[k] ? <CheckCircle2 className={`size-4 shrink-0 ${active ? 'text-white' : 'text-green-600'}`} />
+                ${tone} ${active ? 'ring-2 ring-inset ring-brand shadow-sm' : ''} ${pulse}`}>
+              {done[k] ? <CheckCircle2 className="size-4 shrink-0 text-green-600" />
                 : na ? <Circle className="size-4 shrink-0 text-[#e0ddf5]" />
-                  : <AlertTriangle className={`size-4 shrink-0 ${active ? 'text-white' : 'text-amber-500'}`} />}
+                  : <AlertTriangle className={`size-4 shrink-0 ${d?.cls.includes('text-red') ? 'text-red-500' : 'text-amber-500'}`} />}
               <span className="min-w-0 flex-1">
-                <span className="block truncate text-form-xs font-semibold">{TIMELINE_STEP_LABELS[k]}</span>
+                <span className={`block truncate text-form-xs font-semibold ${active && !na ? 'text-brand' : ''}`}>{stepLabel(k)}</span>
                 {/* S7-1 4차 — na 가지의 ink-faint는 **유지**한다(버튼이 실제로 disabled라 WCAG
                     1.4.3의 inactive component 예외가 성립하는, 이 파일에서 몇 안 되는 자리다).
                     반면 마지막 가지는 활성 버튼의 '완료'·'진행 전'·D-day라 정보 노드다. */}
                 {/* ink-faint:장식 — na 가지만 해당(마지막 가지는 활성 버튼의 값이라 ink-meta다) */}
-                <span className={`block truncate text-form-2xs ${active ? 'text-white/80' : na ? 'text-ink-faint' : d?.cls ?? 'text-ink-meta'}`}>
+                <span className={`block truncate text-form-2xs ${na ? 'text-ink-faint' : d?.cls ?? 'text-ink-meta'}`}>
                   {na ? DOC_TERMS.naAllPass : d?.text ?? (done[k] ? '완료' : '진행 전')}
                 </span>
               </span>
@@ -684,6 +757,30 @@ export function InspectionWorkbench({
       </div>
 
       {msg && <p className={`shrink-0 text-form-xs ${msg.startsWith('❌') ? 'text-red-600' : 'text-green-600'}`}>{msg}</p>}
+      {/* 완료 토스트 — 방금 끝난 단계와 **다음 할 일**을 한 줄로. 종전엔 "✅ 기록했습니다"에서 끝나
+          사용자가 다음 칩을 스스로 찾아야 했다. 다음 단계가 없으면 회차가 끝났다고 말한다. */}
+      {celebrate && done[celebrate] && (() => {
+        const nx = nextAfter(celebrate)
+        return (
+          <div className="flex shrink-0 flex-wrap items-center gap-2 rounded-lg border border-green-200 bg-green-50 px-3 py-1.5 text-form-xs text-green-800"
+            data-testid="step-done-toast" role="status">
+            <CheckCircle2 className="size-4 shrink-0 text-green-600" />
+            <span className="font-semibold">{TIMELINE_STEP_LABELS[celebrate]} 완료</span>
+            {nx ? (
+              <button onClick={() => goStep(nx)}
+                className="inline-flex h-7 items-center gap-1 rounded-lg bg-green-600 px-2.5 font-medium text-white hover:bg-green-700"
+                data-testid="step-done-next">
+                다음: {TIMELINE_STEP_LABELS[nx]} <ChevronRight className="size-3.5" />
+              </button>
+            ) : (
+              <span>🎉 보이는 단계를 모두 마쳤습니다 — {doneCount}/{visibleSteps.length}</span>
+            )}
+            <button onClick={() => setCelebrate(null)} aria-label="닫기" className="ml-auto text-green-700 hover:text-green-900">
+              <X className="size-3.5" />
+            </button>
+          </div>
+        )
+      })()}
 
       {/* 3칸 — 데스크톱 전용. 좁은 화면은 세로 스택 폴백(R6-10, 현장은 폰이다).
           점검표 드로어는 createPortal 오버레이(소방계획서_23 Q-4·Q-15)라 이 grid 밖에 뜬다 — 3칸 비율은 개폐와 무관하게 고정.
@@ -742,6 +839,17 @@ export function InspectionWorkbench({
                그 기능이 고객 상세까지 가야만 닿는 곳으로 밀린다. */}
         {sel === 'checklist' && (<>
           <Pane title="점검표 입력" cls={paneCls} head={paneHead}>
+            <StepGoal done={done.checklist} dday={ddayText('checklist')}
+              todo={<>점검표 항목에 응답 — {data.responded ? `응답 ${data.responded}건 입력됨` : '아직 응답이 없습니다'}</>}
+              doneText={<>① 완료 — 응답 {data.responded}건</>}>
+              {/* ✕는 찍었는데 불량 내역에 안 올린 구간 — ⑤가 증거로는 절대 완료될 수 없다(소방계획서_45 R-2).
+                  ⑤에 가서야 알던 사실을 ①에서 미리 말한다(등록 창구가 이 칸이다). */}
+              {xUnregistered && (
+                <p className="text-form-2xs text-amber-800" data-testid="goal-unregistered-x">
+                  ✕로 표시한 {unregisteredX}건이 아직 불량 내역에 등록되지 않았습니다 — 등록해야 ⑤⑥을 진행할 수 있습니다.
+                </p>
+              )}
+            </StepGoal>
             {/* 재방문 안내 (소방계획서_24 Q-17) — 부재·문 잠김으로 다시 가야 할 때.
                 계획 항목을 만들지 않으므로 **점검 회차는 그대로**다. 점검하러 갔다가 못 하고
                 돌아서는 순간이 곧 이 칸을 보고 있는 순간이라, 점검표 바로 위가 제 자리다. */}
@@ -775,57 +883,73 @@ export function InspectionWorkbench({
               **체크 한 번 + 신고일**로 줄였다. 협회 안내 링크만 남긴다(사용자 유지 결정).
               ⚠ 과거 회차의 완료 근거(파일·종이 보관 마커)는 그대로 인정한다 — 아래 표시 분기 참조. */}
           <Pane title="점검인력 배치신고" cls={paneCls} head={paneHead}>
-            <div className="space-y-2 px-3 py-2">
-              {canManage ? (
-                <label className="flex items-center gap-2 cursor-pointer select-none" data-testid="cert-reported-toggle">
-                  <input type="checkbox" checked={reportedOn} disabled={isPending}
-                    onChange={e => toggleReported(!e.target.checked)}
-                    className="size-4 accent-[#5b46d9]" />
-                  <span className={`text-sm font-medium ${reportedOn ? 'text-ink' : 'text-amber-600'}`}>
-                    협회 배치신고 완료
-                  </span>
-                </label>
-              ) : (
-                <p className={`text-sm font-medium ${data.certReported ? 'text-ink' : 'text-amber-600'}`}>
-                  {data.certReported ? '✓ 협회 배치신고 완료' : '협회 배치신고 미완료'}
-                </p>
-              )}
-
-              {/* 신고일 — 완료 전엔 입력칸(기본 오늘), 완료 후엔 기록된 날짜를 그대로 보인다.
-                  완료 후 날짜를 고치려면 해제하고 다시 체크한다(마커가 append-only라 그게 단일 경로다) */}
-              <div className="flex items-center gap-2 pl-6">
-                <span className="text-form-xs text-ink-meta shrink-0">신고일</span>
-                {data.certReported ? (
-                  <span className="text-form-xs text-ink" data-testid="cert-reported-date">{data.certReported.date}</span>
-                ) : canManage ? (
-                  <DateInput value={reportedDate} onChange={e => setReportedDate(e.target.value)}
-                    data-testid="cert-reported-date-input"
-                    className="h-7 w-32 rounded-lg border border-brand-line px-2 text-form-xs" />
-                ) : <span className="text-form-xs text-ink-meta">—</span>}
-              </div>
+            {/* 2026-10-01 — 「사이트 → 신고일 → 완료 기록」 순서로 세운다. 종전엔 체크박스가 맨 위,
+                협회 링크가 맨 아래라 할 일의 순서가 거꾸로였고, 체크박스는 '상태 표시'로 읽혀
+                눌러도 되는지 망설이게 했다. 체크박스 자체는 남긴다(E2E 4곳이 input을 잡는다) —
+                버튼처럼 보이는 label로 감싼다. */}
+            <StepGoal done={done.cert} dday={ddayText('cert')}
+              todo="협회 사이트에서 배치신고 후, 아래에서 완료로 기록"
+              doneText={<>② 완료 — {data.certReported ? `${data.certReported.date} 신고` : reportedOn ? `${reportedDate} 신고` : '과거 근거(파일·종이 보관)로 완료'}</>}>
+              <ol className="space-y-1.5 text-form-xs">
+                <li className="flex items-center gap-2">
+                  <StepNo n={1} />
+                  <a href="https://www.kfma.kr" target="_blank" rel="noreferrer"
+                    className="inline-flex items-center gap-1 text-brand hover:underline">
+                    협회 신고 사이트에서 배치신고 <ExternalLink className="size-3" />
+                  </a>
+                </li>
+                {/* 신고일 — 완료 전엔 입력칸(기본 오늘), 완료 후엔 기록된 날짜를 그대로 보인다.
+                    완료 후 날짜를 고치려면 해제하고 다시 체크한다(마커가 append-only라 그게 단일 경로다) */}
+                <li className="flex items-center gap-2">
+                  <StepNo n={2} />
+                  <span className="text-ink-meta shrink-0">신고일</span>
+                  {data.certReported ? (
+                    <span className="text-ink" data-testid="cert-reported-date">{data.certReported.date}</span>
+                  ) : canManage ? (
+                    <DateInput value={reportedDate} onChange={e => setReportedDate(e.target.value)}
+                      data-testid="cert-reported-date-input"
+                      className="h-7 w-32 rounded-lg border border-brand-line px-2 text-form-xs" />
+                  ) : <span className="text-ink-meta">—</span>}
+                </li>
+                <li className="flex items-center gap-2">
+                  <StepNo n={3} />
+                  {canManage ? (
+                    <label data-testid="cert-reported-toggle"
+                      className={`inline-flex h-8 cursor-pointer select-none items-center gap-2 rounded-lg px-3 font-medium transition-colors ${
+                        reportedOn ? 'border border-green-300 bg-surface text-green-800 hover:bg-green-50'
+                          : 'bg-brand text-white hover:bg-brand-strong'} ${isPending ? 'opacity-50' : ''}`}>
+                      <input type="checkbox" checked={reportedOn} disabled={isPending}
+                        onChange={e => toggleReported(!e.target.checked)}
+                        className={`size-4 ${reportedOn ? 'accent-[#16a34a]' : 'accent-white'}`} />
+                      {reportedOn ? '✓ 협회 배치신고 완료 — 해제하려면 체크를 끕니다' : '협회 배치신고 완료로 기록'}
+                    </label>
+                  ) : (
+                    <span className={`font-medium ${data.certReported ? 'text-ink' : 'text-amber-600'}`}>
+                      {data.certReported ? '✓ 협회 배치신고 완료' : '협회 배치신고 미완료'}
+                    </span>
+                  )}
+                </li>
+              </ol>
 
               {/* 과거 회차 호환 — 파일·종이 보관으로 이미 완료된 건은 그 사실을 계속 보여준다.
                   업로드 창구는 없앴지만 **판정은 그대로**라 완료가 미완료로 퇴행하지 않는다 */}
               {!data.certReported && (data.certFile || data.certPaper || data.certArchived) && (
-                <p className="pl-6 text-form-2xs text-ink-meta" data-testid="cert-legacy-note">
+                <p className="text-form-2xs text-ink-meta" data-testid="cert-legacy-note">
                   {data.certFile ? `과거 업로드본 보관 중: ${data.certFile.name}`
                     : data.certPaper ? `종이 보관 기록 있음 — ${data.certPaper.date} 수령 · ${data.certPaper.location}`
                       : '종이 보관됨 — 과거본 정리로 ERP 사본은 삭제되었습니다'}
                   {' '}(이 근거로 ②는 완료 상태입니다)
                 </p>
               )}
-
-              <a href="https://www.kfma.kr" target="_blank" rel="noreferrer"
-                className="inline-flex items-center gap-1 pl-6 text-form-xs text-brand hover:underline">
-                협회 신고 사이트 <ExternalLink className="size-3" />
-              </a>
-            </div>
+            </StepGoal>
           </Pane>
           <Pane title="배치 요약" cls={paneCls} head={paneHead}>
             <Summary rows={[
               ['점검표 응답', `${data.responded}건`],
               // 신고 완료가 기본 축(2026-09-07) — 파일·종이는 과거 회차 폴백
+              // reportedOn — 체크 직후 서버 왕복 전에도 같은 화면의 두 칸이 같은 말을 하게(선반영)
               ['배치신고', data.certReported ? `완료 ${data.certReported.date}`
+                : reportedOn ? `완료 ${reportedDate}`
                 : data.certFile ? data.certFile.name
                   : data.certArchived ? '종이 보관' : '미완료'],
               ['불량', `${defectStat.total}건`],
@@ -848,49 +972,77 @@ export function InspectionWorkbench({
             ]} />
           </Pane>
           <Pane title="발송" cls={paneCls} head={paneHead}>
-            <div className="space-y-2 px-3 py-2">
-              <p className={`text-xs ${done.ownerReport ? 'text-ink-sub' : 'text-amber-600'}`}>
-                {data.delivery ? '발송 완료 — 필요 시 재발송'
-                  : data.evidence?.offlineReport ? '방문·유선으로 보고함 (오프라인 기록됨)'
-                  : '별지 9호 생성 후 이메일로 보고합니다'}
-              </p>
-              {/* R4-2(독립 검증 D2): 이메일만 근거로 삼으면 방문·유선 보고가 영원히 미완이다 */}
-              {canManage && (offlineOpen ? (
-                <div className="flex flex-wrap items-center gap-1.5">
-                  <DateInput value={offlineDate} onChange={e => setOfflineDate(e.target.value)}
-                    className="h-7 w-32 rounded-lg border border-brand-line px-2 text-form-xs" />
-                  <select value={offlineMethod} onChange={e => setOfflineMethod(e.target.value)}
-                    className="h-7 rounded-lg border border-brand-line px-2 text-form-xs outline-none focus:border-brand">
-                    <option>방문 설명</option><option>유선 통보</option><option>대면 전달</option><option>기타</option>
-                  </select>
-                  <input value={offlineMemo} onChange={e => setOfflineMemo(e.target.value)} placeholder="메모(선택)"
-                    className="h-7 w-40 rounded-lg border border-brand-line px-2 text-form-xs outline-none focus:border-brand" />
-                  <button onClick={saveOffline} disabled={isPending} className={btnPri}>기록</button>
-                  {/* S7-1 4차 — 누르면 동작하는 **활성 컨트롤**이다(F-22와 같은 축) */}
-                  <button onClick={() => setOfflineOpen(false)} className="text-form-2xs underline text-ink-meta">취소</button>
+            {/* 2026-10-01 — 완료 수단이 **둘**임을 A/B 두 상자로 보인다. 종전엔 [방문·유선 보고 기록]·
+                [관계인 보고 메일]·[생성물 이메일 발송] 셋이 한 줄에 서서 어느 것이 ③을 끝내는지
+                읽히지 않았고, 발송 버튼이 비활성인 이유(송달 동의 없음)는 옆 칸에 있었다. */}
+            <StepGoal done={done.ownerReport} dday={ddayText('ownerReport')}
+              todo="A 이메일 발송 또는 B 방문·유선 보고 기록 — 둘 중 하나"
+              doneText={<>③ 완료 — {data.delivery ? `이메일 ${kstDate(data.delivery.sentAt)} (${data.delivery.sentTo})`
+                : data.evidence?.offlineReportInfo
+                  ? [data.evidence.offlineReportInfo.date, data.evidence.offlineReportInfo.method].filter(Boolean).join(' · ') || '방문·유선 보고 기록됨'
+                  : '보고 기록됨'}</>} />
+            <div className="grid gap-2 px-1 xl:grid-cols-2" data-testid="owner-report-ways">
+              <div className="space-y-1.5 rounded-lg border border-brand-line-soft p-2">
+                <p className="text-form-xs font-semibold text-ink-sub">A. 이메일로 보고</p>
+                <p className="text-form-2xs text-ink-meta">
+                  별지 9호 {genKinds.has('report9') ? '✓ 생성됨' : '· 미생성 — ④에서 생성'} · 수신{' '}
+                  {data.consentOk ? '송달 동의·이메일 보유' : <span className="text-amber-700">⚠ 송달 동의·이메일 없음</span>}
+                </p>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <MessageTemplateModal templateKey="owner_report" label="관계인 보고 메일"
+                    sampleVars={{ 고객명: customerName ?? '', 연도: '', 차수: '', 점검일: '' }} />
+                  {canManage && (
+                    <button onClick={sendOwner} disabled={isPending || !data.consentOk} className={btnPri}>
+                      <Send className="size-3" /> {done.ownerReport ? '재발송' : '생성물 이메일 발송'}
+                    </button>
+                  )}
                 </div>
-              ) : data.evidence?.offlineReport ? (
-                /* 기록된 뒤에는 **되돌릴 길**이 있어야 한다 — ③은 6단계 중 유일하게 출구가 없었다.
-                   ②[해제]·④⑥ 제출일 삭제·사유 완료 [철회]와 같은 자리다. 다시 기록도 열어 둔다
-                   (날짜·방법을 고쳐 적는 것이 실제 동선이라 철회만 있으면 막다른 길이 된다). */
-                <div className="flex flex-wrap items-center gap-1.5">
-                  <button onClick={() => setOfflineOpen(true)} className={btn}>보고 내용 다시 기록</button>
-                  <button onClick={undoOffline} disabled={isPending}
-                    className="inline-flex items-center gap-1 h-7 px-2.5 rounded-lg border border-amber-200 bg-surface text-form-xs text-amber-700 hover:bg-amber-50 disabled:opacity-50"
-                    title="잘못 기록했다면 철회할 수 있습니다. 철회하면 증거만으로 다시 판정합니다.">
-                    {isPending ? <Loader2 className="size-3 animate-spin" /> : null} 보고 기록 철회
-                  </button>
-                </div>
-              ) : (
-                <button onClick={() => setOfflineOpen(true)} className={btn}>방문·유선 보고 기록</button>
-              ))}
-              <div className="flex items-center gap-1.5 flex-wrap">
-                <MessageTemplateModal templateKey="owner_report" label="관계인 보고 메일"
-                  sampleVars={{ 고객명: customerName ?? '', 연도: '', 차수: '', 점검일: '' }} />
-                {canManage && (
-                  <button onClick={sendOwner} disabled={isPending || !data.consentOk} className={btnPri}>
-                    <Send className="size-3" /> {done.ownerReport ? '재발송' : '생성물 이메일 발송'}
-                  </button>
+                {/* 비활성 이유를 **버튼 바로 밑**에 — 눌러도 안 되는 이유가 다른 칸에 있으면 못 찾는다 */}
+                {!data.consentOk && (
+                  <p className="text-form-2xs text-amber-700">
+                    발송하려면 고객 소방계획서 탭에서 송달 동의·이메일을 입력하세요
+                    {customerId && <NextLink href={`/customers/${customerId}`} className="ml-1 underline hover:text-amber-900">고객 열기</NextLink>}
+                  </p>
+                )}
+              </div>
+              <div className="space-y-1.5 rounded-lg border border-brand-line-soft p-2">
+                <p className="text-form-xs font-semibold text-ink-sub">B. 방문·유선으로 보고</p>
+                {data.evidence?.offlineReport && !offlineOpen && (
+                  <p className="text-form-2xs text-ink-meta">
+                    기록됨 — {[data.evidence.offlineReportInfo?.date, data.evidence.offlineReportInfo?.method].filter(Boolean).join(' · ') || '방문·유선'}
+                  </p>
+                )}
+                {/* R4-2(독립 검증 D2): 이메일만 근거로 삼으면 방문·유선 보고가 영원히 미완이다 */}
+                {canManage ? (offlineOpen ? (
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <DateInput value={offlineDate} onChange={e => setOfflineDate(e.target.value)}
+                      className="h-7 w-32 rounded-lg border border-brand-line px-2 text-form-xs" />
+                    <select value={offlineMethod} onChange={e => setOfflineMethod(e.target.value)}
+                      className="h-7 rounded-lg border border-brand-line px-2 text-form-xs outline-none focus:border-brand">
+                      <option>방문 설명</option><option>유선 통보</option><option>대면 전달</option><option>기타</option>
+                    </select>
+                    <input value={offlineMemo} onChange={e => setOfflineMemo(e.target.value)} placeholder="메모(선택)"
+                      className="h-7 w-40 rounded-lg border border-brand-line px-2 text-form-xs outline-none focus:border-brand" />
+                    <button onClick={saveOffline} disabled={isPending} className={btnPri}>기록</button>
+                    {/* S7-1 4차 — 누르면 동작하는 **활성 컨트롤**이다(F-22와 같은 축) */}
+                    <button onClick={() => setOfflineOpen(false)} className="text-form-2xs underline text-ink-meta">취소</button>
+                  </div>
+                ) : data.evidence?.offlineReport ? (
+                  /* 기록된 뒤에는 **되돌릴 길**이 있어야 한다 — ③은 6단계 중 유일하게 출구가 없었다.
+                     ②[해제]·④⑥ 제출일 삭제·사유 완료 [철회]와 같은 자리다. 다시 기록도 열어 둔다
+                     (날짜·방법을 고쳐 적는 것이 실제 동선이라 철회만 있으면 막다른 길이 된다). */
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <button onClick={() => setOfflineOpen(true)} className={btn}>보고 내용 다시 기록</button>
+                    <button onClick={undoOffline} disabled={isPending}
+                      className="inline-flex items-center gap-1 h-7 px-2.5 rounded-lg border border-amber-200 bg-surface text-form-xs text-amber-700 hover:bg-amber-50 disabled:opacity-50"
+                      title="잘못 기록했다면 철회할 수 있습니다. 철회하면 증거만으로 다시 판정합니다.">
+                      {isPending ? <Loader2 className="size-3 animate-spin" /> : null} 보고 기록 철회
+                    </button>
+                  </div>
+                ) : (
+                  <button onClick={() => setOfflineOpen(true)} className={btnPri}>방문·유선 보고 기록</button>
+                )) : (
+                  <p className="text-form-2xs text-ink-meta">{data.evidence?.offlineReport ? '' : '기록 없음'}</p>
                 )}
               </div>
             </div>
@@ -906,6 +1058,78 @@ export function InspectionWorkbench({
         {sel === 'submit9' && (<>
           <Pane title="별지 9·10호 생성·제출" cls={paneCls} head={paneHead}>
             <div className="space-y-2 px-3 py-2">
+              {/* 2026-10-01 — 완료 조건(제출일 **기록**)과 법정 기한을 **칸 머리에 고정**한다. 종전엔 이
+                  긴 칸(칩 6개·패키지·번들·10호 고유값·문서 목록) 한가운데의 한 줄이었고 테두리 버튼이라,
+                  채움 버튼인 [생성]을 누르고 "끝났다"고 떠나는 사고가 났다(아래 「기록이라 말한다」 주석).
+                  준비 현황(칩의 ✓/·)을 한 줄로 요약해 제출 전에 무엇을 더 만들어야 하는지도 여기서 읽힌다. */}
+              <StepGoal done={done.submit9} dday={ddayText('submit9')}
+                todo="소방서에 별지 9호를 제출한 날짜를 기록"
+                doneText={<>④ 완료 — {submit9At} 제출 기록</>}>
+                <p className="text-form-2xs text-ink-meta" data-testid="submit9-ready">
+                  준비: {ANNEX_DOC_CHIPS.map(c => `${c.label} ${genKinds.has(c.type) ? '✓' : '·'}`).join(' · ')}
+                </p>
+                {/* 제출일 ↔ 기한 — 2026-09-11 사용자 A안으로 **한 자리에 모았다**. 종전엔 제출일은
+                    이 칸, 기산 근거와 [기간 고치기]는 첫째 칸이라 「언제까지인가」와 「왜 그 날짜인가」가
+                    화면 양끝에 흩어져 있었다. 의미가 같은 값은 같은 자리에 둔다. */}
+                <div className="space-y-1">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {/* 라벨은 **기록**이라 말한다(2026-09-15) — 바로 위 문서 칸(「문서에 인쇄할
+                        제출일」)과 이름이 겹치면 사용자가 문서 칸을 채우고 단계가 닫히길 기다린다.
+                        ⑥에서 실제로 그 일이 났다([[feedback_fix_the_sibling_too]] — 형제도 함께). */}
+                    <span className="text-form-xs text-ink-sub">소방서 제출 기록</span>
+                    <DateInput value={subDate9} onChange={e => setSubDate9(e.target.value)}
+                      className="h-7 rounded-lg border border-brand-line px-2 text-form-xs" />
+                    {/* 라벨은 **고른 날짜를 따라간다** — 기본값이 오늘이라 평시엔 「오늘 제출로 기록」이지만,
+                        날짜를 바꾼 뒤에도 그 문구가 남으면 버튼이 거짓말을 한다(2026-09-11 A안).
+                        완료시키는 동작이라 채움 버튼(btnPri) — 문서 [생성]은 테두리 버튼으로 내렸다. */}
+                    {canManage && (
+                      <button onClick={() => submit('report9', subDate9)} disabled={isPending} className={btnPri}
+                        data-testid="submit9-record">
+                        {subDate9 === todayIso ? '오늘 제출로 기록' : '제출일 기록'}
+                      </button>
+                    )}
+                    {submit9At
+                      ? <span className="text-form-2xs text-green-600">✓ 기록됨 {submit9At} — ④ 완료</span>
+                      /* S7-1 4차 — **법정 제출 기한**이다. 이 차수에서 가장 읽혀야 하는 값 중 하나.
+                         ⚠ 아래 기산 줄이 같은 날짜를 근거까지 붙여 말하므로, 그 줄이 없을 때만 띄운다 —
+                           나란히 두 번 말하면 어느 쪽이 정본인지 흐려진다. */
+                      : !hasAnchorRow && data.submit9.due && (
+                        <span className="text-form-2xs text-ink-meta">기한 {data.submit9.due} (확정일 +15영업일)</span>
+                      )}
+                  </div>
+                  {/* 🚨 2026-09-21 — 기산 줄의 **뜻이 바뀌었다**. 종전에는 「종료일 + 15일 = 기한」이라
+                      적었는데, 마감일 정본이 달력 축(확정일 기준 영업일 산식)으로 통일되면서 그 문장이
+                      거짓이 됐다. 기한은 이제 점검 기간에서 파생되지 않는다 — 그래서 산식을 그대로
+                      말하고, 점검 기간은 **따로** 보여준다(여전히 고칠 수 있어야 하는 값이라 남긴다).
+                      ⚠ [기간 고치기]는 살아 있는 화면에서 점검 기간을 고치는 **유일한 입구**다
+                        (timeline-client는 렌더되지 않는 죽은 UI). 지우지 말 것 — 다만 이제 이 버튼은
+                        기한을 움직이지 않는다. 기한을 옮기려면 점검일(확정일)을 옮겨야 한다. */}
+                  {hasAnchorRow && (
+                    <div className="flex flex-wrap items-center gap-1.5 text-form-2xs text-ink-meta">
+                      <span>
+                        기한 <b className="text-ink-sub">{data.submit9.due ?? '—'}</b> (확정일 +15영업일) · 점검기간{' '}
+                        {data.period!.end
+                          ? <b className="text-ink-sub">{data.period!.start} ~ {data.period!.end}</b>
+                          : <><b className="text-ink-sub">{data.period!.start}</b> <span className="text-amber-600">(종료일 미지정 — 다일 점검이면 종료일을 넣어주세요)</span></>
+                        }
+                      </span>
+                      {canManage && !anchorEdit && (
+                        <button onClick={() => { setAnchorEnd(data.period?.end ?? ''); setAnchorEdit(true) }}
+                          className="underline hover:text-brand">기간 고치기</button>
+                      )}
+                      {canManage && anchorEdit && (
+                        <span className="inline-flex items-center gap-1">
+                          <DateInput value={anchorEnd} onChange={e => setAnchorEnd(e.target.value)}
+                            className="h-6 w-28 rounded-lg border border-brand-line px-1.5 text-form-2xs" />
+                          <button onClick={saveAnchor} disabled={isPending} className={btn}>저장</button>
+                          <button onClick={() => { setAnchorEdit(false); setAnchorMsg('') }} className="underline">취소</button>
+                        </span>
+                      )}
+                      {anchorMsg && <span className={anchorMsg.startsWith('❌') ? 'text-red-600' : 'text-green-600'}>{anchorMsg}</span>}
+                    </div>
+                  )}
+                </div>
+              </StepGoal>
               {/* 🚨 「제출 전제」(①대상물 공통정보 ②점검 인력 ③점검표 응답 ④송달 동의)를 여기서
                   **폐지했다** — 2026-09-11 사용자 지시(소방계획서_49 §13).
                   이 자리의 변천: 칸 하나를 통째로 씀 → 접이식 한 줄(같은 날 A안) → 제거.
@@ -996,66 +1220,6 @@ export function InspectionWorkbench({
               )}
               {/* 22 S13(Q-13) — 원클릭 번들: stale 자동 판정 + 병렬 생성 + 공란 사전 리포트 + 구성요소 체크리스트 */}
               {canManage && <BundleGeneratePanel inspectionId={inspectionId} disabled={isPending || busy || regenBlocked} />}
-              {/* 제출일 ↔ 기한 — 2026-09-11 사용자 A안으로 **한 자리에 모았다**. 종전엔 제출일은
-                  이 칸, 기산 근거와 [기간 고치기]는 첫째 칸이라 「언제까지인가」와 「왜 그 날짜인가」가
-                  화면 양끝에 흩어져 있었다. 의미가 같은 값은 같은 자리에 둔다. */}
-              <div className="space-y-1 border-t border-brand-line-soft pt-2">
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  {/* 라벨은 **기록**이라 말한다(2026-09-15) — 바로 위 문서 칸(「문서에 인쇄할
-                      제출일」)과 이름이 겹치면 사용자가 문서 칸을 채우고 단계가 닫히길 기다린다.
-                      ⑥에서 실제로 그 일이 났다([[feedback_fix_the_sibling_too]] — 형제도 함께). */}
-                  <span className="text-form-xs text-ink-sub">소방서 제출 기록</span>
-                  <DateInput value={subDate9} onChange={e => setSubDate9(e.target.value)}
-                    className="h-7 rounded-lg border border-brand-line px-2 text-form-xs" />
-                  {/* 라벨은 **고른 날짜를 따라간다** — 기본값이 오늘이라 평시엔 「오늘 제출로 기록」이지만,
-                      날짜를 바꾼 뒤에도 그 문구가 남으면 버튼이 거짓말을 한다(2026-09-11 A안). */}
-                  {canManage && (
-                    <button onClick={() => submit('report9', subDate9)} disabled={isPending} className={btn}
-                      data-testid="submit9-record">
-                      {subDate9 === todayIso ? '오늘 제출로 기록' : '제출일 기록'}
-                    </button>
-                  )}
-                  {submit9At
-                    ? <span className="text-form-2xs text-green-600">✓ 기록됨 {submit9At} — ④ 완료</span>
-                    /* S7-1 4차 — **법정 제출 기한**이다. 이 차수에서 가장 읽혀야 하는 값 중 하나.
-                       ⚠ 아래 기산 줄이 같은 날짜를 근거까지 붙여 말하므로, 그 줄이 없을 때만 띄운다 —
-                         나란히 두 번 말하면 어느 쪽이 정본인지 흐려진다. */
-                    : !hasAnchorRow && data.submit9.due && (
-                      <span className="text-form-2xs text-ink-meta">기한 {data.submit9.due} (확정일 +15영업일)</span>
-                    )}
-                </div>
-                {/* 🚨 2026-09-21 — 기산 줄의 **뜻이 바뀌었다**. 종전에는 「종료일 + 15일 = 기한」이라
-                    적었는데, 마감일 정본이 달력 축(확정일 기준 영업일 산식)으로 통일되면서 그 문장이
-                    거짓이 됐다. 기한은 이제 점검 기간에서 파생되지 않는다 — 그래서 산식을 그대로
-                    말하고, 점검 기간은 **따로** 보여준다(여전히 고칠 수 있어야 하는 값이라 남긴다).
-                    ⚠ [기간 고치기]는 살아 있는 화면에서 점검 기간을 고치는 **유일한 입구**다
-                      (timeline-client는 렌더되지 않는 죽은 UI). 지우지 말 것 — 다만 이제 이 버튼은
-                      기한을 움직이지 않는다. 기한을 옮기려면 점검일(확정일)을 옮겨야 한다. */}
-                {hasAnchorRow && (
-                  <div className="flex flex-wrap items-center gap-1.5 text-form-2xs text-ink-meta">
-                    <span>
-                      기한 <b className="text-ink-sub">{data.submit9.due ?? '—'}</b> (확정일 +15영업일) · 점검기간{' '}
-                      {data.period!.end
-                        ? <b className="text-ink-sub">{data.period!.start} ~ {data.period!.end}</b>
-                        : <><b className="text-ink-sub">{data.period!.start}</b> <span className="text-amber-600">(종료일 미지정 — 다일 점검이면 종료일을 넣어주세요)</span></>
-                      }
-                    </span>
-                    {canManage && !anchorEdit && (
-                      <button onClick={() => { setAnchorEnd(data.period?.end ?? ''); setAnchorEdit(true) }}
-                        className="underline hover:text-brand">기간 고치기</button>
-                    )}
-                    {canManage && anchorEdit && (
-                      <span className="inline-flex items-center gap-1">
-                        <DateInput value={anchorEnd} onChange={e => setAnchorEnd(e.target.value)}
-                          className="h-6 w-28 rounded-lg border border-brand-line px-1.5 text-form-2xs" />
-                        <button onClick={saveAnchor} disabled={isPending} className={btn}>저장</button>
-                        <button onClick={() => { setAnchorEdit(false); setAnchorMsg('') }} className="underline">취소</button>
-                      </span>
-                    )}
-                    {anchorMsg && <span className={anchorMsg.startsWith('❌') ? 'text-red-600' : 'text-green-600'}>{anchorMsg}</span>}
-                  </div>
-                )}
-              </div>
               {/* 별지 10호 문서 축 — 2026-09-07 사용자 지시로 ⑤에서 여기로 옮겼다.
                   제출일·총 이행기간·총 일수는 **제출하는 문서의 값**이라 제출을 다루는 이 차수가 자리다.
                   ⑤에는 실제 보수 작업 축(계획 요약·업체·예산)만 남는다. 저장처는 종전과 같은
@@ -1104,6 +1268,16 @@ export function InspectionWorkbench({
         {sel === 'repair' && (<>
           {/* R6-7: 불량마다 폼을 펼치지 않고 표에서 바로 고친다 */}
           <Pane title={`이행계획 ${defectStat.planned}/${defectStat.total}`} cls={paneCls} head={paneHead}>
+            {/* 2026-10-01 — 칸 제목 「이행계획 n/m」은 **계획 입력** 수인데 완료 조건은 **「완료」 체크** 수라
+                두 숫자가 다른 축이다("5/5인데 왜 안 닫히나"). 두 축을 나란히 적고 어느 쪽이 조건인지 말한다. */}
+            <StepGoal done={done.repair} dday={ddayText('repair')}
+              todo={<>불량 {defectStat.total}건 모두 「완료」 체크 — 조치 완료 {defectStat.done}/{defectStat.total}
+                {defectStat.total - defectStat.done > 0 && <span className="text-amber-800"> · 남은 {defectStat.total - defectStat.done}건</span>}</>}
+              doneText={<>⑤ 완료 — 불량 {defectStat.total}건 조치 완료{forcedNums.has(5) ? ' (사유 완료)' : ''}</>}>
+              <p className="text-form-2xs text-ink-meta">
+                계획 입력 {defectStat.planned}/{defectStat.total} · 전·후 사진 {defectStat.photoPairs}/{defectStat.total}쌍 — 계획·사진·계약서는 선택이고, 완료 조건은 표의 「완료」 체크뿐입니다
+              </p>
+            </StepGoal>
             {/* 소방계획서_45 R-2 — ✕는 있는데 불량내역이 비어 있으면 ⑤는 **증거로는 절대 완료될 수 없다**
                 (evidenceDone ⑤ = defectsTotal>0 && 전건 조치). 여기서 출구를 보이지 않으면 사용자는
                 [사유 완료]로 도망가고, 그건 D34-2가 막으려던 '하지 않은 일이 완료로 남는다'가 된다.
@@ -1117,7 +1291,7 @@ export function InspectionWorkbench({
                 {/* ⚠ CTA는 canManage일 때만. ①의 등록 버튼도 canManage 게이트라(inspection-sheet-client),
                     권한 없는 사용자를 보내면 시킨 것이 그 화면에 없는 **막다른 길**이 된다(독립 판정 지적) */}
                 {canManage && (
-                  <button onClick={() => setSel('checklist')} data-testid="goto-defect-register"
+                  <button onClick={() => goStep('checklist')} data-testid="goto-defect-register"
                     className="ml-1.5 underline font-semibold hover:text-amber-900">① 점검표에서 불량 등록하기</button>
                 )}
               </div>
@@ -1171,7 +1345,8 @@ export function InspectionWorkbench({
             </div>
             {canManage && (
               <div className="flex items-center gap-1.5 flex-wrap border-t border-brand-line-soft px-1 pt-2">
-                <button onClick={() => generate('report10')} disabled={isPending || busy} className={btnPri}>
+                {/* 2026-10-01 — 문서 생성은 ⑤를 끝내는 동작이 아니라 테두리 버튼(채움은 완료 동작에만) */}
+                <button onClick={() => generate('report10')} disabled={isPending || busy} className={btn}>
                   {busy ? <Loader2 className="size-3 animate-spin" /> : <FileText className="size-3" />} 10호 PDF 생성
                 </button>
                 {/* S7-1 4차 — 생성 규칙 안내(언제 눌러야 하는지를 알려준다) */}
@@ -1201,28 +1376,15 @@ export function InspectionWorkbench({
               : slots?.defects ?? <Empty>불량 목록을 불러올 수 없습니다.</Empty>}
           </Pane>
           <Pane title="11호 고유값·제출" cls={paneCls} head={paneHead}>
-            <Summary rows={[
-              ['전·후 사진 쌍', `${defectStat.photoPairs}건`],
-              ['9호 제출', data.submit9.submittedAt ?? '미제출'],
-            ]} />
-            <div className="border-t border-brand-line-soft pt-2">
-              <AnnexFields inspectionId={inspectionId} annexNo="report11" canEdit={canManage}
-                onSaved={() => setDefectRev(v => v + 1)} />
-            </div>
-            <div className="space-y-2 px-1 pt-2">
-              <div className="flex items-center gap-1.5 flex-wrap border-t border-brand-line-soft pt-2">
-                {canManage && (<>
-                  <button onClick={() => generate('report11')} disabled={isPending || busy} className={btnPri}>
-                    {busy ? <Loader2 className="size-3 animate-spin" /> : <FileText className="size-3" />} 11호 PDF 생성
-                  </button>
-                  <button onClick={() => pkg('report11')} disabled={isPending} className={btn}><Package className="size-3" /> 제출 패키지</button>
-                  {/* ④와 **같은 자리 규약**([제출 패키지] 옆). 워크북은 회차 1개짜리 통합 파일이라
-                      ④에서 받든 ⑥에서 받든 같은 것이 나온다 — 형제 자리를 빠뜨리면 ⑥에서만
-                      "엑셀이 사라졌다"가 된다(종전엔 네 DocPane 전부에 있었다) */}
-                  <WorkbookXlsxButton inspectionId={inspectionId} />
-                </>)}
-              </div>
-              <div className="flex items-center gap-1.5 flex-wrap border-t border-brand-line-soft pt-2">
+            {/* 2026-10-01 — ④와 **똑같은 띠**를 칸 머리에. 같은 꼴이면 두 번째부터는 설명 없이 읽힌다.
+                전제 셋(9호 제출·조치 완료·후 사진)을 ✓/·로 — 기록을 막지는 않는다(종이 제출·순서 역전이 실재). */}
+            <StepGoal done={done.submit11} dday={ddayText('submit11')}
+              todo="별지 11호를 소방서에 제출한 날짜를 기록"
+              doneText={<>⑥ 완료 — {submit11At} 제출 기록</>}>
+              <p className="text-form-2xs text-ink-meta" data-testid="submit11-ready">
+                전제: 9호 제출 {submit9At ? `✓ ${submit9At}` : '· 미기록(④)'} · 조치 완료 {defectStat.done}/{defectStat.total}{defectStat.done >= defectStat.total && defectStat.total > 0 ? ' ✓' : ''} · 후 사진 {defectStat.photoPairs}/{defectStat.total}쌍 · 11호 {genKinds.has('report11') ? '✓ 생성됨' : '· 미생성'}
+              </p>
+              <div className="flex items-center gap-1.5 flex-wrap">
                 {/* 🚨 2026-09-15 — 종전 「이행완료 제출일」은 위 문서 칸 「제출일」과 구분이 안 됐다.
                     사용자가 문서 칸에만 날짜를 넣고 ⑥이 안 닫힌다고 물어 온 자리다. **기록**이라 말한다. */}
                 <span className="text-form-xs text-ink-sub">소방서 제출 기록</span>
@@ -1230,7 +1392,7 @@ export function InspectionWorkbench({
                   className="h-7 rounded-lg border border-brand-line px-2 text-form-xs" />
                 {/* ④와 **같은 규약**([[feedback_fix_the_sibling_too]]) — 한쪽만 고치면 ⑥에서만 2단계로 남는다 */}
                 {canManage && (
-                  <button onClick={() => submit('report11', subDate11)} disabled={isPending} className={btn}
+                  <button onClick={() => submit('report11', subDate11)} disabled={isPending} className={btnPri}
                     data-testid="submit11-record">
                     {subDate11 === todayIso ? '오늘 제출로 기록' : '제출일 기록'}
                   </button>
@@ -1243,6 +1405,29 @@ export function InspectionWorkbench({
                   : <span className="text-form-2xs text-ink-meta">
                       미기록 — 이 날짜가 ⑥ 완료 조건{data.submit11.due ? ` · 기한 ${data.submit11.due}` : ''}
                     </span>}
+              </div>
+            </StepGoal>
+            <Summary rows={[
+              ['전·후 사진 쌍', `${defectStat.photoPairs}건`],
+              ['9호 제출', data.submit9.submittedAt ?? '미제출'],
+            ]} />
+            <div className="border-t border-brand-line-soft pt-2">
+              <AnnexFields inspectionId={inspectionId} annexNo="report11" canEdit={canManage}
+                onSaved={() => setDefectRev(v => v + 1)} />
+            </div>
+            <div className="space-y-2 px-1 pt-2">
+              <div className="flex items-center gap-1.5 flex-wrap border-t border-brand-line-soft pt-2">
+                {canManage && (<>
+                  {/* 2026-10-01 — 문서 생성은 ⑥을 끝내는 동작이 아니라 테두리 버튼(채움은 위 [제출일 기록]뿐) */}
+                  <button onClick={() => generate('report11')} disabled={isPending || busy} className={btn}>
+                    {busy ? <Loader2 className="size-3 animate-spin" /> : <FileText className="size-3" />} 11호 PDF 생성
+                  </button>
+                  <button onClick={() => pkg('report11')} disabled={isPending} className={btn}><Package className="size-3" /> 제출 패키지</button>
+                  {/* ④와 **같은 자리 규약**([제출 패키지] 옆). 워크북은 회차 1개짜리 통합 파일이라
+                      ④에서 받든 ⑥에서 받든 같은 것이 나온다 — 형제 자리를 빠뜨리면 ⑥에서만
+                      "엑셀이 사라졌다"가 된다(종전엔 네 DocPane 전부에 있었다) */}
+                  <WorkbookXlsxButton inspectionId={inspectionId} />
+                </>)}
               </div>
               <div className="border-t border-brand-line-soft pt-2">
                 <DocPane files={files} inspectionId={inspectionId} onOpen={download} kinds={STEP_DOC_KINDS.submit11} />
@@ -1299,6 +1484,44 @@ export function InspectionWorkbench({
  *  미리보기 칸만은 그게 곧 손해였다: 칸은 594px인데 iframe이 min-h(224px)에 갇혀
  *  A4 문서(872px 필요)의 **27%만 보이고 나머지는 내부 스크롤**이었다(실측 2026-08-18).
  *  section을 flex 열로 만들고 본문에 flex-1/min-h-0을 물려야 자식의 h-full이 실제 높이로 풀린다. */
+/** 단계 머리의 「완료 조건」 띠 (2026-10-01 단계 인지 개선).
+ *
+ *  6단계가 **같은 모양**으로 "이 칸에서 무엇을 하면 끝나는가"를 말한다. 종전엔 ②는 체크박스,
+ *  ③은 버튼 셋이 나란히, ④⑥은 긴 칸 한가운데의 한 줄이라 단계마다 완료시키는 동작을 다시
+ *  찾아야 했다 — ④⑥에서는 문서를 만들고 "끝났다"고 떠나는 사고가 실제로 났다(`:1004` 주석).
+ *  미완료면 앰버(할 일 + 마감), 완료면 초록(언제 끝났나). 완료시키는 컨트롤은 children으로
+ *  이 띠 **안**에 둔다 — 조건과 동작이 한 자리에 있어야 읽는 즉시 할 수 있다. */
+function StepGoal({ done, todo, doneText, dday, children }: {
+  done: boolean
+  todo: React.ReactNode
+  doneText: React.ReactNode
+  dday?: { text: string; cls: string } | null
+  children?: React.ReactNode
+}) {
+  return (
+    <div data-testid="step-goal" data-state={done ? 'done' : 'todo'}
+      className={`mx-1 mb-2 rounded-lg border px-3 py-2 ${done ? 'border-green-200 bg-green-50' : 'border-amber-200 bg-amber-50/70'}`}>
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-form-xs">
+        {done ? (<>
+          <CheckCircle2 className="size-4 shrink-0 text-green-600" />
+          <span className="font-semibold text-green-800">{doneText}</span>
+        </>) : (<>
+          <AlertTriangle className="size-4 shrink-0 text-amber-500" />
+          <span className="font-semibold text-amber-900">이 단계를 끝내려면</span>
+          <span className="text-ink">{todo}</span>
+        </>)}
+        {!done && dday && <span className={`ml-auto text-form-2xs ${dday.cls}`}>{dday.text}</span>}
+      </div>
+      {children && <div className="mt-1.5 space-y-1.5">{children}</div>}
+    </div>
+  )
+}
+
+/** StepGoal 안의 순서 번호 — ②처럼 「사이트 → 날짜 → 기록」이 차례일 때 */
+function StepNo({ n }: { n: number }) {
+  return <span className="inline-flex size-4 shrink-0 items-center justify-center rounded-full bg-brand-tint text-form-3xs font-bold text-brand">{n}</span>
+}
+
 function Pane({ title, children, cls, head, fill = false }: {
   title: string; children: React.ReactNode; cls: string; head: string; fill?: boolean
 }) {
