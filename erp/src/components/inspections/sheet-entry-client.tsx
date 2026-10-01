@@ -273,7 +273,8 @@ export function SheetEntryClient({
       if (u.pathname !== `/inspections/${inspectionId}/sheet`) return
       u.searchParams.set('sheet', code); u.searchParams.delete('facility')
       if (isExterior) u.searchParams.set('month', String(m ?? month))
-      window.history.replaceState(window.history.state, '', u.toString())
+      // state는 null — 달력 ?cust= effect 주석(2026-10-01): window.history.state를 넘기면 라우터 동기화가 건너뛰어진다
+      window.history.replaceState(null, '', u.toString())
     }
   }, [inspectionId, isExterior, month, ov.sheets])
 

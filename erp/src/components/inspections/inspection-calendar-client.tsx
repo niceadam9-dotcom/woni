@@ -557,7 +557,7 @@ export function InspectionCalendarClient({ inspections: serverInspections, planI
     const ym = format(calDate, 'yyyy-MM')
     if (ym === todayKst().slice(0, 7)) sp.delete('m'); else sp.set('m', ym)
     const qs = sp.toString()
-    window.history.replaceState(window.history.state, '', qs ? `?${qs}` : window.location.pathname)
+    window.history.replaceState(null, '', qs ? `?${qs}` : window.location.pathname)
   }, [calDate])
 
   // Filter state
@@ -574,16 +574,20 @@ export function InspectionCalendarClient({ inspections: serverInspections, planI
 
   /* 검색어를 URL에 기록 — 새로고침·뒤로가기·링크 공유에도 유지 (점검확정 ?cust= 와 같은 규약)
    *
-   * 🚨 첫 인자는 **`window.history.state`다(`null`이 아니다)** — 2026-09-21 실측으로 잡았다.
-   *   App Router는 자기 라우팅 정보를 `history.state`에 둔다. `null`로 덮으면 그게 사라져
-   *   **브라우저 뒤로가기가 주소만 바꾸고 화면은 그대로** 남는다(달력으로 돌아왔는데 점검표가
-   *   계속 보였다 — reload해야 고쳐졌다). 상태를 그대로 실어 주면 주소만 갈리고 라우터는 멀쩡하다.
-   *   같은 결함이 이 파일 2곳·점검표 입력·소방계획서 트리·공통 트리·fields에 있었다(전부 수리). */
+   * 🚨 첫 인자는 **`null`이다(`window.history.state`가 아니다)** — 2026-10-01 실측으로 뒤집었다.
+   *   Next(16.2.9 `app-router.js`)는 replaceState를 가로채 `data`가 null이면 `__NA`와 라우팅 트리를
+   *   **복사해 얹고** 라우터 상태(canonicalUrl)를 새 주소로 맞춘다. 반대로 `window.history.state`를
+   *   그대로 넘기면 그 안의 `__NA` 때문에 「Next 자기 호출」로 보고 동기화를 **건너뛴다** — 그러면 다음
+   *   서버 액션 응답이 라우터가 아는 옛 주소로 돌아가 `?m=`·`?cust=`·`?insp=`가 사라진다(고객 상세
+   *   `?tab=`에서 먼저 잡았다 — customer-tabs applySwitchTab 주석, `_perf-probe-cust-save`).
+   *   2026-09-21의 「null이면 뒤로가기가 주소만 바꾸고 화면은 그대로」는 이 판에서 재현되지 않는다
+   *   (`_perf-probe-backnav` 전체 이동·Link 이동 뒤 back 모두 화면 복원 — 트리를 복사하기 때문).
+   *   같은 호출이 이 파일 4곳·점검표 입력·소방계획서 트리·공통 트리·fields에 있다(전부 null). */
   useEffect(() => {
     const sp = new URLSearchParams(window.location.search)
     if (!custQuery) sp.delete('cust'); else sp.set('cust', custQuery)
     const qs = sp.toString()
-    window.history.replaceState(window.history.state, '', qs ? `?${qs}` : window.location.pathname)
+    window.history.replaceState(null, '', qs ? `?${qs}` : window.location.pathname)
   }, [custQuery])
   const [selectedCustomerIds, setSelectedCustomerIds] = useState<Set<string>>(
     // 창 축소 뒤로는 서버가 준 **전체 고객**이 기본 — 실린 일정에서만 뽑으면 나중에 받아 온 달의
@@ -623,7 +627,7 @@ export function InspectionCalendarClient({ inspections: serverInspections, planI
     if (selectedInspectionId) sp.set('insp', selectedInspectionId)
     else sp.delete('insp')
     const qs = sp.toString()
-    window.history.replaceState(window.history.state, '', qs ? `?${qs}` : window.location.pathname)
+    window.history.replaceState(null, '', qs ? `?${qs}` : window.location.pathname)
   }, [selectedInspectionId])
 
   /* 열린 **데이 패널**을 URL에 기록 — 위 두 effect와 같은 규약(replaceState).
@@ -635,7 +639,7 @@ export function InspectionCalendarClient({ inspections: serverInspections, planI
     if (dayPanelDate) sp.set('day', dayPanelDate)
     else sp.delete('day')
     const qs = sp.toString()
-    window.history.replaceState(window.history.state, '', qs ? `?${qs}` : window.location.pathname)
+    window.history.replaceState(null, '', qs ? `?${qs}` : window.location.pathname)
   }, [dayPanelDate])
 
   const today = useMemo(() => todayKst(), [])

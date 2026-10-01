@@ -1,7 +1,7 @@
 'use client'
 
 import { createContext, useContext, useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
-import { usePathname, useRouter } from 'next/navigation'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { collectPlanSaveHandlers, useUnsavedNavGuard } from '@/components/ui/unsaved-nav'
 
 /** 고객 상세 탭 셸 (설계 §2·§4·§6-C) — URL ?tab= 동기화 + 상태 뱃지 + 미저장 경고 + 다음 탭 전환.
@@ -51,7 +51,15 @@ export function CustomerTabs({ initialTab, tabs, panels, summary, banner, fullWi
 }) {
   const router = useRouter()
   const pathname = usePathname()
-  const validInitial = tabs.some(t => t.key === initialTab) ? initialTab : tabs[0].key
+  const searchParams = useSearchParams()
+  // 서버가 정한 initialTab이 기본이되, **브라우저 뒤로가기로 돌아온 경우**는 주소의 ?tab=이 이긴다(2026-10-01 실측):
+  // 탭 전환은 replaceState라 서버 트리는 첫 렌더(예: 기본정보) 그대로인데, Link로 떠났다가 back으로 오면 Next가
+  // 그 옛 트리를 복원해 주소는 ?tab=billing인데 화면은 기본정보가 됐다. 주소가 사용자의 마지막 선택을 들고 있다.
+  // ⚠ `form=`이 붙은 주소는 서버 해석을 따른다 — 구 딥링크 `?tab=plan&form=annex`(→annex)·`&form=1.1`(→facilities)은
+  //   주소의 tab과 서버의 답이 **일부러** 다르다(page.tsx의 wantAnnex·movedTab). 클라이언트가 쓰는 주소에는 form=이 없다.
+  const urlTab = searchParams.get('form') == null ? searchParams.get('tab') : null
+  const preferred = urlTab && tabs.some(t => t.key === urlTab) ? urlTab : initialTab
+  const validInitial = tabs.some(t => t.key === preferred) ? preferred : tabs[0].key
   const [active, setActive] = useState(validInitial)
   // ?tab= 변경 동기화(11-5 누락 칩 router.push, 페이지 내 ?tab= Link) — state는 마운트 시 1회만
   // 초기화되므로 서버 재렌더로 initialTab 프롭이 바뀌면 여기서 반영한다 (렌더 중 상태 조정 패턴)
