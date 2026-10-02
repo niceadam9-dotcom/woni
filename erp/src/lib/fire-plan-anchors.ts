@@ -565,11 +565,13 @@ export const HAZARD_BOXES: ReadonlyArray<readonly [string, number, string]> = [
  *  🚨 PDF는 이미 인쇄하는데 엑셀만 공란이던 시트(소방계획서_50 §5-3 마커 `__MU__`로 확정).
  *    입력 화면은 `plan-multi-use-card.tsx`이고 2026-09-09에 1.10 → **1.4 「기타」 아래**로 이사했다.
  *
- *  **일반현황 블록만** 배선한다. 아래 축은 ERP에 데이터가 없어 **일부러 안 세운다**
- *  (없어서가 아니라 채울 근거가 없어서다 — 없는 근거로 체크하면 거짓을 인쇄하는 것이다):
- *   · 안전점검 분기 4상자(10행) — 분기별 점검 이력 축이 없다.
- *   · 안전시설 17상자(11~17행) — 다중이용업소 **전용** 설비 목록이라 1.4(대상물 전체)와 축이 다르다.
- *   · 확인사항 결과칸(19행~) — 점검 결과 축이 없다.
+ *  🎯 2026-10-02(B3) — 10~27행을 배선했다. 종전 주석은 「ERP에 축이 없어 일부러 안 세운다」였고 그 판단은 옳았다:
+ *    없는 근거로 체크하면 거짓을 인쇄한다. 그래서 **추정하지 않고 입력 축을 새로 세웠다** — 카드에서 사람이
+ *    체크한 값만 인쇄한다(`multiUse.quarters`·`facilities`·`evacNote`·`checks`, 목록은 `lib/multi-use.ts`).
+ *   · 안전점검 분기 4상자(10행)
+ *   · 안전시설 **14**상자(11~17행 — N열 7·AO열 7. 종전 주석의 「17」은 틀린 수였다) — 1.4(대상물 전체)와 다른 업소 전용 축
+ *   · 확인사항 결과칸 9개(BC19~BC27) — ○/×
+ *  ⚠ 28~29행 보관방법 4상자는 여전히 미배선이다(입력 축 없음, 이번 범위 밖).
  *
  *  ⚠ 영업시간 시간칸 4개는 **자리표시칸**이다(`00시~00시`). 값이 없으면 그 자리표시를 남긴다 —
  *    지우면 무엇을 적는 칸인지 알 수 없게 된다(`placeholderCell`).
@@ -606,6 +608,25 @@ export const MU_USER_BOXES: ReadonlyArray<readonly [string, string, string]> = [
   ['u_youth', 'N9', '청소년'],
   ['u_disabled', 'Z9', '신체부자유자'],
 ]
+
+/** B3 10행 안전점검 분기 4상자 — [필드 접미사, 셀, 분기] */
+export const MU_QUARTER_BOXES: ReadonlyArray<readonly [string, string, number]> = [
+  ['q1', 'N10', 1], ['q2', 'Z10', 2], ['q3', 'AK10', 3], ['q4', 'AW10', 4],
+]
+
+/** B3 11~17행 안전시설 14상자 — [필드 접미사, 셀, `MU_FACILITIES` 자구] */
+export const MU_FACILITY_BOXES: ReadonlyArray<readonly [string, string, string]> = [
+  ['f_ext', 'N11', '소화기'], ['f_autoext', 'N12', '자동확산소화기'], ['f_simplesp', 'N13', '간이 S/P'],
+  ['f_bell', 'N14', '비상벨설비'], ['f_detect', 'N15', '자동화재탐지설비'], ['f_gas', 'N16', '가스누설경보기'],
+  ['f_evac', 'N17', '피난기구'],
+  ['f_exitlight', 'AO11', '유도등'], ['f_exitsign', 'AO12', '유도표지'], ['f_guideline', 'AO13', '피난유도선'],
+  ['f_emlight', 'AO14', '비상조명등'], ['f_portlight', 'AO15', '휴대용 비상조명등'], ['f_av', 'AO16', '영상음향차단장치'],
+  ['f_elb', 'AO17', '누전차단기'],
+]
+
+/** B3 19~27행 확인사항 결과칸 — [필드 접미사, 결과 셀, 라벨 셀(점검내용)] */
+export const MU_CHECK_CELLS: ReadonlyArray<readonly [string, string, string]> =
+  [19, 20, 21, 22, 23, 24, 25, 26, 27].map((row, i) => [`chk${i + 1}`, `BC${row}`, `N${row}`] as const)
 
 /* ══════════════════════ 서식 1.11.1 소방훈련·교육 연간계획 (2026-09-17) ══════════════════════
  *
@@ -1777,6 +1798,10 @@ const MU_SEEDS: Seed[] = [
   ...MU_USER_BOXES.map(([k, cell]) => ({ field: `mu_${k}`, sheet: MU_SHEET, cell, labelCell: cell })),
   // 수용인원 — 단위칸(`명`이 값 뒤에 붙는다)
   { field: 'mu_capacity', sheet: MU_SHEET, cell: 'AS8', labelCell: 'AS8' },
+  // B3 — 분기 4·안전시설 14는 상자칸(자기 칸이 라벨), 확인사항 결과 9는 값칸(라벨 = 그 행의 점검내용)
+  ...MU_QUARTER_BOXES.map(([k, cell]) => ({ field: `mu_${k}`, sheet: MU_SHEET, cell, labelCell: cell })),
+  ...MU_FACILITY_BOXES.map(([k, cell]) => ({ field: `mu_${k}`, sheet: MU_SHEET, cell, labelCell: cell })),
+  ...MU_CHECK_CELLS.map(([k, cell, labelCell]) => ({ field: `mu_${k}`, sheet: MU_SHEET, cell, labelCell })),
 ]
 
 const HAZARD_SEEDS: Seed[] = HAZARD_PLACE_ROWS.flatMap((row, p) => [

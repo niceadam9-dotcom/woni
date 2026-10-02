@@ -23,7 +23,7 @@ import { formatTel } from '@/lib/format-contact'
 import {
   BRIG_ROWS, FIRE_PLAN_ANCHORS, FORM14_NAME_CELL, FORM14_NAME_FIELD, FORM14_ROWS, FORM14_SHEET,
   FP_SHEET, ZONE_ROWS, ZONE_SHEET, FIREHIST_ROWS, HAZARD_SHEET, HAZARD_PLACE_ROWS, HAZARD_BOXES,
-  MU_SHEET, MU_VALUE_CELLS, MU_HOURS_CELLS, MU_USER_BOXES,
+  MU_SHEET, MU_VALUE_CELLS, MU_HOURS_CELLS, MU_USER_BOXES, MU_QUARTER_BOXES, MU_FACILITY_BOXES, MU_CHECK_CELLS,
   TRAIN_SHEET, TRAIN_ROWS, TRAIN_MONTH_COLS, TRAIN_TARGETS,
   EVAC1_SHEET, EVAC1_STAIR_CELLS, EVAC1_ETC_CELLS, EVAC1_ELEVATOR_CELL,
   BRIG1_SHEET, BRIG1_GRADE_CELLS, BRIG1_HEADCOUNT_BANDS, BRIG1_TYPE_CELLS, BRIG1_TEAM_CELLS,
@@ -65,7 +65,7 @@ import { parseParkingSummary, parseParkingByType, parseParkingEv } from '@/lib/d
 /* 계단·승강기 상자 판정 — PDF와 **같은 술어**(의존 없는 순수 모듈, 사본 금지) */
 import { stairChecks } from '@/lib/facility-status'
 import { compartmentApplies, compartmentHasArea, compartmentHasFloor } from '@/lib/evac-compartment'
-import { isMultiUseApplicable, isMultiUseNone } from '@/lib/multi-use'
+import { isMultiUseApplicable, isMultiUseNone, MU_FACILITY_WITH_NOTE, muCheckGlyph } from '@/lib/multi-use'
 /* 1.10.1 연간 점검 계획 — PDF와 **같은 해석기**(사본 금지) */
 import { hasComprehensiveBlock, resolveInspectionPlan } from '@/lib/fire-plan-inspection-plan'
 import { planMonthParts } from '@/lib/plan-month'
@@ -651,6 +651,26 @@ export function buildFirePlanValues(d: FirePlanGenData): Map<string, CellValue> 
     v.set(`mu_${k}`, boxLabelCell(MU_SHEET, cell, muOn && !!mu3?.userTypes?.includes(label)))
   }
   v.set('mu_capacity', unitCell(MU_SHEET, 'AS8', muOn ? mu3?.capacity : ''))
+  /* B3(2026-10-02) — 10~27행. 카드에서 사람이 체크한 값만 켠다(추정 없음). 해당 없으면 빈 서식 그대로.
+   *  ⚠ 피난기구 칸은 괄호 안에 종류를 적는 자리(`□ 피난기구(      )`) — 상자를 켜고 괄호 공백만 갈아 끼운다.
+   *    괄호가 없으면 throw(좌표가 밀렸는데 조용히 메모를 버리지 않는다). */
+  for (const [k, cell, q] of MU_QUARTER_BOXES) {
+    v.set(`mu_${k}`, boxLabelCell(MU_SHEET, cell, muOn && !!mu3?.quarters?.includes(q)))
+  }
+  for (const [k, cell, label] of MU_FACILITY_BOXES) {
+    const on = muOn && !!mu3?.facilities?.includes(label)
+    let out = boxLabelCell(MU_SHEET, cell, on)
+    if (label === MU_FACILITY_WITH_NOTE) {
+      if (!/\(\s+\)/.test(out)) throw new Error(`fire-plan-xlsx-values: ${MU_SHEET}!${cell} 에 괄호 자리가 없다`)
+      const note = on ? txt(mu3?.evacNote) : ''
+      if (note) out = out.replace(/\(\s+\)/, `(${note})`)
+    }
+    v.set(`mu_${k}`, out)
+  }
+  for (const [k, , ] of MU_CHECK_CELLS) {
+    const n = k.replace('chk', '')
+    v.set(`mu_${k}`, muOn ? muCheckGlyph(mu3?.checks?.[n]) : '')
+  }
 
   /* ── 서식 1.2.2 화재취약장소 현황 (2026-09-17) ──────────────────────────────
    *

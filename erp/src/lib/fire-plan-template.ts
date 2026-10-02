@@ -204,7 +204,7 @@ const ck = (on: boolean, label: string) => `<span class="ck">${on ? '■' : '☐
 /** 서식 1.4 소방시설 고정 목록 — 표준 코드 상수 재수출 (마이그레이션 100 이후 DB 코드와 동일) */
 import { FACILITY_STANDARD } from './facility-codes'
 import { formatTel } from './format-contact'
-import { isMultiUseApplicable, isMultiUseNone } from './multi-use'
+import { isMultiUseApplicable, isMultiUseNone, MU_QUARTERS, MU_FACILITIES, MU_FACILITY_WITH_NOTE, MU_CHECK_ITEMS, muCheckGlyph } from './multi-use'
 /* 1.10.1 — 엑셀과 공유하는 해석기(사본 금지). 격자·manifest 의존이 없어 PDF 경로가 안전하다 */
 import { resolveInspectionPlan } from './fire-plan-inspection-plan'
 export const FACILITY_FORM = FACILITY_STANDARD
@@ -737,7 +737,18 @@ ${(d.autoFilled?.length ?? 0) > 0
           생성이 통째로 죽는다(TypeError). 선택 접근으로 방어. */''}
     <tr><th>이용자</th><td class="l">${(mu.userTypes?.length || (mu.users ?? '').trim())
       ? `${['노유자', '주취자', '청소년', '신체부자유자'].map(t => ck((mu.userTypes ?? []).includes(t), t)).join(' ')}${(mu.users ?? '').trim() ? ` — ${esc(mu.users)}` : ''}`
-      : v(mu.users)}</td><th>수용인원</th><td class="l">${v(mu.capacity)}</td></tr>` : ''}
+      : v(mu.users)}</td><th>수용인원</th><td class="l">${v(mu.capacity)}</td></tr>
+    ${/* B3(2026-10-02) — 서식 10~27행. 엑셀과 같은 원천(multiUse.quarters·facilities·evacNote·checks), 사람이 체크한 값만 */''}
+    <tr><th>안전점검</th><td class="l" colspan="3">${MU_QUARTERS.map(({ q, label }) => ck((mu.quarters ?? []).includes(q), label)).join(' ')}</td></tr>
+    <tr><th>안전시설</th><td class="l" colspan="3">${MU_FACILITIES.map(f => {
+      const on = (mu.facilities ?? []).includes(f)
+      const note = f === MU_FACILITY_WITH_NOTE && on && (mu.evacNote ?? '').trim() ? `(${esc(mu.evacNote ?? '')})` : ''
+      return `${ck(on, f)}${note}`
+    }).join(' ')}</td></tr>
+    <tr><th>확인사항</th><td colspan="3" style="padding:0"><table class="small" style="margin:0">
+      <tr><th>점검내용</th><th style="width:70px">결과[○,×]</th></tr>
+      ${MU_CHECK_ITEMS.map((item, i) => `<tr><td class="l">${i + 1}. ${esc(item)}</td><td>${muCheckGlyph(mu.checks?.[String(i + 1)]) || '&nbsp;'}</td></tr>`).join('')}
+    </table></td></tr>` : ''}
   </table>
 
   <h3>1.10.4 화재/비화재보 이력</h3>

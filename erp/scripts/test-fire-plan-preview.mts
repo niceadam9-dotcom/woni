@@ -334,6 +334,33 @@ console.log('\n[8] 1.10.3 다중이용업소 — 해당 / 해당없음')
     check('해당없음이어도 자리표시·단위는 남는다',
       off('AD6') === labelAt(MU_SHEET, 'AD6') && off('AS8') === labelAt(MU_SHEET, 'AS8'),
       `AD6=${JSON.stringify(off('AD6'))} AS8=${JSON.stringify(off('AS8'))}`)
+
+    // ── B3(2026-10-02) 10~27행 — 분기·안전시설·확인사항. 사람이 체크한 것만 켜진다 ──
+    const b3 = await render({
+      applicable: true, categories: { 노래연습장: '1' }, bizName: 'B3', location: '', owner: '', phone: '',
+      hours: '', users: '', capacity: '',
+      quarters: [1, 3], facilities: ['소화기', '피난기구', '누전차단기'], evacNote: '완강기',
+      checks: { '1': 'O', '6': 'X', '9': 'O' },
+    })
+    check('B3 분기 — 고른 1·3분기만 켜진다',
+      b3('N10').startsWith('■') && !b3('Z10').startsWith('■') && b3('AK10').startsWith('■') && !b3('AW10').startsWith('■'),
+      `N10=${b3('N10')} Z10=${b3('Z10')} AK10=${b3('AK10')} AW10=${b3('AW10')}`)
+    check('B3 안전시설 — 소화기(N11)·누전차단기(AO17) 켜짐, 유도등(AO11) 꺼짐',
+      b3('N11').startsWith('■') && b3('AO17').startsWith('■') && !b3('AO11').startsWith('■'),
+      `N11=${b3('N11')} AO17=${b3('AO17')} AO11=${b3('AO11')}`)
+    check('B3 피난기구 — 상자 켜지고 괄호 안에 종류', b3('N17') === '■ 피난기구(완강기)', b3('N17'))
+    check('B3 확인사항 — 1 ○ · 6 × · 9 ○ · 미입력은 빈칸',
+      b3('BC19') === '○' && b3('BC24') === '×' && b3('BC27') === '○' && b3('BC20') === '',
+      `BC19=${b3('BC19')} BC24=${b3('BC24')} BC27=${b3('BC27')} BC20=${JSON.stringify(b3('BC20'))}`)
+    check('B3 점검내용 라벨은 그대로', b3('N24') === labelAt(MU_SHEET, 'N24'), b3('N24'))
+    // 🚨 음성 — 해당없음이면 세 축 모두 비어야 한다(값이 저장돼 있어도)
+    const b3off = await render({
+      applicable: false, categories: {}, bizName: '', location: '', owner: '', phone: '', hours: '', users: '', capacity: '',
+      quarters: [1, 2, 3, 4], facilities: ['소화기', '피난기구'], evacNote: '완강기', checks: { '1': 'O' },
+    })
+    check('B3 해당없음 — 분기·시설 상자 꺼짐, 피난기구 괄호는 빈 원형, 결과 빈칸',
+      !b3off('N10').startsWith('■') && !b3off('N11').startsWith('■') && b3off('N17') === labelAt(MU_SHEET, 'N17') && b3off('BC19') === '',
+      `N10=${b3off('N10')} N17=${b3off('N17')} BC19=${JSON.stringify(b3off('BC19'))}`)
   }
 }
 

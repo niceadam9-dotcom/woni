@@ -5,6 +5,7 @@ import { saveFirePlanSectionsAction } from '@/app/(dashboard)/customers/fire-pla
 import { MULTI_USE_CATEGORIES } from '@/lib/doc-requirements'
 import { NumStepper, formatPhoneKR, useUnsavedWarning } from '@/components/ui/fields'
 import { SaveBar } from '@/components/customers/key-fields'
+import { MU_QUARTERS, MU_FACILITIES, MU_FACILITY_WITH_NOTE, MU_CHECK_ITEMS, type MuCheckMark } from '@/lib/multi-use'
 
 /** 1.10.3 다중이용업소 현황 — 카드 1장 (소방계획서_43 S7, 2026-09-09 사용자 확정 B안).
  *
@@ -32,6 +33,14 @@ export type MultiUseSection = {
   hoursDetail?: { wkDay: string; wkNight: string; holDay: string; holNight: string }
   /** M-16: 이용자 유형 체크 — users(자유 텍스트)는 레거시 병기 */
   userTypes?: string[]
+  /** B3(2026-10-02): 10행 안전점검 분기 — 점검한 분기 번호(1~4) */
+  quarters?: number[]
+  /** B3: 11~17행 안전시설 14칸 — `MU_FACILITIES` 자구 */
+  facilities?: string[]
+  /** B3: `□ 피난기구(      )` 괄호 안 — 피난기구 종류 */
+  evacNote?: string
+  /** B3: 19~27행 확인사항 ○/× — 키 '1'~'9' */
+  checks?: Record<string, MuCheckMark>
 }
 export const EMPTY_MULTI_USE: MultiUseSection = {
   applicable: false, categories: {}, bizName: '', location: '', owner: '', phone: '', hours: '', users: '', capacity: '',
@@ -150,6 +159,60 @@ export function PlanMultiUseCard({ customerId, canManage, initialMultiUse }: {
               )
             })}
             <input value={mu.users} disabled={!canManage} placeholder="기타 이용자 유형" onChange={e => pm({ users: e.target.value })} className={`${inputCls} w-32`} />
+          </div>
+          {/* B3(2026-10-02) — 서식 10~27행. 세 축 모두 **사람이 체크한 값만** 인쇄한다(ERP가 추정하지 않는다) */}
+          <div className="flex items-center gap-2 flex-wrap" data-testid="mu-quarters">
+            <span className="text-form-xs font-medium text-ink-sub">안전점검</span>
+            {MU_QUARTERS.map(({ q, label }) => {
+              const on = (mu.quarters ?? []).includes(q)
+              return (
+                <button key={q} disabled={!canManage} className={chip(on)}
+                  onClick={() => pm({ quarters: on ? (mu.quarters ?? []).filter(x => x !== q) : [...(mu.quarters ?? []), q].sort() })}>
+                  {label}
+                </button>
+              )
+            })}
+          </div>
+          <div className="flex items-center gap-1 flex-wrap" data-testid="mu-facilities">
+            <span className="text-form-xs font-medium text-ink-sub mr-1">안전시설</span>
+            {MU_FACILITIES.map(f => {
+              const on = (mu.facilities ?? []).includes(f)
+              return (
+                <span key={f} className="inline-flex items-center gap-0.5">
+                  <button disabled={!canManage} className={chip(on)}
+                    onClick={() => pm({ facilities: on ? (mu.facilities ?? []).filter(x => x !== f) : [...(mu.facilities ?? []), f] })}>
+                    {f}
+                  </button>
+                  {f === MU_FACILITY_WITH_NOTE && on && (
+                    <input value={mu.evacNote ?? ''} disabled={!canManage} placeholder="종류(예: 완강기)"
+                      onChange={e => pm({ evacNote: e.target.value })} className={`${inputCls} w-24`} />
+                  )}
+                </span>
+              )
+            })}
+          </div>
+          <div className="space-y-0.5" data-testid="mu-checks">
+            <span className="text-form-xs font-medium text-ink-sub">확인사항 [○,×]</span>
+            {MU_CHECK_ITEMS.map((item, i) => {
+              const key = String(i + 1)
+              const cur = mu.checks?.[key]
+              const set = (v: MuCheckMark | null) => {
+                const next = { ...(mu.checks ?? {}) }
+                if (v) next[key] = v; else delete next[key]
+                pm({ checks: next })
+              }
+              return (
+                <div key={key} className="flex items-center gap-1.5 text-form-xs">
+                  {(['O', 'X'] as const).map(v => (
+                    <button key={v} disabled={!canManage} aria-label={`${key}번 ${v === 'O' ? '적합' : '부적합'}`}
+                      className={`${chip(cur === v)} w-7 !px-0`} onClick={() => set(cur === v ? null : v)}>
+                      {v === 'O' ? '○' : '×'}
+                    </button>
+                  ))}
+                  <span className="text-ink-sub">{key}. {item}</span>
+                </div>
+              )
+            })}
           </div>
         </>
       )}

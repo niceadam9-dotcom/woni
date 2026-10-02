@@ -34,3 +34,44 @@ export function isMultiUseApplicable(mu: MultiUseSectionLike): boolean {
 export function isMultiUseNone(mu: MultiUseSectionLike): boolean {
   return !isMultiUseApplicable(mu)
 }
+
+/* ══ 서식 1.10.3 관리현황 10~27행 (B3, 2026-10-02) ══════════════════════════════════
+ *
+ *  원문: `erp_goal/_Data/양식-placeholder.hwpx` table 27 = 템플릿 시트 「1.10.3 다중이용업소 관리현황」(자구 일치 실측).
+ *  세 축 모두 **사람이 카드에서 체크한 값만** 인쇄한다 — ERP가 다른 데이터에서 추정하지 않는다.
+ *   · 분기 4칸 — 그 분기에 업소 안전점검을 했는가(분기 점검 이력 축이 따로 없다)
+ *   · 안전시설 14칸 — 다중이용업소 **전용** 설비 목록이라 1.4(대상물 전체 설치 축)와 다르다
+ *   · 확인사항 9항목 ○/× — 그 업소를 확인한 결과
+ *  ⚠ 셀 위치는 `fire-plan-anchors.ts`가 쥔다. 여기는 **자구와 키**만 둔다(라벨이 바뀌면 앵커 검증이 먼저 깬다). */
+
+/** 10행 안전점검 분기 — 키 1~4 */
+export const MU_QUARTERS = [
+  { q: 1, label: '1분기(1~3월)' }, { q: 2, label: '2분기(4~6월)' },
+  { q: 3, label: '3분기(7~9월)' }, { q: 4, label: '4분기(10~12월)' },
+] as const
+
+/** 11~17행 안전시설 14칸 — 저장값은 자구 그대로(`facilities: string[]`). 순서 = 인쇄 순서(N열 7 → AO열 7) */
+export const MU_FACILITIES = [
+  '소화기', '자동확산소화기', '간이 S/P', '비상벨설비', '자동화재탐지설비', '가스누설경보기', '피난기구',
+  '유도등', '유도표지', '피난유도선', '비상조명등', '휴대용 비상조명등', '영상음향차단장치', '누전차단기',
+] as const
+
+/** 피난기구 칸은 괄호 안에 종류를 적는다(`□ 피난기구(      )`) — `evacNote`로 받는다 */
+export const MU_FACILITY_WITH_NOTE = '피난기구'
+
+/** 19~27행 확인사항 9항목 — 키 '1'~'9', 값 'O' | 'X' */
+export const MU_CHECK_ITEMS = [
+  '소화기, 자동확산소화기 등 소화설비 외관상태 확인',
+  '비상벨설비, 자동화재탐지설비 등 경보설비 외관상태 확인',
+  '피난기구 설치 위치 및 관리상태 확인',
+  '유도등 설치 위치 및 점등상태 확인',
+  '비상조명등 및 휴대용 비상조명등 설치 위치 및 점등상태 확인',
+  '피난안내도 내용 적합성 및 설치 위치 확인',
+  '피난통로 내 피난장애요소 확인',
+  '방염물품의 방염성능확인(성적서 확인 등)',
+  '교육 실시 여부(영업주 및 종업원의 소방안전교육)',
+] as const
+
+export type MuCheckMark = 'O' | 'X'
+/** ○/× 인쇄 글리프 — 결과칸 머리글이 `[○,×]`다 */
+export const muCheckGlyph = (v: MuCheckMark | '' | null | undefined) => (v === 'O' ? '○' : v === 'X' ? '×' : '')
