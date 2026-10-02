@@ -34,6 +34,7 @@ import { AnnexMissingChip } from '@/components/inspections/annex-missing-list'
 import { AnnexPrintButton } from '@/components/customers/annex-print-button'
 import { FIELD_DEFS, AnnexFieldInput, type ComposeAnnexNo, type FieldDef } from '@/components/inspections/annex-fields'
 import { DefectGrid, type GridDefect, type DefectEdits } from '@/components/inspections/defect-grid'
+import { RepairSalesChain, type SalesPerms } from '@/components/inspections/repair-sales-chain'
 import { MessageTemplateModal } from '@/components/settings/message-template-modal'
 import { InspectionSmsModal } from '@/components/sms/inspection-sms-modal'
 import { STEP_REPORT_LABELS, STEP_REPORT_TYPES, type StepReportType } from '@/app/(dashboard)/inspections/report-constants'
@@ -79,7 +80,7 @@ const ANNEX10_WORK_KEYS = ['summary', 'contractor', 'budget']
 
 export function InspectionWorkbench({
   inspectionId, canManage, canComplete, today, data, initialJob, initialFiles, customerName, customerId, slots, defectRows,
-  initialStepNum = null, isAdmin = false,
+  initialStepNum = null, isAdmin = false, salesPerms = { order: false, bill: false },
 }: {
   inspectionId: string
   canManage: boolean
@@ -97,6 +98,8 @@ export function InspectionWorkbench({
   defectRows?: GridDefect[]
   /** 딥링크 `?step=N`(1~6) — 진입 시 펼칠 단계. 해당없음 단계면 무시하고 기본값을 쓴다 */
   initialStepNum?: number | null
+  /** ⑤ 보수 칸 매출 사슬의 권한 축(2026-10-02) — 수주 order_manage · 청구 billing_manage. 서버(page.tsx)가 `can()`으로 계산 */
+  salesPerms?: SalesPerms
 }) {
   const router = useRouter()
   const [job, setJob] = useState(initialJob)
@@ -1344,6 +1347,13 @@ export function InspectionWorkbench({
                 only={ANNEX10_WORK_KEYS}
                 onSaved={() => setDefectRev(v => v + 1)} />
             </div>
+            {/* 2026-10-02 불량 → 매출 1단계 — 불량 → 견적 → 수주(계약) → 청구 사슬. 표(DefectGrid)와 ⑤ 완료 조건은
+                건드리지 않는다. 계약서 업로드(위)·시공사 메모(annex 10호 contractor)는 수주 행이 흡수한다. */}
+            {defectRows && defectRows.length > 0 && (
+              <RepairSalesChain inspectionId={inspectionId} defects={defectRows} canManage={canManage} perms={salesPerms}
+                contractFileName={data.contractFile?.name ?? null}
+                onChanged={() => setDefectRev(v => v + 1)} />
+            )}
             {canManage && (
               <div className="flex items-center gap-1.5 flex-wrap border-t border-brand-line-soft px-1 pt-2">
                 {/* 2026-10-01 — 문서 생성은 ⑤를 끝내는 동작이 아니라 테두리 버튼(채움은 완료 동작에만) */}

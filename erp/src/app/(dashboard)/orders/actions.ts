@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requirePermission, getProfile } from '@/lib/auth'
+import { nextSalesDocNumber } from '@/lib/sales-numbers'
 
 export type OrderItem = {
   description: string
@@ -25,14 +26,8 @@ export async function createOrderAction(input: {
 
   const admin = createAdminClient()
 
-  // 수주번호 자동 생성: OR-YYYYMMDD-NNN
-  const datePrefix = input.orderDate.replace(/-/g, '')
-  const { count } = await admin
-    .from('orders')
-    .select('id', { count: 'exact', head: true })
-    .like('order_number', `OR-${datePrefix}-%`)
-  const seq = String((count ?? 0) + 1).padStart(3, '0')
-  const orderNumber = `OR-${datePrefix}-${seq}`
+  // 수주번호 자동 생성: OR-YYYYMMDD-NNN (⑤ 칸 수주 전환과 같은 헬퍼 — lib/sales-numbers)
+  const orderNumber = await nextSalesDocNumber(admin, 'orders', input.orderDate)
 
   const totalAmount = input.items.reduce((s, i) => s + i.amount, 0)
 

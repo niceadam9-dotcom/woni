@@ -2,10 +2,16 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { filterNotifiableRecipients } from '@/lib/notify'
 import { fetchAllRows, fetchAllRowsByIds } from '@/lib/supabase/paginate'
+import { groupDefectsByRepairEnd, pickDueOn, type DueDefect } from '@/lib/defect-due-targets'
 
 // 불량 이행기한 임박 알림 (소방계획서_4.md §9-7d — 과태료 방어)
-// inspection_defects.action_end(이행 종료 예정일)가 임박/경과했는데 미완료(action_completed_at null)인 건을
-// 담당 직원 + manager/admin에게 알림. VPS 크론 매일 호출 — Authorization: Bearer {CRON_SECRET}
+// 회차의 실질 이행기한(별지 10호 총 이행기간 종료일 → 없으면 불량별 action_end 최댓값, `repairEndISO`)이
+// 임박/경과했는데 미완료(action_completed_at null) 불량이 남은 회차를 담당 직원 + manager/admin에게 알림.
+// VPS 크론 매일 호출 — Authorization: Bearer {CRON_SECRET}
+//
+// 🚨 2026-10-02 수리 — 종전에는 `action_end = 기한`으로 **불량 행**을 골랐다. 2026-09-11부터 action_end를
+//   쓰는 화면 경로가 없어(defect-actions.ts) 그 뒤 회차는 알림이 한 건도 나가지 않았다(비교진단 3번 축 실측).
+//   대시보드·별지 10·11호가 쓰는 `repairEndISO`와 같은 함수로 회차 기한을 구한다(lib/defect-due-targets).
 export async function GET(req: NextRequest) {
   const authHeader = req.headers.get('authorization')
   const cronSecret = process.env.CRON_SECRET
@@ -53,41 +59,39 @@ export async function GET(req: NextRequest) {
     .select('id').in('role', ['manager', 'admin']).eq('is_active', true).eq('is_system', false)
   const managerIds = ((managersRaw ?? []) as Array<{ id: string }>).map(p => p.id)
 
-  type DefectRow = {
-    id: string; inspection_id: string; defect_name: string; action_end: string
+  type DefectRow = DueDefect & {
     inspection: { id: string; customer_id: string; assigned_employee_id: string | null; customer: { customer_name: string } | null } | null
   }
 
   let totalSent = 0
   const breakdown: Record<string, number> = {}
 
-  for (const rule of rules) {
-    // 해당 기한의 미완료 불량 (이행계획이 입력된 건만 — action_end 존재)
-    //
-    // 🎯 4차 독립 판정 R-3: 3차 수리가 같은 파일의 별지 9호 블록만 고치고 **이 조회는 그대로 뒀다** —
-    // 하필 이 크론의 **주 규칙**(D-7/D-3/당일/경과 이행기한, 과태료 방어의 본체)이다.
-    // 미포장·무정렬·오류 무검사라 절단·실패가 아래 `breakdown = 0`으로 떨어져
-    // **「대상 없음」과 구별되지 않는다** — 형제 라우트에서 없앤 바로 그 모호성이다.
-    const defectsRes = await fetchAllRows<Record<string, unknown>>((from, to) => admin
-      .from('inspection_defects')
-      .select('id, inspection_id, defect_name, action_end, inspection:inspections(id, customer_id, assigned_employee_id, customer:customers(customer_name))')
-      .eq('action_end', rule.endDate)
-      .is('action_completed_at', null)
+  // 미완료 불량 **전부**를 한 번 받아(회차 섞임) 회차별 실질 기한으로 묶는다 — 규칙 넷이 같은 묶음을 본다.
+  // 🎯 4차 독립 판정 R-3의 규약 유지: 포장(fetchAllRows)·정렬·오류 검사. 절단·실패는 「대상 없음」과 구별해 로그.
+  const defectsRes = await fetchAllRows<Record<string, unknown>>((from, to) => admin
+    .from('inspection_defects')
+    .select('id, inspection_id, defect_name, action_end, inspection:inspections(id, customer_id, assigned_employee_id, customer:customers(customer_name))')
+    .is('action_completed_at', null)
+    .order('id').range(from, to))
+  if (defectsRes.error || defectsRes.truncated) {
+    console.error('[defect-action-notify] 이행기한 대상 조회 불완전 — 알림이 누락됩니다:', defectsRes.error, defectsRes.truncated)
+  }
+  const openDefects = (defectsRes.rows as unknown as DefectRow[]).filter(d => !!d.inspection)
+  // 회차의 총 이행기간(별지 10호 고유값) — 사람이 확정해 소방서에 낸 값이 기한의 정본이다
+  const annexRes = await fetchAllRowsByIds<{ inspection_id: string; fields: Record<string, unknown> | null }, string>(
+    [...new Set(openDefects.map(d => d.inspection_id))], (c, from, to) => admin.from('annex_inputs')
+      .select('inspection_id, fields').eq('annex_no', 'report10').in('inspection_id', c)
       .order('id').range(from, to))
-    if (defectsRes.error || defectsRes.truncated) {
-      console.error('[defect-action-notify] 이행기한 대상 조회 불완전 — 알림이 누락됩니다:', rule.label, defectsRes.error)
-    }
-    const defects = defectsRes.rows as unknown as DefectRow[]
-    if (defects.length === 0) { breakdown[rule.label] = 0; continue }
+  if (annexRes.error || annexRes.truncated) {
+    console.error('[defect-action-notify] 총 이행기간 조회 불완전 — 일부 회차가 action_end 폴백으로 판정됩니다:', annexRes.error)
+  }
+  const periodOf = new Map(annexRes.rows.map(a => [a.inspection_id, typeof a.fields?.totalPeriod === 'string' ? a.fields.totalPeriod : '']))
+  const dueGroups = groupDefectsByRepairEnd(openDefects, periodOf)
 
-    // 점검 건 단위 그룹화 (불량 여러 건 = 알림 1건)
-    const byInspection = new Map<string, DefectRow[]>()
-    for (const d of defects) {
-      if (!d.inspection) continue
-      const list = byInspection.get(d.inspection_id) ?? []
-      list.push(d)
-      byInspection.set(d.inspection_id, list)
-    }
+  for (const rule of rules) {
+    // 점검 건 단위 (불량 여러 건 = 알림 1건) — 회차의 실질 기한이 이 규칙의 날짜인 것만
+    const byInspection = pickDueOn(dueGroups, rule.endDate)
+    if (byInspection.size === 0) { breakdown[rule.label] = 0; continue }
 
     // 오늘 이미 발송된 점검 건 제외 (멱등) — **중복 발송을 막는 유일한 근거**다.
     // ⚠ R-4(4차 판정): `notifications`에 유니크 제약이 **없다**(001 이후 전수 확인). 이 조회가

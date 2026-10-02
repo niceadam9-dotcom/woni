@@ -173,6 +173,22 @@ async function assembleAnnex1011(
     data.companyRep = company.representative ?? ''
     data.companyPhone = formatTel(company.phone)
     data.companyAddress = company.address ?? ''
+    // 2026-10-02(불량 → 매출 1단계) — 외주 시공이면 「소방공사업체」 칸은 자사가 아니라 **수주의 시공사**다.
+    // ⑤ 칸에서 수주로 전환할 때 적은 contractor_*가 있으면 그 값을 인쇄한다(비면 종전대로 company_profile).
+    const { data: orderRows } = await admin.from('orders')
+      .select('contractor_name, contractor_biz_no, contractor_rep, contractor_phone, contractor_address')
+      .eq('inspection_id', inspectionId).neq('status', '취소').not('contractor_name', 'is', null)
+      .order('created_at', { ascending: false }).limit(1)
+    const contractor = (orderRows?.[0] ?? null) as {
+      contractor_name: string; contractor_biz_no: string | null; contractor_rep: string | null; contractor_phone: string | null; contractor_address: string | null
+    } | null
+    if (contractor?.contractor_name) {
+      data.companyName = contractor.contractor_name
+      data.companyBizno = formatBizNo(contractor.contractor_biz_no)
+      data.companyRep = contractor.contractor_rep ?? ''
+      data.companyPhone = formatTel(contractor.contractor_phone)
+      data.companyAddress = contractor.contractor_address ?? ''
+    }
     // ⚠ '이행완료 항목 없음'은 **조치할 것이 남아 있을 때만** 경고다(2026-09-08, 43 S1-2).
     //   불량 0건(④ 이상없음)·미대상(⑤ 해당없음)에서는 완료 건이 없는 게 정상이라 경고하지 않는다 —
     //   경고를 남기면 「모두 합격이면 ⑤⑥ 해당없음」(소방계획서_45)과 화면이 어긋난다.

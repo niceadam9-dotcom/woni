@@ -23,6 +23,9 @@ type Quote = {
   status: string
   notes: string | null
   items: QuoteItem[]
+  /** 2026-10-02 불량 → 매출 1단계 — ⑤ 칸에서 만든 견적은 회차를 가리킨다(수기 견적은 null) */
+  inspection_id?: string | null
+  source?: string | null
   customers: Customer | null
   profiles: { name: string } | null
 }
@@ -30,11 +33,13 @@ type Quote = {
 const STATUS_STYLE: Record<string, string> = {
   작성중: 'bg-gray-100 text-gray-600',
   발송:   'bg-blue-100 text-blue-700',
+  // 2026-10-02 불량 → 매출 1단계 — 발송과 수주 사이에 관계인 「승인」이 선다(⑤ 칸·포털 승인 기록)
+  승인:   'bg-indigo-100 text-indigo-700',
   수주:   'bg-emerald-100 text-emerald-700',
   취소:   'bg-red-100 text-red-600',
   만료:   'bg-yellow-100 text-yellow-600',
 }
-const STATUSES = ['작성중', '발송', '수주', '취소', '만료']
+const STATUSES = ['작성중', '발송', '승인', '수주', '취소', '만료']
 
 function fmt(n: number) { return n.toLocaleString('ko-KR') }
 
@@ -322,7 +327,13 @@ export function QuotesClient({
                 filtered.map((row, idx) => (
                   <tr key={row.id} className="border-b last:border-0 hover:bg-gray-50">
                     <td className="px-3 py-2.5 text-gray-400">{idx + 1}</td>
-                    <td className="px-3 py-2.5 font-mono text-xs">{row.quote_number}</td>
+                    <td className="px-3 py-2.5 font-mono text-xs">
+                      {row.quote_number}
+                      {row.inspection_id && (
+                        <a href={`/inspections/${row.inspection_id}?step=5`} className="ml-1.5 inline-flex items-center rounded-full bg-brand-tint px-1.5 py-0.5 font-sans text-[10px] text-brand hover:underline"
+                          title="점검 회차 ⑤ 보수 칸으로">불량 보수</a>
+                      )}
+                    </td>
                     <td className="px-3 py-2.5 font-medium">{row.customers?.customer_name ?? '—'}</td>
                     <td className="px-3 py-2.5 text-gray-500">{row.quote_date}</td>
                     <td className="px-3 py-2.5 text-gray-500">{row.valid_until ?? '—'}</td>

@@ -2,6 +2,7 @@
 import Link from 'next/link'
 import { ChevronLeft, ClipboardList } from 'lucide-react'
 import { getProfile } from '@/lib/auth'
+import { can } from '@/lib/permissions'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { withSignedDefectPhotos } from '@/lib/defect-photos'
 import { InspectionParticipantsClient } from '@/components/inspections/inspection-participants-client'
@@ -636,6 +637,8 @@ export default async function InspectionDetailPage({
           customerId={inspection.customer_id}
           defectRows={defects}
           initialStepNum={initialStepNum}
+          /* ⑤ 매출 사슬 권한(2026-10-02) — 영업관리 모듈의 키 그대로: 수주 manager+, 청구 manager+ */
+          salesPerms={{ order: can(userRole, 'order_manage'), bill: can(userRole, 'billing_manage') }}
           /* 🚨 **슬롯 요소에는 전부 `key`가 있어야 한다**(2026-09-15, dev 오버레이 「1 Issue」).
            *
            *  작업대는 이 조각들을 `<Pane>{slots?.multiday}{slots?.sheet}{slots?.pumpTest}…</Pane>`

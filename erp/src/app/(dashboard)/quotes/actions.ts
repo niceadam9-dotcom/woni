@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requirePermission, getProfile } from '@/lib/auth'
+import { nextSalesDocNumber } from '@/lib/sales-numbers'
 
 export type QuoteItem = {
   description: string
@@ -24,14 +25,8 @@ export async function createQuoteAction(input: {
 
   const admin = createAdminClient()
 
-  // 견적번호 자동 생성: QT-YYYYMMDD-NNN
-  const datePrefix = input.quoteDate.replace(/-/g, '')
-  const { count } = await admin
-    .from('quotes')
-    .select('id', { count: 'exact', head: true })
-    .like('quote_number', `QT-${datePrefix}-%`)
-  const seq = String((count ?? 0) + 1).padStart(3, '0')
-  const quoteNumber = `QT-${datePrefix}-${seq}`
+  // 견적번호 자동 생성: QT-YYYYMMDD-NNN (⑤ 칸 불량 견적과 같은 헬퍼 — lib/sales-numbers)
+  const quoteNumber = await nextSalesDocNumber(admin, 'quotes', input.quoteDate)
 
   const subtotal    = input.items.reduce((s, i) => s + i.amount, 0)
   const taxAmount   = Math.round(subtotal * 0.1)

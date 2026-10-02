@@ -125,7 +125,7 @@ function CreateBillModal({
               onChange={e => setBillType(e.target.value)}
               className="flex-1 border rounded px-2 py-1.5 text-sm"
             >
-              {['일괄점검','자동기능점검','종합정밀점검','일괄청구','기타'].map(t => (
+              {['일괄점검','자동기능점검','종합정밀점검','일괄청구','보수공사','기타'].map(t => (
                 <option key={t}>{t}</option>
               ))}
             </select>

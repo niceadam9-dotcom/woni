@@ -17,7 +17,7 @@ export default async function QuotesPage() {
       .select(`
         id, quote_number, quote_date, valid_until,
         subtotal, tax_amount, total_amount, status, notes,
-        items, created_at,
+        items, created_at, inspection_id, source,
         customers:customer_id ( customer_name, customer_code ),
         profiles:created_by ( name )
       `)
