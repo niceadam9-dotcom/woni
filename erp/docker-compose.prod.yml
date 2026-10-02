@@ -15,6 +15,17 @@ services:
       # 서버 렌더링 시각 표시 기준 — 미지정 시 UTC로 렌더되어 9시간 밀림 (활동로그 등)
       - TZ=Asia/Seoul
     restart: always
+    # A5(2026-10-02) — 메모리 상한·헬스체크. 실측(2026-10-02 docker stats): 평상시 114MiB, VPS 전체 3.9GB.
+    #   상한은 「한 컨테이너 폭주가 VPS 전체를 OOM으로 끌고 가는 것」을 막는 울타리다(종전 상한 0 = 무제한).
+    #   헬스체크는 **앱 자신의 생존**만 본다(/login, DB 불필요). /api/health는 DB·Gotenberg까지 보므로
+    #   외부 업타임 감시용이고, 여기에 쓰면 Gotenberg가 죽었을 때 앱까지 unhealthy로 찍힌다.
+    mem_limit: 1536m
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:3000/login"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
 
   # PDF 변환 (소방계획서 생성·xlsx→PDF) — LibreOffice 기반. 앱이 GOTENBERG_URL(http://gotenberg-prod:3000)로 호출.
   # ⚠️ 서비스명은 스테이징(gotenberg-staging)과 겹치지 않게 gotenberg-prod 고정 — 공유 네트워크 별칭 충돌 방지(2026-07-13 인시던트).
@@ -31,6 +42,14 @@ services:
       - gotenberg
       - --api-timeout=120s
     restart: always
+    # A5(2026-10-02) — 평상시 79MiB. LibreOffice 변환(소방계획서·갑지 xlsx→PDF)은 순간 사용량이 커서 앱보다 넉넉히 둔다.
+    mem_limit: 2g
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://127.0.0.1:3000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
 
   caddy:
     # 폰트와는 무관하지만 같은 표류 위험이라 함께 고정한다(HTTPS 인증서 갱신이 걸려 있다).
@@ -49,7 +68,20 @@ services:
     depends_on:
       - app
     restart: always
+    mem_limit: 256m     # A5 — 평상시 14MiB
+    # A5(2026-10-02) — 스테이징 분리. 종전엔 스테이징 컨테이너가 운영 네트워크(erp_default)에 그대로 합류해
+    #   운영 app·gotenberg-prod와 서로 이름으로 닿았다(2026-07-13 'app' 별칭 혼입 사고의 토대).
+    #   이제 스테이징은 erp_staging_edge에만 붙고, 두 네트워크에 동시에 있는 것은 Caddy 하나다.
+    networks:
+      - default
+      - staging_edge
 
 volumes:
   caddy_data:
   caddy_config:
+
+networks:
+  # Caddy ↔ 스테이징 앱 전용 다리. 운영 compose가 만들고(name 고정), 스테이징 compose는 external로 합류한다.
+  # 스테이징이 꺼져 있어도 이 네트워크는 비어 있을 뿐 운영에 영향이 없다.
+  staging_edge:
+    name: erp_staging_edge

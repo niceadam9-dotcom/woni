@@ -2,6 +2,7 @@
 # 위치: /home/ubuntu/woni-staging/erp (staging 브랜치 체크아웃)
 # 실행: sudo docker compose -f docker-compose.staging.yml up -d --build
 # 주의: 프로덕션 배포 빌드와 동시에 돌리지 말 것 (4GB 램 — 메모리 스파이크)
+# 전제(A5 2026-10-02): 운영 compose가 만든 erp_staging_edge 네트워크가 있어야 한다(아래 networks 주석).
 name: erp-staging
 
 # ⚠️ 서비스명은 반드시 'app'이 아닌 'staging' 유지 — 프로덕션 compose도 서비스명 'app'이라,
@@ -24,8 +25,19 @@ services:
       - NODE_ENV=production
       - TZ=Asia/Seoul
     restart: always
+    # A5(2026-10-02) — 운영보다 작게. 운영 빌드와 같은 VPS(3.9GB)를 쓰므로 스테이징이 운영을 밀어내지 않게.
+    mem_limit: 1g
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:3000/login"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
+    # A5 — 운영 네트워크(erp_default)에서 빠진다. Caddy와는 erp_staging_edge 다리로만 닿고,
+    #   gotenberg-staging과는 이 compose의 default에서 닿는다. 운영 app·gotenberg-prod는 더 이상 보이지 않는다.
     networks:
-      - prod_net
+      - default
+      - edge
 
   # xlsx→PDF 변환 (P32-1) — LibreOffice 기반. 앱이 http://gotenberg-staging:3000 으로 호출.
   # ⚠️ 고유 이름 유지 — 운영에도 gotenberg 추가 시 별칭 충돌 방지(2026-07-13 인시던트 교훈).
@@ -38,11 +50,22 @@ services:
       - gotenberg
       - --api-timeout=120s
     restart: always
+    mem_limit: 1g
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://127.0.0.1:3000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    # A5 — Caddy 다리에도 붙지 않는다(외부에서 닿을 이유가 없다). 스테이징 앱과만 이 compose의 default에서 만난다.
     networks:
-      - prod_net
+      - default
 
 networks:
-  # 프로덕션 compose(erp_default)의 네트워크에 합류 — Caddy가 erp-staging-app:3000으로 프록시
-  prod_net:
+  # A5(2026-10-02) — 종전엔 운영 네트워크(erp_default)에 external로 합류했다(운영 app·gotenberg-prod가 서로 보임,
+  #   2026-07-13 'app' 별칭 혼입 사고의 토대). 이제 Caddy 전용 다리에만 합류한다.
+  #   ⚠ 이 네트워크는 **운영 compose가 만든다**(caddy의 networks). 운영을 A5 판으로 한 번 up 한 뒤에만
+  #     스테이징을 올릴 수 있다 — 순서가 바뀌면 "network erp_staging_edge declared as external, but could not be found".
+  edge:
     external: true
-    name: erp_default
+    name: erp_staging_edge
