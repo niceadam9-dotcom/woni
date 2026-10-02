@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { resolveShareToken, logShareEvent, clientMeta } from '@/lib/share-links'
+import { resolveShareToken, logShareEvent, clientMeta, ROUND_DOC_KINDS, type RoundDocKind } from '@/lib/share-links'
 import { ensureQuotePdf, QUOTE_PDF_COLS, type QuoteRow } from '@/lib/quote-doc-server'
 
 /** 링크 문서 내려받기 — 토큰 확인 → 300초 서명 URL로 보낸다(파일을 앱이 중계하지 않는다).
@@ -22,10 +22,18 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ token: stri
     const r = await ensureQuotePdf(admin, q as unknown as QuoteRow)
     if (r.error || !r.path) { console.error('[share-file] 견적 PDF 실패:', r.error); return new NextResponse('문서를 준비하지 못했습니다. 잠시 뒤 다시 시도해 주세요.', { status: 503, headers: { 'content-type': 'text/plain; charset=utf-8' } }) }
     path = r.path
+  } else if (link.kind === 'billing') {
+    return notFound()  // 청구 이력은 화면만 — 내려받을 파일이 없다
   } else {
+    // round는 ?doc=report9|report10|report11 로 고른다(허용목록 밖은 404). 단일 별지 링크는 자기 종류만
+    const docParam = req.nextUrl.searchParams.get('doc') ?? ''
+    const doc: RoundDocKind | null = link.kind === 'round'
+      ? ((ROUND_DOC_KINDS as readonly string[]).includes(docParam) ? docParam as RoundDocKind : null)
+      : link.kind as RoundDocKind
+    if (!doc) return notFound()
     const prefix = `${link.customer_id}/inspections/${link.inspection_id}`
     const { data: objects } = await admin.storage.from('fire-plans').list(prefix, { limit: 100, sortBy: { column: 'name', order: 'desc' } })
-    const re = new RegExp(`^${link.kind}_\\d+\\.pdf$`)
+    const re = new RegExp(`^${doc}_\\d+\\.pdf$`)
     const name = (objects ?? []).map(o => o.name).filter(n => re.test(n)).sort().reverse()[0]
     if (!name) return notFound()
     path = `${prefix}/${name}`

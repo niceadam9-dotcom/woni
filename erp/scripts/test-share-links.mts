@@ -11,6 +11,7 @@
 import { readFileSync, readdirSync, statSync } from 'fs'
 import { join } from 'path'
 import { newShareToken, hashShareToken, isShareTokenShape } from '../src/lib/share-links.ts'
+import { renderQuote, quoteDocFrom } from '../src/lib/doc-templates/quote.ts'
 
 let pass = 0, fail = 0
 const ok = (name: string, cond: boolean | (() => boolean), detail = '') => {
@@ -56,6 +57,20 @@ const m = /const PUBLIC_PATHS = \[([^\]]*)\]/.exec(proxy)
 ok('PUBLIC_PATHS를 찾았다', !!m)
 ok("'/p/'(슬래시까지)가 있다", !!m && m[1].includes("'/p/'"))
 ok("'/p'(슬래시 없이)는 없다", !!m && !/'\/p'(?!\/)/.test(m[1]))
+
+console.log('— 견적서 승인란(3단계)')
+{
+  const base = { company: { name: '회사', bizNo: '', rep: '', phone: '', address: '' }, customer: { name: '고객', address: '', contact: '' }, inspectionLabel: '' }
+  const q = { quote_number: 'QT-1', quote_date: '2026-10-02', valid_until: null, items: [{ description: 'a', quantity: 1, unit_price: 10, amount: 10 }] }
+  ok('미승인 견적에는 승인란이 없다', !renderQuote(quoteDocFrom(base, q)).includes('class="q-approve"'))
+  const d = quoteDocFrom(base, { ...q, approved_at: '2026-10-02T01:00:00Z', approved_by_name: '홍<b>길동' })
+  const noSig = renderQuote(d)
+  ok('승인 견적: 승인란·이름 이스케이프·「서명 없음」', noSig.includes('class="q-approve"') && noSig.includes('홍&lt;b&gt;길동') && noSig.includes('서명 없음'))
+  d.approval!.signatureDataUrl = 'data:image/png;base64,iVBORw0KGgo='
+  ok('정상 서명 data URL은 img로', renderQuote(d).includes('<img src="data:image/png;base64,iVBORw0KGgo="'))
+  d.approval!.signatureDataUrl = 'data:image/png;base64,AAAA" onerror="x'
+  ok('형식 밖 서명 문자열은 그리지 않는다(속성 주입 차단)', !renderQuote(d).includes('onerror'))
+}
 
 console.log(`\n결과: ${pass} 통과 / ${fail} 실패`)
 process.exit(fail ? 1 : 0)

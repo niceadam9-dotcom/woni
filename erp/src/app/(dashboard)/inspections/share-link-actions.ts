@@ -6,10 +6,11 @@
 import { headers } from 'next/headers'
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { requirePermission } from '@/lib/auth'
+import { requirePermission, getProfile, can } from '@/lib/auth'
+import type { UserRole } from '@/types'
 import { issueShareLink, siteOrigin, type ShareKind } from '@/lib/share-links'
 
-const REPORT_KINDS = new Set<ShareKind>(['report9', 'report10', 'report11'])
+const REPORT_KINDS = new Set<ShareKind>(['report9', 'report10', 'report11', 'round'])
 
 export type ShareLinkRow = {
   id: string
@@ -52,7 +53,7 @@ export async function createReportShareLinkAction(inspectionId: string, kind: Sh
   return { url: `${siteOrigin(await headers())}/p/${r.token}`, expiresAt: r.expiresAt }
 }
 
-const KIND_LABEL: Record<ShareKind, string> = { quote: '견적', report9: '별지 9호', report10: '별지 10호', report11: '별지 11호' }
+const KIND_LABEL: Record<ShareKind, string> = { quote: '견적', report9: '별지 9호', report10: '별지 10호', report11: '별지 11호', round: '회차 문서 묶음', billing: '청구 이력' }
 
 /** 회차의 링크 목록 + 열람·내려받기·승인 집계 */
 export async function listShareLinksAction(inspectionId: string): Promise<{ error?: string; links: ShareLinkRow[] }> {
@@ -84,13 +85,48 @@ export async function listShareLinksAction(inspectionId: string): Promise<{ erro
   }
 }
 
+/** 청구 이력 링크(고객 단위, 3단계) — 금액·입금 여부가 보이므로 청구 관리 권한(manager+)만 발급 */
+export async function createBillingShareLinkAction(customerId: string): Promise<{ error?: string; url?: string; expiresAt?: string }> {
+  const profile = await requirePermission('billing_manage')
+  const admin = createAdminClient()
+  const { data: c } = await admin.from('customers').select('id').eq('id', customerId).maybeSingle()
+  if (!c) return { error: '고객을 찾을 수 없습니다.' }
+  const r = await issueShareLink(admin, { kind: 'billing', customerId, inspectionId: null, quoteId: null, createdBy: profile.id })
+  if (r.error || !r.token) return { error: r.error ?? '링크를 만들지 못했습니다.' }
+  revalidatePath(`/customers/${customerId}`)
+  return { url: `${siteOrigin(await headers())}/p/${r.token}`, expiresAt: r.expiresAt }
+}
+
+/** 고객의 청구 이력 링크 목록(회차 무관) — 청구 탭이 쓴다 */
+export async function listCustomerBillingLinksAction(customerId: string): Promise<{ error?: string; links: ShareLinkRow[] }> {
+  // 청구 탭(전 직원)에서 불리므로 redirect 대신 빈 목록 — getCustomerBillingHistoryAction과 같은 이유
+  const profile = await getProfile()
+  if (!profile || !can(profile.role as UserRole, 'billing_manage')) return { links: [] }
+  const admin = createAdminClient()
+  const { data, error } = await admin.from('share_links').select('id, kind, created_at, expires_at, revoked_at')
+    .eq('customer_id', customerId).eq('kind', 'billing').order('created_at', { ascending: false })
+  if (error) return { error: '링크 목록을 불러오지 못했습니다.', links: [] }
+  const rows = (data ?? []) as Array<{ id: string; kind: ShareKind; created_at: string; expires_at: string; revoked_at: string | null }>
+  const ev = rows.length
+    ? ((await admin.from('share_link_events').select('link_id, event, at').in('link_id', rows.map(r => r.id)).order('at', { ascending: false })).data ?? []) as Array<{ link_id: string; event: string; at: string }>
+    : []
+  return {
+    links: rows.map(r => {
+      const viewed = ev.filter(e => e.link_id === r.id && e.event === 'viewed')
+      return { id: r.id, kind: r.kind, label: KIND_LABEL.billing, created_at: r.created_at, expires_at: r.expires_at, revoked_at: r.revoked_at,
+        views: viewed.length, last_viewed_at: viewed[0]?.at ?? null, approved_by: null, approved_at: null, downloads: 0 }
+    }),
+  }
+}
+
 export async function revokeShareLinkAction(linkId: string): Promise<{ error?: string }> {
   await requirePermission('inspection_register')
   const admin = createAdminClient()
   const { data, error } = await admin.from('share_links').update({ revoked_at: new Date().toISOString() })
-    .eq('id', linkId).is('revoked_at', null).select('inspection_id').maybeSingle()
+    .eq('id', linkId).is('revoked_at', null).select('inspection_id, customer_id').maybeSingle()
   if (error) return { error: '철회에 실패했습니다.' }
-  const insp = (data as { inspection_id: string | null } | null)?.inspection_id
-  if (insp) revalidatePath(`/inspections/${insp}/repair`)
+  const row = data as { inspection_id: string | null; customer_id: string } | null
+  if (row?.inspection_id) revalidatePath(`/inspections/${row.inspection_id}/repair`)
+  if (row?.customer_id) revalidatePath(`/customers/${row.customer_id}`)
   return {}
 }

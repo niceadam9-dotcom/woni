@@ -2,7 +2,7 @@ import { notFound } from 'next/navigation'
 import { headers } from 'next/headers'
 import type { Metadata } from 'next'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { resolveShareToken, logShareEvent, clientMeta } from '@/lib/share-links'
+import { resolveShareToken, logShareEvent, clientMeta, ROUND_DOC_KINDS } from '@/lib/share-links'
 import { loadQuoteDocBase } from '@/lib/quote-doc-server'
 import { kdateLong } from '@/lib/doc-templates/quote'
 import { todayKst } from '@/lib/kst-date'
@@ -18,7 +18,11 @@ import { ApproveForm } from './approve-form'
 export const dynamic = 'force-dynamic'
 export const metadata: Metadata = { title: '문서 확인', robots: { index: false, follow: false } }
 
-const KIND_TITLE = { quote: '소방시설 보수 견적서', report9: '자체점검 실시결과 보고서(별지 9호)', report10: '이행계획서(별지 10호)', report11: '이행완료 보고서(별지 11호)' } as const
+const KIND_TITLE = {
+  quote: '소방시설 보수 견적서', report9: '자체점검 실시결과 보고서(별지 9호)', report10: '이행계획서(별지 10호)', report11: '이행완료 보고서(별지 11호)',
+  round: '자체점검 회차 문서', billing: '청구·세금계산서 내역',
+} as const
+const ROUND_DOC_TITLE = { report9: '자체점검 실시결과 보고서(별지 9호)', report10: '이행계획서(별지 10호)', report11: '이행완료 보고서(별지 11호)' } as const
 const won = (n: number) => `${Math.round(Number(n)).toLocaleString('ko-KR')}원`
 
 export default async function SharePage({ params }: { params: Promise<{ token: string }> }) {
@@ -85,6 +89,66 @@ export default async function SharePage({ params }: { params: Promise<{ token: s
         </div>
       </>
     )
+  } else if (link.kind === 'round') {
+    // 한 회차의 별지 9·10·11호 최신 PDF 묶음 — 있는 것만 연결, 없는 것은 「준비 전」
+    const prefix = `${link.customer_id}/inspections/${link.inspection_id}`
+    const { data: objects } = await admin.storage.from('fire-plans').list(prefix, { limit: 100, sortBy: { column: 'name', order: 'desc' } })
+    const names = (objects ?? []).map(o => o.name)
+    body = (
+      <ul className="divide-y rounded-lg border" data-testid="share-round-list">
+        {ROUND_DOC_KINDS.map(k => {
+          const has = names.some(n => new RegExp(`^${k}_\\d+\\.pdf$`).test(n))
+          return (
+            <li key={k} className="flex items-center justify-between gap-2 px-3 py-2.5 text-sm">
+              <span>{ROUND_DOC_TITLE[k]}</span>
+              {has
+                ? <a href={`/p/${token}/file?doc=${k}`} className="rounded-lg border px-3 py-1 hover:bg-gray-50" data-testid={`share-round-${k}`}>열기(PDF)</a>
+                : <span className="text-gray-400" data-testid={`share-round-${k}-none`}>준비 전</span>}
+            </li>
+          )
+        })}
+      </ul>
+    )
+  } else if (link.kind === 'billing') {
+    // 고객의 청구·세금계산서 이력(최근 36건) — 금액·입금 여부·세금계산서 발행 상태. 계좌·사업자 상세는 싣지 않는다
+    const { data: billsRaw } = await admin.from('bills')
+      .select('id, billing_month, bill_type, bill_date, total_amount, paid_amount, paid_at')
+      .eq('customer_id', link.customer_id).order('bill_date', { ascending: false }).limit(36)
+    const bills = (billsRaw ?? []) as Array<{ id: string; billing_month: string; bill_type: string; bill_date: string; total_amount: number; paid_amount: number; paid_at: string | null }>
+    const { data: invRaw } = bills.length
+      ? await admin.from('tax_invoices').select('bill_id, issue_date, invoice_status').in('bill_id', bills.map(b => b.id))
+      : { data: [] }
+    const inv = new Map(((invRaw ?? []) as Array<{ bill_id: string; issue_date: string | null; invoice_status: string }>).map(i => [i.bill_id, i]))
+    const unpaid = bills.reduce((s, b) => s + Math.max(0, Number(b.total_amount) - Number(b.paid_amount)), 0)
+    body = bills.length === 0
+      ? <p className="text-sm text-gray-600" data-testid="share-billing-empty">청구 내역이 없습니다.</p>
+      : (
+        <>
+          <p className="text-sm" data-testid="share-billing-unpaid">미입금 합계 <b>{won(unpaid)}</b></p>
+          <div className="overflow-x-auto rounded-lg border">
+            <table className="w-full text-sm" data-testid="share-billing-table">
+              <thead className="bg-gray-50 text-gray-600">
+                <tr><th className="px-3 py-2 text-left">청구월</th><th className="px-3 py-2 text-left">내용</th><th className="px-3 py-2 text-right">금액</th><th className="px-3 py-2 text-left">입금</th><th className="px-3 py-2 text-left">세금계산서</th></tr>
+              </thead>
+              <tbody>
+                {bills.map(b => {
+                  const paid = Number(b.paid_amount) >= Number(b.total_amount)
+                  const ti = inv.get(b.id)
+                  return (
+                    <tr key={b.id} className="border-t">
+                      <td className="px-3 py-2">{b.billing_month}</td>
+                      <td className="px-3 py-2">{b.bill_type}</td>
+                      <td className="px-3 py-2 text-right">{won(b.total_amount)}</td>
+                      <td className="px-3 py-2">{paid ? `입금(${b.paid_at ?? ''})` : Number(b.paid_amount) > 0 ? `일부 ${won(b.paid_amount)}` : '미입금'}</td>
+                      <td className="px-3 py-2">{ti ? `${ti.invoice_status}${ti.issue_date ? ` ${ti.issue_date}` : ''}` : '—'}</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )
   } else {
     const prefix = `${link.customer_id}/inspections/${link.inspection_id}`
     const { data: objects } = await admin.storage.from('fire-plans').list(prefix, { limit: 100, sortBy: { column: 'name', order: 'desc' } })

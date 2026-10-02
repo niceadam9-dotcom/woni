@@ -12,7 +12,10 @@ import type { createAdminClient } from '@/lib/supabase/admin'
 type Admin = ReturnType<typeof createAdminClient>
 
 export const SHARE_LINK_DAYS = 90
-export type ShareKind = 'quote' | 'report9' | 'report10' | 'report11'
+/** quote 견적·승인 / report9·10·11 별지 1종 / round 한 회차 문서 묶음(171) / billing 고객 청구·세금계산서 이력(171) */
+export type ShareKind = 'quote' | 'report9' | 'report10' | 'report11' | 'round' | 'billing'
+export const ROUND_DOC_KINDS = ['report9', 'report10', 'report11'] as const
+export type RoundDocKind = typeof ROUND_DOC_KINDS[number]
 export type ShareEvent = 'viewed' | 'downloaded' | 'approved'
 
 const TOKEN_RE = /^[A-Za-z0-9_-]{43}$/

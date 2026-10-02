@@ -31,6 +31,8 @@ export type QuoteDocData = {
   taxAmount: number
   totalAmount: number
   notes: string
+  /** 관계인 승인(3단계) — 링크에서 승인하면 이름·일자, 그렸으면 서명 이미지(data URL PNG). 없으면 승인란을 그리지 않는다 */
+  approval?: { name: string; date: string; signatureDataUrl?: string | null } | null
 }
 
 const CSS = `
@@ -50,6 +52,10 @@ const CSS = `
   .q-total { margin-top:5mm; font-size:12pt; font-weight:700; text-align:right; }
   .q-notes { margin-top:6mm; font-size:9.5pt; white-space:pre-wrap; }
   .q-foot { margin-top:10mm; font-size:9.5pt; color:#333; }
+  .q-approve { margin-top:8mm; margin-left:auto; width:80mm; border:1px solid #000; font-size:10pt; border-collapse:collapse; }
+  .q-approve td { border:1px solid #000; padding:1.5mm 2mm; vertical-align:middle; }
+  .q-approve td.k { width:22mm; background:#f2f2f2; text-align:center; }
+  .q-approve img { height:16mm; max-width:52mm; object-fit:contain; display:block; }
 `
 
 function won(n: number): string { return `${Math.round(n).toLocaleString('ko-KR')}원` }
@@ -106,7 +112,12 @@ ${padRows}
 </table>
 <p class="q-total">합계금액: ${won(d.totalAmount)} (부가세 포함)</p>
 ${d.notes ? `<div class="q-notes">${esc(d.notes)}</div>` : ''}
-<p class="q-foot">※ 본 견적은 유효기간 내 유효하며, 현장 여건에 따라 수량·금액이 변동될 수 있습니다. 공사 진행은 별도 계약서로 확정합니다.</p>`
+<p class="q-foot">※ 본 견적은 유효기간 내 유효하며, 현장 여건에 따라 수량·금액이 변동될 수 있습니다. 공사 진행은 별도 계약서로 확정합니다.</p>
+${d.approval ? `<table class="q-approve">
+  <tr><td class="k">승인자</td><td>${esc(d.approval.name)}</td></tr>
+  <tr><td class="k">승인일</td><td>${esc(d.approval.date)}</td></tr>
+  <tr><td class="k">서명</td><td>${d.approval.signatureDataUrl && /^data:image\/png;base64,[A-Za-z0-9+/=]+$/.test(d.approval.signatureDataUrl) ? `<img src="${d.approval.signatureDataUrl}" alt="서명">` : '(서명 없음 — 온라인 동의)'}</td></tr>
+</table>` : ''}`
   return renderDocument({ title: `${d.customer.name} 견적서 ${d.quoteNumber}`, css: CSS, pages: [page] })
 }
 
@@ -124,6 +135,7 @@ export type QuoteDocBase = Pick<QuoteDocData, 'company' | 'customer' | 'inspecti
 /** 미리보기와 PDF가 **같은 조립**을 타게 하는 단일 함수 — 사본 금지(화면과 인쇄물이 갈리면 보낸 것과 본 것이 다르다) */
 export function quoteDocFrom(base: QuoteDocBase, q: {
   quote_number: string; quote_date: string; valid_until: string | null; notes?: string | null
+  approved_at?: string | null; approved_by_name?: string | null
   items: Array<{ description: string; quantity: number; unit_price: number; amount: number; detail?: string | null }>
 }): QuoteDocData {
   const items = (q.items ?? []).map(it => ({
@@ -139,5 +151,6 @@ export function quoteDocFrom(base: QuoteDocBase, q: {
     validUntil: kdateLong(q.valid_until),
     items, subtotal, taxAmount, totalAmount: subtotal + taxAmount,
     notes: q.notes ?? '',
+    approval: q.approved_at && q.approved_by_name ? { name: q.approved_by_name, date: kdateLong(q.approved_at.slice(0, 10)) } : null,
   }
 }

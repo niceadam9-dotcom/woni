@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import Link from 'next/link'
+import { CustomerBillsPanel } from '@/components/customers/customer-bills-panel'
 import { Receipt, Landmark, Eye, ShieldCheck, Users, Download, ExternalLink } from 'lucide-react'
 import {
   saveBillingProfileAction, saveAutopayAction, revealAccountAction,
@@ -237,6 +238,9 @@ export function BillingClient({ customerId, profile, autopay, owners, ownerId, c
           </div>
         )}
       </div>
+
+      {/* 3단계(2026-10-02) — 이 고객의 청구·세금계산서 이력 + 관계인 청구 이력 링크. 청구 관리 권한에서만(canManage) */}
+      {canManage && <CustomerBillsPanel customerId={customerId} />}
 
       {/* §6-E: 청구 업무 딥링크 */}
       <div className="flex items-center gap-3">

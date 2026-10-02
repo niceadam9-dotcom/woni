@@ -294,7 +294,7 @@ export function RepairSalesPage({ inspectionId, defects, docBase, recipients, ca
                 className="inline-flex h-8 items-center gap-1 rounded-lg border border-brand-line px-3 text-brand hover:bg-brand-tint disabled:opacity-50">
                 {selectedQuote ? `견적 ${selectedQuote.quote_number} 링크 만들기` : '견적을 먼저 고르세요'}
               </button>
-              {(['report9', 'report10', 'report11'] as const).map(k => (
+              {(['round', 'report9', 'report10', 'report11'] as const).map(k => (
                 <button key={k} disabled={isPending}
                   onClick={() => run(async () => {
                     const r = await createReportShareLinkAction(inspectionId, k)
@@ -302,7 +302,7 @@ export function RepairSalesPage({ inspectionId, defects, docBase, recipients, ca
                     return r
                   }, '문서 링크를 만들었습니다')}
                   className="inline-flex h-8 items-center rounded-lg border border-brand-line-soft px-2 text-ink-sub hover:bg-brand-tint disabled:opacity-50">
-                  별지 {k.slice(6)}호 링크
+                  {k === 'round' ? '회차 문서 묶음 링크' : `별지 ${k.slice(6)}호 링크`}
                 </button>
               ))}
             </div>

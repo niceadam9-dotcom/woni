@@ -43,9 +43,10 @@ export async function loadQuoteDocBase(admin: AdminClient, customerId: string, i
 export type QuoteRow = {
   id: string; customer_id: string; inspection_id: string | null; quote_number: string; quote_date: string; valid_until: string | null
   status: string; items: RepairQuoteItemLike[]; notes: string | null; pdf_path: string | null
+  approved_at?: string | null; approved_by_name?: string | null; approval_signature_path?: string | null
   customer: { customer_name: string } | null
 }
-export const QUOTE_PDF_COLS = 'id, customer_id, inspection_id, quote_number, quote_date, valid_until, status, items, notes, pdf_path, customer:customers(customer_name)'
+export const QUOTE_PDF_COLS = 'id, customer_id, inspection_id, quote_number, quote_date, valid_until, status, items, notes, pdf_path, approved_at, approved_by_name, approval_signature_path, customer:customers(customer_name)'
 
 export function quoteFileName(q: QuoteRow): string {
   return `${(q.customer?.customer_name ?? '고객').replace(/[\\/:*?"<>|]/g, '_')}_견적서_${q.quote_number}.pdf`
@@ -58,7 +59,13 @@ export async function ensureQuotePdf(admin: AdminClient, q: QuoteRow, regenerate
     if (blob) return { path: q.pdf_path, bytes: new Uint8Array(await blob.arrayBuffer()) }
   }
   const base = await loadQuoteDocBase(admin, q.customer_id, q.inspection_id)
-  const html = renderQuote(quoteDocFrom(base, q))
+  const doc = quoteDocFrom(base, q)
+  // 3단계 — 링크 승인 때 그린 서명을 승인란에 찍는다(파일이 없거나 실패해도 PDF는 만든다: 「서명 없음」으로)
+  if (doc.approval && q.approval_signature_path) {
+    const { data: sig } = await admin.storage.from(BUCKET).download(q.approval_signature_path)
+    if (sig) doc.approval.signatureDataUrl = `data:image/png;base64,${Buffer.from(await sig.arrayBuffer()).toString('base64')}`
+  }
+  const html = renderQuote(doc)
   let pdf: Uint8Array
   try { pdf = await convertHtmlToPdf(html, [], { marginMode: 'none' }) }
   catch (e) { return { error: `PDF 변환 실패: ${e instanceof Error ? e.message : String(e)}` } }
