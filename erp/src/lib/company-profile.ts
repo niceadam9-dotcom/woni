@@ -33,6 +33,19 @@ export type CompanyProfile = {
  *  누가 다시 행을 넣어도 읽기·쓰기가 갈라지지 않게. */
 export const COMPANY_PROFILE_ORDER = 'id'
 
+/** 문서 하단 발신 명의 — 상호·직함·대표자 (147 규칙의 단일 원천, C5 2026-10-02).
+ *  상호는 [공문 발신 명의](official_sender_name)가 있으면 그것, 없으면 회사명. 직함은 비우면 '대표이사'.
+ *  공문(annex-cover-official)과 증명서(hr/certificates)가 같은 규칙을 쓴다 — 종전 증명서는
+ *  '(주) 승진소방 대표'를 코드에 박아 두어 회사정보를 바꿔도 따라오지 않았다. */
+export type CompanyIssuer = { name: string; title: string; rep: string }
+export function companyIssuer(p: Pick<CompanyProfile, 'company_name' | 'official_sender_name' | 'official_rep_title' | 'representative'> | null): CompanyIssuer {
+  return {
+    name: (p?.official_sender_name ?? '').trim() || (p?.company_name ?? '').trim(),
+    title: (p?.official_rep_title ?? '').trim() || '대표이사',
+    rep: (p?.representative ?? '').trim(),
+  }
+}
+
 const BASE_COLS = 'company_name, representative, business_number, phone, fax, email, address, logo_url, mark_url, default_region_si, default_region_myeon'
 /** 147 신설 — 아직 적용되지 않은 DB가 있을 수 있다 */
 const OFFICIAL_COLS = 'official_sender_name, official_rep_title'
@@ -46,7 +59,9 @@ export const getCompanyProfile = cache(async (): Promise<CompanyProfile | null> 
     .limit(1)
     .maybeSingle()
 
-  let { data, error } = await pick(`${BASE_COLS}, ${OFFICIAL_COLS}`)
+  const first = await pick(`${BASE_COLS}, ${OFFICIAL_COLS}`)
+  const error = first.error
+  let data = first.data
   // 147 미적용 DB는 컬럼이 없어 PostgREST가 거부한다. 이 함수는 표지·공문·위임장·소방계획서·별지 9호가
   // 전부 쓰는 길목이라, 마이그레이션 한 건 때문에 문서 생성이 통째로 멈추면 안 된다 —
   // 기존 zipcode 재시도(customers/actions.ts)와 같은 관례로 기본 컬럼만 다시 읽는다.

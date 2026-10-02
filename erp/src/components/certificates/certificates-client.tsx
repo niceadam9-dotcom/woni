@@ -4,6 +4,8 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Loader2, Plus, Printer, Trash2, Check, X } from 'lucide-react'
 import { issueCertificateAction, deleteCertificateAction, type CertificateType, CERT_TYPE_LABELS } from '@/app/(dashboard)/hr/certificates/actions'
+// 타입만 — company-profile은 server-only(admin) 모듈이라 값으로 가져오면 클라이언트 번들이 깨진다
+import type { CompanyIssuer } from '@/lib/company-profile'
 
 const inputCls = 'w-full h-10 rounded-lg border border-brand-line bg-surface px-3 text-sm text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition'
 
@@ -16,10 +18,12 @@ type Certificate = {
 }
 
 export function CertificatesClient({
-  certificates, employees,
+  certificates, employees, issuer,
 }: {
   certificates: Record<string, unknown>[]
   employees: Employee[]
+  /** 발급 명의 — companyIssuer()(lib/company-profile). 종전엔 '(주) 승진소방 대표'를 박아 두었다(C5 2026-10-02) */
+  issuer: CompanyIssuer
 }) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
@@ -89,8 +93,9 @@ export function CertificatesClient({
           </table>
           <p className="text-center mt-10">위와 같이 증명합니다.</p>
           <p className="text-center mt-4">{printTarget.issued_at.slice(0, 10)}</p>
-          <div className="text-center mt-16 text-lg font-bold">(주) 승진소방 대표</div>
-          <div className="text-center mt-2">(인)</div>
+          {/* 상호는 회사정보의 [공문 발신 명의](없으면 회사명), 둘째 줄은 직함·대표자 — 공문 하단 명의와 같은 규칙 */}
+          <div className="text-center mt-16 text-lg font-bold">{issuer.name || '(회사정보 미등록)'}</div>
+          <div className="text-center mt-2">{[issuer.title, issuer.rep].filter(Boolean).join(' ')} (인)</div>
         </div>
       )}
 

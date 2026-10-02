@@ -236,7 +236,7 @@ const BADGE_HREFS: Record<string, 'red' | 'orange'> = {
  *  이력 화면에 붙여 두면 뱃지를 눌러 간 곳에 보낼 수단이 없다. 달력은 빨강 뱃지와 나란히 단다. */
 const SMS_BADGE_HREF = '/inspections/calendar'
 
-export function Sidebar({ role, redCount = 0, orangeCount = 0, canSeeSms = false, companyName = '승진소방 ERP', logoUrl }: SidebarProps) {
+export function Sidebar({ role, redCount = 0, orangeCount = 0, canSeeSms = false, companyName = 'ERP', logoUrl }: SidebarProps) {
   const pathname = usePathname()
 
   // 미발송 뱃지 — **첫 페인트를 막지 않는다.** 서버 레이아웃에서 세면 실측 497ms가

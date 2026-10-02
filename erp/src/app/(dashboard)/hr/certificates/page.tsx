@@ -3,12 +3,13 @@ import { Award } from 'lucide-react'
 import { requireRole } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { CertificatesClient } from '@/components/certificates/certificates-client'
+import { getCompanyProfile, companyIssuer } from '@/lib/company-profile'
 
 export default async function CertificatesPage() {
   await requireRole(['manager', 'admin'])
 
   const admin = createAdminClient()
-  const [{ data: certificates }, { data: employees }] = await Promise.all([
+  const [{ data: certificates }, { data: employees }, company] = await Promise.all([
     admin
       .from('certificates')
       .select(`*, employee:employee_id (name, employee_id, position), issuer:issued_by (name)`)
@@ -18,6 +19,7 @@ export default async function CertificatesPage() {
       .select('id, name, employee_id, position, department_id, hire_date')
       .eq('is_active', true)
       .order('name'),
+    getCompanyProfile(),
   ])
 
   return (
@@ -31,6 +33,7 @@ export default async function CertificatesPage() {
       </div>
       <CertificatesClient
         certificates={(certificates ?? []) as Record<string, unknown>[]}
+        issuer={companyIssuer(company)}
         employees={(employees ?? []) as unknown as { id: string; name: string; employee_id: string; position: string | null; department: string | null; hire_date: string | null }[]}
       />
     </div>

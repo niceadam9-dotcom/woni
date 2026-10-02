@@ -8,7 +8,7 @@
 // 실행: node scripts/assert-lint-ratchet.mjs
 import { execSync } from 'node:child_process'
 
-const LINT_ERROR_BASELINE = 68
+const LINT_ERROR_BASELINE = 67
 
 const root = new URL('..', import.meta.url).pathname.replace(/^\/([A-Z]:)/, '$1')
 let out

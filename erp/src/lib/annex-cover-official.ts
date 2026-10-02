@@ -11,7 +11,7 @@
 import type { createAdminClient } from '@/lib/supabase/admin'
 import { fetchAllRows } from '@/lib/supabase/paginate'
 import { inspectionTypeLabel } from '@/lib/inspection-round'
-import { getCompanyProfile } from '@/lib/company-profile'
+import { getCompanyProfile, companyIssuer } from '@/lib/company-profile'
 import { formatTel } from '@/lib/format-contact'
 import { listCustomerAssetEntries, ASSET_BUCKET, ASSET_URL_TTL } from '@/lib/customer-assets'
 import type { DocAsset } from '@/lib/doc-templates/base'
@@ -195,11 +195,7 @@ export async function assembleOfficial(
     sender: company?.company_name ?? '',
     // 147: 하단 발신 명의 — 회사정보 [공문 발신 명의]. 비우면 상호는 회사명, 직함은 '대표이사'.
     // 레터헤드(위 company.name)와 **일부러 다른 값**을 쓸 수 있다: 약식 상호 vs 법인 정식 상호.
-    senderSign: {
-      name: (company?.official_sender_name ?? '').trim() || (company?.company_name ?? ''),
-      title: (company?.official_rep_title ?? '').trim() || '대표이사',
-      rep: company?.representative ?? '',
-    },
+    senderSign: companyIssuer(company),
     year: insp.year,
     typeLabel: inspectionTypeLabel(insp.inspection_type, !!insp.is_initial, insp.plan_type),
   }
