@@ -1,0 +1,109 @@
+# CI — 통합 실행계획 A4(로드맵 Stage 0.2), 2026-10-02
+#
+# 목적: pre-push 훅이 개발 PC에서 하던 검사를 서버 쪽으로 옮긴다. 개발 PC가 운영 비밀(.env.production)을
+#   들고 있어야 하던 유일한 이유가 pre-push의 드리프트 검사였다 — 여기서는 **스테이징** 비밀만 쓴다.
+#   pre-push 축소와 .env.production 제거는 이 워크플로가 초록으로 몇 번 돈 뒤에 한다(그 전까진 둘 다 유지).
+#
+# 필요한 GitHub Secrets(저장소 Settings → Secrets and variables → Actions):
+#   STAGING_SUPABASE_URL · STAGING_SUPABASE_ANON_KEY · STAGING_SUPABASE_SERVICE_ROLE_KEY
+#   없으면 DB가 필요한 단계(드리프트·불변식)는 「건너뜀」을 크게 남기고 넘어간다 — 조용히 통과로 치지 않는다.
+#
+# ⚠ 이 저장소는 공개다. 로그에 비밀이 찍히지 않게 env 파일은 마스킹된 secrets에서만 만들고 cat 하지 않는다.
+#   fork에서 온 PR에는 GitHub가 secrets를 주지 않는다(DB 단계 자동 건너뜀).
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: erp
+    env:
+      HAS_STAGING: ${{ secrets.STAGING_SUPABASE_SERVICE_ROLE_KEY != '' }}
+      # 빌드는 DB에 붙지 않지만 모듈이 env를 읽는다 — 스테이징 값이 없으면 자리표시자로 빌드한다
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.STAGING_SUPABASE_URL || 'https://placeholder.supabase.co' }}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.STAGING_SUPABASE_ANON_KEY || 'placeholder-anon-key' }}
+      NEXT_TELEMETRY_DISABLED: '1'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'          # 운영 이미지 node:24-alpine3.23과 같은 주 버전
+          cache: npm
+          cache-dependency-path: erp/package-lock.json
+
+      - name: 의존성 설치
+        run: npm ci --no-audit --no-fund
+
+      # ── 저장소 축(비밀 불필요) ─────────────────────────────────────────────
+      - name: 마이그레이션 규율(파일명·중복·새 공백·미추적·적용 스크립트 대응)
+        run: node scripts/assert-migrations.mjs
+
+      - name: 한글 폰트 자산(파일 축)
+        run: node scripts/assert-korean-glyphs.mjs --files-only
+
+      - name: 타입체크
+        run: npx tsc --noEmit -p tsconfig.json
+
+      - name: lint 래칫(기준값 초과 금지)
+        run: node scripts/assert-lint-ratchet.mjs
+
+      - name: 정적 판정(배선 도달성)
+        run: node scripts/_judge2-r4-static.mjs
+
+      - name: 단위 — 업로드 가드
+        run: npx tsx scripts/test-upload-guard.mts
+
+      - name: 단위 — 크론 공용 래퍼
+        run: npx tsx --conditions=react-server scripts/test-cron-run.mts
+
+      - name: 빌드
+        run: npm run build
+
+      # ── DB 축(스테이징 비밀 필요) ─────────────────────────────────────────
+      - name: 스테이징 env 파일
+        if: env.HAS_STAGING == 'true'
+        env:
+          SB_URL: ${{ secrets.STAGING_SUPABASE_URL }}
+          SB_ANON: ${{ secrets.STAGING_SUPABASE_ANON_KEY }}
+          SB_SERVICE: ${{ secrets.STAGING_SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          umask 077
+          {
+            echo "NEXT_PUBLIC_SUPABASE_URL=$SB_URL"
+            echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=$SB_ANON"
+            echo "SUPABASE_SERVICE_ROLE_KEY=$SB_SERVICE"
+          } > .env.ci
+
+      - name: 스키마 드리프트(코드↔스테이징 DB)
+        if: env.HAS_STAGING == 'true'
+        run: node scripts/assert-schema-code-drift.mjs .env.ci
+
+      - name: 데이터 불변식(스테이징, 경고)
+        if: env.HAS_STAGING == 'true'
+        continue-on-error: true
+        run: node scripts/check-data-invariants.mjs .env.ci
+
+      - name: DB 축 건너뜀 경고
+        if: env.HAS_STAGING != 'true'
+        run: |
+          echo "::warning title=DB 검사 건너뜀::STAGING_SUPABASE_* secrets가 없어 스키마 드리프트·데이터 불변식을 돌리지 않았다 — 통과로 치지 말 것"
+
+      - name: env 파일 정리
+        if: always()
+        run: rm -f .env.ci

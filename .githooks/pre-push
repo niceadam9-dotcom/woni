@@ -11,6 +11,12 @@ run() {
   esac
 }
 
+# 마이그레이션 규율 — 미추적·중복·새 공백·적용 스크립트만 있고 SQL이 없는 번호. 1초 안에 끝난다.
+# 2026-10-02 실측: 163_customer_agency.sql이 운영 적용 후 3주 가까이 미커밋이었다(재생 시 열 2개 소실).
+# (통합 실행계획 A4. CI .github/workflows/ci.yml도 같은 스크립트를 돈다.)
+echo "[pre-push] 마이그레이션 규율 검사…"
+run "cd erp && node scripts/assert-migrations.mjs" || { echo "❌ [pre-push] 마이그레이션 규율 위반 — push 중단"; exit 1; }
+
 echo "[pre-push] 빌드(타입체크) 검사…"
 run "cd erp && npm run build" || { echo "❌ [pre-push] 빌드 실패 — push 중단"; exit 1; }
 
