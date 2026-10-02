@@ -6,6 +6,7 @@ import * as XLSX from 'xlsx'
 import { BookText, Download, Search } from 'lucide-react'
 import { TableScroll, STICKY_THEAD } from '@/components/ui/table-scroll'
 import { formatTel } from '@/lib/format-contact'
+import { CapabilityEvalButton } from '@/components/inspection-ledger/capability-eval-button'
 
 export type LedgerRow = {
   id: string; name: string; type: string; planDate: string | null
@@ -55,6 +56,8 @@ export function LedgerClient({ rows, canViewFee }: { rows: LedgerRow[]; canViewF
           <h1 className="text-xl font-bold text-ink">점검 대장 <span className="text-sm font-normal text-ink-sub">2026</span></h1>
           <p className="text-xs text-ink-faint">연간 점검 실적·계약 대장 ({filtered.length}곳{canViewFee ? ` · 계약료 합계 ${totalFee.toLocaleString()}원` : ''})</p>
         </div>
+        {/* B5 — 점검능력평가 실적 묶음(세금계산서 금액 포함이라 계약료와 같은 권한 축) */}
+        {canViewFee && <CapabilityEvalButton />}
         <button onClick={exportXlsx} className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg border border-brand-line text-sm text-brand hover:bg-brand-tint transition-colors">
           <Download className="size-4" /> 엑셀
         </button>
