@@ -596,7 +596,9 @@ export async function getSubmissionBoardAction(opts: { sinceDays?: number } = {}
     // allPassRow가 **거짓 '해당없음'**으로 뒤집힌다 — 잘림이 안전한 방향이 아니다.
     const [jobsRes, delRes, defRes, xRes] = await Promise.all([
       admin.from('fire_plan_gen_jobs').select('inspection_id, report_type').eq('status', 'done').in('inspection_id', ids),
-      admin.from('report_deliveries').select('inspection_id').in('inspection_id', ids),
+      // 관계인 송달(3단계)만 센다 — 2026-10-02부터 같은 표에 견적 메일(doc_kind='quote')도 쌓인다.
+      // 종류를 안 가리면 견적만 보낸 회차가 「관계인 보고 완료」로 보인다(단계 판정·회차 화면과 같은 필터).
+      admin.from('report_deliveries').select('inspection_id').in('inspection_id', ids).eq('doc_kind', 'report9_owner'),
       fetchAllRows<{ inspection_id: string }>((from, to) => admin.from('inspection_defects')
         .select('inspection_id').in('inspection_id', ids).order('id').range(from, to)),
       fetchAllRows<{ inspection_id: string }>((from, to) => admin.from('inspection_sheet_responses')

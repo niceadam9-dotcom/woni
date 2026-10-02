@@ -123,7 +123,7 @@ try {
   const mapText = await map.textContent() ?? ''
   check('6-1 두 불량은 견적 번호, 셋째는 견적 없음', mapText.includes(q!.quote_number) && mapText.includes('견적 없음'))
   await page.goto(`${BASE}/quotes`)
-  const link = page.locator(`a[href="/inspections/${insp}?step=5"]`)
+  const link = page.locator(`a[href="/inspections/${insp}/repair"]`)  // 2026-10-02 — 전용 페이지로
   check('6-2 /quotes에 「불량 보수」 회차 링크', await link.count() >= 1)
 } catch (e) {
   check('실행 중 예외 없음', false, e instanceof Error ? e.message : String(e))

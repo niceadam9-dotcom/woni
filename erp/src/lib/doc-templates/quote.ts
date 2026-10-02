@@ -109,3 +109,35 @@ ${d.notes ? `<div class="q-notes">${esc(d.notes)}</div>` : ''}
 <p class="q-foot">※ 본 견적은 유효기간 내 유효하며, 현장 여건에 따라 수량·금액이 변동될 수 있습니다. 공사 진행은 별도 계약서로 확정합니다.</p>`
   return renderDocument({ title: `${d.customer.name} 견적서 ${d.quoteNumber}`, css: CSS, pages: [page] })
 }
+
+/** '2026-10-02' → '2026년 10월 2일' (빈 값은 '') */
+export function kdateLong(iso: string | null | undefined): string {
+  if (!iso) return ''
+  const [y, m, d] = iso.slice(0, 10).split('-').map(Number)
+  if (!y || !m || !d) return ''
+  return `${y}년 ${m}월 ${d}일`
+}
+
+/** 견적 한 건과 무관한 머리 정보(공급자·수신·회차) — 서버가 한 번 모아 페이지 미리보기와 PDF가 같이 쓴다 */
+export type QuoteDocBase = Pick<QuoteDocData, 'company' | 'customer' | 'inspectionLabel'>
+
+/** 미리보기와 PDF가 **같은 조립**을 타게 하는 단일 함수 — 사본 금지(화면과 인쇄물이 갈리면 보낸 것과 본 것이 다르다) */
+export function quoteDocFrom(base: QuoteDocBase, q: {
+  quote_number: string; quote_date: string; valid_until: string | null; notes?: string | null
+  items: Array<{ description: string; quantity: number; unit_price: number; amount: number; detail?: string | null }>
+}): QuoteDocData {
+  const items = (q.items ?? []).map(it => ({
+    description: it.description, quantity: Number(it.quantity), unit_price: Number(it.unit_price),
+    amount: Number(it.amount), detail: it.detail ?? null,
+  }))
+  const subtotal = items.reduce((s, i) => s + i.amount, 0)
+  const taxAmount = Math.round(subtotal * 0.1)
+  return {
+    ...base,
+    quoteNumber: q.quote_number,
+    quoteDate: kdateLong(q.quote_date),
+    validUntil: kdateLong(q.valid_until),
+    items, subtotal, taxAmount, totalAmount: subtotal + taxAmount,
+    notes: q.notes ?? '',
+  }
+}

@@ -40,7 +40,7 @@ const DEAD = new Set(['취소', '만료'])
 const won = (n: number) => `${Math.round(Number(n)).toLocaleString('ko-KR')}원`
 const addDays = (iso: string, d: number) => { const t = new Date(`${iso}T00:00:00Z`); t.setUTCDate(t.getUTCDate() + d); return t.toISOString().slice(0, 10) }
 
-export function RepairSalesChain({ inspectionId, defects, canManage, perms, contractFileName, onChanged }: {
+export function RepairSalesChain({ inspectionId, defects, canManage, perms, contractFileName, onChanged, hideComposer = false, reloadKey = 0 }: {
   inspectionId: string
   defects: GridDefect[]
   /** 견적 만들기·발송 표시·PDF — 회차 편집 권한(전 직원)과 같은 축 */
@@ -50,6 +50,10 @@ export function RepairSalesChain({ inspectionId, defects, canManage, perms, cont
   contractFileName: string | null
   /** 상태가 바뀐 뒤 부모에게(10호 미리보기 등 갱신 축) */
   onChanged?: () => void
+  /** 보수 견적 페이지에서 쓸 때 — 페이지가 자체 작성 폼을 가지므로 이 블록의 「견적 만들기」를 숨긴다 */
+  hideComposer?: boolean
+  /** 부모가 견적을 새로 만들었을 때 이 값을 올리면 다시 읽는다 */
+  reloadKey?: number
 }) {
   const [state, setState] = useState<RepairSalesState | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -59,7 +63,7 @@ export function RepairSalesChain({ inspectionId, defects, canManage, perms, cont
 
   const apply = useCallback((r: Awaited<ReturnType<typeof getRepairSalesAction>>) => {
     if (r.error) setLoadError(r.error)
-    else { setLoadError(null); setState({ quotes: r.quotes, orders: r.orders, bills: r.bills }) }
+    else { setLoadError(null); setState({ quotes: r.quotes, orders: r.orders, bills: r.bills, deliveries: r.deliveries }) }
   }, [])
   const reload = useCallback(async () => apply(await getRepairSalesAction(inspectionId)), [inspectionId, apply])
   // 마운트 1회 적재 — setState는 액션 응답 콜백 안에서만(react-hooks/set-state-in-effect). 언마운트 뒤 응답은 버린다.
@@ -67,7 +71,7 @@ export function RepairSalesChain({ inspectionId, defects, canManage, perms, cont
     let alive = true
     getRepairSalesAction(inspectionId).then(r => { if (alive) apply(r) })
     return () => { alive = false }
-  }, [inspectionId, apply])
+  }, [inspectionId, apply, reloadKey])
 
   const run = (fn: () => Promise<{ error?: string } & Record<string, unknown>>, okMsg: string) => {
     setMsg(null)
@@ -106,7 +110,7 @@ export function RepairSalesChain({ inspectionId, defects, canManage, perms, cont
             {unquoted.length ? `견적 미발송 불량 ${unquoted.length}건` : '모든 불량에 견적 있음'}
           </span>
         )}
-        {canManage && defects.length > 0 && (
+        {canManage && defects.length > 0 && !hideComposer && (
           <button onClick={() => setOpen(open === 'quote' ? null : 'quote')} disabled={isPending} className={btn} data-testid="quote-create-open">
             <Plus className="size-3" /> 견적 만들기
           </button>
@@ -149,7 +153,7 @@ export function RepairSalesChain({ inspectionId, defects, canManage, perms, cont
                       <FileText className="size-3" /> {q.pdf_path ? '견적 PDF' : '견적 PDF 생성'}
                     </button>
                     {q.status === '작성중' && (
-                      <button onClick={() => run(() => markQuoteSentAction(q.id), '발송으로 표시했습니다')} disabled={isPending} className={btnGhost} data-testid="quote-mark-sent">발송 표시</button>
+                      <button onClick={() => run(() => markQuoteSentAction(q.id), '발송으로 표시했습니다')} disabled={isPending} className={btnGhost} data-testid="quote-mark-sent" title="메일 외 수단(직접·우편·카톡)으로 이미 전달했을 때">직접 전달함 표시</button>
                     )}
                     {perms.order && ['작성중', '발송'].includes(q.status) && (
                       <button onClick={() => setOpen(typeof open === 'object' && open && 'approve' in open && open.approve === q.id ? null : { approve: q.id })}

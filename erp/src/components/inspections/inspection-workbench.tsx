@@ -1456,12 +1456,20 @@ export function InspectionWorkbench({
                 onSaved={() => setDefectRev(v => v + 1)} />
             </div>
             {/* 2026-10-02 불량 → 매출 1단계 — 불량 → 견적 → 수주(계약) → 청구 사슬. 표(DefectGrid)와 ⑤ 완료 조건은
-                건드리지 않는다. 계약서 업로드(위)·시공사 메모(annex 10호 contractor)는 수주 행이 흡수한다. */}
-            {defectRows && defectRows.length > 0 && (
+                건드리지 않는다. 계약서 업로드(위)·시공사 메모(annex 10호 contractor)는 수주 행이 흡수한다.
+                칸이 좁아 작성·미리보기·발송은 전용 페이지(/repair)가 정본이고, 여기는 현황과 짧은 동작만 남는다. */}
+            {defectRows && defectRows.length > 0 && (<>
+              <div className="border-t border-brand-line-soft px-1 pt-2">
+                <NextLink href={`/inspections/${inspectionId}/repair?from=${encodeURIComponent(`/inspections/${inspectionId}?step=5`)}`}
+                  data-testid="open-repair-page"
+                  className="inline-flex h-7 items-center gap-1 rounded-lg bg-brand px-3 text-form-xs text-white hover:bg-brand-strong">
+                  <FileText className="size-3" /> 보수 견적 페이지 — 작성·미리보기·메일 발송
+                </NextLink>
+              </div>
               <RepairSalesChain inspectionId={inspectionId} defects={defectRows} canManage={canManage} perms={salesPerms}
                 contractFileName={data.contractFile?.name ?? null}
                 onChanged={() => setDefectRev(v => v + 1)} />
-            )}
+            </>)}
             {canManage && (
               <div className="flex items-center gap-1.5 flex-wrap border-t border-brand-line-soft px-1 pt-2">
                 {/* 2026-10-01 — 문서 생성은 ⑤를 끝내는 동작이 아니라 테두리 버튼(채움은 완료 동작에만) */}

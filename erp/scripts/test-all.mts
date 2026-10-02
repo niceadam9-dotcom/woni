@@ -248,6 +248,9 @@ const steps: Step[] = [
   // 업로드 가드(A2 2026-10-02) — 불량 사진·고객 자산·소방계획서 첨부 세 경로가 쓰는 공용 검사.
   // 확장자 허용목록·10MB·머리 바이트(확장자만 바꾼 .exe 거절)·서버 결정 Content-Type을 고정한다.
   { name: '업로드 가드(확장자·크기·머리 바이트)', cmd: 'npx tsx scripts/test-upload-guard.mts' },
+  // 크론 공용 래퍼(A3 2026-10-02) — 인증 401·응답 통과·실패 판정·cron_runs 기록·168 미적용 시 best-effort·
+  // 신선도(주기×2)·job 목록 = 라우트 디렉터리 = 정본 크론 파일. 서버·DB 불필요(가짜 admin 주입).
+  { name: '크론 공용 래퍼(cron_runs·신선도)', cmd: 'npx tsx --conditions=react-server scripts/test-cron-run.mts' },
   // 소방계획서 워크북(소방계획서_42 S7-2 · 미세 격자) — 지문·앵커·백지 불변식·무수식·행 삽입
   // 안전성·값 착지·정렬 축(47 B-12)을 자산 파일만으로 판정하는 **유일한 무서버 문지기**다.
   // ⚠ 2026-09-09까지 미등재였다(47 B-13) — 그래서 미세 격자 전환 커밋이 검증 스크립트를 안
@@ -767,6 +770,7 @@ const steps: Step[] = [
   // 기능은 죽은 게 아니라 달력으로 옮겨 왔으므로 승계자를 등재하고 옛 검사는 은퇴시켰다.
   { name: '달력 고객명 검색·초성(E2E)', cmd: 'npx tsx scripts/test-calendar-customer-search.mts', needServer: true },
   { name: '⑤ 보수 견적·수주·청구 사슬(E2E)', cmd: 'npx tsx scripts/test-repair-sales-chain.mts', needServer: true },
+  { name: '보수 견적 전용 페이지(E2E)', cmd: 'npx tsx scripts/test-repair-sales-page.mts', needServer: true },
   // 미배정 표면화 — 핵심은 배지가 뜨는가가 아니라 **담당자로 걸러도 안 사라지는가**이다.
   // 미배정은 누구의 담당도 아니라 필터링이 자연스러운 구현인데, 그러면 '아무도 모르는 채 시기가
   // 지나간다'는 원래 결함으로 되돌아간다(변이 실증: 예외를 빼면 달력에서 아예 안 보인다).

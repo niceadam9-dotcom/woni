@@ -330,7 +330,7 @@ export function QuotesClient({
                     <td className="px-3 py-2.5 font-mono text-xs">
                       {row.quote_number}
                       {row.inspection_id && (
-                        <a href={`/inspections/${row.inspection_id}?step=5`} className="ml-1.5 inline-flex items-center rounded-full bg-brand-tint px-1.5 py-0.5 font-sans text-[10px] text-brand hover:underline"
+                        <a href={`/inspections/${row.inspection_id}/repair`} className="ml-1.5 inline-flex items-center rounded-full bg-brand-tint px-1.5 py-0.5 font-sans text-[10px] text-brand hover:underline"
                           title="점검 회차 ⑤ 보수 칸으로">불량 보수</a>
                       )}
                     </td>
