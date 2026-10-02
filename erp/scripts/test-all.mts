@@ -754,6 +754,15 @@ const steps: Step[] = [
   // 등재하지 않으면 A만 초록인 채 B가 조용히 썩는다 — 그게 애초에 A에 보호가 빠졌던 경위다.
   { name: 'MU 시트 드로어(E2E)',        cmd: 'npx tsx scripts/test-mu-sheet.mts',            needServer: true },
   { name: '머더 카드·드로어(E2E)',      cmd: 'npx tsx scripts/test-sheet-mother-drawer.mts', needServer: true },
+  // 통합계획 B2·B3·B5(2026-10-02) — 미등록이면 위 MU 스위트처럼 조용히 썩는다
+  { name: 'B3 1.10.3 10~27행 카드(E2E)', cmd: 'npx tsx scripts/test-mu-b3-card.mts',          needServer: true },
+  { name: 'B3 1.10.3 10~27행 PDF',      cmd: 'npx tsx --conditions=react-server scripts/test-mu-b3-pdf.mts' },
+  { name: 'B2 사업자번호·세금 이메일',   cmd: 'npx tsx scripts/test-biz-no.mts' },
+  { name: 'B2 홈택스 일괄 엑셀·결과 대조', cmd: 'npx tsx scripts/test-hometax-bulk.mts' },
+  { name: 'B2 홈택스 일괄(E2E)',        cmd: 'npx tsx scripts/test-hometax-bulk-e2e.mts',     needServer: true },
+  { name: 'B2 세금계산서 발행 화면(E2E)', cmd: 'npx tsx scripts/test-tax-invoice-issue-b2.mts', needServer: true },
+  { name: 'B5 능력평가 실적 시트',       cmd: 'npx tsx scripts/test-capability-eval.mts' },
+  { name: 'B5 능력평가 실적(E2E)',       cmd: 'npx tsx scripts/test-capability-eval-e2e.mts',  needServer: true },
   // 드로어 전체화면·배율 연동(소방계획서_38). 위 두 스위트는 **배율 md 한 점에서만** 돌기 때문에
   // lg/xl에서 sticky 2층이 겹쳐 항목 첫 행이 가려져도 전부 초록이다. test-font-scale S-1은 CSS
   // 텍스트에서 '같은 변수를 읽는가'만 보는 정적 검사라 렌더 결과를 모른다 — 이 프로브만 실측한다.
