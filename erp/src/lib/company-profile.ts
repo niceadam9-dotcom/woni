@@ -27,7 +27,10 @@ export type CompanyProfile = {
  *  ORDER BY 없이 `.limit(1)`만 쓰면 Postgres가 매번 같은 행을 준다는 보장이 없어,
  *  읽는 곳과 쓰는 곳이 서로 다른 행을 잡는다 — 실제로 사전 안내 시점(sms_lead_rules)을
  *  저장했는데 배너가 옛 값을 읽는 증상으로 드러났다(소방계획서_24 구현 중 발견).
- *  정렬을 고정해 **모든 읽기·쓰기가 같은 행**을 보게 한다. 행 정리는 별도 과제. */
+ *  정렬을 고정해 **모든 읽기·쓰기가 같은 행**을 보게 한다.
+ *  행 정리(2026-10-02, 통합 실행계획 A5): 스테이징 2행을 운영과 같은 id(ee612786…) 1행으로 합쳤다
+ *  (기본 담당자 이관 뒤 0b8f50b8… 삭제, 백업은 그 세션 scratchpad). 운영은 원래 1행. 정렬 고정은 계속 둔다 —
+ *  누가 다시 행을 넣어도 읽기·쓰기가 갈라지지 않게. */
 export const COMPANY_PROFILE_ORDER = 'id'
 
 const BASE_COLS = 'company_name, representative, business_number, phone, fax, email, address, logo_url, mark_url, default_region_si, default_region_myeon'
