@@ -155,8 +155,11 @@ export async function markCertReportedAction(
     } as Record<string, unknown>)
     // 167 — 조회용 사본도 함께 비운다(정본은 마커). 열이 없는 DB(167 미적용)에서는 조용히 넘어간다 —
     // 완료 판정은 마커가 쥐고 있어 이 UPDATE 실패가 ②를 바꾸지 않는다.
-    await writePlacementColumns(admin, inspectionId, { placement_reported_at: null, placement_result: null, placement_no: null })
-    await syncStepsAndRevalidate(admin, inspectionId, profile.id, { alsoChanged: true })
+    // 조회 열 쓰기는 단계 동기화와 **병렬** — 완료 판정은 마커가 쥐므로 순서 의존이 없고, 직렬이면 왕복 하나가 화면 반영을 늦춘다
+    await Promise.all([
+      writePlacementColumns(admin, inspectionId, { placement_reported_at: null, placement_result: null, placement_no: null }),
+      syncStepsAndRevalidate(admin, inspectionId, profile.id, { alsoChanged: true }),
+    ])
     return {}
   }
 
@@ -174,9 +177,12 @@ export async function markCertReportedAction(
     entity_type: 'inspection', entity_id: inspectionId, metadata: { date, result, placementNo },
   } as Record<string, unknown>)
   // 167 — 마커는 그대로(정본). 같은 값을 조회용 열에 **이중 기록**한다(능력평가 실적·제출현황이 읽는다).
-  await writePlacementColumns(admin, inspectionId, { placement_reported_at: date, placement_result: result, placement_no: placementNo })
-  // 36 S2-3 — 바뀌는 서버 prop: evidence.certArchived(완료 근거)와 단계 배지가 함께 갱신돼야 한다
-  await syncStepsAndRevalidate(admin, inspectionId, profile.id, { alsoChanged: true })
+  // 36 S2-3 — 바뀌는 서버 prop: evidence.certArchived(완료 근거)와 단계 배지가 함께 갱신돼야 한다.
+  // 조회 열 쓰기는 병렬(위 해제 분기와 같은 이유)
+  await Promise.all([
+    writePlacementColumns(admin, inspectionId, { placement_reported_at: date, placement_result: result, placement_no: placementNo }),
+    syncStepsAndRevalidate(admin, inspectionId, profile.id, { alsoChanged: true }),
+  ])
   return {}
 }
 
