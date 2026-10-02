@@ -24,6 +24,8 @@ type CompanyInfo = {
   management_reg_no: string | null
   phone: string | null; fax: string | null; email: string | null; address: string | null
   industry: string | null; established_date: string | null; logo_url: string | null
+  /** 169 — 세금계산서 공급자 업태·종목·이메일 */
+  business_type?: string | null; business_item?: string | null; tax_email?: string | null
   /** 공문 발신 명의 (147) — 레터헤드·표지·위임장과 별개 축 */
   official_sender_name?: string | null; official_rep_title?: string | null
 }
@@ -45,6 +47,9 @@ export function CompanyFormClient({ existing }: { existing?: CompanyInfo }) {
     email: existing?.email ?? '',
     address: existing?.address ?? '',
     industry: existing?.industry ?? '',
+    business_type: existing?.business_type ?? '',
+    business_item: existing?.business_item ?? '',
+    tax_email: existing?.tax_email ?? '',
     established_date: existing?.established_date ?? '',
     logo_url: existing?.logo_url ?? '',
     official_sender_name: existing?.official_sender_name ?? '',
@@ -70,6 +75,9 @@ export function CompanyFormClient({ existing }: { existing?: CompanyInfo }) {
         email: form.email.trim() || undefined,
         address: form.address.trim() || undefined,
         industry: form.industry.trim() || undefined,
+        business_type: form.business_type.trim() || undefined,
+        business_item: form.business_item.trim() || undefined,
+        tax_email: form.tax_email.trim() || undefined,
         established_date: form.established_date || undefined,
         logo_url: form.logo_url.trim() || undefined,
         official_sender_name: form.official_sender_name.trim() || undefined,
@@ -152,6 +160,22 @@ export function CompanyFormClient({ existing }: { existing?: CompanyInfo }) {
               <input value={form.management_reg_no} onChange={e => setField('management_reg_no', e.target.value)}
                 placeholder="예: 2026-15 → 별지4호 (제 2026-15 호)" className={`${inputCls} pl-8`} />
             </div>
+          </Field>
+        </div>
+
+        {/* 169 — 세금계산서 공급자 칸(홈택스 일괄발급 엑셀). 사업자등록증 기재 그대로 — 위 「업종」은 소개 문구라 섞지 않는다 */}
+        <div className="grid grid-cols-3 gap-4" data-testid="company-tax-fields">
+          <Field label="업태 (세금계산서)">
+            <input value={form.business_type} onChange={e => setField('business_type', e.target.value)}
+              placeholder="예: 서비스" className={inputCls} />
+          </Field>
+          <Field label="종목 (세금계산서)">
+            <input value={form.business_item} onChange={e => setField('business_item', e.target.value)}
+              placeholder="예: 소방시설관리업" className={inputCls} />
+          </Field>
+          <Field label="세금계산서 이메일">
+            <input type="email" value={form.tax_email} onChange={e => setField('tax_email', e.target.value)}
+              placeholder="비우면 위 이메일" className={inputCls} />
           </Field>
         </div>
 

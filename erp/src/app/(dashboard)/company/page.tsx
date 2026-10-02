@@ -19,6 +19,7 @@ export default async function CompanyPage() {
     management_reg_no: string | null
     phone: string | null; fax: string | null; email: string | null; address: string | null
     industry: string | null; established_date: string | null; logo_url: string | null
+    business_type?: string | null; business_item?: string | null; tax_email?: string | null
     official_sender_name: string | null; official_rep_title: string | null
   }
 

@@ -6,6 +6,7 @@ import { Printer, ExternalLink, ArrowLeft, CheckCircle } from 'lucide-react'
 import { issueTaxInvoiceAction } from '@/app/(dashboard)/tax-invoices/actions'
 import { DateInput } from '@/components/ui/date-input'
 import { todayKst } from '@/lib/kst-date'
+import { isValidBizNo, formatBizNoDash } from '@/lib/biz-no'
 
 type TaxInvoice = {
   id: string
@@ -34,6 +35,15 @@ type CompanyInfo = {
   representative: string | null
   address: string | null
   phone: string | null
+  /** 169 — 미적용 DB에선 undefined */
+  business_type?: string | null
+  business_item?: string | null
+}
+
+/** B2 — 공급받는자 = 고객 사업자정보(billing_profiles). 없으면 null(고객명·주소로 폴백하고 「미입력」을 띄운다) */
+type BuyerInfo = {
+  business_no: string | null; company_name: string | null; rep_name: string | null
+  address: string | null; business_type: string | null; business_item: string | null; tax_email: string | null
 }
 
 function fmt(n: number) {
@@ -49,12 +59,16 @@ function getInv(bill: BillRow): TaxInvoice | null {
 export function TaxInvoiceIssueClient({
   bill: rawBill,
   company: rawCompany,
+  buyer: rawBuyer = null,
 }: {
   bill: Record<string, unknown>
   company: Record<string, unknown>
+  buyer?: Record<string, unknown> | null
 }) {
   const bill = rawBill as unknown as BillRow
   const company = rawCompany as unknown as CompanyInfo
+  const buyer = rawBuyer as unknown as BuyerInfo | null
+  const buyerBizOk = isValidBizNo(buyer?.business_no) === true
   const inv = getInv(bill)
 
   const today = todayKst()
@@ -179,9 +193,17 @@ export function TaxInvoiceIssueClient({
                   <td className="px-2 py-1.5 bg-gray-50 font-medium border-r border-gray-300">사업장주소</td>
                   <td className="px-2 py-1.5 text-form-xs">{company.address ?? '미입력'}</td>
                 </tr>
-                <tr>
+                <tr className="border-b border-gray-300">
                   <td className="px-2 py-1.5 bg-gray-50 font-medium border-r border-gray-300">전화번호</td>
                   <td className="px-2 py-1.5">{company.phone ?? '미입력'}</td>
+                </tr>
+                <tr>
+                  <td className="px-2 py-1.5 bg-gray-50 font-medium border-r border-gray-300">업태·종목</td>
+                  <td className={`px-2 py-1.5 ${company.business_type || company.business_item ? '' : 'text-amber-600'}`}>
+                    {company.business_type || company.business_item
+                      ? `${company.business_type ?? '—'} / ${company.business_item ?? '—'}`
+                      : '미입력 — 본사 정보에서 입력'}
+                  </td>
                 </tr>
               </tbody>
             </table>
@@ -192,21 +214,34 @@ export function TaxInvoiceIssueClient({
             <div className="bg-gray-100 px-3 py-1 border-b border-gray-400 text-xs font-bold">공급받는자</div>
             <table className="w-full text-xs">
               <tbody>
+                {/* B2 — 고객 사업자정보(billing_profiles)를 싣는다. 종전엔 사업자번호·대표자가 하드코딩 「—」였다 */}
                 <tr className="border-b border-gray-300">
                   <td className="w-24 px-2 py-1.5 bg-gray-50 font-medium border-r border-gray-300">사업자번호</td>
-                  <td className="px-2 py-1.5 text-gray-400">—</td>
+                  <td className={`px-2 py-1.5 ${buyerBizOk ? '' : 'text-amber-600'}`} data-testid="buyer-bizno">
+                    {buyer?.business_no
+                      ? `${formatBizNoDash(buyer.business_no)}${buyerBizOk ? '' : ' (검증 실패)'}`
+                      : '미입력'}
+                  </td>
                 </tr>
                 <tr className="border-b border-gray-300">
                   <td className="px-2 py-1.5 bg-gray-50 font-medium border-r border-gray-300">상호</td>
-                  <td className="px-2 py-1.5 font-medium">{bill.customers?.customer_name}</td>
+                  <td className="px-2 py-1.5 font-medium">{buyer?.company_name || bill.customers?.customer_name}</td>
                 </tr>
                 <tr className="border-b border-gray-300">
                   <td className="px-2 py-1.5 bg-gray-50 font-medium border-r border-gray-300">대표자</td>
-                  <td className="px-2 py-1.5 text-gray-400">—</td>
+                  <td className={`px-2 py-1.5 ${buyer?.rep_name ? '' : 'text-amber-600'}`}>{buyer?.rep_name || '미입력'}</td>
                 </tr>
                 <tr className="border-b border-gray-300">
                   <td className="px-2 py-1.5 bg-gray-50 font-medium border-r border-gray-300">사업장주소</td>
-                  <td className="px-2 py-1.5 text-form-xs">{bill.customers?.address ?? '—'}</td>
+                  <td className="px-2 py-1.5 text-form-xs">{buyer?.address || bill.customers?.address || '—'}</td>
+                </tr>
+                <tr className="border-b border-gray-300">
+                  <td className="px-2 py-1.5 bg-gray-50 font-medium border-r border-gray-300">업태·종목</td>
+                  <td className="px-2 py-1.5">{buyer?.business_type || buyer?.business_item ? `${buyer?.business_type ?? '—'} / ${buyer?.business_item ?? '—'}` : '—'}</td>
+                </tr>
+                <tr>
+                  <td className="px-2 py-1.5 bg-gray-50 font-medium border-r border-gray-300">수신 이메일</td>
+                  <td className={`px-2 py-1.5 text-form-xs ${buyer?.tax_email ? '' : 'text-amber-600'}`}>{buyer?.tax_email || '미입력'}</td>
                 </tr>
               </tbody>
             </table>

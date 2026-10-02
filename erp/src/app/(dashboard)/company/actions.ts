@@ -17,6 +17,10 @@ export type UpsertCompanyInput = {
   email?: string
   address?: string
   industry?: string
+  /** 169 — 세금계산서 공급자 업태·종목·이메일(홈택스 엑셀) */
+  business_type?: string
+  business_item?: string
+  tax_email?: string
   established_date?: string
   logo_url?: string
   /** 공문 발신 명의 (147) — 비우면 company_name / '대표이사'로 폴백(렌더 규약) */
@@ -55,6 +59,9 @@ export async function upsertCompanyAction(input: UpsertCompanyInput): Promise<{ 
         email: input.email || null,
         address: input.address || null,
         industry: input.industry || null,
+        business_type: input.business_type || null,
+        business_item: input.business_item || null,
+        tax_email: input.tax_email || null,
         established_date: input.established_date || null,
         logo_url: input.logo_url || null,
         official_sender_name: input.official_sender_name || null,
@@ -76,6 +83,9 @@ export async function upsertCompanyAction(input: UpsertCompanyInput): Promise<{ 
         email: input.email || null,
         address: input.address || null,
         industry: input.industry || null,
+        business_type: input.business_type || null,
+        business_item: input.business_item || null,
+        tax_email: input.tax_email || null,
         established_date: input.established_date || null,
         logo_url: input.logo_url || null,
         official_sender_name: input.official_sender_name || null,
