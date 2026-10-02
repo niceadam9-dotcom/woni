@@ -8,6 +8,7 @@ import { dateRangeError } from '@/lib/date-range'
 import { loadAnnexInputs, actionPlanPeriod } from '@/lib/report9-assemble'
 import { resolveActionPeriod, type ActionPeriod } from '@/lib/annex-total-period'
 import { completionDateFrom } from '@/lib/action-period-derive'
+import { checkImageUpload } from '@/lib/upload-guard'
 
 export type DefectSeverity = '경미' | '보통' | '중대'
 
@@ -143,14 +144,17 @@ export async function uploadDefectPhotoAction(formData: FormData): Promise<{ err
   const field        = (formData.get('field') as string | null) === 'after' ? 'after_photo_url' : 'photo_url'
 
   if (!defectId || !inspectionId || !file) return { error: '파일 정보가 없습니다.' }
+  if (!/^[0-9a-f-]{36}$/i.test(defectId) || !/^[0-9a-f-]{36}$/i.test(inspectionId)) return { error: '잘못된 식별자입니다.' }
 
-  const ext  = file.name.split('.').pop() ?? 'jpg'
-  const path = `${inspectionId}/${defectId}/${field === 'after_photo_url' ? 'after_' : ''}${Date.now()}.${ext}`
+  // A2(2026-10-02) — 종전엔 확장자·Content-Type을 클라이언트 값 그대로 저장하고 크기 상한도 없었다.
+  // 공용 가드가 확장자 허용목록·10MB·머리 바이트를 보고 서버가 정한 Content-Type을 준다.
+  const checked = await checkImageUpload(file, 'photo')
+  if (!checked.ok) return { error: checked.error }
+  const path = `${inspectionId}/${defectId}/${field === 'after_photo_url' ? 'after_' : ''}${Date.now()}.${checked.ext}`
 
-  const buffer = await file.arrayBuffer()
   const { error: uploadErr } = await admin.storage
     .from('inspection-defects')
-    .upload(path, buffer, { contentType: file.type, upsert: true })
+    .upload(path, checked.buffer, { contentType: checked.contentType, upsert: true })
 
   if (uploadErr) return { error: '사진 업로드에 실패했습니다.' }
 

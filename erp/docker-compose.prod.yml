@@ -34,7 +34,11 @@ services:
 
   caddy:
     # 폰트와는 무관하지만 같은 표류 위험이라 함께 고정한다(HTTPS 인증서 갱신이 걸려 있다).
-    image: caddy:2.11.4-alpine
+    # A2(2026-10-02): /login·/api/* 레이트리밋을 위해 rate_limit 플러그인을 넣은 자체 빌드(deploy/caddy/Dockerfile).
+    # 베이스는 여전히 caddy:2.11.4-alpine. `up -d --build`가 app과 함께 굽는다.
+    build:
+      context: ./deploy/caddy
+    image: sjfire-caddy:2.11.4-ratelimit
     ports:
       - "80:80"
       - "443:443"

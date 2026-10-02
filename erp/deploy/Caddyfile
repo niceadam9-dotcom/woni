@@ -1,8 +1,37 @@
 # 승진소방 ERP — sjfire.co.kr 리버스 프록시 (HTTPS 자동)
 # Caddy가 Let's Encrypt 인증서를 자동 발급·갱신한다.
 # 전제: 도메인 DNS A 레코드(sjfire.co.kr, www.sjfire.co.kr)가 이 서버 공인 IP를 가리킬 것.
+# ⚠ rate_limit은 공식 이미지에 없다 — deploy/caddy/Dockerfile(xcaddy + mholt/caddy-ratelimit)로 구운 이미지에서만 뜬다.
+#   공식 이미지로 이 파일을 올리면 "unrecognized directive: rate_limit"으로 기동 실패한다.
+
+{
+	# 비표준 지시어라 순서를 정해 준다 — 프록시 전에 센다
+	order rate_limit before reverse_proxy
+}
 
 sjfire.co.kr {
+	# A2(2026-10-02) 레이트리밋 — IP당 /login 30회/분(자격 증명 대입 억제), /api/* 120회/분.
+	# /api/cron/*은 이 VPS 자신이 하루 11번 호출하므로 한도와 멀고, /api/mobile/*는 직원 폰이라 분당 120이면 넉넉하다.
+	# 초과는 429. 사무실 NAT 뒤 여러 명이 같은 IP라도 로그인 30회/분이면 걸릴 일이 없다.
+	rate_limit {
+		zone login {
+			match {
+				path /login /login/*
+			}
+			key {client_ip}
+			events 30
+			window 1m
+		}
+		zone api {
+			match {
+				path /api/*
+			}
+			key {client_ip}
+			events 120
+			window 1m
+		}
+	}
+
 	reverse_proxy app:3000
 	encode gzip
 

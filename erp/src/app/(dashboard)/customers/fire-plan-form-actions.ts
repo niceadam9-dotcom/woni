@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { checkImageUpload } from '@/lib/upload-guard'
 import { requirePermission } from '@/lib/auth'
 import { buildFirePlanHtml, type FirePlanGenData } from '@/lib/fire-plan-template'
 import { assembleFirePlan } from '@/lib/fire-plan-generate'
@@ -243,15 +244,14 @@ export async function uploadPlanAssetAction(
 ): Promise<{ error?: string; path?: string }> {
   await requirePermission('customer_manage')
   const file = formData.get('file') as File | null
-  if (!file || file.size === 0) return { error: '이미지 파일을 선택해주세요.' }
-  if (file.size > 10 * 1024 * 1024) return { error: '이미지는 10MB 이하여야 합니다.' }
-  const ext = (file.name.split('.').pop() ?? '').toLowerCase()
-  const mime = PLAN_IMAGE_EXTS[ext]
-  if (!mime) return { error: 'JPG/PNG/WEBP 이미지만 업로드할 수 있습니다.' }
+  if (!file) return { error: '이미지 파일을 선택해주세요.' }
+  // A2(2026-10-02) — 확장자·크기 검사에 머리 바이트 대조를 더한 공용 가드로 통일 (lib/upload-guard)
+  const checked = await checkImageUpload(file, 'document')
+  if (!checked.ok) return { error: checked.error }
   const admin = createAdminClient()
-  const path = `${customerId}/plan-assets/${Date.now()}.${ext}`
+  const path = `${customerId}/plan-assets/${Date.now()}.${checked.ext}`
   const { error } = await admin.storage.from(BUCKET)
-    .upload(path, Buffer.from(await file.arrayBuffer()), { contentType: mime, upsert: false })
+    .upload(path, checked.buffer, { contentType: checked.contentType, upsert: false })
   if (error) return { error: `업로드 실패: ${error.message}` }
   return { path }
 }

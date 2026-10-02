@@ -245,6 +245,9 @@ const steps: Step[] = [
   // ⚠ server-only 패키지를 물어 --conditions=react-server 필수. A4 쪽수 축(--lo)은 LibreOffice가
   //    필요해 기본 실행에서 뺐다 — 행 높이·열 폭을 건드리면 그때는 반드시 --lo로 재확인할 것.
   { name: '갑지 불량사진 시트',        cmd: 'npx tsx --conditions=react-server scripts/test-photo-sheet.mts' },
+  // 업로드 가드(A2 2026-10-02) — 불량 사진·고객 자산·소방계획서 첨부 세 경로가 쓰는 공용 검사.
+  // 확장자 허용목록·10MB·머리 바이트(확장자만 바꾼 .exe 거절)·서버 결정 Content-Type을 고정한다.
+  { name: '업로드 가드(확장자·크기·머리 바이트)', cmd: 'npx tsx scripts/test-upload-guard.mts' },
   // 소방계획서 워크북(소방계획서_42 S7-2 · 미세 격자) — 지문·앵커·백지 불변식·무수식·행 삽입
   // 안전성·값 착지·정렬 축(47 B-12)을 자산 파일만으로 판정하는 **유일한 무서버 문지기**다.
   // ⚠ 2026-09-09까지 미등재였다(47 B-13) — 그래서 미세 격자 전환 커밋이 검증 스크립트를 안
@@ -763,6 +766,7 @@ const steps: Step[] = [
   // 봤는데, 그 화면이 폐지되며 검사만 고아로 남았다(testid plans-customer-search 계열은 소스에서 소멸).
   // 기능은 죽은 게 아니라 달력으로 옮겨 왔으므로 승계자를 등재하고 옛 검사는 은퇴시켰다.
   { name: '달력 고객명 검색·초성(E2E)', cmd: 'npx tsx scripts/test-calendar-customer-search.mts', needServer: true },
+  { name: '⑤ 보수 견적·수주·청구 사슬(E2E)', cmd: 'npx tsx scripts/test-repair-sales-chain.mts', needServer: true },
   // 미배정 표면화 — 핵심은 배지가 뜨는가가 아니라 **담당자로 걸러도 안 사라지는가**이다.
   // 미배정은 누구의 담당도 아니라 필터링이 자연스러운 구현인데, 그러면 '아무도 모르는 채 시기가
   // 지나간다'는 원래 결함으로 되돌아간다(변이 실증: 예외를 빼면 달력에서 아예 안 보인다).
@@ -813,6 +817,7 @@ const steps: Step[] = [
   //   총 이행기간 10/20일이 ⑤⑥을 움직이는지 본다(종전엔 10일이 하드코딩돼 있었다).
   //   뒤는 두 화면이 **같은 값**을 말하는지 전수 대조(소스 축 + 받은 화면 축).
   { name: '6단계 마감 산식',            cmd: 'npx tsx scripts/test-step-dates.mts' },
+  { name: '불량 이행기한 알림 대상 묶기(순수)', cmd: 'npx tsx scripts/test-defect-due-targets.mts' },
   { name: '마감 축 일치 달력↔작업대(E2E)', cmd: 'npx tsx scripts/test-due-axis-parity.mts',    needServer: true },
   // 🚨 미등재라 **열흘 넘게 썩어 있던** 검사를 함께 등재한다(2026-09-21). 낡은 마커 둘을 갈아끼웠다:
   //   '제출 전제'(228739aa에 폐지된 칸) · 「10호 미리보기에 이행계획 원문」(384bf7c 사항=결과참조로 반전).

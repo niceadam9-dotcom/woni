@@ -29,9 +29,11 @@ additional_redirect_urls = ["https://localhost:3000"]
 jwt_expiry = 3600
 enable_refresh_token_rotation = true
 refresh_token_reuse_interval = 10
-enable_signup = true
+# A2(2026-10-02) — 직원 계정은 관리자가 만든다(admin/users). 자가 가입 입구를 닫는다.
+# 이 파일은 로컬·CLI용이다. 운영·스테이징 프로젝트는 대시보드 Auth → Sign In / Providers에서 같은 값으로 맞춘다.
+enable_signup = false
 
 [auth.email]
-enable_signup = true
+enable_signup = false
 double_confirm_changes = true
 enable_confirmations = false
