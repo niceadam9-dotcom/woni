@@ -1,20 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { withCronRun } from '@/lib/cron-run'
 import { filterNotifiableRecipients } from '@/lib/notify'
 import { fetchAllRows, fetchAllRowsByIds } from '@/lib/supabase/paginate'
 import { activeStepsByInspection, isStepActive } from '@/lib/active-steps'
 
 // Vercel Cron 또는 외부 스케줄러에서 매일 09:00 호출
 // Authorization: Bearer {CRON_SECRET} 헤더 필수
-export async function GET(req: NextRequest) {
-  const authHeader = req.headers.get('authorization')
-  const cronSecret = process.env.CRON_SECRET
-  // CRON_SECRET이 없으면 검사를 통째로 건너뛰던 종전 조건(`cronSecret && …`)은 무인증 구멍이었다 —
-  // 값이 빠지는 순간 이 엔드포인트가 누구에게나 열린다. 미설정이면 아예 거부한다(sync-holidays와 동일 규약).
-  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-
+async function handle() {
   const admin = createAdminClient()
   // 컨테이너 TZ가 UTC라 00:05 KST 발화 시 toISOString()이 전날이 됨 — +9h 시프트로 KST 날짜 고정
   const todayStr = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().split('T')[0]
@@ -219,4 +212,9 @@ export async function GET(req: NextRequest) {
     breakdown: results,
     skippedNa,
   })
+}
+
+// 인증·cron_runs 기록·Sentry·신선도 점검은 공용 래퍼가 맡는다 (통합 실행계획 A3, 2026-10-02 — src/lib/cron-run.ts)
+export async function GET(req: NextRequest) {
+  return withCronRun('inspection-deadline-notify', req, () => handle())
 }

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { withCronRun } from '@/lib/cron-run'
 import { syncHolidaysForYear, type SyncResult } from '@/lib/holiday-sync'
 
 // 스케줄 **정본은 deploy/cron/sjfire-erp.cron**(VPS /etc/cron.d) — 매월 1일 00:10.
@@ -13,14 +14,7 @@ import { syncHolidaysForYear, type SyncResult } from '@/lib/holiday-sync'
 // Authorization: Bearer {CRON_SECRET} 헤더 필수
 //
 // 반영 규칙은 lib/holiday-sync.ts 하나가 갖는다(관리 화면 동기화 버튼과 동일 코드).
-export async function GET(req: NextRequest) {
-  // CRON_SECRET 미설정 시 통과시키던 종전 조건(`cronSecret && …`)은 무인증 구멍이었다 —
-  // 설정돼 있지 않으면 아예 거부한다 (소방계획서_24 P-9와 같은 지적)
-  const cronSecret = process.env.CRON_SECRET
-  if (!cronSecret || req.headers.get('authorization') !== `Bearer ${cronSecret}`) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-
+async function handle(req: NextRequest) {
   const admin = createAdminClient()
   const now = new Date()
   // 컨테이너 TZ가 UTC라 1/1 00:10 KST 발화 시 전년도로 잡힘 — +9h 시프트 후 UTC 게터로 KST 연 추출
@@ -59,4 +53,9 @@ export async function GET(req: NextRequest) {
     ...(results.some(r => r.note) ? { notes: results.filter(r => r.note).map(r => `${r.year}: ${r.note}`) } : {}),
     timestamp: now.toISOString(),
   })
+}
+
+// 인증·cron_runs 기록·Sentry·신선도 점검은 공용 래퍼가 맡는다 (통합 실행계획 A3, 2026-10-02 — src/lib/cron-run.ts)
+export async function GET(req: NextRequest) {
+  return withCronRun('sync-holidays', req, () => handle(req))
 }

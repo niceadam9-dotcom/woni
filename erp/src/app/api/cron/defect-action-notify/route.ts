@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { withCronRun } from '@/lib/cron-run'
 import { filterNotifiableRecipients } from '@/lib/notify'
 import { fetchAllRows, fetchAllRowsByIds } from '@/lib/supabase/paginate'
 import { groupDefectsByRepairEnd, pickDueOn, type DueDefect } from '@/lib/defect-due-targets'
@@ -12,15 +13,7 @@ import { groupDefectsByRepairEnd, pickDueOn, type DueDefect } from '@/lib/defect
 // 🚨 2026-10-02 수리 — 종전에는 `action_end = 기한`으로 **불량 행**을 골랐다. 2026-09-11부터 action_end를
 //   쓰는 화면 경로가 없어(defect-actions.ts) 그 뒤 회차는 알림이 한 건도 나가지 않았다(비교진단 3번 축 실측).
 //   대시보드·별지 10·11호가 쓰는 `repairEndISO`와 같은 함수로 회차 기한을 구한다(lib/defect-due-targets).
-export async function GET(req: NextRequest) {
-  const authHeader = req.headers.get('authorization')
-  const cronSecret = process.env.CRON_SECRET
-  // CRON_SECRET이 없으면 검사를 통째로 건너뛰던 종전 조건(`cronSecret && …`)은 무인증 구멍이었다 —
-  // 값이 빠지는 순간 이 엔드포인트가 누구에게나 열린다. 미설정이면 아예 거부한다(sync-holidays와 동일 규약).
-  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-
+async function handle() {
   const admin = createAdminClient()
   const todayStr = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().split('T')[0]
 
@@ -231,4 +224,9 @@ export async function GET(req: NextRequest) {
   }
 
   return NextResponse.json({ ok: true, date: todayStr, sent: totalSent, breakdown })
+}
+
+// 인증·cron_runs 기록·Sentry·신선도 점검은 공용 래퍼가 맡는다 (통합 실행계획 A3, 2026-10-02 — src/lib/cron-run.ts)
+export async function GET(req: NextRequest) {
+  return withCronRun('defect-action-notify', req, () => handle())
 }

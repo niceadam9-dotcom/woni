@@ -1,18 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { withCronRun } from '@/lib/cron-run'
 
 // 활성 고객(종합/작동)의 월정액을 매월 1건씩 자동 청구 — 멱등(같은 달 중복 생성 안 함)
 // Cron: 매월 1일 호출 권장. 수동 테스트: GET /api/cron/generate-monthly-bills?month=2026.07
 // Authorization: Bearer {CRON_SECRET} 헤더 필수
-export async function GET(req: NextRequest) {
-  const authHeader = req.headers.get('authorization')
-  const cronSecret = process.env.CRON_SECRET
-  // CRON_SECRET이 없으면 검사를 통째로 건너뛰던 종전 조건(`cronSecret && …`)은 무인증 구멍이었다 —
-  // 값이 빠지는 순간 이 엔드포인트가 누구에게나 열린다. 미설정이면 아예 거부한다(sync-holidays와 동일 규약).
-  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-
+async function handle(req: NextRequest) {
   const admin = createAdminClient()
   const now = new Date()
   // 컨테이너 TZ가 UTC라 KST 기준 연·월 추출 (+9h 시프트)
@@ -71,4 +64,9 @@ export async function GET(req: NextRequest) {
   }
 
   return NextResponse.json({ ok: true, billingMonth, created, skipped, timestamp: now.toISOString() })
+}
+
+// 인증·cron_runs 기록·Sentry·신선도 점검은 공용 래퍼가 맡는다 (통합 실행계획 A3, 2026-10-02 — src/lib/cron-run.ts)
+export async function GET(req: NextRequest) {
+  return withCronRun('generate-monthly-bills', req, () => handle(req))
 }

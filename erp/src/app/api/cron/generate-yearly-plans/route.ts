@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { withCronRun } from '@/lib/cron-run'
 import { generateYearlyPlanItems, loadHolidaySet } from '@/lib/inspection-plan-generator'
 import type { InspectionType } from '@/types'
 
@@ -9,15 +10,7 @@ import type { InspectionType } from '@/types'
 // 크론: 매월 1일 호출(deploy/cron/sjfire-erp.cron) — 멱등이라 반복 실행 안전
 // 수동 테스트: GET /api/cron/generate-yearly-plans?year=2027 (해당 연도만 단독 생성)
 // Authorization: Bearer {CRON_SECRET} 헤더 필수
-export async function GET(req: NextRequest) {
-  const authHeader = req.headers.get('authorization')
-  const cronSecret = process.env.CRON_SECRET
-  // CRON_SECRET이 없으면 검사를 통째로 건너뛰던 종전 조건(`cronSecret && …`)은 무인증 구멍이었다 —
-  // 값이 빠지는 순간 이 엔드포인트가 누구에게나 열린다. 미설정이면 아예 거부한다(sync-holidays와 동일 규약).
-  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-
+async function handle(req: NextRequest) {
   const admin = createAdminClient()
   const now = new Date()
   // 컨테이너 TZ가 UTC라 연말·연초 발화 시 날짜가 밀림 — +9h 시프트 후 UTC 게터로 KST 연 추출
@@ -95,4 +88,9 @@ export async function GET(req: NextRequest) {
     results,
     timestamp: now.toISOString(),
   })
+}
+
+// 인증·cron_runs 기록·Sentry·신선도 점검은 공용 래퍼가 맡는다 (통합 실행계획 A3, 2026-10-02 — src/lib/cron-run.ts)
+export async function GET(req: NextRequest) {
+  return withCronRun('generate-yearly-plans', req, () => handle(req))
 }

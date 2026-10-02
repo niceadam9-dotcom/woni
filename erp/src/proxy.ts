@@ -2,8 +2,9 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 import { HOME_PATH } from '@/lib/routes'
 
-// /api/cron: 세션 없이 호출되는 Vercel Cron 경로 — 라우트 자체의 CRON_SECRET Bearer 검증으로 보호
-const PUBLIC_PATHS = ['/login', '/api/auth', '/api/cron']
+// /api/cron: 세션 없이 호출되는 크론 경로 — 라우트 자체의 CRON_SECRET Bearer 검증(withCronRun)으로 보호
+// /api/health: 업타임 감시용 공개 경로(A3 2026-10-02) — 비밀·버전을 싣지 않는 DB·Gotenberg 생존 판정만
+const PUBLIC_PATHS = ['/login', '/api/auth', '/api/cron', '/api/health']
 
 /** 폐지된 화면의 옛 주소 → 새 화면 (즐겨찾기·기존 링크가 404가 되지 않게).
  *

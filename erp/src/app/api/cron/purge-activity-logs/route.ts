@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { withCronRun } from '@/lib/cron-run'
 import { EVIDENCE_MARKER_ACTIONS } from '@/lib/doc-status'
 import { fetchAllRows } from '@/lib/supabase/paginate'
 
@@ -27,15 +28,7 @@ type LogRow = {
   created_at: string
 }
 
-export async function GET(req: NextRequest) {
-  const authHeader = req.headers.get('authorization')
-  const cronSecret = process.env.CRON_SECRET
-  // CRON_SECRET이 없으면 검사를 통째로 건너뛰던 종전 조건(`cronSecret && …`)은 무인증 구멍이었다 —
-  // 값이 빠지는 순간 이 엔드포인트가 누구에게나 열린다. 미설정이면 아예 거부한다(sync-holidays와 동일 규약).
-  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-
+async function handle(req: NextRequest) {
   const dryRun = req.nextUrl.searchParams.get('dry_run') === '1'
   // retention_days: 수동 테스트용 오버라이드 (미지정 시 24개월)
   const overrideDays = parseInt(req.nextUrl.searchParams.get('retention_days') ?? '', 10)
@@ -129,4 +122,9 @@ export async function GET(req: NextRequest) {
   }
 
   return NextResponse.json({ ok: true, cutoff: cutoffIso, archived: expired.length, deleted: deletedCount ?? ids.length, months: uploaded })
+}
+
+// 인증·cron_runs 기록·Sentry·신선도 점검은 공용 래퍼가 맡는다 (통합 실행계획 A3, 2026-10-02 — src/lib/cron-run.ts)
+export async function GET(req: NextRequest) {
+  return withCronRun('purge-activity-logs', req, () => handle(req))
 }

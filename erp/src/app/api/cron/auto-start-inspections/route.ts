@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { withCronRun } from '@/lib/cron-run'
 import { startInspectionCore } from '@/lib/inspection-start'
 
 // 정기(monthly)·자체점검(special_*) 당일 자동 시작 (2026-07-23 사용자 확정 — [시작] 클릭 없이 점검업무 반영)
@@ -13,15 +14,7 @@ import { startInspectionCore } from '@/lib/inspection-start'
 // 이미 confirmed + scheduled_date**를 갖고 태어나 아무도 그 함수를 부르지 않는다.
 // 즉 신규 특별점검은 사람이 [작성 시작]을 누를 때까지 시작되지 않았다 — 규약이 아니라 구멍이었다.
 // 마감일 갈라짐은 startInspectionCore가 막는다(비어 있으면 lib/plan-step-dates로 계산해 채운다).
-export async function GET(req: NextRequest) {
-  const authHeader = req.headers.get('authorization')
-  const cronSecret = process.env.CRON_SECRET
-  // CRON_SECRET이 없으면 검사를 통째로 건너뛰던 종전 조건(`cronSecret && …`)은 무인증 구멍이었다 —
-  // 값이 빠지는 순간 이 엔드포인트가 누구에게나 열린다. 미설정이면 아예 거부한다(sync-holidays와 동일 규약).
-  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-
+async function handle() {
   const admin = createAdminClient()
   const todayStr = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().split('T')[0]
   const from = new Date(todayStr)
@@ -55,4 +48,9 @@ export async function GET(req: NextRequest) {
     ok: true, date: todayStr, candidates: items.length,
     started, skippedUnassigned, errors: errors.slice(0, 10),
   })
+}
+
+// 인증·cron_runs 기록·Sentry·신선도 점검은 공용 래퍼가 맡는다 (통합 실행계획 A3, 2026-10-02 — src/lib/cron-run.ts)
+export async function GET(req: NextRequest) {
+  return withCronRun('auto-start-inspections', req, () => handle())
 }

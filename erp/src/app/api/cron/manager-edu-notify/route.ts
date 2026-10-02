@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { withCronRun } from '@/lib/cron-run'
 import { filterNotifiableRecipients } from '@/lib/notify'
 
 // 소방안전관리자 실무교육 주기 알림 (2026-09-05)
@@ -9,14 +10,7 @@ import { filterNotifiableRecipients } from '@/lib/notify'
 // (매일 알림을 쏘면 소음이고, 배지는 화면을 열 때마다 보인다).
 const EDU_CYCLE_YEARS = 2
 
-export async function GET(req: NextRequest) {
-  const authHeader = req.headers.get('authorization')
-  const cronSecret = process.env.CRON_SECRET
-  // 미설정이면 아예 거부 — insurance-expiry-notify와 동일 규약(무인증 구멍 방지)
-  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-
+async function handle() {
   const admin = createAdminClient()
   // 컨테이너 TZ가 UTC라 KST 날짜로 고정 (+9h 시프트 — inspection-deadline-notify와 동일)
   const todayStr = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().split('T')[0]
@@ -186,4 +180,9 @@ export async function GET(req: NextRequest) {
     sent: totalSent,
     breakdown: results,
   })
+}
+
+// 인증·cron_runs 기록·Sentry·신선도 점검은 공용 래퍼가 맡는다 (통합 실행계획 A3, 2026-10-02 — src/lib/cron-run.ts)
+export async function GET(req: NextRequest) {
+  return withCronRun('manager-edu-notify', req, () => handle())
 }

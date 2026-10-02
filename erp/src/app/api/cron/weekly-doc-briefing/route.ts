@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { withCronRun } from '@/lib/cron-run'
 import { findDueReport9, findMissingCerts, SELF_INSPECTION_OR } from '@/lib/doc-status'
 import { isGoogleConfigured, gmailSendMail } from '@/lib/google'
 import { getCompanyProfile } from '@/lib/company-profile'
@@ -8,15 +9,7 @@ import { getCompanyProfile } from '@/lib/company-profile'
 // 매주 월 아침: 이번 주 자체점검·별지 9호 제출 기한 임박·배치확인서 누락 요약을
 // manager/admin 알림 + 회사 메일로 자동 발송. 판정은 lib/doc-status 공유(이중 판정 금지).
 // VPS 크론 주 1회 호출 — Authorization: Bearer {CRON_SECRET}
-export async function GET(req: NextRequest) {
-  const authHeader = req.headers.get('authorization')
-  const cronSecret = process.env.CRON_SECRET
-  // CRON_SECRET이 없으면 검사를 통째로 건너뛰던 종전 조건(`cronSecret && …`)은 무인증 구멍이었다 —
-  // 값이 빠지는 순간 이 엔드포인트가 누구에게나 열린다. 미설정이면 아예 거부한다(sync-holidays와 동일 규약).
-  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-
+async function handle() {
   const admin = createAdminClient()
   const todayStr = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().split('T')[0]
   const weekAgo = new Date(Date.now() + 9 * 60 * 60 * 1000)
@@ -87,4 +80,9 @@ export async function GET(req: NextRequest) {
     summary: { weekDone, dueSoon: dueSoon.length, overdue, missingCerts: missingCerts.length },
     notified, notifyError, emailed, emailError,
   })
+}
+
+// 인증·cron_runs 기록·Sentry·신선도 점검은 공용 래퍼가 맡는다 (통합 실행계획 A3, 2026-10-02 — src/lib/cron-run.ts)
+export async function GET(req: NextRequest) {
+  return withCronRun('weekly-doc-briefing', req, () => handle())
 }

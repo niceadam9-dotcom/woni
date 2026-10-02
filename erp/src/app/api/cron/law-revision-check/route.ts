@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { withCronRun } from '@/lib/cron-run'
 
 // 법제처 서식 개정 감지 (소방계획서_4.md §9-5c) — VPS 주간 크론 (IP 등록된 OC 계정 필요, env LAW_OC)
 // 별지 9·10·11호(licbyl)·외관점검표 고시(admbyl)의 공포/발령일자를 기준표(106)와 비교,
@@ -34,14 +35,7 @@ function parseEntry(xml: string, match: string, dateTag: string): { date: string
   return null
 }
 
-export async function GET(req: NextRequest) {
-  const authHeader = req.headers.get('authorization')
-  const cronSecret = process.env.CRON_SECRET
-  // CRON_SECRET이 없으면 검사를 통째로 건너뛰던 종전 조건(`cronSecret && …`)은 무인증 구멍이었다 —
-  // 값이 빠지는 순간 이 엔드포인트가 누구에게나 열린다. 미설정이면 아예 거부한다(sync-holidays와 동일 규약).
-  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+async function handle() {
   // OC = 법제처 회원 ID (활용신청에 호출 서버 IP 등록 필요). 주 계정 검증 실패 시 공용 샘플(test) 폴백 —
   // 등록 반영이 지연돼도 크론이 멈추지 않고, 반영되는 즉시 자동으로 주 계정 사용.
   const ocPrimary = process.env.LAW_OC
@@ -116,4 +110,9 @@ export async function GET(req: NextRequest) {
     }
   }
   return NextResponse.json({ ok: true, oc, ...(ocNote ? { ocNote } : {}), revised, results })
+}
+
+// 인증·cron_runs 기록·Sentry·신선도 점검은 공용 래퍼가 맡는다 (통합 실행계획 A3, 2026-10-02 — src/lib/cron-run.ts)
+export async function GET(req: NextRequest) {
+  return withCronRun('law-revision-check', req, () => handle())
 }
