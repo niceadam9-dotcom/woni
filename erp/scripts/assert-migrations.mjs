@@ -9,11 +9,11 @@
 //   ① 파일명이 `NNN_이름.sql`(세 자리 이상 숫자 + 밑줄)인가
 //   ② 같은 번호가 두 파일에 있지 않은가
 //   ③ 번호 공백이 아래 HISTORICAL_GAPS(2026-10-02 동결) 밖에서 새로 생기지 않았는가
-//   ④ git 체크아웃이면: 모든 마이그레이션 파일이 **추적**되는가(미추적 = 저장소에 없는 DDL)
+//   ④ git 체크아웃이면: 24시간 넘게 미추적인 마이그레이션이 없는가(그보다 새로우면 작성 중 — 경고만)
 //   ⑤ `scripts/_apply-NNN[-MMM]-*.mjs`가 가리키는 번호의 마이그레이션 파일이 있는가(163 꼴의 직접 탐지)
 //
 // 실행: node scripts/assert-migrations.mjs
-import { readdirSync } from 'node:fs'
+import { readdirSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { execSync } from 'node:child_process'
 
@@ -47,12 +47,20 @@ for (let i = 1; i <= max; i++) {
 }
 for (const g of HISTORICAL_GAPS) if (byNum.has(g)) bad(`③ HISTORICAL_GAPS의 ${g}에 파일이 생겼다 — 목록에서 지울 것`)
 
-// ④ — git이 있으면(CI 체크아웃·로컬) 미추적 마이그레이션을 찾는다
+// ④ — git이 있으면(CI 체크아웃·로컬) 미추적 마이그레이션을 찾는다.
+//   공유 작업트리에서는 다른 세션이 **지금 쓰는 중**인 마이그레이션도 미추적이다(2026-10-02 실측: 170이 작성
+//   14분 만에 남의 푸시를 막았다). 그래서 수정 시각으로 가른다 — 24시간 넘게 미추적이면 「잊힌 파일」(163은
+//   18일)로 보고 차단, 그보다 새로우면 「작성 중」으로 보고 경고만 남긴다.
+const STALE_UNTRACKED_HOURS = 24
 let gitOk = true
 try {
   const untracked = execSync('git ls-files --others --exclude-standard -- supabase/migrations', { cwd: root, encoding: 'utf8' })
     .split('\n').map(s => s.trim()).filter(s => s.endsWith('.sql'))
-  for (const u of untracked) bad(`④ 미추적 마이그레이션: ${u} — 적용했다면 반드시 커밋할 것(재생 시 빠진다)`)
+  for (const u of untracked) {
+    const ageH = (Date.now() - statSync(join(root, u)).mtimeMs) / 3600_000
+    if (ageH > STALE_UNTRACKED_HOURS) bad(`④ 미추적 마이그레이션 ${u} — ${Math.round(ageH)}시간째 커밋 안 됨. 적용했다면 반드시 커밋할 것(재생 시 빠진다)`)
+    else console.log(`⚠ ④ 작성 중인 미추적 마이그레이션 ${u} (${ageH.toFixed(1)}시간 전 수정) — ${STALE_UNTRACKED_HOURS}시간 안에 커밋하지 않으면 차단된다`)
+  }
 } catch {
   gitOk = false
   console.log('⚠ ④ git 없음 — 미추적 검사를 건너뜁니다(통과로 치지 마세요)')
@@ -70,5 +78,5 @@ for (const s of readdirSync(scriptsDir)) {
 
 console.log(fail
   ? `\n❌ [마이그레이션 규율] ${fail}건 위반 (파일 ${files.length}개, 최신 ${String(max).padStart(3, '0')})`
-  : `✅ [마이그레이션 규율] 파일 ${files.length}개 · 최신 ${String(max).padStart(3, '0')} · 중복 0 · 새 공백 0${gitOk ? ' · 미추적 0' : ''} · 적용 스크립트 대응 전건`)
+  : `✅ [마이그레이션 규율] 파일 ${files.length}개 · 최신 ${String(max).padStart(3, '0')} · 중복 0 · 새 공백 0${gitOk ? ' · 24시간 넘은 미추적 0' : ''} · 적용 스크립트 대응 전건`)
 process.exit(fail ? 1 : 0)
