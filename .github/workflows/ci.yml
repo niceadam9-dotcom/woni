@@ -37,11 +37,14 @@ jobs:
       # 빌드는 DB에 붙지 않지만 모듈이 env를 읽는다 — 스테이징 값이 없으면 자리표시자로 빌드한다
       NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.STAGING_SUPABASE_URL || 'https://placeholder.supabase.co' }}
       NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.STAGING_SUPABASE_ANON_KEY || 'placeholder-anon-key' }}
+      # /login은 빌드 시 정적 렌더되며 getCompanyProfile()이 admin 클라이언트를 만든다 — 키가 비면
+      # 「supabaseKey is required」로 빌드가 죽는다(첫 CI 실행 36999216662 실측). 자리표시자면 조회만 실패하고 기본값으로 렌더된다.
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.STAGING_SUPABASE_SERVICE_ROLE_KEY || 'placeholder-service-key' }}
       NEXT_TELEMETRY_DISABLED: '1'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: '24'          # 운영 이미지 node:24-alpine3.23과 같은 주 버전
           cache: npm
