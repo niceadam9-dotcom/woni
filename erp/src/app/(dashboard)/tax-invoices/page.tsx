@@ -4,6 +4,8 @@ import { getProfile } from '@/lib/auth'
 import { can } from '@/lib/permissions'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { TaxInvoiceListClient } from '@/components/billing/tax-invoice-list-client'
+import { HometaxBulkPanel } from '@/components/billing/hometax-bulk-panel'
+import { todayKst } from '@/lib/kst-date'
 
 export default async function TaxInvoicesPage() {
   const profile = await getProfile()
@@ -22,12 +24,19 @@ export default async function TaxInvoicesPage() {
     `)
     .order('bill_date', { ascending: false })
 
+  const currentMonth = todayKst().slice(0, 7).replace('-', '.')
+  const months = [...new Set([currentMonth, ...((bills ?? []) as Array<{ billing_month: string }>).map(b => b.billing_month)])]
+    .filter(m => /^\d{4}\.\d{2}$/.test(m)).sort().reverse()
+
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-3">
         <Receipt className="size-5 text-brand" />
         <h1 className="text-xl font-bold">세금계산서 발행</h1>
       </div>
+
+      {/* B2-2 — 홈택스 일괄발급 엑셀·발급 결과 가져오기. 청구월 후보는 청구가 있는 달(최신 먼저) */}
+      <HometaxBulkPanel months={months} defaultMonth={months[0] ?? currentMonth} />
 
       <TaxInvoiceListClient
         bills={(bills ?? []) as Record<string, unknown>[]}
