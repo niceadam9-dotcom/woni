@@ -14,6 +14,9 @@ import {
   getRepairSalesAction, createDefectQuoteAction, sendQuoteEmailAction,
   type RepairSalesState, type RepairQuote,
 } from '@/app/(dashboard)/inspections/repair-sales-actions'
+import {
+  createQuoteShareLinkAction, createReportShareLinkAction, listShareLinksAction, revokeShareLinkAction, type ShareLinkRow,
+} from '@/app/(dashboard)/inspections/share-link-actions'
 import { renderQuote, quoteDocFrom, type QuoteDocBase } from '@/lib/doc-templates/quote'
 import { RepairSalesChain, type SalesPerms } from '@/components/inspections/repair-sales-chain'
 import type { GridDefect } from '@/components/inspections/defect-grid'
@@ -108,6 +111,8 @@ export function RepairSalesPage({ inspectionId, defects, docBase, recipients, ca
       if (r.error) { setMsg(`⚠ ${r.error}`); return }
       setMsg(`✅ ${typeof okMsg === 'function' ? okMsg(r) : okMsg}`)
       await reload()
+      const lr = await listShareLinksAction(inspectionId)
+      if (!lr.error) setLinks(lr.links)
       setChainKey(k => k + 1)
     })
   }
@@ -119,6 +124,17 @@ export function RepairSalesPage({ inspectionId, defects, docBase, recipients, ca
   const defaultBody = `안녕하십니까, ${companyName}입니다.\n\n${customerName} 소방시설 자체점검에서 확인된 불량 사항의 보수 견적서를 첨부해 드립니다.\n내용 확인 후 회신 주시면 일정을 협의해 진행하겠습니다.\n\n감사합니다.`
   const [subject, setSubject] = useState(defaultSubject)
   const [body, setBody] = useState(defaultBody)
+  /** 2단계 — 메일 본문 끝에 열람·승인 링크(/p/{token})를 붙인다 */
+  const [includeLink, setIncludeLink] = useState(true)
+  const [links, setLinks] = useState<ShareLinkRow[]>([])
+  const [newLink, setNewLink] = useState<string | null>(null)
+  /** 링크 만료 판정 기준 시각 — 렌더 중 Date.now() 금지(react-hooks/purity), 마운트 때 한 번 */
+  const [nowMs] = useState(() => Date.now())
+  useEffect(() => {
+    let alive = true
+    listShareLinksAction(inspectionId).then(r => { if (alive && !r.error) setLinks(r.links) })
+    return () => { alive = false }
+  }, [inspectionId])
 
   const sendTargets = useMemo(() => {
     const extra = extraTo.split(/[,;\s]+/).map(s => s.trim()).filter(Boolean)
@@ -227,14 +243,18 @@ export function RepairSalesPage({ inspectionId, defects, docBase, recipients, ca
             <div className="flex items-center gap-2">
               <button disabled={isPending || sendTargets.length === 0} data-testid="send-submit"
                 onClick={() => run(
-                  () => sendQuoteEmailAction({ quoteId: selectedQuote.id, to: sendTargets, subject, body }),
+                  () => sendQuoteEmailAction({ quoteId: selectedQuote.id, to: sendTargets, subject, body, includeLink }),
                   r => (r as { dryRun?: boolean; sentTo?: string[] }).dryRun
                     ? `시험 수신자라 실제 발송 없이 기록만 남겼습니다 (${(r as { sentTo?: string[] }).sentTo?.join(', ')})`
                     : `견적서를 보냈습니다 (${(r as { sentTo?: string[] }).sentTo?.join(', ')})`)}
                 className="inline-flex h-8 items-center gap-1 rounded-lg bg-brand px-4 text-form-xs text-white hover:bg-brand-strong disabled:opacity-50">
                 {isPending ? <Loader2 className="size-3.5 animate-spin" /> : <Mail className="size-3.5" />} 보내기
               </button>
-              <span className="text-form-2xs text-ink-meta">보내면 상태가 「발송」이 되고 수신자·시각이 아래 이력에 남습니다. 문자 링크 발송은 2단계(열람 페이지)에서.</span>
+              <label className="inline-flex items-center gap-1 text-form-xs" title="관계인이 로그인 없이 견적을 보고 [승인]을 누를 수 있는 링크(90일)">
+                <input type="checkbox" checked={includeLink} onChange={e => setIncludeLink(e.target.checked)} disabled={isPending} data-testid="send-include-link" />
+                본문에 열람·승인 링크 넣기
+              </label>
+              <span className="text-form-2xs text-ink-meta">보내면 상태가 「발송」이 되고 수신자·시각이 아래 이력에 남습니다.</span>
             </div>
           </>)}
         </div>
@@ -255,6 +275,70 @@ export function RepairSalesPage({ inspectionId, defects, docBase, recipients, ca
         )}
         <RepairSalesChain inspectionId={inspectionId} defects={defects} canManage={canManage} perms={perms}
           contractFileName={null} onChanged={() => void reload()} hideComposer reloadKey={chainKey} />
+      </section>
+
+      {/* ── 열람·승인 링크 (2단계) ── */}
+      <section className="rounded-xl border border-brand-line-soft bg-surface" data-testid="share-links-section">
+        <p className="border-b border-brand-tint bg-brand-tint px-3 py-1.5 text-form-xs font-semibold text-ink-sub">
+          열람·승인 링크 — 관계인이 로그인 없이 보고 승인(90일, 철회 가능)
+        </p>
+        <div className="space-y-2 p-3 text-form-xs">
+          {canManage && (
+            <div className="flex flex-wrap items-center gap-1.5">
+              <button disabled={isPending || !selectedQuote} data-testid="share-link-create"
+                onClick={() => selectedQuote && run(async () => {
+                  const r = await createQuoteShareLinkAction(selectedQuote.id)
+                  if (r.url) setNewLink(r.url)
+                  return r
+                }, '견적 링크를 만들었습니다 — 아래 주소를 복사해 문자·카톡으로 보낼 수 있습니다')}
+                className="inline-flex h-8 items-center gap-1 rounded-lg border border-brand-line px-3 text-brand hover:bg-brand-tint disabled:opacity-50">
+                {selectedQuote ? `견적 ${selectedQuote.quote_number} 링크 만들기` : '견적을 먼저 고르세요'}
+              </button>
+              {(['report9', 'report10', 'report11'] as const).map(k => (
+                <button key={k} disabled={isPending}
+                  onClick={() => run(async () => {
+                    const r = await createReportShareLinkAction(inspectionId, k)
+                    if (r.url) setNewLink(r.url)
+                    return r
+                  }, '문서 링크를 만들었습니다')}
+                  className="inline-flex h-8 items-center rounded-lg border border-brand-line-soft px-2 text-ink-sub hover:bg-brand-tint disabled:opacity-50">
+                  별지 {k.slice(6)}호 링크
+                </button>
+              ))}
+            </div>
+          )}
+          {newLink && (
+            <div className="flex flex-wrap items-center gap-1.5 rounded-lg border border-brand-line bg-brand-tint/40 p-2">
+              <input readOnly value={newLink} className="h-8 min-w-[20rem] flex-1 rounded border border-brand-line px-2 font-mono text-form-2xs" data-testid="share-link-url" onFocus={e => e.currentTarget.select()} />
+              <button onClick={() => { void navigator.clipboard?.writeText(newLink); setMsg('✅ 링크를 복사했습니다') }}
+                className="h-8 rounded-lg bg-brand px-3 text-white">복사</button>
+              <span className="w-full text-form-2xs text-ink-meta">이 주소는 지금 한 번만 보입니다(서버에는 해시만 저장). 잃어버리면 새로 만드세요.</span>
+            </div>
+          )}
+          {links.length === 0
+            ? <p className="text-ink-meta">만든 링크가 없습니다.</p>
+            : (
+              <ul className="space-y-1" data-testid="share-link-list">
+                {links.map(l => {
+                  const dead = !!l.revoked_at || new Date(l.expires_at).getTime() < nowMs
+                  return (
+                    <li key={l.id} className={`flex flex-wrap items-center gap-2 ${dead ? 'text-ink-meta line-through' : ''}`}>
+                      <span className="font-semibold">{l.label}</span>
+                      <span className="text-ink-meta">만든 날 {l.created_at.slice(0, 10)} · ~{l.expires_at.slice(0, 10)}</span>
+                      <span>열람 {l.views}회{l.last_viewed_at ? ` (마지막 ${l.last_viewed_at.slice(0, 16).replace('T', ' ')})` : ''}</span>
+                      {l.downloads > 0 && <span>내려받기 {l.downloads}회</span>}
+                      {l.approved_by && <span className="rounded-full bg-indigo-100 px-1.5 py-0.5 text-indigo-700">승인 {l.approved_by} {l.approved_at?.slice(0, 10)}</span>}
+                      {l.revoked_at && <span>철회됨</span>}
+                      {!dead && canManage && (
+                        <button onClick={() => { if (confirm(`${l.label} 링크를 철회할까요? 받은 사람이 더 이상 열 수 없습니다.`)) run(() => revokeShareLinkAction(l.id), '링크를 철회했습니다') }}
+                          className="rounded border border-red-200 px-1.5 text-red-600 no-underline hover:bg-red-50" data-testid="share-link-revoke">철회</button>
+                      )}
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
+        </div>
       </section>
 
       {/* ── 송부 이력 ── */}

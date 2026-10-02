@@ -37,6 +37,7 @@ export const NOTIFICATION_TYPES = [
   'law_revision',        // 143 — 법제처 서식 개정 감지
   'manager_edu_due',     // 158 — 소방안전관리자 실무교육 주기(교육이수일+2년) 임박
   'manager_edu_overdue', // 158 — 〃 경과
+  'quote_approved',      // 170 — 관계인이 열람 링크(/p/{token})에서 견적 승인
 ] as const
 
 export type NotificationType = typeof NOTIFICATION_TYPES[number]

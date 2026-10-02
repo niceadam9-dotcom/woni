@@ -5,7 +5,7 @@ import { getProfile } from '@/lib/auth'
 import { can } from '@/lib/permissions'
 import type { UserRole } from '@/types'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { loadQuoteDocBase } from '@/app/(dashboard)/inspections/repair-sales-actions'
+import { loadQuoteDocBase } from '@/lib/quote-doc-server'
 import { RepairSalesPage } from '@/components/inspections/repair-sales-page'
 import type { GridDefect } from '@/components/inspections/defect-grid'
 

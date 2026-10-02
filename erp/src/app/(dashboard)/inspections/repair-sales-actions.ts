@@ -14,10 +14,10 @@ import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requirePermission, getProfile } from '@/lib/auth'
 import { nextSalesDocNumber } from '@/lib/sales-numbers'
-import { convertHtmlToPdf } from '@/lib/pdf'
-import { renderQuote, quoteDocFrom, type QuoteDocBase } from '@/lib/doc-templates/quote'
+import { ensureQuotePdf, quoteFileName, QUOTE_PDF_COLS, type QuoteRow } from '@/lib/quote-doc-server'
 import { isGoogleConfigured, gmailSendMail } from '@/lib/google'
-import { formatBizNo, formatTel } from '@/lib/format-contact'
+import { headers } from 'next/headers'
+import { issueShareLink, siteOrigin } from '@/lib/share-links'
 import { CONTRACT_FILE_RE } from '@/lib/doc-status'
 import { todayKst } from '@/lib/kst-date'
 
@@ -337,59 +337,6 @@ export async function createRepairBillAction(input: { orderId: string; billDate?
   return { billId: (data as { id: string }).id }
 }
 
-type AdminClient = ReturnType<typeof createAdminClient>
-
-/** 견적 머리 정보(공급자·수신·회차) — 보수 견적 페이지 미리보기와 PDF가 같이 쓴다 */
-export async function loadQuoteDocBase(admin: AdminClient, customerId: string, inspectionId: string | null): Promise<QuoteDocBase> {
-  const [{ data: companyRows }, { data: cust }, inspRes] = await Promise.all([
-    admin.from('company_profile').select('company_name, business_number, representative, phone, address').limit(1),
-    admin.from('customers').select('customer_name, address, phone').eq('id', customerId).single(),
-    inspectionId
-      ? admin.from('inspections').select('inspection_type, year, inspection_start_date').eq('id', inspectionId).single()
-      : Promise.resolve({ data: null }),
-  ])
-  const company = (companyRows?.[0] ?? {}) as { company_name?: string; business_number?: string; representative?: string; phone?: string; address?: string }
-  const c = (cust ?? {}) as { customer_name?: string; address?: string | null; phone?: string | null }
-  const i = inspRes.data as { inspection_type: string; year: number | null; inspection_start_date: string | null } | null
-  return {
-    company: {
-      name: company.company_name ?? '', bizNo: formatBizNo(company.business_number), rep: company.representative ?? '',
-      phone: formatTel(company.phone), address: company.address ?? '',
-    },
-    customer: { name: c.customer_name ?? '', address: c.address ?? '', contact: formatTel(c.phone) },
-    inspectionLabel: i ? `${i.year ?? i.inspection_start_date?.slice(0, 4) ?? ''}년 ${i.inspection_type}점검${i.inspection_start_date ? ` (${i.inspection_start_date})` : ''}` : '',
-  }
-}
-
-type QuoteRow = {
-  id: string; customer_id: string; inspection_id: string | null; quote_number: string; quote_date: string; valid_until: string | null
-  status: string; items: RepairQuoteItem[]; notes: string | null; pdf_path: string | null
-  customer: { customer_name: string } | null
-}
-const QUOTE_PDF_COLS = 'id, customer_id, inspection_id, quote_number, quote_date, valid_until, status, items, notes, pdf_path, customer:customers(customer_name)'
-
-function quoteFileName(q: QuoteRow): string {
-  return `${(q.customer?.customer_name ?? '고객').replace(/[\\/:*?"<>|]/g, '_')}_견적서_${q.quote_number}.pdf`
-}
-
-/** 견적 PDF 바이트 + 경로 — 있으면 보관본을, 없거나 regenerate면 새로 만들어 보관한다 */
-async function ensureQuotePdf(admin: AdminClient, q: QuoteRow, regenerate = false): Promise<{ error?: string; path?: string; bytes?: Uint8Array }> {
-  if (q.pdf_path && !regenerate) {
-    const { data: blob } = await admin.storage.from(BUCKET).download(q.pdf_path)
-    if (blob) return { path: q.pdf_path, bytes: new Uint8Array(await blob.arrayBuffer()) }
-  }
-  const base = await loadQuoteDocBase(admin, q.customer_id, q.inspection_id)
-  const html = renderQuote(quoteDocFrom(base, q))
-  let pdf: Uint8Array
-  try { pdf = await convertHtmlToPdf(html, [], { marginMode: 'none' }) }
-  catch (e) { return { error: `PDF 변환 실패: ${e instanceof Error ? e.message : String(e)}` } }
-  const path = `${q.customer_id}/quotes/${q.id}_${Date.now()}.pdf`
-  const up = await admin.storage.from(BUCKET).upload(path, pdf, { contentType: 'application/pdf' })
-  if (up.error) return { error: `PDF 업로드 실패: ${up.error.message}` }
-  await admin.from('quotes').update({ pdf_path: path }).eq('id', q.id)
-  return { path, bytes: pdf }
-}
-
 /** 견적 PDF 1장 — 생성해 fire-plans/{customer}/quotes/ 에 보관하고 서명 URL(300초)을 돌려준다.
  *  이미 있으면 다시 만들지 않고 URL만(견적 내용은 만든 뒤 바뀌지 않으므로 재생성은 보통 불필요). */
 export async function generateQuotePdfAction(input: { quoteId: string; regenerate?: boolean }): Promise<{ error?: string; url?: string; fileName?: string }> {
@@ -418,7 +365,9 @@ function mailDryRun(to: string[]): string | null {
  *  상태가 작성중이면 발송으로 바꾼다. 승인·수주 상태는 건드리지 않는다(재발송 허용). */
 export async function sendQuoteEmailAction(input: {
   quoteId: string; to: string[]; subject: string; body: string
-}): Promise<{ error?: string; sentTo?: string[]; dryRun?: boolean }> {
+  /** 본문 끝에 열람·승인 링크(/p/{token})를 붙인다(2단계). 발송마다 새 링크 1개 — 수신자 공용 */
+  includeLink?: boolean
+}): Promise<{ error?: string; sentTo?: string[]; dryRun?: boolean; linkUrl?: string }> {
   const profile = await requirePermission('quote_create')
   const to = [...new Set(input.to.map(t => t.trim().toLowerCase()).filter(Boolean))]
   if (to.length === 0) return { error: '받는 사람을 한 명 이상 고르세요.' }
@@ -439,11 +388,21 @@ export async function sendQuoteEmailAction(input: {
   if (pdf.error || !pdf.bytes) return { error: pdf.error ?? 'PDF를 만들지 못했습니다.' }
   const fileName = quoteFileName(quote)
 
+  let bodyText = input.body
+  let linkUrl: string | undefined
+  if (input.includeLink) {
+    const link = await issueShareLink(admin, { kind: 'quote', customerId: quote.customer_id, inspectionId: quote.inspection_id, quoteId: quote.id, createdBy: profile.id })
+    if (link.error || !link.token) return { error: link.error ?? '링크를 만들지 못했습니다.' }
+    linkUrl = `${siteOrigin(await headers())}/p/${link.token}`
+    const until = (link.expiresAt ?? '').slice(0, 10)
+    bodyText = `${input.body.trimEnd()}\n\n■ 견적서 온라인 확인·승인: ${linkUrl}\n  (로그인 없이 열립니다 · ${until}까지 유효)`
+  }
+
   let messageId = dry ?? ''
   if (!dry) {
     try {
       const r = await gmailSendMail({
-        to, subject, bodyText: input.body,
+        to, subject, bodyText,
         attachments: [{ filename: fileName, mime: 'application/pdf', data: pdf.bytes }],
       })
       messageId = r.messageId
@@ -454,11 +413,11 @@ export async function sendQuoteEmailAction(input: {
   }
   const { error: logErr } = await admin.from('report_deliveries').insert(to.map(email => ({
     inspection_id: quote.inspection_id, customer_id: quote.customer_id, doc_kind: 'quote',
-    recipient_email: email, subject, file_name: fileName, message_id: messageId, sent_by: profile.id, body: input.body,
+    recipient_email: email, subject, file_name: fileName, message_id: messageId, sent_by: profile.id, body: bodyText,
   })) as Record<string, unknown>[])
   // 메일은 이미 나갔다 — 기록 실패로 「안 보냄」이라 답하면 재발송을 부른다. 로그로 남기고 성공을 돌려준다.
   if (logErr) console.error('[repair-sales] 견적 송부 기록 실패(메일은 발송됨):', logErr)
   if (quote.status === '작성중') await admin.from('quotes').update({ status: '발송' }).eq('id', quote.id)
   if (quote.inspection_id) revalidateAll(quote.inspection_id)
-  return { sentTo: to, dryRun: !!dry }
+  return { sentTo: to, dryRun: !!dry, linkUrl }
 }

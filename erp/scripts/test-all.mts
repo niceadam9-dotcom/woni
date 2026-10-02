@@ -771,6 +771,9 @@ const steps: Step[] = [
   { name: '달력 고객명 검색·초성(E2E)', cmd: 'npx tsx scripts/test-calendar-customer-search.mts', needServer: true },
   { name: '⑤ 보수 견적·수주·청구 사슬(E2E)', cmd: 'npx tsx scripts/test-repair-sales-chain.mts', needServer: true },
   { name: '보수 견적 전용 페이지(E2E)', cmd: 'npx tsx scripts/test-repair-sales-page.mts', needServer: true },
+  // 관계인 열람·승인 링크(2단계 2026-10-02) — 공개 /p 라우트는 service role만·토큰 해시만·위조/만료/철회 404
+  { name: '열람 링크 순수·정적 게이트', cmd: 'npx tsx --conditions=react-server scripts/test-share-links.mts' },
+  { name: '열람·승인 링크 흐름(E2E)', cmd: 'npx tsx scripts/test-share-link-flow.mts', needServer: true },
   // 미배정 표면화 — 핵심은 배지가 뜨는가가 아니라 **담당자로 걸러도 안 사라지는가**이다.
   // 미배정은 누구의 담당도 아니라 필터링이 자연스러운 구현인데, 그러면 '아무도 모르는 채 시기가
   // 지나간다'는 원래 결함으로 되돌아간다(변이 실증: 예외를 빼면 달력에서 아예 안 보인다).

@@ -4,7 +4,9 @@ import { HOME_PATH } from '@/lib/routes'
 
 // /api/cron: 세션 없이 호출되는 크론 경로 — 라우트 자체의 CRON_SECRET Bearer 검증(withCronRun)으로 보호
 // /api/health: 업타임 감시용 공개 경로(A3 2026-10-02) — 비밀·버전을 싣지 않는 DB·Gotenberg 생존 판정만
-const PUBLIC_PATHS = ['/login', '/api/auth', '/api/cron', '/api/health']
+// /p/: 관계인 열람·승인 링크(불량→매출 2단계 2026-10-02) — 토큰이 곧 권한, service role로만 읽는다(lib/share-links).
+//      ⚠ 끝의 '/'까지가 접두사다 — '/p'만 두면 /payroll·/purchase-orders 같은 사내 경로가 열린다.
+const PUBLIC_PATHS = ['/login', '/api/auth', '/api/cron', '/api/health', '/p/']
 
 /** 폐지된 화면의 옛 주소 → 새 화면 (즐겨찾기·기존 링크가 404가 되지 않게).
  *
