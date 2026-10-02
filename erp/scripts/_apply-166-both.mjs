@@ -4,12 +4,14 @@
 // ⭐ quotes·orders는 양쪽 0건(2026-10-02 실측)이라 백필이 없다. 그래도 적용 전후 행 수를 찍어 0→0을 확인한다.
 //    bills는 스테이징 75·운영 0 — order_id 열이 전부 NULL로 생겨야 한다(월정액 크론 영향 0).
 //
-// 실행: node scripts/_apply-166-both.mjs [--apply]   (기본은 드라이런: 사전 상태만 읽는다)
+// 실행: node scripts/_apply-166-both.mjs [--apply] [--only=staging|prod]   (기본은 드라이런: 사전 상태만 읽는다)
 import { readFileSync } from 'fs'
 import { join } from 'path'
 
 const APPLY = process.argv.includes('--apply')
-const REFS = { staging: 'nwflnzugwylhpdyodyog', prod: 'ryuozdhnilfjlahorizh' }
+// --only=staging|prod 로 한쪽만 — 순서는 스테이징 적용 → E2E → 운영 적용(코드 푸시 전)
+const ONLY = (process.argv.find(a => a.startsWith('--only=')) ?? '').slice(7)
+const REFS = Object.fromEntries(Object.entries({ staging: 'nwflnzugwylhpdyodyog', prod: 'ryuozdhnilfjlahorizh' }).filter(([k]) => !ONLY || k === ONLY))
 const token = readFileSync(join(process.env.TEMP, 'sbtok.txt'), 'utf8').trim()
 const dir = new URL('../supabase/migrations/', import.meta.url).pathname.replace(/^\/([A-Z]:)/, '$1')
 const sql = readFileSync(join(dir, '166_defect_to_revenue.sql'), 'utf8')
