@@ -29,6 +29,8 @@ import { firePlanNoticeHref } from '@/lib/fire-plan-chip-target'
 // (문자 발송 화면에서 태어나 파일이 sms-actions다. 그 화면이 이력 전용이 되면서 호출부는 여기뿐이다)
 import { bulkMovePlanDatesAction, countUnsentNoticesAction } from '@/app/(dashboard)/inspections/sms-actions'
 import { loadCalendarRangeAction } from '@/app/(dashboard)/inspections/calendar/actions'
+import type { CalendarPlacementLoad } from '@/lib/calendar-data'
+import { KFMA_DAILY_MAX } from '@/lib/legal-link'
 import { monthCovered, monthRange, monthsIn, windowAround, type DateRange } from '@/lib/calendar-window'
 import { stepInputLink } from '@/lib/inspection-step-links'
 import { planRowInspectionEntry } from '@/lib/calendar-plan-row'
@@ -392,10 +394,13 @@ interface Props {
   canCreateCustomer?: boolean
   /** 문자 패널을 연 채 시작 — URL ?sms=1 (대시보드 위젯·사이드바 뱃지의 착지점) */
   initialSmsPanelOpen?: boolean
+  /** 167 — 하루 배치 건수(주된 기술인력·상한 5 이상인 쌍만, 서버 집계). 날짜 칩·이동 경고가 읽는다.
+   *  창 밖 달은 `loadCalendarRangeAction`이 같은 모양으로 보충한다 */
+  placementLoad?: CalendarPlacementLoad[]
 }
 
 // ─── Component ───────────────────────────────────────────────────────────────
-export function InspectionCalendarClient({ inspections: serverInspections, planItems: serverPlanItems = [], initialRange, initialMonth, initialOverdueDate = null, customerOptions, orphanCount: serverOrphanCount, employees, currentUserId, currentUserRole, initialFilter = 'all', initialCustomerQuery = '', initialInspectionId = '', initialDayPanelDate = '', holidays = [], canMovePlan = false, canSendSms = false, canCreateCustomer = false, initialSmsPanelOpen = false }: Props) {
+export function InspectionCalendarClient({ inspections: serverInspections, planItems: serverPlanItems = [], initialRange, initialMonth, initialOverdueDate = null, customerOptions, orphanCount: serverOrphanCount, employees, currentUserId, currentUserRole, initialFilter = 'all', initialCustomerQuery = '', initialInspectionId = '', initialDayPanelDate = '', holidays = [], canMovePlan = false, canSendSms = false, canCreateCustomer = false, initialSmsPanelOpen = false, placementLoad: serverPlacementLoad = [] }: Props) {
   const router = useRouter()
   // B-3 복귀 경로 재료 — 지금 보고 있는 달까지 포함해 되돌아가려고 쓴다(하이드레이션 안전)
   const pathname = usePathname()
@@ -407,8 +412,8 @@ export function InspectionCalendarClient({ inspections: serverInspections, planI
    *  이 컴포넌트의 나머지는 **합쳐진** `inspections`·`planItems`만 본다(종전 코드는 한 줄도 안 바뀐다).
    *  ⚠ 서버 props가 바뀌면(저장 뒤 revalidate·새로고침) extra를 **비운다** — 옮긴 계획의 옛 날짜가
    *    extra에 남아 두 날짜에 그려지는 것을 막는다. 보던 달이 새 창 밖이면 effect가 다시 받아 온다. */
-  type Extra = { ranges: DateRange[]; inspections: CalendarInspection[]; planItems: CalendarPlanItem[] }
-  const EMPTY_EXTRA = useMemo<Extra>(() => ({ ranges: [], inspections: [], planItems: [] }), [])
+  type Extra = { ranges: DateRange[]; inspections: CalendarInspection[]; planItems: CalendarPlanItem[]; placementLoad: CalendarPlacementLoad[] }
+  const EMPTY_EXTRA = useMemo<Extra>(() => ({ ranges: [], inspections: [], planItems: [], placementLoad: [] }), [])
   const [extra, setExtra] = useState<Extra>(EMPTY_EXTRA)
   const [rangeLoading, setRangeLoading] = useState(false)
   const [rangeError, setRangeError] = useState<string | null>(null)
@@ -428,6 +433,32 @@ export function InspectionCalendarClient({ inspections: serverInspections, planI
     const seen = new Set(serverPlanItems.map(p => p.id))
     return [...serverPlanItems, ...extra.planItems.filter(p => !seen.has(p.id))]
   }, [serverPlanItems, extra.planItems])
+  /* 167 — 날짜별 배치 건수(주된 기술인력·상한 이상인 쌍만). 같은 날짜·직원 쌍이 두 창에서 오면 큰 값을 둔다
+   *  (경계 달은 두 창이 모두 세는데, 창을 자르지 않은 쪽이 더 많이 센다). */
+  const placementByDate = useMemo(() => {
+    const byKey = new Map<string, CalendarPlacementLoad>()
+    for (const l of [...serverPlacementLoad, ...extra.placementLoad]) {
+      const k = `${l.date}|${l.employeeId}`
+      const cur = byKey.get(k)
+      if (!cur || cur.count < l.count) byKey.set(k, l)
+    }
+    const byDate = new Map<string, CalendarPlacementLoad[]>()
+    for (const l of byKey.values()) {
+      const arr = byDate.get(l.date) ?? []
+      arr.push(l); byDate.set(l.date, arr)
+    }
+    return byDate
+  }, [serverPlacementLoad, extra.placementLoad])
+  /** 그 날 **초과**(6건 이상) 직원이 있으면 칩 문구, 없으면 null — 월·주 칸이 같은 문구를 쓴다 */
+  const placementOverText = useCallback((iso: string): { text: string; title: string } | null => {
+    const over = (placementByDate.get(iso) ?? []).filter(l => l.count > KFMA_DAILY_MAX)
+    if (over.length === 0) return null
+    const max = Math.max(...over.map(l => l.count))
+    return {
+      text: `배치 ${max}건`,
+      title: `협회 배치신고는 하루 ${KFMA_DAILY_MAX}개 초과 대상물이 부적합 — ${over.map(l => `${l.employeeName} ${l.count}건`).join(' · ')}`,
+    }
+  }, [placementByDate])
   const loadedRanges = useMemo<DateRange[]>(
     () => initialRange ? [initialRange, ...extra.ranges] : [{ from: '0000-01-01', to: '9999-12-31' }],
     [initialRange, extra.ranges])
@@ -539,6 +570,7 @@ export function InspectionCalendarClient({ inspections: serverInspections, planI
             ranges: [...prev.ranges, r],
             inspections: [...prev.inspections, ...res.inspections],
             planItems: [...prev.planItems, ...res.planItems],
+            placementLoad: [...prev.placementLoad, ...(res.placementLoad ?? [])],
           }))
         })
         .catch(e => setRangeError(e instanceof Error ? e.message : String(e)))
@@ -1510,6 +1542,7 @@ export function InspectionCalendarClient({ inspections: serverInspections, planI
     const iso = format(date, 'yyyy-MM-dd')
     const holiday = holidayMap.get(iso)
     const dow = date.getDay()
+    const over = placementOverText(iso)
     // 팔레트 var — light는 종전 hex(#dc2626/#2563eb) 그대로, 다크는 .dark 재정의로 헤더 요일 색과 일치
     const color = holiday || dow === 0 ? 'var(--color-red-600)' : dow === 6 ? 'var(--color-blue-600)' : undefined
     return (
@@ -1523,6 +1556,10 @@ export function InspectionCalendarClient({ inspections: serverInspections, planI
           >
             {holiday}
           </button>
+        ) : over ? (
+          /* 167 — 하루 5개 초과 배치(협회 부적합). 공휴일 자리와 같은 칸이라 공휴일이 있으면 공휴일이 이긴다 */
+          <span data-testid="calendar-placement-over" title={over.title}
+            className="text-form-2xs text-amber-600 font-semibold truncate leading-tight">⚠ {over.text}</span>
         ) : <span />}
         <span className="flex items-center gap-0.5 shrink-0">
           <button
@@ -1557,7 +1594,7 @@ export function InspectionCalendarClient({ inspections: serverInspections, planI
         </span>
       </div>
     )
-  }, [holidayMap, canCreateCustomer, openNewCustomer])
+  }, [holidayMap, canCreateCustomer, openNewCustomer, placementOverText])
 
   // 이번달 요약 스탯 — 현재 필터 기준 표시 달의 단계+계획 건수 (툴바 표시)
   const monthStats = useMemo(() => {
@@ -2108,6 +2145,9 @@ export function InspectionCalendarClient({ inspections: serverInspections, planI
                             {format(d, 'd일 (EEE)', { locale: ko })}
                           </span>
                           {holiday && <span className="block text-form-2xs text-red-500 truncate">{holiday}</span>}
+                          {(() => { const over = placementOverText(iso); return over
+                            ? <span title={over.title} className="block text-form-2xs text-amber-600 font-semibold truncate">⚠ {over.text}</span>
+                            : null })()}
                         </button>
                         <div className="flex-1 overflow-y-auto p-1.5 space-y-1">
                           {dayEvents.length === 0 ? (

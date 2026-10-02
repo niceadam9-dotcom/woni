@@ -15,7 +15,7 @@ import { anchorRoles } from '@/lib/anchor-role'
 import type { Customer } from '@/types'
 
 type Props = {
-  customer: Pick<Customer, 'id' | 'customer_name' | 'contract_date' | 'use_approval_date' | 'plan_anchor_date' | 'zipcode' | 'address' | 'region_si' | 'region_myeon' | 'region_ri' | 'notes' | 'fire_station' | 'inspection_type' | 'monthly_fee_taxed' | 'monthly_fee_untaxed' | 'fee_taxed' | 'fee_untaxed'>
+  customer: Pick<Customer, 'id' | 'customer_name' | 'contract_date' | 'use_approval_date' | 'plan_anchor_date' | 'zipcode' | 'address' | 'region_si' | 'region_myeon' | 'region_ri' | 'notes' | 'fire_station' | 'inspection_type' | 'monthly_fee_taxed' | 'monthly_fee_untaxed' | 'fee_taxed' | 'fee_untaxed' | 'somin_object_no' | 'kfma_object_no'>
   /** §11: 점검유형 뱃지(+인라인 유형 편집) 슬롯과 연n회 라벨은 페이지가 구성 */
   typeSlot?: ReactNode
   /** 점검 종류(종합/작동) — 법정 시기 배지가 2차 유무를 판정하는 데 쓴다 */
@@ -50,6 +50,9 @@ function makeInitial(c: Props['customer']) {
     region_ri: c.region_ri ?? '',
     notes: c.notes ?? '',
     fire_station: c.fire_station ?? '',
+    // 167 — 외부 시스템 대상물 번호(선택). 167 미적용 DB에서는 undefined → 빈칸
+    somin_object_no: c.somin_object_no ?? '',
+    kfma_object_no: c.kfma_object_no ?? '',
   }
 }
 
@@ -73,7 +76,7 @@ export function EditCustomerInfoClient({ customer, typeSlot, annualLabel, lastCh
   const pendingSaveRef = useRef(false)                          // [저장]
 
   // customer props가 갱신(router.refresh)되면 form 초기화 — 렌더 중 상태 조정 패턴 (effect 아님)
-  const syncKey = [customer.customer_name, customer.contract_date, customer.use_approval_date, customer.plan_anchor_date, customer.address, customer.notes, customer.fire_station].join('|')
+  const syncKey = [customer.customer_name, customer.contract_date, customer.use_approval_date, customer.plan_anchor_date, customer.address, customer.notes, customer.fire_station, customer.somin_object_no, customer.kfma_object_no].join('|')
   const [prevSyncKey, setPrevSyncKey] = useState(syncKey)
   if (prevSyncKey !== syncKey) {
     setPrevSyncKey(syncKey)
@@ -154,6 +157,8 @@ export function EditCustomerInfoClient({ customer, typeSlot, annualLabel, lastCh
       region_ri: form.region_ri.trim() || null,
       notes: form.notes.trim() || null,
       fire_station: form.fire_station.trim() || null,
+      somin_object_no: form.somin_object_no.trim() || null,
+      kfma_object_no: form.kfma_object_no.trim() || null,
     }
   }
 
@@ -299,6 +304,19 @@ export function EditCustomerInfoClient({ customer, typeSlot, annualLabel, lastCh
           </Cell>
           <Cell span={2} label="이 날짜로 잡히는 일정" testId="info-legal">
             {legalBadge ?? <p className="text-form-xs text-ink-meta">날짜를 넣으면 법정 점검 시기가 여기 표시됩니다.</p>}
+          </Cell>
+        </SubRow>
+
+        {/* 167 외부 대상물 번호 — 소민터는 협회 배치신고 자료를 「배치확인서 불러오기」로 가져오는데
+            조건이 두 시스템의 대상물 일련번호 일치다(소민터 공지). 둘 다 선택이고 ERP는 형식을 모른다. */}
+        <SubRow label="외부 번호" testId="info-external-ids">
+          <Cell span={2} label="소민터 대상물 일련번호" htmlFor="cf-somin">
+            <input id="cf-somin" type="text" value={form.somin_object_no} onChange={e => set('somin_object_no', e.target.value)} disabled={dis}
+              placeholder="소방민원센터 대상물 일련번호(선택)" maxLength={40} className={inputCls} />
+          </Cell>
+          <Cell span={2} label="협회 대상물번호" htmlFor="cf-kfma">
+            <input id="cf-kfma" type="text" value={form.kfma_object_no} onChange={e => set('kfma_object_no', e.target.value)} disabled={dis}
+              placeholder="관리업종합정보시스템 대상물번호(선택)" maxLength={40} className={inputCls} />
           </Cell>
         </SubRow>
 

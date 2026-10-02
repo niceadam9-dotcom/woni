@@ -21,6 +21,7 @@ import { uploadDefectPhotoAction } from '@/app/(dashboard)/inspections/defect-ac
 import { DateInput } from '@/components/ui/date-input'
 import { DOC_TERMS, TIMELINE_STEP_LABELS, TIMELINE_STEP_TOOLTIPS, type TimelineStepKey } from '@/lib/doc-requirements'
 import { kstDate } from '@/lib/kst-date'
+import type { SubmissionVia, PlacementResult } from '@/lib/legal-link'
 import { GeneratedDocList } from '@/components/inspections/generated-doc-list'
 import { AnnexComposePanel, type ComposeAnnexNo } from '@/components/inspections/annex-compose-panel'
 import { MessageTemplateModal } from '@/components/settings/message-template-modal'
@@ -72,7 +73,17 @@ export type TimelineData = {
   certReported?: { date: string } | null
   contractFile: { name: string; path: string } | null
   delivery: { sentTo: string; sentAt: string } | null   // ③ 발송 이력 (최근)
-  submit9: { due: string | null; dday: number | null; submittedAt: string | null }
+  /** ④ 제출 기록 — 167 부가 열(`via`·`receiptNo`)은 완료 판정과 무관한 표시값이다(167 미적용이면 null).
+   *  `ownerDue` = 관리업자→관계인 교부 기한(점검 끝난 날 + 10영업일, 시행규칙 23조) — **표시만**, 6단계 사슬 밖. */
+  submit9: {
+    due: string | null; dday: number | null; submittedAt: string | null
+    via?: SubmissionVia | null; receiptNo?: string | null; ownerDue?: string | null
+  }
+  /** ② 167 조회용 열 — 협회 적합 판정·신고번호. 완료 판정은 `certReported`(마커)가 쥔다 */
+  placement?: { result: PlacementResult | null; no: string | null } | null
+  /** ② 협회 배치신고 입력 복사 카드 — 서버가 조립한 평문 묶음(작업대에 참여자 prop이 없어 여기로 싣는다).
+   *  `report`는 배치신고 화면 값, `object`는 협회 대상물 등록 화면 값. 없는 값은 「—」 */
+  placementCard?: { report: Array<[string, string]>; object: Array<[string, string]> } | null
   /** R4-1(독립 검증 D3): 화면 ✓도 서버와 **같은 판정 함수**(evidenceDone)를 쓰기 위한 증거 묶음.
    *  화면이 따로 계산하면 오프라인 보고·사유 완료가 DB에만 반영되는 괴리가 다시 생긴다. */
   evidence?: StepEvidence

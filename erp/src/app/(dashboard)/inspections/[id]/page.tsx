@@ -5,6 +5,8 @@ import { getProfile } from '@/lib/auth'
 import { can } from '@/lib/permissions'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { withSignedDefectPhotos } from '@/lib/defect-photos'
+import { addWorkingDays } from '@/lib/step-dates'
+import type { SubmissionVia, PlacementResult } from '@/lib/legal-link'
 import { InspectionParticipantsClient } from '@/components/inspections/inspection-participants-client'
 import { InspectionMultidayClient } from '@/components/inspections/inspection-multiday-client'
 import { ReportGenerateClient } from '@/components/inspections/report-generate-client'
@@ -248,7 +250,7 @@ export default async function InspectionDetailPage({
      시트별 진행률은 sheet_id 조인 집계(sheet-overview.ts) — 회차별 작성·조회 트리와 같은 소스라
      두 화면의 진행률이 어긋날 수 없다. withGroups: 머더 카드 보드(소방계획서_23 S5-7)가 중분류 버킷을 쓴다.
      preloaded: 점검 행·응답 전량은 1층에서 받았다 → 집계의 1층 왕복이 0. */
-  const [contactRes, employeeRes, filesRes, overviewRes, defects, submittersRes, pumpRows, custFullRes, bldRes9, holidayRes, ownerRes] = await Promise.all([
+  const [contactRes, employeeRes, filesRes, overviewRes, defects, submittersRes, pumpRows, custFullRes, bldRes9, holidayRes, ownerRes, legalCustRes, facInstalledRes] = await Promise.all([
     inspection.contact_id
       ? admin.from('customer_contacts').select('id, role, name, phone, email').eq('id', inspection.contact_id).single()
       : Promise.resolve({ data: null }),
@@ -273,7 +275,7 @@ export default async function InspectionDetailPage({
     // ── 아래 넷은 타임라인 블록이 쓴다(자체점검 셋·외관 하나) — 해당 없는 쪽은 비운다 ──
     isSpecial
       ? admin.from('customers')
-          .select('address, use_approval_date, manager_selected_at, building_grade, insurance_joined, op_hours_weekday, headcount_worker, headcount_resident, headcount_max, email_delivery_consent, report_email')
+          .select('address, use_approval_date, manager_selected_at, building_grade, insurance_joined, op_hours_weekday, headcount_worker, headcount_resident, headcount_max, email_delivery_consent, report_email, fire_station')
           .eq('id', inspection.customer_id).single()
       : Promise.resolve({ data: null }),
     isSpecial
@@ -288,6 +290,16 @@ export default async function InspectionDetailPage({
     !isSpecial
       ? admin.from('customer_contacts').select('id').eq('customer_id', inspection.customer_id).limit(1)
       : Promise.resolve({ data: [] as Array<{ id: string }> }),
+    // 167 — 외부 대상물 번호 2열은 **별도 조회**로 받는다. 위 custFullRes의 select에 끼우면 167 미적용 DB에서
+    //   고객 행 전체가 비어 송달 동의·보고서 머리까지 함께 사라진다(없는 컬럼 하나 = 조용한 0행).
+    isSpecial
+      ? admin.from('customers').select('somin_object_no, kfma_object_no').eq('id', inspection.customer_id).maybeSingle()
+      : Promise.resolve({ data: null, error: null }),
+    // ② 협회 대상물 등록 복사 카드 — 설치된 1.4 설비 코드(활성 건물 전체). 판정이 아니라 **표시**다
+    isSpecial
+      ? admin.from('fire_facilities').select('facility_code, buildings!inner(customer_id, is_active)')
+          .eq('buildings.customer_id', inspection.customer_id).eq('buildings.is_active', true).eq('installed', true)
+      : Promise.resolve({ data: [] as Array<{ facility_code: string }>, error: null }),
   ])
   const { overviews } = overviewRes
   const allObjects = filesRes.data ?? []
@@ -487,6 +499,44 @@ export default async function InspectionDetailPage({
       actionEnds: defects.map(d => d.action_end),
     })
     const photoPairs = defects.filter(d => d.photo_url && d.after_photo_url).length
+    /* 167 — ② 협회 배치신고 입력 복사 카드(평문 묶음). 작업대에 참여자·건물 prop이 없어 **여기서 조립**해 싣는다.
+     *  값은 전부 이미 받아 둔 행(고객·건물·담당·보조 인력·설치 설비)에서 뽑고, 없는 값은 「—」로 비워 수기 보충한다.
+     *  협회 API가 없어 사람이 협회 화면에 옮겨 적는다(비교진단 「법정 외부 연계 해결방안」 §2). */
+    const dash = (v: unknown) => (v === null || v === undefined || v === '' ? '—' : String(v))
+    const legalCust = (legalCustRes.data ?? null) as { somin_object_no?: string | null; kfma_object_no?: string | null } | null
+    const installedCodes = new Set(((facInstalledRes.data ?? []) as Array<{ facility_code: string }>).map(r => r.facility_code))
+    const facFlag = (codes: string[]) => (facInstalledRes.error ? '—' : codes.some(c => installedCodes.has(c)) ? '있음' : '없음')
+    const periodText = (iRec.inspection_end_date as string | null)
+      ? `${iRec.inspection_start_date} ~ ${iRec.inspection_end_date}` : String(iRec.inspection_start_date ?? '—')
+    const placementCard = {
+      report: [
+        ['대상물명', dash(customer?.customer_name)],
+        ['소재지', dash(cf.address ?? customer?.address)],
+        ['협회 대상물번호', dash(legalCust?.kfma_object_no)],
+        ['점검 종류', `${inspectionTypeLabel(inspection.inspection_type)}${inspPlanType?.startsWith('special_') ? ' (자체점검)' : ''}`],
+        ['점검 기간', periodText],
+        ['주된 기술인력', employee ? `${employee.name}${employee.license_no ? ` (경력수첩 ${employee.license_no})` : ' (경력수첩번호 없음)'}` : '—'],
+        ['보조 인력', auxParticipants.length > 0
+          ? auxParticipants.map(a => `${a.name}${a.license_no ? ` (${a.license_no})` : ''}`).join(', ') : '—'],
+      ] as Array<[string, string]>,
+      object: [
+        ['관할서', dash(cf.fire_station)],
+        ['주용도', dash(b9?.purpose)],
+        ['연면적(㎡)', dash(b9?.total_area)],
+        ['동수', dash(b9?.building_count)],
+        ['층수', b9 ? `지상 ${dash(b9.floors_above)} / 지하 ${dash(b9.floors_below)}` : '—'],
+        ['세대수', dash(b9?.households)],
+        ['사용승인일', dash(cf.use_approval_date)],
+        ['스프링클러', facFlag(['스프링클러설비', '간이스프링클러설비', '화재조기진압용 스프링클러설비'])],
+        ['제연', facFlag(['거실제연설비', '부속실 등 제연설비'])],
+        ['물분무등', facFlag(['물분무소화설비', '미분무소화설비', '포소화설비', '이산화탄소소화설비', '할론소화설비', '할로겐화합물 및 불활성기체소화설비', '분말소화설비', '강화액소화설비', '고체에어로졸소화설비'])],
+        ['자동화재탐지', facFlag(['자동화재탐지설비 및 시각경보기'])],
+        ['옥내소화전', facFlag(['옥내소화전설비'])],
+        ['다중이용업소', '—'],
+      ] as Array<[string, string]>,
+    }
+    // ④ 관리업자→관계인 교부 기한 = 점검 끝난 날 + 10영업일(시행규칙 23조). **표시만** — 6단계 사슬 밖
+    const ownerDue = endDate ? addWorkingDays(endDate, 10, holidaySet) : null
     timelineData = {
       steps: stepDocs({ isSpecial: true }), // D-4: ①~⑥ 상시 — ⑤⑥ 해당없음 흐림은 클라이언트가 defects로 판정
       isGeneral: false,
@@ -504,7 +554,16 @@ export default async function InspectionDetailPage({
       submit9: {
         due: due9, submittedAt: (iRec.report9_submitted_at as string | null) ?? null,
         dday: (iRec.report9_submitted_at as string | null) ? null : ddayOf(due9),
+        // 167 부가 열 — select('*')라 167 미적용 DB에서는 undefined → null
+        via: (iRec.report9_submitted_via as SubmissionVia | null | undefined) ?? null,
+        receiptNo: (iRec.report9_receipt_no as string | null | undefined) ?? null,
+        ownerDue,
       },
+      placement: {
+        result: (iRec.placement_result as PlacementResult | null | undefined) ?? null,
+        no: (iRec.placement_no as string | null | undefined) ?? null,
+      },
+      placementCard,
       evidence: stepEvidence ?? undefined,   // D3: 화면도 서버와 같은 판정 함수를 쓴다
       // R5-8: ④가 기한의 기산 근거를 그 자리에서 보이고 고칠 수 있도록 기간을 함께 넘긴다
       period: {

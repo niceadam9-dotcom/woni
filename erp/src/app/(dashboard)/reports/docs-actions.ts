@@ -8,6 +8,7 @@ import { CONTRACT_FILE_RE, findArchivedCertInspections, findMissingCerts, getDoc
 import { GENERATED_DOC_KINDS } from '@/lib/doc-requirements'
 import { buildSheetOverviews } from '@/lib/sheet-overview'
 import { countBlanks, countRequiredItemBlanks, countCompBlanks } from '@/lib/sheet-blanks'
+import type { SubmissionVia, PlacementResult } from '@/lib/legal-link'
 import type { UserRole } from '@/types'
 
 /** 보고서 센터 데이터 액션 (소방계획서_5 S2) — ① 고객 문서 현황(R2)·④ 최근 문서(R5)·⑦ 누락 경고(R8)·행동 자동완성(R0-3).
@@ -500,9 +501,15 @@ export type SubmissionRow = {
   report9Gen: boolean          // 별지 9호 생성됨
   report9Sent: boolean         // 관계인 발송 이력
   report9SubmittedAt: string | null
+  /** 167 — ④ 제출 수단·접수번호(표시용, 완료 판정과 무관). 167 미적용 DB면 null */
+  report9Via: SubmissionVia | null
+  report9ReceiptNo: string | null
   due9Dday: number | null      // 미제출 시 종료+15 D-day
   certUploaded: boolean        // 배치확인서 업로드 (종이 보관 정리분 포함 — 누락 아님 판정)
   certArchived: boolean        // 그중 파일 없이 '종이 보관됨'인 경우 (소방계획서_18 D-7)
+  /** 167 — ② 협회 배치신고 신고일·적합 판정(조회용 사본). 완료 판정은 certUploaded·certArchived가 쥔다 */
+  placementReportedAt: string | null
+  placementResult: PlacementResult | null
   defectsTotal: number
   /** 점검표 ✕ 응답 수 — 10·11호 '해당없음'은 defectsTotal과 이것이 **둘 다** 0일 때만 (소방계획서_45) */
   sheetX: number
@@ -541,6 +548,8 @@ export async function getSubmissionBoardAction(opts: { sinceDays?: number } = {}
 
   // 자체점검 = plan_type 축 단독 — 일반관리 자체점검도 제출 현황판 대상 (소방계획서_6 W-16, 독립 검증 지적 수정)
   // 삭제(비활성) 고객의 회차 제외(소방계획서_30 S2-2) — FK 힌트(customer_id)는 PGRST201 방지
+  // 167 부가 열(수단·접수번호·배치신고)은 **별도 조회**로 받는다 — 본 조회의 select에 끼우면 167 미적용 DB에서
+  // 보드 전체가 0행으로 떨어진다(없는 컬럼 하나 = 조용한 0행, [[feedback_supabase_check_error]]).
   const { data } = await admin.from('inspections')
     .select('id, customer_id, year, sequence_num, inspection_type, status, assigned_employee_id, inspection_start_date, inspection_end_date, report9_submitted_at, report11_submitted_at, customer:customer_id!inner(customer_name, is_active)')
     .or(SELF_INSPECTION_OR)
@@ -556,6 +565,15 @@ export async function getSubmissionBoardAction(opts: { sinceDays?: number } = {}
     customer: { customer_name: string } | null
   }
   const insps = (data ?? []) as unknown as Row[]
+  type LegalRow = { id: string; report9_submitted_via: SubmissionVia | null; report9_receipt_no: string | null; placement_reported_at: string | null; placement_result: PlacementResult | null }
+  const legal: Record<string, LegalRow> = {}
+  if (insps.length > 0) {
+    const { data: legalData, error: legalErr } = await admin.from('inspections')
+      .select('id, report9_submitted_via, report9_receipt_no, placement_reported_at, placement_result')
+      .in('id', insps.map(i => i.id))
+    if (legalErr && !/column .* does not exist/i.test(legalErr.message)) console.error('[submission-board] 167 열 조회 실패:', legalErr.message)
+    for (const r of (legalData ?? []) as LegalRow[]) legal[r.id] = r
+  }
   const ids = insps.map(i => i.id)
 
   // P-4: 담당자 표시명 — 배정 직원 id 배치 조회
@@ -623,7 +641,9 @@ export async function getSubmissionBoardAction(opts: { sinceDays?: number } = {}
       year: i.year, sequenceNum: i.sequence_num, inspectionType: i.inspection_type, status: i.status,
       endDate: i.inspection_end_date,
       report9Gen: g.r9, report9Sent: !!sent[i.id], report9SubmittedAt: submitted, due9Dday,
+      report9Via: legal[i.id]?.report9_submitted_via ?? null, report9ReceiptNo: legal[i.id]?.report9_receipt_no ?? null,
       certUploaded, certArchived,
+      placementReportedAt: legal[i.id]?.placement_reported_at ?? null, placementResult: legal[i.id]?.placement_result ?? null,
       defectsTotal, sheetX: sheetX[i.id] ?? 0, allPassUnknown,
       report10Gen: g.r10, report11Gen: g.r11, report11SubmittedAt: i.report11_submitted_at,
       risk,

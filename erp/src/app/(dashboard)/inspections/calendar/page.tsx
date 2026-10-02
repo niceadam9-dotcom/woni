@@ -58,7 +58,7 @@ export default async function InspectionCalendarPage({
   const range = windowAround(anchorYm)
 
   // 넷이 서로 독립 — 함께 던진다(원격 왕복 ~200ms씩이라 직렬이면 그대로 더해진다)
-  const [{ inspections, planItems, employees }, customerOptions, orphanCount, holidays] = await Promise.all([
+  const [{ inspections, planItems, employees, placementLoad }, customerOptions, orphanCount, holidays] = await Promise.all([
     loadCalendarWindow(admin, range),
     // 검색 후보는 **활성 고객 전부** — 실린 일정에서만 뽑으면 창 밖 고객이 검색되지 않는다
     listCalendarCustomerOptions(admin),
@@ -84,6 +84,7 @@ export default async function InspectionCalendarPage({
       initialInspectionId={initialInspectionId}
       initialDayPanelDate={initialDayPanelDate}
       holidays={holidays}
+      placementLoad={placementLoad}
       canMovePlan={can(profile.role as UserRole, 'inspection_plan_manage')}
       canSendSms={can(profile.role as UserRole, 'inspection_sms_send')}
       // 문자 패널을 연 채 시작 — 대시보드 위젯·사이드바 뱃지가 `?sms=1`로 보낸다

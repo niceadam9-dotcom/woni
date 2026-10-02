@@ -13,6 +13,7 @@ import { extractStoragePath } from '@/lib/defect-photos'
 import { renderMessage } from '@/lib/message-template'
 import { annexDownloadName } from '@/lib/annex-filename'
 import { OWNER_REPORT_OFFLINE_ACTION, OWNER_REPORT_OFFLINE_UNDO_ACTION, STEP_FORCE_COMPLETE_ACTION, STEP_FORCE_UNDO_ACTION } from '@/lib/inspection-step-status'
+import { SUBMISSION_VIAS, type SubmissionVia, type PlacementResult } from '@/lib/legal-link'
 
 /** 문서 타임라인 액션 (소방계획서_4.md §9-9 / P7)
  *  업로드 슬롯 3종(②배치확인서·⑤계약서 — 전후 사진은 불량내역 슬롯 재사용), ③ 관계인 보고 발송,
@@ -142,7 +143,7 @@ export async function recordCertPaperAction(
  *  판정은 '가장 마지막 마커가 무엇인가'로 한다(findArchivedCertInspections·loadCertReported 공통).
  *  ⚠ 미래 날짜를 막는다: 하지 않은 일이 완료로 굳는 걸 막는 D1 규칙과 같은 방향이다. */
 export async function markCertReportedAction(
-  inspectionId: string, input: { date?: string; undo?: boolean } = {},
+  inspectionId: string, input: { date?: string; undo?: boolean; result?: PlacementResult | null; placementNo?: string | null } = {},
 ): Promise<{ error?: string }> {
   const profile = await requirePermission('inspection_register')
   const admin = createAdminClient()
@@ -152,6 +153,9 @@ export async function markCertReportedAction(
       actor_id: profile.id, action: CERT_REPORTED_UNDO_ACTION,
       entity_type: 'inspection', entity_id: inspectionId, metadata: {},
     } as Record<string, unknown>)
+    // 167 — 조회용 사본도 함께 비운다(정본은 마커). 열이 없는 DB(167 미적용)에서는 조용히 넘어간다 —
+    // 완료 판정은 마커가 쥐고 있어 이 UPDATE 실패가 ②를 바꾸지 않는다.
+    await writePlacementColumns(admin, inspectionId, { placement_reported_at: null, placement_result: null, placement_no: null })
     await syncStepsAndRevalidate(admin, inspectionId, profile.id, { alsoChanged: true })
     return {}
   }
@@ -161,14 +165,31 @@ export async function markCertReportedAction(
   // KST 오늘 — 서버가 UTC라 그냥 비교하면 한국 시간 오전에 '오늘'이 미래로 잡힌다
   const todayKst = new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10)
   if (date > todayKst) return { error: '아직 오지 않은 날짜로는 신고 완료를 기록할 수 없습니다.' }
+  const result = input.result ?? null
+  if (result !== null && result !== 'fit' && result !== 'unfit') return { error: '적합 판정 값을 확인해주세요.' }
+  const placementNo = (input.placementNo ?? '').trim().slice(0, 40) || null
 
   await admin.from('activity_logs').insert({
     actor_id: profile.id, action: CERT_REPORTED_ACTION,
-    entity_type: 'inspection', entity_id: inspectionId, metadata: { date },
+    entity_type: 'inspection', entity_id: inspectionId, metadata: { date, result, placementNo },
   } as Record<string, unknown>)
+  // 167 — 마커는 그대로(정본). 같은 값을 조회용 열에 **이중 기록**한다(능력평가 실적·제출현황이 읽는다).
+  await writePlacementColumns(admin, inspectionId, { placement_reported_at: date, placement_result: result, placement_no: placementNo })
   // 36 S2-3 — 바뀌는 서버 prop: evidence.certArchived(완료 근거)와 단계 배지가 함께 갱신돼야 한다
   await syncStepsAndRevalidate(admin, inspectionId, profile.id, { alsoChanged: true })
   return {}
+}
+
+/** 167 조회용 열 쓰기 — 실패해도 액션을 막지 않는다(정본은 마커). 167 미적용 DB의 「컬럼 없음」이
+ *  그 경우이고, 그 밖의 실패는 서버 로그로 남긴다(조용히 삼키지 않는다). */
+async function writePlacementColumns(
+  admin: ReturnType<typeof createAdminClient>, inspectionId: string,
+  cols: { placement_reported_at: string | null; placement_result: PlacementResult | null; placement_no: string | null },
+): Promise<void> {
+  const { error } = await admin.from('inspections').update(cols as Record<string, unknown>).eq('id', inspectionId)
+  if (error && !/column .* does not exist/i.test(error.message)) {
+    console.error('[markCertReported] 배치신고 조회 열 기록 실패(마커는 기록됨):', error.message)
+  }
 }
 
 /** ③ 관계인 보고 — 최신 별지 9호 생성물을 송달 동의 이메일로 발송 + 발송 이력(보고 증빙) */
@@ -263,17 +284,32 @@ export async function sendOwnerReportAction(inspectionId: string): Promise<{ err
  *  **되돌림에 예외가 없다**(제출일을 지웠으면 그 단계는 미완료로 돌아간다, R4-4). */
 export async function recordSubmissionAction(
   inspectionId: string, kind: 'report9' | 'report11', date: string | null,
+  extra: { via?: SubmissionVia | null; receiptNo?: string | null } = {},
 ): Promise<{ error?: string }> {
   const profile = await requirePermission('inspection_register')
   if (date !== null && !/^\d{4}-\d{2}-\d{2}$/.test(date)) return { error: '제출일 형식을 확인해주세요.' }
+  const via = extra.via ?? null
+  if (via !== null && !SUBMISSION_VIAS.includes(via)) return { error: '제출 수단 값을 확인해주세요.' }
+  const receiptNo = (extra.receiptNo ?? '').trim().slice(0, 40) || null
   const admin = createAdminClient()
   const col = kind === 'report9' ? 'report9_submitted_at' : 'report11_submitted_at'
+  // 완료 판정 열(제출일)은 종전 그대로 **먼저** 쓴다 — 167 부가 열은 뒤에 따로 쓴다.
+  // 167 미적용 DB에서 부가 열 때문에 제출일 기록까지 실패하면 ④가 닫히지 않는다(법정 창구).
   const { error } = await admin.from('inspections').update({ [col]: date }).eq('id', inspectionId)
   if (error) return { error: `저장 실패: ${error.message}` }
+  const viaCols = {
+    [`${kind}_submitted_via`]: date ? via : null,
+    [`${kind}_receipt_no`]: date ? receiptNo : null,
+    [`${kind}_submitted_by`]: date ? profile.id : null,
+  }
+  const { error: viaErr } = await admin.from('inspections').update(viaCols).eq('id', inspectionId)
+  if (viaErr && !/column .* does not exist/i.test(viaErr.message)) {
+    console.error('[recordSubmission] 제출 수단·접수번호 기록 실패(제출일은 기록됨):', viaErr.message)
+  }
   await admin.from('activity_logs').insert({
     actor_id: profile.id, action: date ? 'report_submitted' : 'report_submission_cleared',
     entity_type: 'inspection', entity_id: inspectionId,
-    metadata: { kind, date },
+    metadata: { kind, date, via: date ? via : null, receiptNo: date ? receiptNo : null },
   } as Record<string, unknown>)
   // 36 S2-3 — **여기만 alsoChanged를 쓰지 않는다**(F-1이 가려낸 유일한 순수 후보).
   // 제출일은 클라이언트가 justSubmitted로 선반영하므로(inspection-workbench.tsx:141-144)

@@ -26,6 +26,10 @@ import { filesOfKinds } from '@/lib/generated-docs'
 import { evidenceDone, hasSheetDefect, stepProgress, visibleStepNums, type StepNum } from '@/lib/inspection-step-status'
 import { isRegenBlocked } from '@/lib/annex-regen-policy'
 import { kstDate, todayKst } from '@/lib/kst-date'
+import {
+  SUBMISSION_VIAS, SUBMISSION_VIA_LABELS, PLACEMENT_RESULT_LABELS, SOMIN_URL, KFMA_PLACEMENT_URL, submissionStatusText,
+  type SubmissionVia, type PlacementResult,
+} from '@/lib/legal-link'
 import { confirmSheetProtocolAction } from '@/app/(dashboard)/inspections/sheet-actions'
 import { BundleGeneratePanel } from '@/components/inspections/bundle-generate-panel'
 import { GeneratedDocList } from '@/components/inspections/generated-doc-list'
@@ -163,6 +167,19 @@ export function InspectionWorkbench({
    *  실패하면 되돌린다. prop이 갱신되면 그 값으로 수렴한다. */
   const [reportedOn, setReportedOn] = useState(!!data.certReported)
   useEffect(() => { setReportedOn(!!data.certReported) }, [data.certReported])
+  // 167 ② 협회 적합 판정·신고번호 — 마커와 함께 이중 기록되는 조회용 값(완료 판정과 무관)
+  const [placementResult, setPlacementResult] = useState<PlacementResult | null>(data.placement?.result ?? null)
+  const [placementNo, setPlacementNo] = useState(data.placement?.no ?? '')
+  // 167 ④ 제출 수단·접수번호 — 소민터가 기본(법정 전자제출 창구). 접수번호는 관계인 승인 뒤 받는다
+  const [subVia9, setSubVia9] = useState<SubmissionVia>(data.submit9.via ?? 'somin')
+  const [subReceipt9, setSubReceipt9] = useState(data.submit9.receiptNo ?? '')
+  const [copiedBlock, setCopiedBlock] = useState<string | null>(null)
+  const copyRows = useCallback(async (key: string, rows: Array<[string, string]>) => {
+    try {
+      await navigator.clipboard.writeText(rows.map(([k, v]) => `${k}\t${v}`).join('\n'))
+      setCopiedBlock(key); setTimeout(() => setCopiedBlock(c => (c === key ? null : c)), 2000)
+    } catch { setMsg('❌ 클립보드 복사에 실패했습니다 — 브라우저 권한을 확인해주세요.') }
+  }, [])
   /** ②③ 완료 **선반영** (2026-10-01 단계 인지 개선).
    *  ④⑥은 justSubmitted, ⑤는 defectsLocal이 같은 역할을 하는데 ②③만 없어서, 체크·기록 뒤
    *  router.refresh()(이 화면은 ~5초)가 끝날 때까지 스텝 칩이 그대로였다 — 사용자는 "체크했는데
@@ -503,7 +520,9 @@ export function InspectionWorkbench({
   function submit(kind: 'report9' | 'report11', date: string) {
     if (!date) { setMsg('제출일을 입력해주세요.'); return }
     startTransition(async () => {
-      const res = await recordSubmissionAction(inspectionId, kind, date)
+      // 167 — ④는 수단·접수번호를 함께 기록한다(⑥은 아직 날짜만). 완료 판정은 종전처럼 제출일 하나
+      const res = await recordSubmissionAction(inspectionId, kind, date,
+        kind === 'report9' ? { via: subVia9, receiptNo: subReceipt9 } : {})
       if (res.error) { setMsg(`❌ ${res.error}`); return }
       // 저장이 확인된 값을 먼저 화면에 세운다 — router.refresh()는 상세 전체를 다시 그려 느리다
       setJustSubmitted(prev => ({ ...prev, [kind]: date || null }))
@@ -616,7 +635,7 @@ export function InspectionWorkbench({
     // 체크는 즉시 바뀐다(선언은 :157 주석에 있었는데 실제 setReportedOn 호출이 없었다 — 2026-10-01 배선)
     setReportedOn(!undo)
     startTransition(async () => {
-      const res = await markCertReportedAction(inspectionId, undo ? { undo: true } : { date: reportedDate })
+      const res = await markCertReportedAction(inspectionId, undo ? { undo: true } : { date: reportedDate, result: placementResult, placementNo })
       if (res.error) { setReportedOn(undo); setMsg(`❌ ${res.error}`); return }
       setMsg(undo ? '✅ 배치신고 완료 표시를 해제했습니다.' : '✅ 배치신고 완료로 기록했습니다 — ②가 완료됩니다.')
       // 해제해도 과거 근거(파일·종이 보관)가 있으면 ②는 완료로 남는다 — 서버 판정과 같은 규칙
@@ -897,7 +916,8 @@ export function InspectionWorkbench({
               <ol className="space-y-1.5 text-form-xs">
                 <li className="flex items-center gap-2">
                   <StepNo n={1} />
-                  <a href="https://www.kfma.kr" target="_blank" rel="noreferrer"
+                  {/* 167 — kfma.kr 메인이 아니라 관리업종합정보시스템(배치신고 화면)으로 바로 */}
+                  <a href={KFMA_PLACEMENT_URL} target="_blank" rel="noreferrer"
                     className="inline-flex items-center gap-1 text-brand hover:underline">
                     협회 신고 사이트에서 배치신고 <ExternalLink className="size-3" />
                   </a>
@@ -914,6 +934,28 @@ export function InspectionWorkbench({
                       data-testid="cert-reported-date-input"
                       className="h-7 w-32 rounded-lg border border-brand-line px-2 text-form-xs" />
                   ) : <span className="text-ink-meta">—</span>}
+                </li>
+                {/* 167 — 협회 적합 판정·신고번호(선택). 완료 전엔 입력, 완료 후엔 기록값. 마커와 함께 저장된다 */}
+                <li className="flex flex-wrap items-center gap-2 pl-6" data-testid="placement-extra">
+                  <span className="text-ink-meta shrink-0">판정·번호</span>
+                  {data.certReported || !canManage ? (
+                    <span className="text-ink">
+                      {data.placement?.result ? PLACEMENT_RESULT_LABELS[data.placement.result] : '미판정'}
+                      {data.placement?.no ? ` · 신고번호 ${data.placement.no}` : ''}
+                    </span>
+                  ) : (
+                    <>
+                      {(['fit', 'unfit'] as const).map(r => (
+                        <label key={r} className="inline-flex items-center gap-1 cursor-pointer">
+                          <input type="radio" name="placement-result" checked={placementResult === r}
+                            onChange={() => setPlacementResult(r)} className="size-3.5" />
+                          {PLACEMENT_RESULT_LABELS[r]}
+                        </label>
+                      ))}
+                      <input type="text" value={placementNo} onChange={e => setPlacementNo(e.target.value)} maxLength={40}
+                        placeholder="신고번호(선택)" className="h-7 w-36 rounded-lg border border-brand-line px-2 text-form-xs" />
+                    </>
+                  )}
                 </li>
                 <li className="flex items-center gap-2">
                   <StepNo n={3} />
@@ -947,6 +989,33 @@ export function InspectionWorkbench({
               )}
             </StepGoal>
           </Pane>
+          {/* 167 — 협회 입력 복사 카드. API가 없어 사람이 협회 화면에 옮겨 적는다(비교진단 §2). 값은 서버가 조립 */}
+          {data.placementCard && (
+            <Pane title="협회 입력값 (복사)" cls={paneCls} head={paneHead}>
+              <div className="space-y-2 px-3 py-2 text-form-xs" data-testid="placement-card">
+                {([['report', '배치신고', data.placementCard.report], ['object', '대상물 등록(처음 한 번)', data.placementCard.object]] as const).map(([key, title, rows]) => (
+                  <div key={key}>
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="font-medium text-ink-sub">{title}</span>
+                      <button type="button" onClick={() => copyRows(key, rows)}
+                        className="h-6 rounded-lg border border-brand-line px-2 text-form-2xs hover:border-brand hover:text-brand">
+                        {copiedBlock === key ? '✓ 복사됨' : '복사'}
+                      </button>
+                    </div>
+                    <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5">
+                      {rows.map(([k, v]) => (
+                        <div key={k} className="contents">
+                          <dt className="text-ink-meta whitespace-nowrap">{k}</dt>
+                          <dd className={v === '—' ? 'text-amber-600' : 'text-ink'}>{v}</dd>
+                        </div>
+                      ))}
+                    </dl>
+                  </div>
+                ))}
+                <p className="text-form-2xs text-ink-meta">「—」는 ERP에 값이 없는 칸 — 협회 화면에서 직접 채웁니다. 협회 대상물번호는 고객 기본정보 「외부 번호」에 적어 두면 여기 실립니다.</p>
+              </div>
+            </Pane>
+          )}
           <Pane title="배치 요약" cls={paneCls} head={paneHead}>
             <Summary rows={[
               ['점검표 응답', `${data.responded}건`],
@@ -1083,6 +1152,20 @@ export function InspectionWorkbench({
                     <span className="text-form-xs text-ink-sub">소방서 제출 기록</span>
                     <DateInput value={subDate9} onChange={e => setSubDate9(e.target.value)}
                       className="h-7 rounded-lg border border-brand-line px-2 text-form-xs" />
+                    {/* 167 — 제출 수단·접수번호. 업체 계정에는 소민터 제출 버튼이 없어(관계인이 승인함에서 제출)
+                        접수번호는 나중에 받는다 — 비워 두면 「관계인 승인 대기」로 표시된다 */}
+                    {canManage && !submit9At && (
+                      <>
+                        <select value={subVia9} onChange={e => setSubVia9(e.target.value as SubmissionVia)}
+                          data-testid="submit9-via"
+                          className="h-7 rounded-lg border border-brand-line px-1.5 text-form-xs">
+                          {SUBMISSION_VIAS.map(v => <option key={v} value={v}>{SUBMISSION_VIA_LABELS[v]}</option>)}
+                        </select>
+                        <input type="text" value={subReceipt9} onChange={e => setSubReceipt9(e.target.value)} maxLength={40}
+                          placeholder="접수번호(선택)" data-testid="submit9-receipt"
+                          className="h-7 w-32 rounded-lg border border-brand-line px-2 text-form-xs" />
+                      </>
+                    )}
                     {/* 라벨은 **고른 날짜를 따라간다** — 기본값이 오늘이라 평시엔 「오늘 제출로 기록」이지만,
                         날짜를 바꾼 뒤에도 그 문구가 남으면 버튼이 거짓말을 한다(2026-09-11 A안).
                         완료시키는 동작이라 채움 버튼(btnPri) — 문서 [생성]은 테두리 버튼으로 내렸다. */}
@@ -1093,13 +1176,38 @@ export function InspectionWorkbench({
                       </button>
                     )}
                     {submit9At
-                      ? <span className="text-form-2xs text-green-600">✓ 기록됨 {submit9At} — ④ 완료</span>
+                      ? (() => {
+                        // 167 — 서버 값이 오기 전(justSubmitted)엔 방금 입력한 수단·번호를 보여 준다
+                        const via = data.submit9.via ?? (justSubmitted.report9 ? subVia9 : null)
+                        const receipt = data.submit9.receiptNo ?? (justSubmitted.report9 ? (subReceipt9.trim() || null) : null)
+                        const waiting = submissionStatusText(via, receipt)
+                        return (
+                          <span className="text-form-2xs text-green-600" data-testid="submit9-recorded">
+                            ✓ 기록됨 {submit9At} — ④ 완료
+                            {via && <span className="text-ink-meta"> · {SUBMISSION_VIA_LABELS[via]}</span>}
+                            {receipt && <span className="text-ink-meta"> · 접수번호 {receipt}</span>}
+                            {waiting && <span className="ml-1 rounded bg-amber-50 px-1 text-amber-700">{waiting}</span>}
+                          </span>
+                        )
+                      })()
                       /* S7-1 4차 — **법정 제출 기한**이다. 이 차수에서 가장 읽혀야 하는 값 중 하나.
                          ⚠ 아래 기산 줄이 같은 날짜를 근거까지 붙여 말하므로, 그 줄이 없을 때만 띄운다 —
                            나란히 두 번 말하면 어느 쪽이 정본인지 흐려진다. */
                       : !hasAnchorRow && data.submit9.due && (
                         <span className="text-form-2xs text-ink-meta">기한 {data.submit9.due} (확정일 +15영업일)</span>
                       )}
+                  </div>
+                  {/* 167 — 소민터 입구 + 관계인 교부 기한(점검 끝난 날 +10영업일, 시행규칙 23조). 표시만 — 6단계 밖 */}
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-form-2xs text-ink-meta">
+                    <a href={SOMIN_URL} target="_blank" rel="noreferrer" data-testid="somin-link"
+                      className="inline-flex items-center gap-1 text-brand hover:underline">
+                      소방민원센터 열기 <ExternalLink className="size-3" />
+                    </a>
+                    {data.delivery?.sentAt
+                      ? <span>관계인 교부 {mmdd(kstDate(data.delivery.sentAt))} (이메일 송달)</span>
+                      : data.submit9.ownerDue
+                        ? <span>관계인 교부 기한 <b className="text-ink-sub">{data.submit9.ownerDue}</b> (점검 끝난 날 +10영업일)</span>
+                        : null}
                   </div>
                   {/* 🚨 2026-09-21 — 기산 줄의 **뜻이 바뀌었다**. 종전에는 「종료일 + 15일 = 기한」이라
                       적었는데, 마감일 정본이 달력 축(확정일 기준 영업일 산식)으로 통일되면서 그 문장이

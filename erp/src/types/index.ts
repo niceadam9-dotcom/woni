@@ -95,6 +95,8 @@ export interface Customer {
   inspection_sub_type: InspectionSubType | null
   address: string | null; notes: string | null
   fire_station: string | null            // 관할 소방서 (보고서 개요·공문)
+  /** 167 — 소민터 대상물 일련번호·협회 대상물번호(선택). 배치확인서 불러오기 일치 조건·복사 카드 표시용 */
+  somin_object_no?: string | null; kfma_object_no?: string | null
   fee_untaxed: number | null; fee_taxed: number | null                 // 일반관리 건별
   monthly_fee_untaxed: number | null; monthly_fee_taxed: number | null // 종합/작동 월정액
   fee_note: string | null

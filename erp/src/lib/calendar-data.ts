@@ -8,6 +8,7 @@ import { dateChangeVerdict } from '@/lib/inspection-date-change'
 import { closedVerdict } from '@/lib/inspection-closed'
 import { facilityVerifyState, shouldWarnFacilitiesUnverified } from '@/lib/facility-verify-gate'
 import { todayKst } from '@/lib/kst-date'
+import { KFMA_DAILY_MAX } from '@/lib/legal-link'
 import type { DateRange } from '@/lib/calendar-window'
 import type { CalendarInspection, CalendarPlanItem } from '@/components/inspections/inspection-calendar-client'
 import type { InspectionType, InspectionStatus } from '@/types'
@@ -30,6 +31,8 @@ export async function loadCalendarWindow(admin: Admin, range: DateRange): Promis
   inspections: CalendarInspection[]
   planItems: CalendarPlanItem[]
   employees: CalendarEmployee[]
+  /** 167 — 하루 배치 건수(주된 기술인력·상한 이상인 쌍만). 달력 칩·이동 경고가 읽는다 */
+  placementLoad: CalendarPlacementLoad[]
 }> {
   type InspRow = {
     id: string; customer_id: string; inspection_type: string; plan_type: string | null; year: number
@@ -231,8 +234,44 @@ export async function loadCalendarWindow(admin: Admin, range: DateRange): Promis
     }]
   })
 
-  return { inspections: calendarData, planItems, employees }
+  /* 167 — 하루 배치 건수(주된 기술인력 기준). 협회 배치신고는 하루 5개 초과 대상물이 **부적합**이다.
+   *  센 것: ① 창 안 자체점검 회차 — 시작일~종료일(없으면 당일) 각 날짜에 1건
+   *        ② 아직 시작 안 한 자체점검 계획(special_*, inspection_id 없음) — 예정일에 1건(미리 경고하려고)
+   *  보조 인력은 창 조회에 없으므로 세지 않는다(주된 기술인력만). 상한(5) **이상**인 쌍만 실어 보낸다 —
+   *  5건은 「한 건 더 옮기면 초과」 경고용, 6건부터 초과 칩. 창 밖 날짜는 자르지 않는다(며칠 넘치는 정도). */
+  const loadByKey = new Map<string, { date: string; employeeId: string; count: number }>()
+  const bump = (date: string, employeeId: string | null) => {
+    if (!employeeId || !date) return
+    const key = `${date}|${employeeId}`
+    const cur = loadByKey.get(key)
+    if (cur) cur.count += 1
+    else loadByKey.set(key, { date, employeeId, count: 1 })
+  }
+  for (const i of rawInspections) {
+    if (!isSelfInspection(i.plan_type)) continue
+    const start = i.inspection_start_date
+    const end = i.inspection_end_date ?? start
+    // 다일 점검은 날짜마다 1건 — 10일을 넘기는 기간은 입력 오류로 보고 10일에서 끊는다
+    const d = new Date(start + 'T00:00:00')
+    for (let n = 0; n < 10; n++) {
+      const iso = d.toISOString().slice(0, 10)
+      if (iso > end) break
+      bump(iso, i.assigned_employee_id)
+      d.setUTCDate(d.getUTCDate() + 1)
+    }
+  }
+  for (const p of planItems) {
+    if ((p.plan_type === 'special_종합' || p.plan_type === 'special_작동') && !p.inspection_id) bump(p.scheduled_date, p.assigned_employee_id)
+  }
+  const placementLoad: CalendarPlacementLoad[] = [...loadByKey.values()]
+    .filter(l => l.count >= KFMA_DAILY_MAX)
+    .map(l => ({ ...l, employeeName: empName(l.employeeId) }))
+
+  return { inspections: calendarData, planItems, employees, placementLoad }
 }
+
+/** 167 — 어느 날 어느 주된 기술인력에게 자체점검이 몇 건 몰렸는가(상한 5 이상인 쌍만) */
+export type CalendarPlacementLoad = { date: string; employeeId: string; employeeName: string; count: number }
 
 type PlanItemRow = {
   id: string; customer_id: string; plan_type: 'monthly' | 'event' | 'special_종합' | 'special_작동'

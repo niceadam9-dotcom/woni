@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react'
 import Link from 'next/link'
 import { CheckCircle2, AlertTriangle, Circle, Clock3, Loader2, Download, User } from 'lucide-react'
 import type { SubmissionRow, SubmissionSummary } from '@/app/(dashboard)/reports/docs-actions'
+import { SUBMISSION_VIA_LABELS, PLACEMENT_RESULT_LABELS, submissionStatusText } from '@/lib/legal-link'
 
 /** §7-A 제출 현황판 (소방계획서_5 R14-a·R14-b) — 타임라인 필드 단일 소스, 수기 입력 없음.
  *  숫자 요약 스트립(숫자=필터 버튼) + 위험순 표. 앰버·빨강만 훑으면 감시 끝(모니터링 2층). */
@@ -22,12 +23,18 @@ function Mark({ ok, na, warn, label }: { ok?: boolean; na?: boolean; warn?: bool
  *  ⚠ 2026-09-07 — 그 자리 [업로드]를 걷어냈다. 대표가 협회에 직접 신고하므로 ERP가 받을 파일이 없고,
  *  완료 표시는 작업대 ②가 단일 창구다. 여기서도 완료로 만들 수 있으면 경로가 둘이 되어 다시 갈라진다.
  *  `archived`는 이제 '종이 보관 + 신고 완료 표시'를 함께 덮는다(findArchivedCertInspections). */
-function CertCell({ inspectionId, uploaded, archived, warn }: { inspectionId: string; uploaded: boolean; archived?: boolean; warn: boolean }) {
+function CertCell({ inspectionId, uploaded, archived, warn, reportedAt, result }: {
+  inspectionId: string; uploaded: boolean; archived?: boolean; warn: boolean
+  reportedAt?: string | null; result?: SubmissionRow['placementResult']
+}) {
   const ok = uploaded || !!archived
+  // 167 — 신고일·적합 판정은 조회용 사본(표시만). 완료 판정은 종전 그대로 archived·uploaded
+  const sub = [reportedAt, result ? PLACEMENT_RESULT_LABELS[result] : null].filter(Boolean).join(' · ')
   return (
     <div className="flex items-center gap-1.5">
       {/* 종이 보관 정리분은 ERP에 파일이 없다 — '보유'로 뭉뚱그리면 제출 때 첨부가 비어 버린다 */}
       <Mark ok={ok} warn={warn} label={archived ? '완료' : uploaded ? '보유' : '미완료'} />
+      {ok && sub && <span className="text-form-2xs text-ink-faint" title="협회 배치신고 신고일 · 적합 판정">{sub}</span>}
       {!ok && (
         <Link href={`/inspections/${inspectionId}?step=2`} data-testid="cert-cell-link"
           title="작업대 ②에서 배치신고 완료를 표시합니다"
@@ -58,7 +65,12 @@ async function exportRows(rows: SubmissionRow[]) {
     '9호 생성': r.report9Gen ? '생성' : '미생성',
     '발송': r.report9Sent ? '발송' : '미발송',
     '제출(D-day)': ddayText(r),
+    // 167 — 수단·접수번호·신고일·판정은 조회용 열. 비면 빈칸(「—」를 넣으면 엑셀 필터가 값으로 센다)
+    '제출 수단': r.report9Via ? SUBMISSION_VIA_LABELS[r.report9Via] : '',
+    '접수번호': r.report9ReceiptNo ?? '',
     '배치신고': r.certArchived ? '완료' : r.certUploaded ? '보유' : '미완료',
+    '배치신고일': r.placementReportedAt ?? '',
+    '적합 판정': r.placementResult ? PLACEMENT_RESULT_LABELS[r.placementResult] : '',
     '10호': allPassRow(r) ? '해당없음' : (r.report10Gen ? '생성' : '미생성'),
     '11호': allPassRow(r) ? '해당없음' : naText(r.report11Gen, !!r.report11SubmittedAt),
   }))
@@ -184,12 +196,20 @@ export function SubmissionBoard({ rows, summary, myId, defaultMine }: {
                     <td className={cell}><Mark ok={r.report9Sent} warn={r.report9Gen && !r.report9Sent} label={r.report9Sent ? '발송' : '미발송'} /></td>
                     <td className={cell}>
                       {submitted
-                        ? <span className="inline-flex items-center gap-1 text-green-600"><CheckCircle2 className="size-3" /> {submitted}</span>
+                        ? <span className="inline-flex items-center gap-1 text-green-600" title={r.report9ReceiptNo ? `접수번호 ${r.report9ReceiptNo}` : undefined}>
+                            <CheckCircle2 className="size-3" /> {submitted}
+                            {/* 167 — 수단과 「관계인 승인 대기」(소민터인데 접수번호 없음)를 보조 텍스트로 */}
+                            {r.report9Via && <span className="text-form-2xs text-ink-faint">{SUBMISSION_VIA_LABELS[r.report9Via]}</span>}
+                            {submissionStatusText(r.report9Via, r.report9ReceiptNo) && (
+                              <span className="text-form-2xs text-amber-600">{submissionStatusText(r.report9Via, r.report9ReceiptNo)}</span>
+                            )}
+                          </span>
                         : <span className={`inline-flex items-center gap-1 font-semibold ${overdue ? 'text-red-600' : (r.due9Dday ?? 99) <= 7 ? 'text-amber-700' : 'text-ink-faint'}`}>
                             <Clock3 className="size-3" /> {r.due9Dday === null ? '기한 미정' : overdue ? `초과 ${-r.due9Dday!}일` : `D-${r.due9Dday}`}
                           </span>}
                     </td>
-                    <td className={cell}><CertCell inspectionId={r.inspectionId} uploaded={r.certUploaded} archived={r.certArchived} warn={r.status === 'completed' && !r.certUploaded} /></td>
+                    <td className={cell}><CertCell inspectionId={r.inspectionId} uploaded={r.certUploaded} archived={r.certArchived} warn={r.status === 'completed' && !r.certUploaded}
+                      reportedAt={r.placementReportedAt} result={r.placementResult} /></td>
                     <td className={cell}>{allPassRow(r) ? <Mark na label="해당없음" /> : <Mark ok={r.report10Gen} warn={!r.report10Gen} label={r.report10Gen ? '생성' : '미생성'} />}</td>
                     <td className={cell}>{allPassRow(r) ? <Mark na label="해당없음" /> : <Mark ok={!!r.report11SubmittedAt || r.report11Gen} warn={!r.report11Gen} label={r.report11SubmittedAt ? '제출' : r.report11Gen ? '생성' : '미생성'} />}</td>
                   </tr>
