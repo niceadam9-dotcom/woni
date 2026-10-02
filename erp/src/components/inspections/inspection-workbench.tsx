@@ -39,6 +39,7 @@ import { AnnexPrintButton } from '@/components/customers/annex-print-button'
 import { FIELD_DEFS, AnnexFieldInput, type ComposeAnnexNo, type FieldDef } from '@/components/inspections/annex-fields'
 import { DefectGrid, type GridDefect, type DefectEdits } from '@/components/inspections/defect-grid'
 import { RepairSalesChain, type SalesPerms } from '@/components/inspections/repair-sales-chain'
+import { OwnerReportQuoteLine } from '@/components/inspections/owner-report-quote-line'
 import { MessageTemplateModal } from '@/components/settings/message-template-modal'
 import { InspectionSmsModal } from '@/components/sms/inspection-sms-modal'
 import { STEP_REPORT_LABELS, STEP_REPORT_TYPES, type StepReportType } from '@/app/(dashboard)/inspections/report-constants'
@@ -507,10 +508,12 @@ export function InspectionWorkbench({
       // 액션의 revalidatePath가 화면을 갱신한다 — 중복 refresh 제거(2026-10-01)
     })
   }
+  /** 3단계 메일 본문에 회차 문서 묶음 열람 링크를 붙일지(기본 끔 — 종전 동작 유지) */
+  const [ownerLink, setOwnerLink] = useState(false)
   function sendOwner() {
     setMsg('')
     startTransition(async () => {
-      const res = await sendOwnerReportAction(inspectionId)
+      const res = await sendOwnerReportAction(inspectionId, { includeRoundLink: ownerLink })
       if (res.error) { setMsg(`❌ ${res.error}`); return }
       setMsg(`✅ 관계인 보고 발송됨 → ${res.sentTo} (발송 이력 기록)`)
       setJustDone(p => ({ ...p, 3: true })); setCelebrate('ownerReport')
@@ -1043,6 +1046,8 @@ export function InspectionWorkbench({
                     .filter(Boolean).join(' · ') || '기록됨'
                 : '없음'],
             ]} />
+            {/* 불량→매출 절 「③ 칸 불량 한 줄」 — 보고와 보수 제안을 한 자리에서(2026-10-02) */}
+            <OwnerReportQuoteLine inspectionId={inspectionId} defectTotal={defectStat.total} />
           </Pane>
           <Pane title="발송" cls={paneCls} head={paneHead}>
             {/* 2026-10-01 — 완료 수단이 **둘**임을 A/B 두 상자로 보인다. 종전엔 [방문·유선 보고 기록]·
@@ -1064,6 +1069,12 @@ export function InspectionWorkbench({
                 <div className="flex items-center gap-1.5 flex-wrap">
                   <MessageTemplateModal templateKey="owner_report" label="관계인 보고 메일"
                     sampleVars={{ 고객명: customerName ?? '', 연도: '', 차수: '', 점검일: '' }} />
+                  {canManage && (
+                    <label className="inline-flex items-center gap-1 text-form-2xs text-ink-sub" title="관계인이 로그인 없이 별지 9·10·11호를 여는 링크(90일)">
+                      <input type="checkbox" checked={ownerLink} onChange={e => setOwnerLink(e.target.checked)} disabled={isPending} data-testid="owner-include-link" />
+                      본문에 회차 문서 링크
+                    </label>
+                  )}
                   {canManage && (
                     <button onClick={sendOwner} disabled={isPending || !data.consentOk} className={btnPri}>
                       <Send className="size-3" /> {done.ownerReport ? '재발송' : '생성물 이메일 발송'}

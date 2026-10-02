@@ -9,6 +9,8 @@ import {
   CERT_REPORTED_ACTION, CERT_REPORTED_UNDO_ACTION, findArchivedCertInspections,
 } from '@/lib/doc-status'
 import { syncStepsAndRevalidate, revalidateInspection } from './step-revalidate'
+import { headers } from 'next/headers'
+import { issueShareLink, siteOrigin } from '@/lib/share-links'
 import { extractStoragePath } from '@/lib/defect-photos'
 import { renderMessage } from '@/lib/message-template'
 import { annexDownloadName } from '@/lib/annex-filename'
@@ -199,7 +201,9 @@ async function writePlacementColumns(
 }
 
 /** ③ 관계인 보고 — 최신 별지 9호 생성물을 송달 동의 이메일로 발송 + 발송 이력(보고 증빙) */
-export async function sendOwnerReportAction(inspectionId: string): Promise<{ error?: string; sentTo?: string }> {
+/** opts.includeRoundLink(2026-10-02, 불량→매출 절) — 본문 끝에 회차 문서 묶음 열람 링크(/p/{token}, 90일)를 붙인다.
+ *  인자를 안 주면 종전과 같다(첨부 1개, 본문은 템플릿 그대로). */
+export async function sendOwnerReportAction(inspectionId: string, opts: { includeRoundLink?: boolean } = {}): Promise<{ error?: string; sentTo?: string }> {
   const profile = await requirePermission('inspection_register')
   if (!isGoogleConfigured()) return { error: 'Google 연동이 설정되지 않았습니다 (GOOGLE_* env).' }
   const admin = createAdminClient()
@@ -248,11 +252,17 @@ export async function sendOwnerReportAction(inspectionId: string): Promise<{ err
       createdAt: new Date(Number(/_(\d+)\./.exec(pick)![1])).toISOString(),
     })
   const subject = rendered.subject
+  let bodyText = rendered.body
+  if (opts.includeRoundLink) {
+    const link = await issueShareLink(admin, { kind: 'round', customerId: i.customer_id, inspectionId, quoteId: null, createdBy: profile.id })
+    if (link.error || !link.token) return { error: link.error ?? '열람 링크를 만들지 못했습니다.' }
+    bodyText = `${rendered.body.trimEnd()}\n\n■ 점검 문서 온라인 열람(별지 9·10·11호): ${siteOrigin(await headers())}/p/${link.token}\n  (로그인 없이 열립니다 · ${(link.expiresAt ?? '').slice(0, 10)}까지 유효)`
+  }
   try {
     const { messageId } = await gmailSendWithAttachment({
       to: i.customer.report_email,
       subject,
-      bodyText: rendered.body,
+      bodyText,
       attachment: { filename, mime: ext === 'pdf' ? 'application/pdf' : 'application/octet-stream', data: new Uint8Array(await blob.arrayBuffer()) },
     })
     const { data: deliv } = await admin.from('report_deliveries').insert({
@@ -266,7 +276,7 @@ export async function sendOwnerReportAction(inspectionId: string): Promise<{ err
     // 증빙이 빠진 사실을 알 방법이 없어진다. 서버 로그에 남겨 추적 가능하게 한다.
     if (deliv) {
       const { error: bodyErr } = await admin.from('report_deliveries')
-        .update({ body: rendered.body } as Record<string, unknown>)
+        .update({ body: bodyText } as Record<string, unknown>)
         .eq('id', (deliv as { id: string }).id)
       if (bodyErr) {
         console.error('[sendOwnerReport] 발송 본문 이력 저장 실패(발송은 완료됨):', bodyErr.message)

@@ -4,6 +4,7 @@ import { withCronRun } from '@/lib/cron-run'
 import { findDueReport9, findMissingCerts, SELF_INSPECTION_OR } from '@/lib/doc-status'
 import { isGoogleConfigured, gmailSendMail } from '@/lib/google'
 import { getCompanyProfile } from '@/lib/company-profile'
+import { expireStaleQuotes, findQuotesExpiringSoon } from '@/lib/quote-expiry'
 
 // P-2 주간 문서 브리핑 (소방계획서_5 §8 P-2 — 모니터링 0층)
 // 매주 월 아침: 이번 주 자체점검·별지 9호 제출 기한 임박·배치확인서 누락 요약을
@@ -25,6 +26,15 @@ async function handle() {
       .gte('inspection_end_date', weekAgoStr),
   ])
   const weekDone = weekDoneRes.count ?? 0
+
+  // 불량→매출 절(2026-10-02) — 유효기간 지난 「작성중·발송」 견적은 만료로 닫고(승인·수주 불변), 7일 내 만료분을 한 줄로.
+  // 주 1회 이 크론이 맡는다. 실패해도 브리핑은 계속(로그만). 로직은 lib/quote-expiry(시험이 같은 함수를 부른다).
+  const exp = await expireStaleQuotes(admin, todayStr)
+  if (exp.error) console.error('[weekly-doc-briefing] 견적 만료 전환 실패:', exp.error)
+  const expiredNow = exp.expired
+  const soon = await findQuotesExpiringSoon(admin, todayStr, 7)
+  if (soon.error) console.error('[weekly-doc-briefing] 만료 임박 견적 조회 실패:', soon.error)
+  const quotesSoon = soon.quotes
   const overdue = dueSoon.filter(d => d.dday < 0).length
 
   const lines = [
@@ -33,8 +43,10 @@ async function handle() {
     `· 최근 7일 자체점검 완료: ${weekDone}건`,
     `· 별지 9호 제출 기한 임박(D-7 이내): ${dueSoon.length}건${overdue > 0 ? ` (기한 초과 ${overdue}건)` : ''}`,
     `· 배치확인서 누락: ${missingCerts.length}건`,
+    `· 만료 임박 보수 견적(7일 내): ${quotesSoon.length}건${expiredNow > 0 ? ` · 이번에 만료 처리 ${expiredNow}건` : ''}`,
     ``,
     ...(dueSoon.length > 0 ? ['[제출 기한 임박]', ...dueSoon.slice(0, 10).map(d => ` - ${d.customerName} ${d.year}년 ${d.sequenceNum}차 · ${d.dday < 0 ? `기한 초과 ${-d.dday}일` : `D-${d.dday}`} (기한 ${d.due})`), ''] : []),
+    ...(quotesSoon.length > 0 ? ['[만료 임박 견적 — 승인을 받거나 유효기간을 갱신하세요]', ...quotesSoon.slice(0, 10).map(q => ` - ${q.customer_name} ${q.quote_number} (${q.status}) · ${q.valid_until}까지`), ''] : []),
     ...(missingCerts.length > 0 ? ['[배치확인서 누락]', ...missingCerts.slice(0, 10).map(c => ` - ${c.customerName} ${c.year}년 ${c.sequenceNum}차${c.daysSince !== null ? ` · 완료 후 ${c.daysSince}일 경과` : ''}`), ''] : []),
     `대시보드 제출 현황: /dashboard#submissions`,
   ]
@@ -77,7 +89,7 @@ async function handle() {
 
   return NextResponse.json({
     ok: true, date: todayStr,
-    summary: { weekDone, dueSoon: dueSoon.length, overdue, missingCerts: missingCerts.length },
+    summary: { weekDone, dueSoon: dueSoon.length, overdue, missingCerts: missingCerts.length, quotesSoon: quotesSoon.length, quotesExpired: expiredNow },
     notified, notifyError, emailed, emailError,
   })
 }
