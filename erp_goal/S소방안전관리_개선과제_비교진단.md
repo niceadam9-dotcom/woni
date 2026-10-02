@@ -79,7 +79,7 @@
 앞 단계가 뒤 단계의 전제다. SaaS 테넌시는 마지막에 둔다.
 
 1. 모바일 점검표 입력 + 오프라인 큐. 현장 체류 시간을 가장 크게 줄인다.
-2. 불량 → 견적 연결 + 관계인 서명. 매출과 증빙을 동시에 잡는다.
+2. 불량 → 견적 연결 + 관계인 서명. 매출과 증빙을 동시에 잡는다. 세부는 「불량 → 매출 해결방안」 절이 정한다(외래키 셋 → 링크 토큰 열람·승인 → 서명).
 3. 전자세금계산서(팝빌) + 카카오 알림톡. 매달 반복되는 수작업을 없앤다. 세부 순서는 「법정 외부 연계 해결방안」 절이 정한다(기록 열 → 홈택스 엑셀 → 별지 9호 HWP → 팝빌 → 알림톡).
 4. 설비 QR 태깅 + 자산 대장. 교체 시기 알림으로 이어진다. 세부는 「설비 자산 대장 해결방안」 절이 정한다(연수가 있는 품목부터·QR은 3단계).
 5. SaaS 전환은 Stage 0(백업·CI·관측·HWP 워커 이관)만 먼저 하고, 1~4를 끝낸 뒤 테넌시로 넘어간다.
@@ -259,6 +259,88 @@
 **검증 축.** 단계마다 넷을 잰다. ②·④ 완료 조건이 바뀐 점검이 0건인가(단계 상태 프로브, `inspection_steps.status` 전후 덤프 diff). 백필 뒤 `placement_reported_at` 집합이 `findArchivedCertInspections` 집합과 일치하는가. 홈택스 엑셀이 파일 검증을 통과하고 승인번호 가져오기가 전 행을 맞추는가. 소민터 업로드가 실제 대상물 1건에서 「관계인 승인 대기」까지 가는가.
 
 **위험 다섯.** 소민터 자동 입력 파서의 HWPX 수용이 미확인이라 렌더러보다 실업로드 1건이 먼저다. 법령 서식이 바뀌면 HWPX 템플릿이 조용히 어긋난다. `law-revision-check` 크론이 이미 별지 9호 개정을 감시하므로 그 알림에 「HWPX 템플릿 재대조」를 묶는다. 소민터 명칭·소재지 불일치는 ERP가 미리 알 수 없으므로 첫 실패 사유를 「소민터 등록 명칭」 열로 흡수한다. 세금계산서 API는 국세청 전송 뒤 되돌릴 수 없으므로 테스트 환경에서 한 달 치를 돌린 뒤 운영 키를 넣는다. 알림톡은 템플릿 문구 변경마다 검수를 다시 받으므로 변수 자리만 남기고 문구를 고정한다.
+
+## 불량 → 매출 해결방안 — 새 공사 모듈이 아니라 외래키 셋과 링크 하나다
+
+3번 축을 기준 커밋 `c455a0e7`(운영 107회차) 코드와 스테이징·운영 DB 집계, 경쟁 제품 공개 자료로 실측했다(2026-10-02). 결론부터 적으면, Inspect Point가 내세우는 「점검이 불량을 찾고, 불량이 제안서가 되고, 제안서가 작업지시가 되고, 작업지시가 청구서가 된다」는 한 레코드를 이 ERP에서 가장 싸게 얻는 길은 공사 모듈을 새로 짓는 것이 아니다. 불량 표(`inspection_defects`)를 원천으로 두고, **견적이 회차와 불량을 가리키고, 수주가 ⑤ 칸의 계약서이자 별지 11호의 법정 첨부가 되고, 청구가 수주를 가리키게** 외래키 셋을 더하는 것이다. 관계인 접점은 로그인 계정이 아니라 **문서별 링크 토큰** 한 페이지로 시작한다.
+
+**실측 수치.** 견적(`quotes`)·수주(`orders`) 표는 스테이징·운영 모두 **0건**이다. 모듈(화면 2개 733줄·권한 키 3개·삭제 사슬)은 있는데 쓰인 적이 없다. 불량은 스테이징 12건·운영 9건이고 금전·업체·견적 열은 하나도 없다. 청구(`bills`)는 스테이징 75건이 전부 월정액, 운영은 0건이다. 관계인 송부 기록(`report_deliveries`)은 양쪽 0건이다. 그러니 표의 「보수 매출이 점검 매출보다 크다」는 업계 통념이고 ERP 데이터로는 확인할 수 없다. 1단계가 끝나야 처음으로 셀 수 있다. 이 절은 수요 확인을 기다리는 설계가 아니라(추천 착수 순서 2번) **첫 숫자를 만드는 설계**다.
+
+| 접점 | 경쟁 제품 (공개 자료) | 지금 ERP (코드 실측) | 제안 형태 |
+| --- | --- | --- | --- |
+| 불량 → 견적 | Inspect Point: 불량을 골라 제안서로, 제안서의 수신·열람·승인 타임라인. ServiceTrade Service Link: 방문 직후 발견한 불량을 먼저 알려 견적을 기다리게 함 | `quotes`는 customer_id만. 회차·불량 FK 0, grep 0. 견적 PDF·인쇄 코드 0. 작업대 ⑤는 `annex_inputs`의 `contractor`·`budget` 자유 메모(「문서에는 출력되지 않습니다」) | `quotes.inspection_id` + items 줄에 `defect_ids` + ⑤ 칸 「견적 만들기」 + 견적 PDF 1장 |
+| 견적 → 계약(수주) | 제안서 승인 → 작업지시 자동 생성 | `orders`는 견적을 연결하면 견적 status를 「수주」로 바꾸는 것까지. 작업지시 표 없음. ⑤ 칸의 계약서 업로드(선택 증빙)는 어디에도 연결되지 않음 | 새 표 없이 `orders` = 공사 계약. `inspection_id`·`contract_file_path`·시공사 열. ⑥ 제출 패키지에 계약서 자동 포함(시행규칙 23조 법정 첨부) |
+| 계약 → 청구 | 불량 해소 표시 → 작업지시를 청구서로 전환, 통합 결제 | `bills` 생성 3경로(월 크론·일괄·단건) 전부 월정액·수기. order FK 0. 수주 완료 액션은 orders만 갱신 | `bills.order_id` + 수주 완료 시 「청구 만들기」(건별·보수공사). 월정액 크론 불변 |
+| 관계인 열람·승인 | Customer Portal: 보고서·불량·사진·견적 승인·청구서·결제 이력 | 공개·토큰 경로 0(`PUBLIC_PATHS`는 login·auth·cron). 전달은 Gmail PDF 첨부 1종(`sendOwnerReportAction`)과 문자 텍스트. 서명 URL(300·3600초)을 고객에게 보내는 코드 0. 관계인 서명 0 | `share_links` + `/p/{token}` 1페이지(열람·다운로드·견적 승인·열람 기록). 계정 포털은 테넌시 RLS 뒤 |
+
+### 왜 새 공사 모듈을 짓지 않는가
+
+두 표가 0건이라는 사실이 설계를 정한다. 열을 더하고 상태값을 바꿔도 백필할 행이 없고 되돌릴 데이터도 없다. 반면 `quotes-client.tsx`(382줄)·`orders-client.tsx`(351줄), 권한 키 `quote_create`·`quote_manage`·`order_manage`, 고객 하드삭제 사슬(`156_unconditional_hard_delete.sql`)의 orders·quotes 처리는 전부 살아 있다. 설계 JSON도 SL-01·SL-02를 completed로 적고, 테스트 노트(SALES-2)는 「수주관리 화면과 자동 연동은 없음」이라고 남겼다. 모듈은 있고 **연결만 없다**. 불량 전용 표(repair_proposals류)를 따로 두면 영업관리 견적과 점검 보수 견적이 두 갈래가 되어 화면·권한·PDF를 두 번 짓는다.
+
+작업지시(work order) 표도 만들지 않는다. 경쟁 제품의 작업지시는 시공 기사를 배정하고 일정을 잡는 단위인데, 이 ERP에서 「무엇을 고쳤는가」는 이미 ⑤ 칸이 불량별 조치 내용·완료일·전후 사진으로 들고 있고 그 완료 체크가 ⑤의 완료 조건이다(`inspection-step-status.ts:172` — 불량 1건 이상·전건 완료·미등록 ✕ 0). 시공 일정·기사 배정이 필요해지는 때는 업무대행·경영 분석(6번 축)의 범위다. **⑤·⑥의 완료 조건과 기한 사슬은 바꾸지 않는다.** 다중이용업소 절이 자체점검 축에 행을 만들지 않은 것과 같은 이유다.
+
+### 왜 로그인 포털이 아니라 링크 토큰인가
+
+인증은 직원 전제로 짜여 있다. auth 사용자가 생기면 트리거 `handle_new_user`가 `profiles` 행과 `EMP-` 사번을 붙이고, 역할은 employee·manager·admin 셋으로 CHECK돼 있다. 더 큰 문제는 RLS다. customers·customer_contacts는 `USING (auth.uid() IS NOT NULL)`, owners는 `TO authenticated USING (true)`, fire-plans·reports 버킷도 같고, 마이그레이션 전체에 `USING (true)`가 30곳이다. 관계인에게 계정을 주면 anon key만으로 전 고객 데이터를 읽을 수 있다. 이것을 고치는 일이 SaaS 전환 로드맵 Stage 1(테넌시 RLS)이고, 계정 포털은 그 뒤에 올 수 있다.
+
+링크 토큰은 이 구조를 건드리지 않는다. `/p/{token}` 라우트는 서버에서 토큰 해시를 대조한 뒤 **service role로만** 읽고, 파일은 그 순간 300초 서명 URL을 발급한다. anon key·로그인·RLS 어느 것에도 기대지 않는다. 수신처는 이미 있다. `customer_contacts`(고객당 최대 3명, 「대표」가 기본)와 `customers.report_email`·`email_delivery_consent`, 그리고 텍스트 본문을 받는 두 발송 경로(`gmailSendMail`·Solapi `sendInspectionSms`)다. 알림톡 절이 「열람 링크는 3번 축의 고객 포털이 생길 때 붙인다」고 미뤄 둔 자리가 바로 이것이고, 설비 대장 절의 QR 「관계인 열람」도 같은 페이지에 kind 하나로 들어온다. 테넌시 RLS가 생기면 같은 페이지를 로그인 뒤에도 열 수 있게 하는 것이 승급 경로이고, 토큰은 그때도 「로그인 없는 1회 열람」으로 남는다.
+
+### 데이터 — 기존 세 표에 열, 새 표는 하나(+이력)
+
+| 표 | 추가·변경 | 비고 |
+| --- | --- | --- |
+| `quotes` | `inspection_id`(→inspections, SET NULL)·`source`(manual·defect·asset)·`approved_at`·`approved_by_name`·`approval_channel`(portal·email·phone·paper)·`pdf_path`. status에 **「승인」** 추가(작성중→발송→승인→수주) | items JSONB 줄에 `defect_ids`(배열, 선택) — 설비 대장 절의 `asset_ids`와 같은 방식. 줄 id가 없는 구조라 연결 표를 두지 않고, ⑤ 칸은 회차의 견적 몇 건을 읽어 불량별 칩을 그린다 |
+| `orders` | `inspection_id`·`contract_file_path`(⑤ 계약서 업로드를 여기로)·`contractor_name`·`contractor_biz_no`(외주 시공 때, 비면 자사)·`completed_at`·`tax_amount` | 지금 부가세 열이 없다 |
+| `bills` | `order_id`(→orders, SET NULL). `bill_type` 선택지에 「보수공사」 | `fee_type='건별'`. 월정액 크론은 `order_id` null 그대로 |
+| `share_links` (신설) | token_hash(UNIQUE)·kind(quote·report9·report10·report11·round·asset)·customer_id·inspection_id·quote_id·expires_at(기본 90일)·revoked_at·created_by·company_id(비워 둠) | 원문 토큰은 저장하지 않는다. URL은 `/p/{token}` |
+| `share_link_events` (신설) | link_id·event(viewed·downloaded·approved)·at·ip·ua·actor_name | 승인 1건 = approved 이벤트 + `quotes.approved_at` |
+
+`inspection_defects`에는 열을 더하지 않는다. 상태가 열이 아니라 날짜 열 유무로 파생되는 구조(미계획→계획→완료)이고, 그 규칙을 `defect-grid.tsx`·`report9-assemble.ts`·조립 함수들이 공유한다. 견적·수주 연결은 quotes 쪽에서 불량을 가리키는 방향 하나로 끝낸다. `annex_inputs`의 `contractor`·`budget` 메모는 읽기 폴백으로 남기고 입력은 orders로 옮긴다.
+
+### 화면 — ⑤ 칸에 사슬 버튼, ③ 칸에 불량 한 줄, `/p/{token}` 한 페이지
+
+**⑤ 보수 칸.** `DefectGrid mode="plan"` 위에 사슬이 한 줄로 선다. 「견적 만들기」는 체크한 불량을 `quotes` 한 건으로 만든다(품목명 = 불량명, 수량 1, 단가는 빈칸이되 같은 `defect_code`의 최근 견적 단가를 제안). 불량 행마다 견적 칩(작성중·발송·승인·수주)이 붙고, 「수주로 전환」이 `orders`를 만들면서 지금의 계약서 업로드와 시공사 입력을 흡수한다. 수주 상태가 「완료」가 되면 「청구 만들기」가 `bills` 건별·보수공사 1건을 낸다(월정액과 별건). 머리에 「견적 미발송 불량 n건」 띠를 두어, 보수를 우리가 할지 관계인이 다른 데 맡길지 정해지지 않은 불량이 보이게 한다. 설비 대장 절의 「만료 예정 개체 → 견적 초안」은 같은 버튼으로 합류한다.
+
+**견적 PDF 1장.** 지금 견적은 화면에만 있고 인쇄가 없다. `report1011.ts`와 같은 HTML 템플릿 1장(`lib/doc-templates/quote.ts`)을 `convertHtmlToPdf`로 내고 `fire-plans/{cid}/quotes/{qid}_{ts}.pdf`에 보관한다. 한 장이라 Gotenberg 동기 호출의 타임아웃 축에서 멀다.
+
+**⑥ 제출 패키지.** `downloadPackageAction`이 전·후 사진을 자동으로 넣듯 `orders.contract_file_path`도 넣는다. 시행규칙 23조의 이행완료 보고서 첨부가 「이행계획 건별 전·후 사진」과 「소방시설공사 계약서」 둘이기 때문이다. 별지 11호의 「소방공사업체」 칸은 지금 `company_profile`(자사) 고정인데, `orders.contractor_name`이 있으면 그 값을 인쇄한다.
+
+**③ 관계인 보고 칸.** 지금은 수신 정보와 A·B 방식만 있고 불량 목록이 없다(② 요약의 건수만). 「불량 n건 · 보수 견적 QT-… 발송/미발송」 한 줄을 넣고, A 이메일 본문에 열람 링크를 실을지 체크 하나를 둔다. PDF 첨부는 그대로다.
+
+**`/quotes` 목록.** 회차·불량 n건 열이 붙고, 「발송」은 링크 발송(메일·문자)으로 status가 바뀐다.
+
+**`/p/{token}`.** `proxy.ts PUBLIC_PATHS`에 `/p` 하나를 더한다. 토큰 해시를 대조해 만료·철회·위조는 전부 404 한 가지로 답한다. 종류별로 한 페이지다. 견적은 품목·금액·유효기간과 [승인] 버튼(이름 입력 + 확인 → `approved_at`·channel=portal·이벤트·담당자 알림), 별지 9·10·11호는 열람·다운로드(그때 300초 서명 URL), round는 회차 문서 묶음, asset은 개체 이력(설비 대장 절)이다. 로그인·anon key 호출은 0이어야 하고 이것을 정적 게이트로 고정한다. 담당자 알림은 `notifications`에 타입 하나(`quote_approved`)만 더하고 `reference_type` 제약은 넓히지 않고 회차를 참조한다.
+
+**고객 상세 「청구」 탭.** 지금 사업자정보·자동이체·소유자 그룹만 있고 이 고객의 `bills`·`tax_invoices` 목록이 없다(링크만). 목록을 넣고, 포털의 「청구 이력」 kind는 뒤에 같은 조회를 읽기 전용으로 재사용한다.
+
+### 자동화·청구 — 새 크론 0
+
+월정액 크론(`generate-monthly-bills`)은 바꾸지 않는다. 보수 청구는 사람이 수주 완료 때 누르는 단건이다. 견적 유효기간(`valid_until`) 경과는 매일 울릴 일이 아니라 주간 브리핑 크론(`weekly-doc-briefing`)에 「만료 임박 견적 n건」 한 줄로 얹고, 「만료」 상태 전환도 그 크론이 한다. 포털 승인은 즉시 알림이다.
+
+**부수 결함 하나를 같이 고친다.** 불량 조치 기한 크론(`defect-action-notify`)은 `inspection_defects.action_end`를 읽어 D-7·D-3·당일·경과를 울리는데, 2026-09-11 이후 `action_end`를 쓰는 화면 경로가 없다(`defect-actions.ts:357-362` 주석, 전역 grep 0). 신규 회차의 기한은 `annex_inputs`의 총 이행기간에 있고 대시보드는 그것을 읽는다(`lib/annex-due.ts repairEndISO`). 크론만 옛 열을 보고 있어 신규 회차는 알림이 나가지 않는 것으로 보인다. 크론이 `repairEndISO`를 쓰게 바꾸고, 바꾼 날 「알림 대상 회차 수 전후」를 센다.
+
+### 서식·법령 대응 — 서식은 불변, 첨부와 업체 칸만 채운다
+
+| 서식 | 지금 | 제안 뒤 |
+| --- | --- | --- |
+| 별지 10호 이행계획서 | 법령 원문(hwpx)에 비용 칸 없음. ERP도 없음 | 변화 없음. 견적은 서식 밖 문서 |
+| 별지 11호 이행완료 보고서 | 「소방공사업체」 칸 = 자사 고정. 첨부는 안내 문구만 | 업체 칸 = 시공사(있으면). 제출 패키지에 계약서 파일 포함 |
+| 별지 9호 8쪽 불량 세부 | 불량명·세부·조치 | 변화 없음 |
+| 견적서 | 없음 | HTML→PDF 1장 |
+| 관계인 서명 | 서식에 「(서명 또는 인)」 빈 칸 문구만. 기능 0 | 1차: 포털 승인 기록(이름·시각·IP)이 승인 증빙. 2차: 직원 서명 canvas(`signature-client.tsx`)를 관계인용으로 재사용해 별지 9호 교부 확인·견적 승인에 이미지 삽입 |
+
+승인 기록은 전자서명법상의 전자서명이 아니라 **열람·동의 로그**다. 계약서 서면은 그대로 받고, 포털 승인은 「견적을 보고 진행에 동의했다」는 시각 증빙으로 쓴다. 효력을 더 높이려면 별도 검토(본인 확인 수단)가 필요하고 이 절의 범위 밖이다.
+
+### 착수 순서·검증·위험
+
+1. 외래키 셋(`quotes.inspection_id`·`orders.inspection_id`·`bills.order_id`) + quotes 상태 「승인」·items `defect_ids` + ⑤ 사슬 버튼(견적 만들기 → 수주 → 청구) + 견적 PDF 1장 + ⑥ 패키지에 계약서 + 11호 업체 칸 + 크론 결함 수리. 외부 계약 0, 백필 0(두 표 0건).
+2. `share_links`·이벤트 표 + `/p/{token}` 열람·다운로드·견적 승인 + ③ 칸 불량 한 줄과 링크 체크 + `/quotes` 링크 발송. 문자 링크는 SMS_DRY_RUN이 꺼진 뒤(지금 운영 발송 0).
+3. 고객 「청구」 탭 bills·세금계산서 목록 + 포털 round·asset·청구 이력 kind + 관계인 canvas 서명.
+4. 범위 밖: 승인율·보수 매출 대시보드(6번 축), 온라인 결제(SaaS 로드맵 §6 결정 5 과금과 한 묶음), 시공 일정·기사 배정.
+
+**검증 축.** 단계마다 넷을 잰다. `inspection_steps.status` 전후 덤프 diff가 0건인가(⑤⑥ 완료 조건 불변). 월정액 크론의 생성 건수가 전후 같은가. `/p` 라우트 파일에 anon 클라이언트·`createServerClient` 호출이 0인가(정적 게이트, `_judge2-r4-static` 양식) + 만료·철회·위조 토큰이 전부 404이고 열람 이벤트가 요청과 1:1인가. 견적 → 수주 → 청구 → 패키지 ZIP에 계약서가 들어가는 한 사슬 E2E 1벌.
+
+**위험 다섯.** 토큰 URL은 전달받은 사람이 누구에게든 넘길 수 있다 — 문서별 토큰·90일 만료·철회·열람 기록으로 좁히고, 페이지에는 관계인 이름·주소 같은 개인정보를 최소로 둔다. 포털 승인을 계약으로 오해하면 분쟁이 된다 — 화면 문구를 「견적 확인·진행 동의」로 고정하고 계약서는 따로 받는다. `quotes`·`orders`의 RLS가 「활성 프로필 전체 권한」이라 포털은 service role 경로 하나만 쓴다. 상태값 「승인」을 더하면 `quotes-client.tsx`의 상태 필터·수정 가능 조건(작성중·취소)이 그 값을 알아야 한다. 새 표 둘에는 SaaS 규칙대로 `company_id`(nullable)를 처음부터 둔다.
 
 ## 설비 자산 대장 해결방안 — 수량 격자 위에 「개체」 한 층을 얹는다
 
@@ -463,3 +545,7 @@ QR은 기능이 아니라 식별자다. 식별자가 가리킬 대상이 개체�
 - 소방시설법 시행규칙 제25조(자체점검 결과 게시·별표 5 자체점검기록표): https://law.go.kr/LSW//lsLawLinkInfo.do?lsJoLnkSeq=900784932&lsId=009730&chrClsCd=010202&print=print , 서식 배포(강원소방): https://js119.gwd.go.kr/pc119/service/service_guide/service_guide_form?articleSeq=11100043
 - 소방용품의 품질관리 등에 관한 규칙 개정 이력(2022 성능확인 연장 3년/1년 개정분): https://law.go.kr/LSW/lsRvsDocListP.do?lsId=007517&chrClsCd=010202&lsRvsGubun=all
 - expo-camera 바코드 스캔(CameraView onBarcodeScanned): https://docs.expo.dev/versions/latest/sdk/camera/
+- Inspect Point 플랫폼(불량→제안→작업지시→청구 한 레코드)·제안서·불량 관리·Service Work Orders: https://www.inspectpoint.com/platform , https://www.inspectpoint.com/features/proposals/ , https://www.inspectpoint.com/features/deficiencies/ , https://support.inspectpoint.com/hc/en-us/articles/43200156816020-Feature-Overview-Service-Work-Orders
+- ServiceTrade 고객 포털·Service Link: https://servicetrade.com/features/service-portal/ , https://www.servicetrade.com/features/service-link/
+- 소방넷(관계인 대상 점검·공사 견적 비교) 자체점검 결과보고 안내: https://sobangnet.co.kr/inspection-report/
+- 소방시설법 시행규칙 별지 제11호서식(이행완료 보고서 — 첨부: 이행 전·후 사진, 소방시설공사 계약서): https://law.go.kr/LSW/flDownload.do?flSeq=121925889&bylClsCd=110202
