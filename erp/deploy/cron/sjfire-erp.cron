@@ -77,3 +77,9 @@ MAILTO=""
 # 🚫 drive-backup — 2026-08-18 기능 폐기(커밋 fed332c). 라우트 자체가 제거됐으므로
 #    재등록하면 매일 새벽 404를 때린다. 백업 txt에는 아직 이 줄이 남아 있으니
 #    **그 파일을 그대로 복원하지 말 것** — 이 정본을 쓸 것.
+
+# 야간 백업 — 매일 02:00 (DB 덤프 + Storage 미러 → 오브젝트 스토리지 · deploy/backup/backup-nightly.sh)
+#   ★ 2026-10-02 신규(통합 실행계획 A1). 그 전까지 자동 백업은 0이었다(drive-backup은 08-18 폐기).
+#   비밀은 /etc/sjfire/backup.env·rclone.conf(600, root)에만. 설치·복구는 deploy/backup/BACKUP.md.
+#   앱을 거치지 않으므로 CRON_SECRET 불필요. 실패는 /var/log/sjfire-backup.log + BACKUP_ALERT_URL/fail.
+0 2 * * * root /home/ubuntu/woni/erp/deploy/backup/backup-nightly.sh >> /var/log/sjfire-backup.log 2>&1

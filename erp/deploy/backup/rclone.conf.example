@@ -1,0 +1,29 @@
+# /etc/sjfire/rclone.conf 의 본보기 — 실제 키는 VPS에만 (sudo install -m 600 -o root -g root)
+# 이 저장소는 공개다. 실제 키를 이 파일에 적지 말 것.
+
+# ── 백업 목적지: 오브젝트 스토리지 (S3 호환) ──────────────────────────────
+# NCP Object Storage 예. Cloudflare R2면 provider = Cloudflare, endpoint = https://<account>.r2.cloudflarestorage.com, region = auto.
+# AWS S3면 provider = AWS, endpoint 비움, region = ap-northeast-2.
+[obj]
+type = s3
+provider = Other
+access_key_id = <object-storage-access-key>
+secret_access_key = <object-storage-secret-key>
+endpoint = https://kr.object.ncloudstorage.com
+region = kr-standard
+acl = private
+no_check_bucket = true
+
+# ── 백업 원천: Supabase Storage의 S3 호환 엔드포인트 ─────────────────────
+# Supabase 대시보드 → Project Settings → Storage → S3 Connection: "Enable connection via S3 protocol" 켜고
+# "New access key"로 키 발급. endpoint·region은 그 화면의 값을 그대로.
+# 서비스 역할 키가 아니라 Storage 전용 S3 키라 유출 반경이 작다.
+[supa]
+type = s3
+provider = Other
+access_key_id = <supabase-s3-access-key>
+secret_access_key = <supabase-s3-secret-key>
+endpoint = https://<project-ref>.storage.supabase.co/storage/v1/s3
+region = <project-region, 예: ap-northeast-2>
+force_path_style = true
+no_check_bucket = true
