@@ -11,9 +11,11 @@ interface LoginFormProps {
   companyName: string
   /** 회사 정보의 로고 URL — 있으면 기본 아이콘 대신 표시 */
   logoUrl: string | null
+  /** 로그인 뒤 돌아갈 경로(?next=) — 서버 액션이 lib/safe-next로 다시 검증한다 */
+  next?: string | null
 }
 
-export function LoginForm({ companyName, logoUrl }: LoginFormProps) {
+export function LoginForm({ companyName, logoUrl, next }: LoginFormProps) {
   const [state, formAction, isPending] = useActionState(loginAction, initialState as { error: string } | undefined)
   // 로그인 실패 시 폼이 리셋돼도 이메일은 유지 (비밀번호만 다시 입력)
   const [email, setEmail] = useState('')
@@ -43,6 +45,7 @@ export function LoginForm({ companyName, logoUrl }: LoginFormProps) {
         <h1 className="text-lg font-semibold text-ink mb-6">로그인</h1>
 
         <form action={formAction} className="space-y-4">
+          {next && <input type="hidden" name="next" value={next} />}
           <div className="space-y-1.5">
             <label htmlFor="email" className="text-sm font-medium text-ink-strong">
               이메일

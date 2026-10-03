@@ -1,6 +1,7 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 import { HOME_PATH } from '@/lib/routes'
+import { NEXT_ON_LOGIN } from '@/lib/safe-next'
 
 // /api/cron: 세션 없이 호출되는 크론 경로 — 라우트 자체의 CRON_SECRET Bearer 검증(withCronRun)으로 보호
 // /api/health: 업타임 감시용 공개 경로(A3 2026-10-02) — 비밀·버전을 싣지 않는 DB·Gotenberg 생존 판정만
@@ -78,7 +79,10 @@ export async function proxy(request: NextRequest) {
 
   // Unauthenticated — redirect to login
   if (!userId) {
-    return NextResponse.redirect(new URL('/login', request.url))
+    const login = new URL('/login', request.url)
+    // QR 리졸버(/t)만 돌아올 곳을 싣는다 — 폰 카메라로 찍은 코드를 로그인 뒤 잃지 않게(lib/safe-next)
+    if (NEXT_ON_LOGIN(pathname)) login.searchParams.set('next', pathname + request.nextUrl.search)
+    return NextResponse.redirect(login)
   }
 
   // Role-based access control

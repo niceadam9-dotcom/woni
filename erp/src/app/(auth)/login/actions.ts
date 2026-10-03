@@ -5,6 +5,7 @@ import { headers, cookies } from 'next/headers'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { HOME_PATH } from '@/lib/routes'
+import { safeNextPath } from '@/lib/safe-next'
 import { THEME_COOKIE, THEME_COOKIE_OPTIONS, readProfileTheme } from '@/lib/theme'
 import { FS_COOKIE, FS_COOKIE_OPTIONS, readProfileFontScale } from '@/lib/font-scale'
 import type { Profile } from '@/types'
@@ -114,5 +115,6 @@ export async function loginAction(_prev: LoginState, formData: FormData): Promis
     }
   }
 
-  redirect(HOME_PATH)
+  // ?next= — 검증을 통과한 같은 사이트 경로만(lib/safe-next). QR 스캔 → 로그인 → 그 코드로 복귀
+  redirect(safeNextPath(formData.get('next')) ?? HOME_PATH)
 }

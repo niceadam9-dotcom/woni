@@ -88,7 +88,7 @@ export async function listEquipmentAction(customerId: string, opts: { includeClo
 }
 
 /** 여러 줄 한꺼번에(직접 입력·엑셀 가져오기 공용) — 한 줄이라도 형식이 틀리면 아무것도 넣지 않는다 */
-export async function addEquipmentRowsAction(customerId: string, inputs: EquipmentInput[]): Promise<{ error?: string; added?: number }> {
+export async function addEquipmentRowsAction(customerId: string, inputs: EquipmentInput[]): Promise<{ error?: string; added?: number; ids?: string[] }> {
   const profile = await requirePermission('customer_manage')
   if (!inputs.length) return { error: '추가할 줄이 없습니다.' }
   if (inputs.length > 500) return { error: '한 번에 500줄까지 넣을 수 있습니다.' }
@@ -106,10 +106,11 @@ export async function addEquipmentRowsAction(customerId: string, inputs: Equipme
     if (typeof r === 'string') return { error: `${n + 1}번째 줄: ${r}` }
     rows.push({ ...r, created_by: profile.id })
   }
-  const { error } = await admin.from('equipment_assets').insert(rows)
+  // ids — QR 첫 등록(t/tag-actions)이 방금 만든 행에 코드를 붙인다(시각 비교로 찾지 않게)
+  const { data: inserted, error } = await admin.from('equipment_assets').insert(rows).select('id')
   if (error) { console.error('[equipment] 추가 실패:', error.message); return { error: '설비 대장에 추가하지 못했습니다.' } }
   revalidate(customerId)
-  return { added: rows.length }
+  return { added: rows.length, ids: ((inserted ?? []) as Array<{ id: string }>).map(r => r.id) }
 }
 
 export async function updateEquipmentAction(customerId: string, id: string, input: EquipmentInput): Promise<{ error?: string }> {

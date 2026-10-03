@@ -476,6 +476,8 @@ const steps: Step[] = [
   { name: '공문 직인(E2E)',             cmd: 'npx tsx --conditions=react-server scripts/test-company-seal-e2e.mts', needServer: true },
   // 모바일 앱 Bearer → /api/mobile/* — proxy는 통과만 시키고 라우트가 검사한다. 검사 없는 새 라우트를 정적 단언으로 막는다
   { name: '모바일 API 인증(E2E)',       cmd: 'npx tsx scripts/test-mobile-api-auth.mts', needServer: true },
+  // C4 2단계 웹 — QR 카드 현장 동작(폰 화면): 로그인 next= 복귀·scan 같은 날 1행·이상 없음·불량(진행 중 회차·asset_id)·첫 등록·교체
+  { name: 'QR 카드 현장 동작(E2E)',     cmd: 'npx tsx scripts/test-tag-card-e2e.mts', needServer: true },
   // 3쪽 1절 두 축(설치 √ / 점검결과 ○×)의 귀속 — 양방향으로 조용히 틀릴 수 있는 자리다.
   // 번짐을 안 막으면 설치도 안 한 설비에 ○가 찍히고(위조), 과하게 막으면 대장에 체크를
   // 빠뜨렸을 뿐인 실점검이 해당없음 ／로 지워진다. 두 실패 모두 인쇄물만 보면 멀쩡하다.

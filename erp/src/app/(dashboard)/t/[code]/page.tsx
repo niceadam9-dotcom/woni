@@ -9,11 +9,12 @@ import { findAssetByTag, recentAssetEvents } from '@/lib/equipment-tag-lookup'
 import { CATEGORY_LABEL, RULE_LABEL, expiryOf, expiryState } from '@/lib/equipment-lifespan'
 import { todayKst } from '@/lib/kst-date'
 import { TagSearchForm } from '@/components/equipment/tag-search-form'
+import { TagScanRecorder, TagCardActions, TagRegisterForm } from '@/components/equipment/tag-card-actions'
 
 /** QR 리졸버 — `/t/{tag_code}` (통합계획 C3 3단계 = 설비 QR 절 1단계, 2026-10-03)
  *  로그인 뒤 경로(proxy가 비로그인을 /login으로). 공개 카드는 없다 — 개체 위치·불량은 외부에 보이지 않는다.
  *  1단계는 개체(C)만. 못 찾으면 수기 조회 칸과 함께 「등록되지 않은 코드」(스캔 첫 등록은 모바일 2단계). */
-const EVENT_LABEL: Record<string, string> = { install: '설치', inspect: '점검', measure: '약제량 측정', perf_check: '성능확인', repair: '수리', replace: '교체', dispose: '폐기' }
+const EVENT_LABEL: Record<string, string> = { install: '설치', inspect: '점검', measure: '약제량 측정', perf_check: '성능확인', repair: '수리', replace: '교체', dispose: '폐기', scan: 'QR 확인' }
 const RESULT_LABEL: Record<string, string> = { good: '양호', aging: '노후', defect: '불량' }
 const STATE_LABEL = { expired: '내용연수 경과', soon: '12개월 내 만료', ok: '정상', unknown: '제조연월 미입력', none: '연수 판정 없음' } as const
 const STATUS_LABEL: Record<string, string> = { in_use: '사용 중', replaced: '교체됨', disposed: '폐기', lost: '분실' }
@@ -36,6 +37,8 @@ export default async function TagPage({ params }: { params: Promise<{ code: stri
         <h1 className="flex items-center gap-2 text-lg font-bold text-ink"><QrCode className="size-5" /> {tagHuman(code)}</h1>
         <p className="text-sm text-ink-sub">등록되지 않은 코드입니다. 라벨의 앞 6자를 다시 확인하거나 아래에서 찾아 보세요.</p>
         <TagSearchForm />
+        {/* C4 2단계 — 선인쇄 라벨을 붙이며 찍었다면 여기서 바로 첫 등록(라벨 부착 = 대장 입력) */}
+        {can(profile.role as UserRole, 'customer_manage') && <TagRegisterForm code={code} />}
       </div>
     )
   }
@@ -44,6 +47,7 @@ export default async function TagPage({ params }: { params: Promise<{ code: stri
   const events = await recentAssetEvents(admin, a.id)
   return (
     <div className="mx-auto max-w-md space-y-3 p-4" data-testid="tag-card">
+      <TagScanRecorder assetId={a.id} />
       <div className="flex items-center gap-2 text-ink-meta text-xs"><QrCode className="size-4" /> {tagHuman(a.tag_code)}</div>
       <h1 className="text-lg font-bold text-ink" data-testid="tag-card-title">
         {CATEGORY_LABEL[a.category]}{a.sub_type ? <span className="font-normal text-ink-sub"> · {a.sub_type}</span> : null}
@@ -57,6 +61,8 @@ export default async function TagPage({ params }: { params: Promise<{ code: stri
         {a.warranty_until && <><dt className="text-ink-meta">하자보수</dt><dd>~{a.warranty_until}{a.warranty_until >= today ? ' (시공사 무상 기간)' : ' (종료)'}</dd></>}
         <dt className="text-ink-meta">상태</dt><dd data-testid="tag-card-status">{STATUS_LABEL[a.status] ?? a.status}</dd>
       </dl>
+      {/* C4 2단계 — 현장 버튼(사용 중인 설비만). 교체는 대장 관리 권한 */}
+      {a.status === 'in_use' && <TagCardActions assetId={a.id} canReplace={can(profile.role as UserRole, 'customer_manage')} />}
       <div>
         <h2 className="mb-1 text-sm font-semibold text-ink">최근 이력</h2>
         {events.length === 0 ? <p className="text-sm text-ink-meta">이력이 없습니다.</p> : (
