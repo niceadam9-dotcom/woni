@@ -5,6 +5,7 @@ import { findDueReport9, findMissingCerts, SELF_INSPECTION_OR } from '@/lib/doc-
 import { isGoogleConfigured, gmailSendMail } from '@/lib/google'
 import { getCompanyProfile } from '@/lib/company-profile'
 import { expireStaleQuotes, findQuotesExpiringSoon } from '@/lib/quote-expiry'
+import { findEquipmentExpiring, BRIEFING_SOON_DAYS } from '@/lib/equipment-expiry'
 
 // P-2 주간 문서 브리핑 (소방계획서_5 §8 P-2 — 모니터링 0층)
 // 매주 월 아침: 이번 주 자체점검·별지 9호 제출 기한 임박·배치확인서 누락 요약을
@@ -36,6 +37,9 @@ async function handle() {
   if (soon.error) console.error('[weekly-doc-briefing] 만료 임박 견적 조회 실패:', soon.error)
   const quotesSoon = soon.quotes
   const overdue = dueSoon.filter(d => d.dday < 0).length
+  // 설비 대장(C3 2단계) — 내용연수는 연 단위 사건이라 매일 울리지 않고 여기 한 줄. 판정은 lib/equipment-expiry(배지와 같은 함수)
+  const eq = await findEquipmentExpiring(admin, todayStr)
+  if (eq.error) console.error('[weekly-doc-briefing] 설비 대장 만료 조회 실패:', eq.error)
 
   const lines = [
     `[주간 문서 브리핑] ${todayStr}`,
@@ -44,9 +48,11 @@ async function handle() {
     `· 별지 9호 제출 기한 임박(D-7 이내): ${dueSoon.length}건${overdue > 0 ? ` (기한 초과 ${overdue}건)` : ''}`,
     `· 배치확인서 누락: ${missingCerts.length}건`,
     `· 만료 임박 보수 견적(7일 내): ${quotesSoon.length}건${expiredNow > 0 ? ` · 이번에 만료 처리 ${expiredNow}건` : ''}`,
+    `· 설비 내용연수 ${BRIEFING_SOON_DAYS}일 내 만료: ${eq.soonQty}대${eq.expiredQty > 0 ? ` · 이미 경과 ${eq.expiredQty}대` : ''} (고객 ${eq.customers.length}곳)`,
     ``,
     ...(dueSoon.length > 0 ? ['[제출 기한 임박]', ...dueSoon.slice(0, 10).map(d => ` - ${d.customerName} ${d.year}년 ${d.sequenceNum}차 · ${d.dday < 0 ? `기한 초과 ${-d.dday}일` : `D-${d.dday}`} (기한 ${d.due})`), ''] : []),
     ...(quotesSoon.length > 0 ? ['[만료 임박 견적 — 승인을 받거나 유효기간을 갱신하세요]', ...quotesSoon.slice(0, 10).map(q => ` - ${q.customer_name} ${q.quote_number} (${q.status}) · ${q.valid_until}까지`), ''] : []),
+    ...(eq.customers.length > 0 ? ['[설비 내용연수 — 교체 견적 대상]', ...eq.customers.slice(0, 10).map(c => ` - ${c.customer_name} · ${[c.expired && `경과 ${c.expired}대`, c.soon && `${BRIEFING_SOON_DAYS}일 내 ${c.soon}대`].filter(Boolean).join(' · ')}`), ''] : []),
     ...(missingCerts.length > 0 ? ['[배치확인서 누락]', ...missingCerts.slice(0, 10).map(c => ` - ${c.customerName} ${c.year}년 ${c.sequenceNum}차${c.daysSince !== null ? ` · 완료 후 ${c.daysSince}일 경과` : ''}`), ''] : []),
     `대시보드 제출 현황: /dashboard#submissions`,
   ]
@@ -89,7 +95,7 @@ async function handle() {
 
   return NextResponse.json({
     ok: true, date: todayStr,
-    summary: { weekDone, dueSoon: dueSoon.length, overdue, missingCerts: missingCerts.length, quotesSoon: quotesSoon.length, quotesExpired: expiredNow },
+    summary: { weekDone, dueSoon: dueSoon.length, overdue, missingCerts: missingCerts.length, quotesSoon: quotesSoon.length, quotesExpired: expiredNow, equipmentSoon: eq.soonQty, equipmentExpired: eq.expiredQty, equipmentCustomers: eq.customers.length },
     notified, notifyError, emailed, emailError,
   })
 }

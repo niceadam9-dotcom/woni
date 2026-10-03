@@ -77,3 +77,19 @@ export function expiredSentence<T extends { qty: number; category: EquipmentCate
   const label = RULE_YEARS[hit[0].lifespan_rule] ? '내용연수 경과' : '연장 만료'
   return `${label} ${CATEGORY_LABEL[category]} ${n}대: ${parts.join(', ')}`
 }
+
+/** 공사 하자보수 기간(소방시설공사업법 시행령 6조) — 대장 품목이 속한 설비 분류로(C3 2단계).
+ *  2년: 피난기구(완강기) / 3년: 옥내소화전(호스)·자동화재탐지(연기감지기)·물분무등(가스계)·펌프(소화설비).
+ *  소화기구(분말·기타·자동확산 소화기)는 시공 대상 설비가 아니라 null — 사람이 만료일을 직접 적을 수는 있다. */
+export const WARRANTY_YEARS: Record<EquipmentCategory, number | null> = {
+  powder: null, other_ext: null, auto_diffuse: null, descender: 2,
+  hose: 3, smoke_detector: 3, gas_cylinder: 3, pump: 3,
+}
+
+/** 완공일 + 품목 하자보수 연수 → 만료일(전날이 아니라 같은 날짜, 단순 연 가산). 연수 없는 품목·형식 오류는 null */
+export function warrantyUntilOf(category: EquipmentCategory, completedOn: string | null | undefined): string | null {
+  const y = WARRANTY_YEARS[category]
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(completedOn ?? '')
+  if (!y || !m) return null
+  return `${Number(m[1]) + y}-${m[2]}-${m[3] === '29' && m[2] === '02' ? '28' : m[3]}`
+}

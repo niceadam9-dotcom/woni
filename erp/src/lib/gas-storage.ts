@@ -29,3 +29,12 @@ export function numOrNull(v: unknown): number | null {
   const n = Number(s)
   return Number.isFinite(n) ? n : null
 }
+
+/** 불량 내역 자동 문장(C3 2단계) — 「약제량 손실 5% 초과 2병: 지하1층 저장실 No.2(손실 6.7%), …」. 불량 줄이 없으면 null */
+export function gasDefectSentence(rows: ReadonlyArray<{ location: string | null; cylNo: number; rate: number | null }>): string | null {
+  const hit = rows.filter(r => r.rate != null && r.rate > LOSS_LIMIT)
+    .sort((a, b) => (a.location ?? '').localeCompare(b.location ?? '', 'ko') || a.cylNo - b.cylNo)
+  if (!hit.length) return null
+  const parts = hit.map(r => `${r.location?.trim() || '위치 미기재'} No.${r.cylNo}(손실 ${Math.round(r.rate! * 1000) / 10}%)`)
+  return `약제량 손실 ${Math.round(LOSS_LIMIT * 100)}% 초과 ${hit.length}병: ${parts.join(', ')}`
+}

@@ -5,14 +5,14 @@
  *  머리 집계(총·내용연수 초과·12개월 내 만료·연장 중) · 품목별 행 표(묶음 행) · 직접 추가 · 엑셀 가져오기 · 교체/폐기 · 묶음 쪼개기.
  *  3-1 동별 수량과는 **대조만** 한다 — 「대장 분말 n대 / 3-1 분말 m대」를 나란히 보이고 어느 쪽도 덮어쓰지 않는다.
  *  탭이 열릴 때 액션으로 한 번 읽는다(lazy — 고객 상세 서버 물결에 얹지 않는다). */
-import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import { Boxes, Loader2, Plus, Upload, X } from 'lucide-react'
 import {
-  listEquipmentAction, addEquipmentRowsAction, closeEquipmentAction, splitEquipmentAction, getS31TotalsAction,
+  listEquipmentAction, addEquipmentRowsAction, closeEquipmentAction, splitEquipmentAction, getS31TotalsAction, setEquipmentTermsAction,
   type EquipmentRow, type EquipmentInput,
 } from '@/app/(dashboard)/customers/equipment-actions'
 import {
-  CATEGORIES, CATEGORY_LABEL, DEFAULT_RULE, RULE_LABEL, expiryOf, expiryState, tallyAssets, type EquipmentCategory,
+  CATEGORIES, CATEGORY_LABEL, DEFAULT_RULE, RULE_LABEL, WARRANTY_YEARS, expiryOf, expiryState, tallyAssets, warrantyUntilOf, type EquipmentCategory,
 } from '@/lib/equipment-lifespan'
 import { parseEquipmentGrid } from '@/lib/equipment-import'
 
@@ -30,6 +30,7 @@ export function EquipmentLedgerPanel({ customerId, buildings, canManage }: { cus
   const [adding, setAdding] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
   const [preview, setPreview] = useState<{ inputs: EquipmentInput[]; errors: string[] } | null>(null)
+  const [termsId, setTermsId] = useState<string | null>(null)
 
   const load = async () => {
     const [r, t] = await Promise.all([listEquipmentAction(customerId), getS31TotalsAction(customerId)])
@@ -138,14 +139,21 @@ export function EquipmentLedgerPanel({ customerId, buildings, canManage }: { cus
               {rows.map(r => {
                 const st = expiryState(r, today)
                 return (
-                  <tr key={r.id} className="border-b last:border-0" data-testid="equipment-row">
+                  <Fragment key={r.id}>
+                  <tr className="border-b last:border-0" data-testid="equipment-row">
                     <td className="px-2 py-1.5">{CATEGORY_LABEL[r.category]}{r.sub_type ? <span className="text-ink-meta"> · {r.sub_type}</span> : null}</td>
                     <td className="px-2 py-1.5">{bName(r.building_id)}</td>
                     <td className="px-2 py-1.5">{r.location ?? '—'}</td>
                     <td className="px-2 py-1.5 text-right">{r.qty}</td>
                     <td className="px-2 py-1.5">{r.manufactured_on?.slice(0, 7) ?? '—'}</td>
                     <td className="px-2 py-1.5 text-ink-meta">{RULE_LABEL[r.lifespan_rule]}{r.extension_until ? ' · 연장' : ''}</td>
-                    <td className="px-2 py-1.5">{expiryOf(r) ?? '—'}</td>
+                    <td className="px-2 py-1.5">
+                      {expiryOf(r) ?? '—'}
+                      {r.warranty_until && (
+                        <div className={`text-form-2xs ${r.warranty_until < today ? 'text-ink-meta line-through' : 'text-blue-700'}`} data-testid="equipment-warranty"
+                          title="공사 하자보수 만료일 — 이 날까지는 시공사 무상 보수 대상입니다">하자보수 ~{r.warranty_until}</div>
+                      )}
+                    </td>
                     <td className="px-2 py-1.5"><span className={`rounded-full px-1.5 py-0.5 text-form-2xs ${STATE_STYLE[st]}`}>{STATE_LABEL[st]}</span></td>
                     {canManage && (
                       <td className="px-2 py-1.5 whitespace-nowrap">
@@ -153,11 +161,20 @@ export function EquipmentLedgerPanel({ customerId, buildings, canManage }: { cus
                           <button disabled={pending} className="mr-1 underline text-ink-sub" title="묶음에서 일부를 떼어 새 행으로(한두 대만 교체할 때)"
                             onClick={() => { const k = Number(prompt(`${r.qty}대 중 몇 대를 떼어 낼까요?`, '1')); if (k) run(() => splitEquipmentAction(customerId, r.id, k), `${k}대를 새 행으로 나눴습니다`) }}>쪼개기</button>
                         )}
+                        <button disabled={pending} className="mr-1 underline text-ink-sub" data-testid="equipment-terms-open"
+                          title="성능확인 합격(연장)·공사 완공(하자보수) 기한 기록" onClick={() => setTermsId(v => (v === r.id ? null : r.id))}>기한</button>
                         <button disabled={pending} className="underline text-red-600" data-testid="equipment-close"
                           onClick={() => { if (confirm(`${CATEGORY_LABEL[r.category]} ${r.qty}대를 교체됨으로 닫을까요? (행은 이력으로 남습니다)`)) run(() => closeEquipmentAction(customerId, r.id, 'replaced'), '교체됨으로 닫았습니다') }}>교체됨</button>
                       </td>
                     )}
                   </tr>
+                  {termsId === r.id && canManage && (
+                    <tr className="border-b bg-brand-tint/20"><td colSpan={9} className="px-2 py-2">
+                      <TermsForm row={r} disabled={pending} onCancel={() => setTermsId(null)}
+                        onSubmit={t => run(async () => { const res = await setEquipmentTermsAction(customerId, r.id, t); if (!res.error) setTermsId(null); return res }, '기한을 저장했습니다')} />
+                    </td></tr>
+                  )}
+                  </Fragment>
                 )
               })}
             </tbody>
@@ -195,6 +212,42 @@ function AddForm({ buildings, disabled, onSubmit, onCancel }: { buildings: Build
         onClick={() => onSubmit({ category: cat, buildingId: b || null, location: loc, qty: Number(qty), manufacturedYm: ym, subType: sub })}
         className="h-8 rounded-lg bg-brand px-3 text-form-sm text-white disabled:opacity-50">추가</button>
       <button onClick={onCancel} disabled={disabled} className="h-8 rounded-lg border px-2"><X className="size-3.5" /></button>
+    </div>
+  )
+}
+
+/** 행별 기한 — 성능확인 합격(연장 만료일은 사람이 적는다) · 공사 완공일(품목 연수로 하자보수 만료 계산) */
+function TermsForm({ row, disabled, onSubmit, onCancel }: {
+  row: EquipmentRow; disabled: boolean
+  onSubmit: (t: { perfCheckedOn?: string; extensionUntil?: string; completedOn?: string; warrantyUntil?: string }) => void; onCancel: () => void
+}) {
+  const [perf, setPerf] = useState('')
+  const [ext, setExt] = useState(row.extension_until ?? '')
+  const [done, setDone] = useState(row.installed_on ?? '')
+  const [war, setWar] = useState(row.warranty_until ?? '')
+  const years = WARRANTY_YEARS[row.category]
+  const computed = done ? warrantyUntilOf(row.category, done) : null
+  const field = 'h-8 rounded border border-brand-line px-2 text-form-sm'
+  return (
+    <div className="flex flex-wrap items-end gap-1.5" data-testid="equipment-terms-form">
+      <label className="text-form-2xs">성능확인 합격일<br /><input type="date" value={perf} onChange={e => setPerf(e.target.value)} className={field} disabled={disabled} data-testid="equipment-terms-perf" /></label>
+      <label className="text-form-2xs">연장 만료일<br /><input type="date" value={ext} onChange={e => setExt(e.target.value)} className={field} disabled={disabled} data-testid="equipment-terms-ext" /></label>
+      <span className="mx-1 h-8 border-l border-line" />
+      <label className="text-form-2xs">공사 완공일<br /><input type="date" value={done} onChange={e => setDone(e.target.value)} className={field} disabled={disabled} data-testid="equipment-terms-done" /></label>
+      <label className="text-form-2xs">하자보수 만료일{years ? ` (완공 + ${years}년)` : ''}<br />
+        <input type="date" value={computed ?? war} onChange={e => setWar(e.target.value)} readOnly={!!computed} className={`${field} ${computed ? 'bg-paper' : ''}`} disabled={disabled} data-testid="equipment-terms-warranty" /></label>
+      <button disabled={disabled} data-testid="equipment-terms-submit"
+        onClick={() => onSubmit({
+          ...(perf ? { perfCheckedOn: perf } : {}),
+          extensionUntil: ext,
+          completedOn: done,
+          ...(computed ? {} : { warrantyUntil: war }),
+        })}
+        className="h-8 rounded-lg bg-brand px-3 text-form-sm text-white disabled:opacity-50">저장</button>
+      <button onClick={onCancel} disabled={disabled} className="h-8 rounded-lg border px-2"><X className="size-3.5" /></button>
+      <span className="basis-full text-form-2xs text-ink-meta">
+        연장 만료일이 있으면 만료 판정은 그 날짜를 따릅니다(성능확인 연장 연수는 사람이 확인해 적습니다). 하자보수는 소방시설공사업법 시행령 6조 — 피난기구 2년, 소화전·자탐·물분무등·펌프 3년, 소화기구는 해당 없음.
+      </span>
     </div>
   )
 }

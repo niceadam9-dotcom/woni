@@ -8,7 +8,7 @@
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requirePermission } from '@/lib/auth'
-import { CATEGORIES, DEFAULT_RULE, normalizeYm, type EquipmentCategory, type LifespanRule } from '@/lib/equipment-lifespan'
+import { CATEGORIES, DEFAULT_RULE, normalizeYm, warrantyUntilOf, type EquipmentCategory, type LifespanRule } from '@/lib/equipment-lifespan'
 import { lossOf, type GasMeasure } from '@/lib/gas-storage'
 
 export type EquipmentRow = {
@@ -131,6 +131,45 @@ export async function closeEquipmentAction(customerId: string, id: string, statu
   if (evErr) console.error('[equipment] 이력 기록 실패(상태는 바뀜):', evErr.message)
   revalidate(customerId)
   return {}
+}
+
+/** 기한 기록(C3 2단계) — 성능확인 합격 → 연장 만료일, 공사 완공일 → 하자보수 만료일.
+ *  · 연장: 만료일을 사람이 적는다(2022 개정 연장 연수는 조문 원문 미대조 — 상수로 계산하지 않는다). 합격일을 함께 주면 perf_check 이벤트를 남긴다.
+ *  · 하자보수: 완공일을 주면 품목 연수(WARRANTY_YEARS)로 계산, 직접 만료일을 주면 그 값. 완공일은 installed_on에 둔다.
+ *  · 빈 문자열 = 지움(null). undefined = 그 칸은 건드리지 않는다. */
+export async function setEquipmentTermsAction(customerId: string, id: string, t: {
+  perfCheckedOn?: string; extensionUntil?: string; completedOn?: string; warrantyUntil?: string
+}): Promise<{ error?: string; warrantyUntil?: string | null }> {
+  const profile = await requirePermission('customer_manage')
+  const admin = createAdminClient()
+  const { data: cur } = await admin.from('equipment_assets').select('category').eq('id', id).eq('customer_id', customerId).maybeSingle()
+  if (!cur) return { error: '행을 찾을 수 없습니다.' }
+  const cat = (cur as { category: EquipmentCategory }).category
+  const isDate = (v: string) => /^\d{4}-\d{2}-\d{2}$/.test(v)
+  for (const [k, v] of Object.entries(t)) if (v && !isDate(v)) return { error: `날짜 형식이 아닙니다(${k}): ${v} (예: 2026-10-03)` }
+  if (t.perfCheckedOn && !t.extensionUntil) return { error: '성능확인 합격일을 적으면 연장 만료일도 적어 주세요.' }
+  const patch: Record<string, unknown> = {}
+  if (t.extensionUntil !== undefined) patch.extension_until = t.extensionUntil || null
+  if (t.completedOn !== undefined) patch.installed_on = t.completedOn || null
+  let warranty: string | null | undefined
+  if (t.warrantyUntil !== undefined && t.warrantyUntil !== '') warranty = t.warrantyUntil
+  else if (t.completedOn) {
+    warranty = warrantyUntilOf(cat, t.completedOn)
+    if (!warranty) return { error: '이 품목은 하자보수 연수가 정해져 있지 않습니다 — 하자보수 만료일을 직접 적어 주세요.' }
+  } else if (t.warrantyUntil === '') warranty = null
+  if (warranty !== undefined) patch.warranty_until = warranty
+  if (!Object.keys(patch).length) return { error: '바꿀 값이 없습니다.' }
+  const { data, error } = await admin.from('equipment_assets').update(patch).eq('id', id).eq('customer_id', customerId).select('id')
+  if (error || !data?.length) return { error: '기한을 저장하지 못했습니다.' }
+  if (t.perfCheckedOn) {
+    const { error: evErr } = await admin.from('equipment_asset_events').insert({
+      asset_id: id, event_type: 'perf_check', event_date: t.perfCheckedOn, result: 'good',
+      values: { extension_until: t.extensionUntil }, actor_id: profile.id,
+    })
+    if (evErr) console.error('[equipment] 성능확인 이력 기록 실패(기한은 저장됨):', evErr.message)
+  }
+  revalidate(customerId)
+  return { warrantyUntil: warranty }
 }
 
 /** 묶음 행 쪼개기 — qty n 중 k대를 새 행으로(한 대 교체 등). 원 행은 n-k */

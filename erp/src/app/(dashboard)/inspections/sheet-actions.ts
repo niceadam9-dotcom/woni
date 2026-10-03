@@ -1,7 +1,8 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { tallyAssets, expiredSentence, type LifespanRule } from '@/lib/equipment-lifespan'
+import { tallyAssets, expiredSentence, expiryState, type LifespanRule } from '@/lib/equipment-lifespan'
+import { GAS_ITEM_CODES, LOSS_LIMIT, gasDefectSentence } from '@/lib/gas-storage'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requirePermission } from '@/lib/auth'
 import { sheetMatchesFacilities, groupInstalledInSheet, groupActiveInSheet } from '@/lib/sheet-facility-map'
@@ -771,6 +772,55 @@ export async function searchQuickItemsAction(inspectionId: string, q: string): P
   }
 }
 
+/** C3 2단계 — 대장이 근거를 가진 ✕의 불량 내역 문장과 개체 id.
+ *  분말 내용연수(1-A-008·X1-06·32-A-005) = 사용 중 분말 행 중 경과분(expiredSentence, 점검표 띠와 같은 함수),
+ *  가스 약제저장량(9-B-001·11-B-001) = 이 회차 measure 이벤트 중 손실 5% 초과 줄.
+ *  개체 id는 근거 행이 **한 개체(묶음 행 하나)** 일 때만 — 여럿이면 문장만(불량 1행 = 항목 코드 1개 규약 유지).
+ *  대장이 없거나 근거가 없으면 빈 Map — 종전 동작(defect_detail null) 그대로다. 조회 실패도 빈 Map(불량 등록을 막지 않는다). */
+async function ledgerDefectFacts(
+  admin: ReturnType<typeof createAdminClient>, inspectionId: string, codes: string[],
+): Promise<Map<string, { sentence: string; assetId: string | null }>> {
+  const out = new Map<string, { sentence: string; assetId: string | null }>()
+  const powderCodes = codes.filter(c => LEDGER_POWDER_CODES.has(c))
+  const gasCodes = codes.filter(c => GAS_ITEM_CODES.has(c))
+  if (!powderCodes.length && !gasCodes.length) return out
+  const one = (ids: string[]) => (new Set(ids).size === 1 ? ids[0] : null)
+  if (powderCodes.length) {
+    const { data: insp } = await admin.from('inspections').select('customer_id').eq('id', inspectionId).maybeSingle()
+    const cid = (insp as { customer_id: string } | null)?.customer_id
+    const { data, error } = cid
+      ? await admin.from('equipment_assets').select('id, qty, category, location, manufactured_on, lifespan_rule, extension_until, status')
+          .eq('customer_id', cid).eq('status', 'in_use').eq('category', 'powder')
+      : { data: [], error: null }
+    if (!error) {
+      const rows = (data ?? []) as Array<{ id: string; qty: number; category: 'powder'; location: string | null; manufactured_on: string | null; lifespan_rule: LifespanRule; extension_until: string | null; status: string }>
+      const today = new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10)
+      const sentence = expiredSentence(rows, 'powder', today)
+      if (sentence) {
+        const assetId = one(rows.filter(r => expiryState(r, today) === 'expired').map(r => r.id))
+        for (const c of powderCodes) out.set(c, { sentence, assetId })
+      }
+    }
+  }
+  if (gasCodes.length) {
+    const { data, error } = await admin.from('equipment_asset_events')
+      .select('asset_id, values, equipment_assets!inner(category)')
+      .eq('inspection_id', inspectionId).eq('event_type', 'measure').eq('equipment_assets.category', 'gas_cylinder')
+    if (!error) {
+      const rows = ((data ?? []) as unknown as Array<{ asset_id: string; values: Record<string, unknown> }>).map(e => ({
+        assetId: e.asset_id, location: (e.values.location as string) ?? null, cylNo: Number(e.values.cyl_no) || 1,
+        rate: typeof e.values.loss_rate === 'number' ? e.values.loss_rate : null,
+      }))
+      const sentence = gasDefectSentence(rows)
+      if (sentence) {
+        const assetId = one(rows.filter(r => r.rate != null && r.rate > LOSS_LIMIT).map(r => r.assetId))
+        for (const c of gasCodes) out.set(c, { sentence, assetId })
+      }
+    }
+  }
+  return out
+}
+
 /** X(불량) 응답 → 불량내역 자동 등록 (P34-3) — 중복 코드 제외.
  *
  *  「불량내용」(defect_name)은 **사람이 적은 메모가 최우선**이다(2026-09-07 사용자 확정 —
@@ -794,10 +844,11 @@ export async function createDefectsFromXAction(
   if (xRows.length === 0) return { added: 0 }
 
   const codes = xRows.map(r => r.item_code)
-  const [{ data: cat }, { data: existing }, allItems] = await Promise.all([
+  const [{ data: cat }, { data: existing }, allItems, ledger] = await Promise.all([
     admin.from('defect_catalog').select('code, equipment, description').in('code', codes),
     admin.from('inspection_defects').select('defect_code').eq('inspection_id', inspectionId),
     getAllSheetItems(),
+    ledgerDefectFacts(admin, inspectionId, codes),
   ])
   const catMap = new Map(((cat ?? []) as Array<{ code: string; equipment: string; description: string }>).map(c => [c.code, c]))
   const have = new Set(((existing ?? []) as Array<{ defect_code: string | null }>).map(e => e.defect_code).filter(Boolean))
@@ -806,20 +857,25 @@ export async function createDefectsFromXAction(
   const itemName = new Map(allItems.map(i => [i.item_code, i.item_name]))
 
   // 메모가 이름으로 승격되면 detail은 비운다 — 목록(이름 굵게 + detail 회색)에 같은 문장이 두 번 찍힌다
+  // C3 2단계: 대장이 근거를 가진 코드만 detail에 근거 문장(「내용연수 경과 분말소화기 6대: …」) — 이름 사슬은 그대로
   const nameOf = (r: { item_code: string; memo: string | null }) => {
     const memo = r.memo?.trim() || null
     const c = catMap.get(r.item_code)
-    return { name: memo ?? c?.description ?? itemName.get(r.item_code) ?? r.item_code, detail: null as string | null }
+    const name = memo ?? c?.description ?? itemName.get(r.item_code) ?? r.item_code
+    const fact = ledger.get(r.item_code)
+    return { name, detail: fact && fact.sentence !== name ? fact.sentence : null, assetId: fact?.assetId ?? null }
   }
 
   const toInsert = xRows.filter(r => !have.has(r.item_code)).map(r => {
-    const { name, detail } = nameOf(r)
+    const { name, detail, assetId } = nameOf(r)
     return {
       inspection_id: inspectionId,
       defect_code: r.item_code,
       defect_name: name,
       defect_detail: detail,
       severity: '보통',
+      // 열이 172로 생겼다 — 대장 근거가 없으면 키를 넣지 않는다(종전 insert 모양 그대로)
+      ...(assetId ? { asset_id: assetId } : {}),
     }
   })
 
@@ -828,9 +884,9 @@ export async function createDefectsFromXAction(
     ? xRows.filter(r => have.has(r.item_code) && (syncCodes ?? []).includes(r.item_code))
     : []
   for (const r of toSync) {
-    const { name, detail } = nameOf(r)
+    const { name, detail, assetId } = nameOf(r)
     await admin.from('inspection_defects')
-      .update({ defect_name: name, defect_detail: detail })
+      .update({ defect_name: name, defect_detail: detail, ...(assetId ? { asset_id: assetId } : {}) })
       .eq('inspection_id', inspectionId).eq('defect_code', r.item_code)
   }
   if (toSync.length > 0) {

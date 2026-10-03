@@ -16,6 +16,8 @@ import { firePlanPdfUrl } from '@/lib/fire-plan-doc-urls'
 import { TableScroll, STICKY_THEAD } from '@/components/ui/table-scroll'
 import { AddressMapButton } from '@/components/ui/address-map-button'
 import { fetchCustomerListPage, parseListFilter } from '@/lib/customer-list'
+import { expiryByCustomer, expiryBadge } from '@/lib/equipment-expiry'
+import { todayKst } from '@/lib/customer-rounds'
 import type { InspectionType, UserRole } from '@/types'
 
 // 법정 자체점검 횟수 — 유형·종류 파생 라벨 (§6-B 병기, 일반관리는 종류 따라 연 2회/1회 상이 — 2026-08-05)
@@ -37,10 +39,13 @@ export default async function CustomersPage({
   const admin = createAdminClient()
   // 속도 개선 3단계(2026-10-01): 인증 확인을 목록 조회와 **같은 물결**에 — 인증은 redirect로만 반응하므로
   // 병렬 시작해도 안전하다(고객 상세와 같은 규약). 목록은 DB가 한 쪽만 돌려준다(fetchCustomerListPage).
-  const [profile, { items: customers, total: totalCount }, profilesRes] = await Promise.all([
+  // 설비 대장 만료 배지(C3 2단계) — 고객 id를 기다리지 않고 같은 물결에서 전 고객분을 읽는다(연수 판정 있는 사용 중 행만, 작다)
+  const todayIso = todayKst()
+  const [profile, { items: customers, total: totalCount }, profilesRes, equipExpiry] = await Promise.all([
     getProfile(),
     fetchCustomerListPage(admin, filter, { page, pageSize }),
     admin.from('profiles').select('id, name').eq('is_active', true).eq('is_system', false).order('name'),
+    expiryByCustomer(admin, todayIso),
   ])
   if (!profile) redirect('/login')
 
@@ -201,6 +206,15 @@ export default async function CustomersPage({
                             <InlineCustomerFieldClient customerId={c.id} field="customer_name" value={c.customer_name}
                               displayVariant="pencil-only" />
                           )}
+                          {(() => {
+                            const eb = expiryBadge(equipExpiry.byCustomer.get(c.id))
+                            return eb && (
+                              <Link href={`/customers/${c.id}?tab=facilities&form=1.4`} title={eb.title} data-testid="customer-row-equip-expiry"
+                                className={`ml-1 whitespace-nowrap rounded-full px-1.5 py-0.5 text-form-2xs font-medium ${eb.tone === 'red' ? 'bg-red-50 text-red-700' : 'bg-amber-50 text-amber-700'}`}>
+                                {eb.label}
+                              </Link>
+                            )
+                          })()}
                         </div>
                         {/* 주소 줄에 지도(S5-7 확산) — 이미 있던 부제를 누를 수 있게 만든 것이라
                             새 정보가 늘지 않는다. 아이콘만 두는 이유: [지도] 글자를 넣으면

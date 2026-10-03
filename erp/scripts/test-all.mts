@@ -452,6 +452,8 @@ const steps: Step[] = [
   { name: '설비 내용연수 판정',          cmd: 'npx tsx scripts/test-equipment-lifespan.mts' },
   { name: '설비 대장(E2E)',              cmd: 'npx tsx scripts/test-equipment-ledger.mts', needServer: true },
   { name: '가스 약제저장량(E2E)',        cmd: 'npx tsx scripts/test-gas-storage.mts', needServer: true },
+  // C3 2단계 — 불량 자동 문장·asset_id · 목록/상세 만료 배지 · 주간 브리핑 재료 · 성능확인 연장·하자보수
+  { name: '설비 대장 2단계(E2E)',        cmd: 'npx tsx scripts/test-equipment-stage2.mts', needServer: true },
   // 설비 구분 fold를 읽는 표면이 셋인데(8쪽·10호 7행·현5) 원천은 `foldDefectGroups` 하나다.
   // 원천이 하나여도 **표면마다 부르는 조건이 다르면** 갈라진다 — 실제로 10호가 미공급을
   // '전 구분 미해당'으로 읽어 7행을 전부 「해당없음」으로 단정한 적이 있다(2026-09-08 정정).
@@ -466,6 +468,8 @@ const steps: Step[] = [
   // C5 2차 — 위 앵커 주입과 별개로, 주입 **뒤** 최종 바이트의 운영사 고정 문구를 회사정보로 바꾼다.
   // 규칙 원문이 템플릿에 실재하는지(오타 규칙은 조용히 무동작)·가상 테넌트에서 운영사 흔적 0을 함께 단언.
   { name: '운영사 문구 → 회사정보',     cmd: 'npx tsx scripts/test-company-literals.mts' },
+  // C5 마무리(174) — 직인 정규화(흰 바탕→투명)·PDF 공문 겹침·갑지 「공문」 시트 그림 파트. sharp·server-only라 react-server 조건
+  { name: '공문 직인',                  cmd: 'npx tsx --conditions=react-server scripts/test-company-seal.mts' },
   // 3쪽 1절 두 축(설치 √ / 점검결과 ○×)의 귀속 — 양방향으로 조용히 틀릴 수 있는 자리다.
   // 번짐을 안 막으면 설치도 안 한 설비에 ○가 찍히고(위조), 과하게 막으면 대장에 체크를
   // 빠뜨렸을 뿐인 실점검이 해당없음 ／로 지워진다. 두 실패 모두 인쇄물만 보면 멀쩡하다.

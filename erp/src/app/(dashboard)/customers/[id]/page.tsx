@@ -50,6 +50,8 @@ import { PlanCh3, type EvacDetailRow, type EvacPlanSection, type VulnerableSecti
 import { recommendPresetType } from '@/lib/fire-plan-presets'
 import { BillingClient, type BillingProfile, type Autopay } from '@/components/customers/billing-client'
 import { EquipmentLedgerPanel } from '@/components/customers/equipment-ledger-panel'
+import { EquipmentExpiryBadge } from '@/components/customers/equipment-expiry-badge'
+import { Suspense } from 'react'
 import { CustomerTabs, type CustomerTabDef } from '@/components/customers/customer-tabs'
 import { OnboardingStrip } from '@/components/customers/onboarding-strip'
 import {
@@ -1124,6 +1126,8 @@ export default async function CustomerDetailPage({
         </Link>
         <div className="flex-1 flex items-center gap-3">
           <h1 className="text-form-xl-title font-bold text-ink">{customer.customer_name}</h1>
+          {/* C3 2단계 — 설비 대장 만료 배지(목록과 같은 판정). 따로 읽어 상세 렌더를 막지 않는다 */}
+          <Suspense fallback={null}><EquipmentExpiryBadge customerId={customer.id} /></Suspense>
           <CustomerPrevNext prevId={prevId} nextId={nextId} position={navPosition} />
         </div>
         {/* 회차 상시 버튼(2026-08-28 동선 검토, 소방계획서_34로 탭 승격 · 2026-09-20 3분리로 재개명) —
