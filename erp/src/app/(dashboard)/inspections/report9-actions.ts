@@ -6,7 +6,8 @@ import { requirePermission } from '@/lib/auth'
 import { convertHtmlToPdf } from '@/lib/pdf'
 import { renderReport10, renderReport11, type Annex1011Data } from '@/lib/doc-templates/report1011'
 import { renderReport9, DEFECT_FOLD_TEXT } from '@/lib/doc-templates/report9'
-import { renderReport4, type Report4Data, type Report4PumpRow } from '@/lib/doc-templates/report4'
+import { renderReport4, type Report4Data, type Report4PumpRow, type Report4GasRow } from '@/lib/doc-templates/report4'
+import { lossOf } from '@/lib/gas-storage'
 import { annexDownloadName } from '@/lib/annex-filename'
 import { judgePumpTest, PUMP_TEST_SHEETS, PUMP_SHEET_LABELS, type PumpTestRow } from '@/lib/pump-test'
 import { renderExterior, type ExteriorData, type ExteriorMonthEntry } from '@/lib/doc-templates/exterior'
@@ -293,6 +294,7 @@ async function assembleReport4(
   // ※ 펌프성능시험 — 법정 서식의 표(R5-7 후속). 37시트 엑셀만 담던 실측치가 여기로 들어온다.
   // 131 미적용 환경에서도 나머지 쪽은 정상 생성돼야 하므로 조회 실패는 빈 배열로 흡수한다.
   const pumpRows = await loadPumpRows(admin, inspectionId)
+  const gasRows = await loadGasRows(admin, inspectionId)
   // 송달 동의·사용승인일·건축허가일은 별지 9호 전용(1~2쪽) — 별지 4호 서식에 없음
   const missing = m9.filter(m => !['송달 동의', '사용승인일', '건축허가일'].includes(m))
   if (Object.keys(d9.specs ?? {}).length === 0) missing.push('설비 세부현황(설비 대장) 미입력 — 3~7쪽 빈 서식')
@@ -321,9 +323,25 @@ async function assembleReport4(
     companyRegNo: annex4.companyRegNo,
     sheetSections: annex4.sheetSections,
     pumpRows,
+    gasRows,
     specs: d9.specs ?? {},
   }
   return { data, missing }
+}
+
+/** 가스용기 약제저장량 측정(equipment_asset_events measure) → 별지 4호 행(C3). 172 미적용이면 빈 배열 */
+async function loadGasRows(admin: Admin, inspectionId: string): Promise<Report4GasRow[]> {
+  const { data, error } = await admin.from('equipment_asset_events')
+    .select('values, equipment_assets!inner(category, sub_type)')
+    .eq('inspection_id', inspectionId).eq('event_type', 'measure').eq('equipment_assets.category', 'gas_cylinder')
+  if (error || !data) return []
+  const rows = (data as unknown as Array<{ values: Record<string, unknown>; equipment_assets: { sub_type: string | null } | { sub_type: string | null }[] }>).map(e => {
+    const v = e.values; const a = Array.isArray(e.equipment_assets) ? e.equipment_assets[0] : e.equipment_assets
+    const num = (x: unknown) => (typeof x === 'number' ? x : null)
+    const l = lossOf({ chargeKg: num(v.charge_kg), nominalKg: num(v.nominal_kg) })
+    return { location: (v.location as string) ?? null, cylNo: Number(v.cyl_no) || 1, tempC: num(v.temp_c), heightCm: num(v.height_cm), chargeKg: num(v.charge_kg), lossKg: l.lossKg, result: l.result, note: a?.sub_type ?? null }
+  })
+  return rows.sort((x, y) => (x.location ?? '').localeCompare(y.location ?? '', 'ko') || x.cylNo - y.cylNo)
 }
 
 /** 펌프성능시험 실측치 → 별지 4호 행. 판정은 lib/pump-test.judgePumpTest 하나만 쓴다

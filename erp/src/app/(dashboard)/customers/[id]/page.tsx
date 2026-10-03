@@ -49,6 +49,7 @@ import { PlanCh2 , type ValuableRow } from '@/components/customers/plan-ch2'
 import { PlanCh3, type EvacDetailRow, type EvacPlanSection, type VulnerableSection, type EvacEquipRow } from '@/components/customers/plan-ch3'
 import { recommendPresetType } from '@/lib/fire-plan-presets'
 import { BillingClient, type BillingProfile, type Autopay } from '@/components/customers/billing-client'
+import { EquipmentLedgerPanel } from '@/components/customers/equipment-ledger-panel'
 import { CustomerTabs, type CustomerTabDef } from '@/components/customers/customer-tabs'
 import { OnboardingStrip } from '@/components/customers/onboarding-strip'
 import {
@@ -888,6 +889,9 @@ export default async function CustomerDetailPage({
               <PlanForm14 customerId={customer.id} buildings={facilityBuildings} canManage={canManage}
                 canRegister={can(profile.role as UserRole, 'inspection_register')} specsByBuilding={specsByBuilding}
                 showMultiUse multiUse={fpSections.multiUse ?? null} showEtc={false} />
+              {/* 통합계획 C3(2026-10-02) — 설비 대장: 제조연월이 판정을 바꾸는 품목의 개체·묶음 행. 3-1 수량은 대조만(덮어쓰지 않음). lazy */}
+              <EquipmentLedgerPanel customerId={customer.id} canManage={canManage}
+                buildings={facilityBuildings.map(b => ({ id: b.id, building_name: b.building_name }))} />
               {/* 엑셀 빈칸 보고 — 계획서 트리에서는 plan-tab-view가 노드마다 달아 주지만 이 탭은 직접 단다 */}
               {blankSummary['1.4'] && (
                 <PlanBlankReport customerId={customer.id}

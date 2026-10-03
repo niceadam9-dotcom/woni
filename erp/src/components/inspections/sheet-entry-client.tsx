@@ -5,6 +5,8 @@ import Link from 'next/link'
 import { ArrowLeft, ArrowRight, Loader2, RefreshCw } from 'lucide-react'
 import { SheetItemEditor, type SheetItem } from '@/components/inspections/sheet-item-editor'
 import { WorkbookXlsxButton } from '@/components/inspections/workbook-xlsx-button'
+import { GasStoragePanel } from '@/components/inspections/gas-storage-panel'
+import { GAS_ITEM_CODES } from '@/lib/gas-storage'
 import { useSheetAutosave } from '@/hooks/use-sheet-autosave'
 import { useSheetResponsesRealtime } from '@/hooks/use-sheet-responses-realtime'
 import {
@@ -724,6 +726,10 @@ export function SheetEntryClient({
                   onCancel={() => {}}
                 />
               </div>
+              {/* 통합계획 C3 — 가스계 약제저장량(9-B-001 CO2·11-B-001 할론)이 든 시트에서만 */}
+              {autosave.items.some(i => GAS_ITEM_CODES.has(i.item_code)) && (
+                <GasStoragePanel key={openSheet.sheetId} inspectionId={inspectionId} customerId={facilityVerify.customerId} canEdit={canEdit} />
+              )}
             </>
           )}
         </div>

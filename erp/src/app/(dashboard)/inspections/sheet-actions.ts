@@ -1,6 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { tallyAssets, expiredSentence, type LifespanRule } from '@/lib/equipment-lifespan'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requirePermission } from '@/lib/auth'
 import { sheetMatchesFacilities, groupInstalledInSheet, groupActiveInSheet } from '@/lib/sheet-facility-map'
@@ -17,6 +18,9 @@ import { autoCheckFacilitiesFromSheetAction } from './facility-autocheck-actions
 // ⚠ 타입은 `'use server'` 파일이 아니라 **일반 모듈**에서 가져온다(위 파일 주석의 500 사고)
 import type { AutoCheckResult } from '@/lib/facility-autocheck'
 import type { UserRole } from '@/types'
+
+/** 분말소화기 내용연수 항목 — 별지 4호 1-A-008 · 외관 X1-06 · 다중이용업소 32-A-005 (대장 띠를 다는 곳) */
+const LEDGER_POWDER_CODES = new Set(['1-A-008', 'X1-06', '32-A-005'])
 
 /** 점검 건의 시트 범위 판정에 필요한 축 조회 — plan_type 우선, 관리유형은 레거시 폴백용 (sheet-scope.ts) */
 async function loadScope(admin: ReturnType<typeof createAdminClient>, inspectionId: string) {
@@ -232,10 +236,22 @@ export async function loadSheetSnapshotAction(inspectionId: string, sheetId: str
     }
   }
 
-  const [facilityCodes, specRows] = await Promise.all([
+  const [facilityCodes, specRows, ledgerRows] = await Promise.all([
     loadFacilityCodes(admin, insp.customerId),
     loadSpecRows(admin, insp.customerId),
+    // 통합계획 C3(2026-10-02) — 분말소화기 내용연수 항목 옆 대장 띠. 대장 표가 없는 DB(172 미적용)면 빈 배열
+    catalog.some(i => LEDGER_POWDER_CODES.has(i.item_code))
+      ? admin.from('equipment_assets').select('qty, category, location, manufactured_on, lifespan_rule, extension_until, status')
+          .eq('customer_id', insp.customerId).eq('status', 'in_use').eq('category', 'powder')
+          .then(r => (r.error ? [] : (r.data ?? [])) as Array<{ qty: number; category: 'powder'; location: string | null; manufactured_on: string | null; lifespan_rule: LifespanRule; extension_until: string | null; status: string }>)
+      : Promise.resolve([]),
   ])
+  const todayIso = new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10)
+  const ledgerTally = ledgerRows.length ? tallyAssets(ledgerRows, todayIso) : null
+  const ledgerHint = ledgerTally ? {
+    total: ledgerTally.total, expired: ledgerTally.expired, soon: ledgerTally.soon,
+    sentence: expiredSentence(ledgerRows, 'powder', todayIso),
+  } : undefined
   const sheetName = allSheets.find(s => s.id === sheetId)?.sheet_name ?? ''
   // 세부제원 조건 축(2026-09-07) — 이미 응답이 있는 항목은 잠그지 않는다(유령 입력 금지)
   const specWhy = specNaReasons(specRows)
@@ -255,6 +271,7 @@ export async function loadSheetSnapshotAction(inspectionId: string, sheetId: str
       // **서로 다른 해소 경로**를 안내해야 하기 때문이다(합치면 엉뚱한 화면으로 보낸다)
       notInstalled: (inactive.has(i.item_code) && !specNa.has(i.item_code)) || undefined,
       specNaWhy: specNa.has(i.item_code) ? specWhy[i.item_code] : undefined,
+      ledgerHint: LEDGER_POWDER_CODES.has(i.item_code) ? ledgerHint : undefined,
     }))
 
   const canEdit = canEditInspection(insp.assignedEmployeeId, { id: profile.id, role: profile.role as UserRole })

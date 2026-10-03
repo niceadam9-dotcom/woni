@@ -33,6 +33,9 @@ export type SheetItem = {
    *  값은 판정 근거 문구다(왜 잠겼는지 화면에서 읽히지 않으면 사람이 반박할 수 없다).
    *  해소 경로가 notInstalled와 **다르다** — 저쪽은 1.4 대장 체크, 이쪽은 1.4 세부제원 수정 */
   specNaWhy?: string
+  /** 통합계획 C3 — 설비 대장 띠(분말소화기 내용연수 항목만). 대장이 비어 있으면 없다.
+   *  응답은 사람이 눌러야 저장된다 — 경과 대수가 있으면 ✕를 **제안**만 한다(자동 응답 금지) */
+  ledgerHint?: { total: number; expired: number; soon: number; sentence: string | null }
 }
 
 /** 고를 수 있는 값은 **○·✕ 둘뿐**이다 (2026-08-13 확정 유지 — 개별 ／ 버튼 없음, 23 Q-19).
@@ -181,6 +184,20 @@ function ItemRow({ it, ctx }: { it: SheetItem; ctx: RowCtx }) {
           })}
         </div>
       </div>
+      {/* 설비 대장 띠(C3) — 응답은 바꾸지 않는다. 경과가 있으면 ✕ 제안 + 불량내용에 쓸 문장 */}
+      {it.ledgerHint && (
+        <div className="pb-1.5 pl-20 text-form-2xs" data-ledger-hint={it.item_code}>
+          <span className={it.ledgerHint.expired ? 'text-red-700' : 'text-ink-meta'}>
+            설비 대장: 분말소화기 {it.ledgerHint.total}대 · 내용연수 경과 {it.ledgerHint.expired}대{it.ledgerHint.soon ? ` · 12개월 내 ${it.ledgerHint.soon}대` : ''}
+            {it.ledgerHint.expired > 0 && value[it.item_code] !== 'X' ? ' — ✕(불량)를 확인하세요' : ''}
+          </span>
+          {it.ledgerHint.sentence && value[it.item_code] === 'X' && canEdit && !savedMemo && inlineX !== it.item_code && (
+            <button onClick={() => { setInlineX(it.item_code); setInlineMemo(it.ledgerHint!.sentence!) }} className="ml-2 underline text-red-600" data-ledger-fill={it.item_code}>
+              불량내용에 대장 문장 넣기
+            </button>
+          )}
+        </div>
+      )}
       {/* pl-20은 위 항목코드 열(w-20)과 짝이다 — 한쪽만 바꾸면 메모행이 코드열과 어긋난다 */}
       {inlineX === it.item_code && (
         <div className="flex items-center gap-2 pb-1.5 pl-20 flex-wrap">

@@ -448,6 +448,10 @@ const steps: Step[] = [
   //   ⚠ 「`_e2e-helpers`를 import하면 E2E」가 아니다 — 나머지 7개는 `check`·`summary`만 쓰고
   //     서버를 안 탄다. 판정은 **`launch`/`login`/`BASE`를 실제로 부르는가**다.
   { name: '펌프성능시험 실측치',        cmd: 'npx tsx --conditions=react-server scripts/test-pump-test.mts', needServer: true },
+  // 통합계획 C3 — 설비 대장. 내용연수 판정(순수) · 대장 패널/엑셀/쪼개기/교체 · 가스 약제저장량 → 별지 4호
+  { name: '설비 내용연수 판정',          cmd: 'npx tsx scripts/test-equipment-lifespan.mts' },
+  { name: '설비 대장(E2E)',              cmd: 'npx tsx scripts/test-equipment-ledger.mts', needServer: true },
+  { name: '가스 약제저장량(E2E)',        cmd: 'npx tsx scripts/test-gas-storage.mts', needServer: true },
   // 설비 구분 fold를 읽는 표면이 셋인데(8쪽·10호 7행·현5) 원천은 `foldDefectGroups` 하나다.
   // 원천이 하나여도 **표면마다 부르는 조건이 다르면** 갈라진다 — 실제로 10호가 미공급을
   // '전 구분 미해당'으로 읽어 7행을 전부 「해당없음」으로 단정한 적이 있다(2026-09-08 정정).

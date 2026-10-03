@@ -30,6 +30,12 @@ export type Report4SheetItem = {
 export type Report4SheetSection = { no: number; name: string; items: Report4SheetItem[] }
 
 /** ※ 펌프성능시험 1행 — 법정 서식의 표 (소방계획서_21 R5-7 후속, inspection_pump_tests가 원천) */
+/** ※ 약제저장량 점검리스트 한 줄(통합계획 C3) — 가스용기 측정값. 손실량·결과는 lib/gas-storage.lossOf 한 규칙 */
+export type Report4GasRow = {
+  location: string | null; cylNo: number; tempC: number | null; heightCm: number | null
+  chargeKg: number | null; lossKg: number | null; result: '양호' | '불량' | null; note: string | null
+}
+
 export type Report4PumpRow = {
   sheetNo: number
   pumpKind: '주' | '예비'
@@ -69,6 +75,8 @@ export type Report4Data = {
   sheetSections?: Report4SheetSection[]
   /** ※ 펌프성능시험 실측치 — 비면 그 쪽을 미생성 (R5-7 후속) */
   pumpRows?: Report4PumpRow[]
+  /** ※ 약제저장량 점검리스트(가스계) — 측정값이 없으면 쪽을 만들지 않는다(C3) */
+  gasRows?: Report4GasRow[]
   // ── 3~7쪽 ──
   specs: SpecMap                                 // customer_facility_specs 병합본
   ledgerCodes?: string[]                         // 1.4 설치(√) 코드 전체 — 1쪽 하위 체크칸·세부현황 파생용
@@ -372,6 +380,25 @@ ${tables.join('\n')}
 ${pageFooter()}`]
 }
 
+/** ※ 약제저장량 점검리스트 — 서식(CO2·할론 시트)의 표. 펌프 쪽과 같은 원칙: 측정값이 없으면 쪽을 만들지 않는다 */
+function gasStoragePages(rows: Report4GasRow[]): string[] {
+  if (rows.length === 0) return []
+  const n = (v: number | null) => (v == null ? '' : String(v))
+  const body = rows.map(r => `<tr><td>${esc(r.location ?? '')}</td><td class="center">${r.cylNo}</td><td class="center">${n(r.tempC)}</td><td class="center">${n(r.heightCm)}</td><td class="center">${n(r.chargeKg)}</td><td class="center">${n(r.lossKg)}</td><td class="center">${esc(r.result ?? '')}</td><td>${esc(r.note ?? '')}</td></tr>`).join('\n')
+  return [`
+${pageHeader(null, '(약제저장량 점검리스트)')}
+<h1 class="doc-title" style="font-size:13pt; letter-spacing:.1em; margin:4px 0 6px;">약제저장량 점검리스트</h1>
+<div class="sec-title">※ 약제저장량 점검리스트 <span style="font-weight:normal">(약제량 손실 5% 초과 시 불량)</span></div>
+<table class="form tight" data-gas-storage>
+  <colgroup><col style="width:34mm"><col style="width:16mm"><col><col><col><col><col style="width:18mm"><col style="width:30mm"></colgroup>
+  <thead><tr><th>설치위치</th><th>용기 No.</th><th>실내온도<br>(℃)</th><th>약제높이<br>(cm)</th><th>충전량<br>(kg)</th><th>손실량<br>(kg)</th><th>점검결과</th><th>비고</th></tr></thead>
+  <tbody>
+${body}
+  </tbody>
+</table>
+${pageFooter()}`]
+}
+
 /** 별지 4호 — 소방시설등점검표 (7쪽 + 부속 설비별 점검표 + 펌프성능시험) */
 export function renderReport4(d: Report4Data, opts: Report4RenderOpts = {}): string {
   const h = !!opts.highlight
@@ -391,6 +418,7 @@ export function renderReport4(d: Report4Data, opts: Report4RenderOpts = {}): str
       ...tocPage(d.sheetSections ?? [], (d.pumpRows ?? []).length > 0),
       ...sheetItemPages(d.sheetSections ?? []),
       ...pumpTestPages(d.pumpRows ?? []),
+      ...gasStoragePages(d.gasRows ?? []),
     ],
   })
 }
