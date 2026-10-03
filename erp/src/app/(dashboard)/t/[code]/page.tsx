@@ -5,7 +5,9 @@ import { getProfile, can } from '@/lib/auth'
 import type { UserRole } from '@/types'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { normalizeTagInput, tagHuman, TAG_LEN } from '@/lib/equipment-tag'
-import { findAssetByTag, recentAssetEvents } from '@/lib/equipment-tag-lookup'
+import { findAssetByTag, findPointByTag, openInspectionIdForCustomer, recentAssetEvents } from '@/lib/equipment-tag-lookup'
+import { getSheets } from '@/lib/sheet-catalog'
+import { Bookmark, ClipboardList } from 'lucide-react'
 import { CATEGORY_LABEL, RULE_LABEL, expiryOf, expiryState } from '@/lib/equipment-lifespan'
 import { todayKst } from '@/lib/kst-date'
 import { TagSearchForm } from '@/components/equipment/tag-search-form'
@@ -31,6 +33,42 @@ export default async function TagPage({ params }: { params: Promise<{ code: stri
 
   const admin = createAdminClient()
   const a = await findAssetByTag(admin, code)
+  // 지점(책갈피, 178) — 개체가 아니면 지점에서 찾는다. 찍는 즉시 점검표로 가는 것이 목적이라 카드가 다르다
+  if (!a) {
+    const p = await findPointByTag(admin, code)
+    if (p) {
+      const [inspId, allSheets] = await Promise.all([openInspectionIdForCustomer(admin, p.customer_id), getSheets()])
+      const nameOf = new Map(allSheets.map(s => [s.sheet_code, s.sheet_name]))
+      return (
+        <div className="mx-auto max-w-md space-y-3 p-4" data-testid="tag-point-card">
+          <div className="flex items-center gap-2 text-ink-meta text-xs"><QrCode className="size-4" /> {tagHuman(code)}</div>
+          <h1 className="flex items-center gap-2 text-lg font-bold text-ink" data-testid="tag-point-label"><Bookmark className="size-5 text-brand" /> {p.label}</h1>
+          <dl className="grid grid-cols-[6rem_1fr] gap-y-1.5 text-sm">
+            <dt className="text-ink-meta">고객</dt><dd><Link className="underline" href={`/customers/${p.customer_id}?tab=facilities&form=1.4`}>{p.customer?.customer_name ?? '고객'}</Link></dd>
+            <dt className="text-ink-meta">위치</dt><dd>{[p.building?.building_name, p.floor && `${p.floor}층`, p.room].filter(Boolean).join(' · ') || '—'}</dd>
+            {p.note && <><dt className="text-ink-meta">메모</dt><dd>{p.note}</dd></>}
+          </dl>
+          <div className="space-y-1.5">
+            <h2 className="text-sm font-semibold text-ink">이 자리의 점검표</h2>
+            {p.sheet_codes.length === 0 ? (
+              <p className="text-sm text-ink-meta">등록된 시트가 없습니다 — 고객 [공통] 1.4 지점 QR에서 시트를 고르세요.</p>
+            ) : inspId ? (
+              <div className="flex flex-col gap-1.5" data-testid="tag-point-sheets">
+                {p.sheet_codes.map(c => (
+                  <Link key={c} href={`/inspections/${inspId}/sheet?sheet=${encodeURIComponent(c)}&from=tag`} data-testid="tag-point-sheet-link"
+                    className="inline-flex h-11 items-center gap-2 rounded-lg border border-brand-line px-3 text-sm text-brand">
+                    <ClipboardList className="size-4" /> {c} {nameOf.get(c) ?? ''}
+                  </Link>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-amber-700" data-testid="tag-point-no-inspection">진행 중 점검 회차가 없습니다 — 점검 달력에서 회차를 시작한 뒤 다시 찍으세요.</p>
+            )}
+          </div>
+        </div>
+      )
+    }
+  }
   if (!a) {
     return (
       <div className="mx-auto max-w-md space-y-3 p-4" data-testid="tag-unknown">

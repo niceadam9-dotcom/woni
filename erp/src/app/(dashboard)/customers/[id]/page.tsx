@@ -50,6 +50,8 @@ import { PlanCh3, type EvacDetailRow, type EvacPlanSection, type VulnerableSecti
 import { recommendPresetType } from '@/lib/fire-plan-presets'
 import { BillingClient, type BillingProfile, type Autopay } from '@/components/customers/billing-client'
 import { EquipmentLedgerPanel } from '@/components/customers/equipment-ledger-panel'
+import { EquipmentPointPanel } from '@/components/equipment/point-panel'
+import { getSheets } from '@/lib/sheet-catalog'
 import { EquipmentExpiryBadge } from '@/components/customers/equipment-expiry-badge'
 import { Suspense } from 'react'
 import { CustomerTabs, type CustomerTabDef } from '@/components/customers/customer-tabs'
@@ -894,6 +896,10 @@ export default async function CustomerDetailPage({
               {/* 통합계획 C3(2026-10-02) — 설비 대장: 제조연월이 판정을 바꾸는 품목의 개체·묶음 행. 3-1 수량은 대조만(덮어쓰지 않음). lazy */}
               <EquipmentLedgerPanel customerId={customer.id} canManage={canManage}
                 buildings={facilityBuildings.map(b => ({ id: b.id, building_name: b.building_name }))} />
+              {/* 통합계획 C4(2026-10-03) — 지점 QR(책갈피, 178): 회차마다 가는 자리. 찍으면 그 자리의 점검표로 */}
+              <EquipmentPointPanel customerId={customer.id} canManage={canManage}
+                buildings={facilityBuildings.map(b => ({ id: b.id, building_name: b.building_name }))}
+                sheets={(await getSheets('v2025')).map(s => ({ code: s.sheet_code, name: s.sheet_name }))} />
               {/* 엑셀 빈칸 보고 — 계획서 트리에서는 plan-tab-view가 노드마다 달아 주지만 이 탭은 직접 단다 */}
               {blankSummary['1.4'] && (
                 <PlanBlankReport customerId={customer.id}

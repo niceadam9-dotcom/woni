@@ -5,7 +5,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { requirePermission } from '@/lib/auth'
 import { todayKst } from '@/lib/kst-date'
 import { normalizeTagInput, TAG_LEN } from '@/lib/equipment-tag'
-import { findAssetByTag } from '@/lib/equipment-tag-lookup'
+import { findAssetByTag, openInspectionIdForCustomer } from '@/lib/equipment-tag-lookup'
 import { addDefectAction, type DefectSeverity } from '@/app/(dashboard)/inspections/defect-actions'
 import { addEquipmentRowsAction, closeEquipmentAction, type EquipmentInput } from '@/app/(dashboard)/customers/equipment-actions'
 
@@ -25,14 +25,8 @@ async function assetById(id: string) {
   return data as { id: string; customer_id: string; tag_code: string | null; status: string; category: string; location: string | null } | null
 }
 
-/** 이 고객의 진행 중 회차 — 가장 최근 시작분. 운영·스테이징 상태값은 in_progress·completed 둘(2026-10-03 실측) */
-async function openInspection(customerId: string): Promise<string | null> {
-  const { data } = await createAdminClient().from('inspections').select('id')
-    .eq('customer_id', customerId).eq('status', 'in_progress')
-    .order('inspection_start_date', { ascending: false, nullsFirst: false }).order('created_at', { ascending: false })
-    .limit(1).maybeSingle()
-  return (data as { id: string } | null)?.id ?? null
-}
+// 진행 중 회차 축은 equipment-tag-lookup.openInspectionIdForCustomer — 지점 카드 딥링크와 한 원천(178에서 이사)
+const openInspection = (customerId: string) => openInspectionIdForCustomer(createAdminClient(), customerId)
 
 /** 카드를 연 사실 — 같은 개체·같은 날 1행(176). 이력 열람용이라 실패해도 카드는 그대로 */
 export async function recordTagScanAction(assetId: string): Promise<{ recorded: boolean }> {

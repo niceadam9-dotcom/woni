@@ -31,7 +31,8 @@ export function normalizeTagInput(v: string | null | undefined): string | null {
 /** 라벨에 찍는 사람용 표기 — 앞 6자 굵게 + 뒤 2자 */
 export const tagHuman = (code: string) => `${code.slice(0, MANUAL_PREFIX_LEN)}-${code.slice(MANUAL_PREFIX_LEN)}`
 
-export type LabelItem = { tagCode: string; category: EquipmentCategory; location: string | null; subType: string | null; buildingName: string | null; manufacturedOn: string | null }
+/** category는 개체 라벨, kindLabel은 지점(178) 라벨의 머리글 — 지점은 category가 없어 kindLabel(지점 이름)을 쓴다 */
+export type LabelItem = { tagCode: string; category: EquipmentCategory | null; kindLabel?: string; location: string | null; subType: string | null; buildingName: string | null; manufacturedOn: string | null }
 
 /** A4 라벨지 격자 — 3열 × 8행 = 24칸(칸 64×33.9mm). 실물 라벨지에 맞출 때는 이 상수만 고친다(인쇄 시험 후). */
 export const LABEL_SHEET = { cols: 3, rows: 8, cellW: 64, cellH: 33.9, marginTop: 13, marginLeft: 7.5, gapX: 2.5, gapY: 0 } as const
@@ -46,7 +47,7 @@ export async function renderLabelSheetHtml(items: ReadonlyArray<LabelItem>, base
 <div class="cell" data-tag="${i.tagCode}">
   <div class="qr">${svgs[k]}</div>
   <div class="txt">
-    <div class="cat">${esc(CATEGORY_LABEL[i.category])}${i.subType ? ` <span class="sub">${esc(i.subType)}</span>` : ''}</div>
+    <div class="cat">${esc(i.kindLabel ?? (i.category ? CATEGORY_LABEL[i.category] : ''))}${i.subType ? ` <span class="sub">${esc(i.subType)}</span>` : ''}</div>
     <div class="loc">${esc([i.buildingName, i.location].filter(Boolean).join(' · ') || '위치 미기재')}</div>
     ${i.manufacturedOn ? `<div class="mfg">제조 ${esc(i.manufacturedOn.slice(0, 7))}</div>` : ''}
     <div class="code"><b>${esc(i.tagCode.slice(0, MANUAL_PREFIX_LEN))}</b>-${esc(i.tagCode.slice(MANUAL_PREFIX_LEN))}</div>

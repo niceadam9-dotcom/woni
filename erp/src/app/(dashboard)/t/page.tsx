@@ -5,7 +5,7 @@ import { getProfile, can } from '@/lib/auth'
 import type { UserRole } from '@/types'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { normalizeTagInput, tagHuman, MANUAL_PREFIX_LEN, TAG_LEN } from '@/lib/equipment-tag'
-import { searchAssetsByTagPrefix } from '@/lib/equipment-tag-lookup'
+import { searchAssetsByTagPrefix, searchPointsByTagPrefix } from '@/lib/equipment-tag-lookup'
 import { CATEGORY_LABEL } from '@/lib/equipment-lifespan'
 import { TagSearchForm } from '@/components/equipment/tag-search-form'
 
@@ -17,8 +17,12 @@ export default async function TagSearchPage({ searchParams }: { searchParams: Pr
   const { q } = await searchParams
   const code = normalizeTagInput(q)
   if (code && code.length === TAG_LEN) redirect(`/t/${code}`)
-  const hits = code && code.length >= MANUAL_PREFIX_LEN ? await searchAssetsByTagPrefix(createAdminClient(), code) : []
-  if (hits.length === 1) redirect(`/t/${hits[0].tag_code}`)
+  const admin = createAdminClient()
+  const [hits, pointHits] = code && code.length >= MANUAL_PREFIX_LEN
+    ? await Promise.all([searchAssetsByTagPrefix(admin, code), searchPointsByTagPrefix(admin, code)])
+    : [[], []]
+  if (hits.length === 1 && pointHits.length === 0) redirect(`/t/${hits[0].tag_code}`)
+  if (hits.length === 0 && pointHits.length === 1) redirect(`/t/${pointHits[0].tag_code}`)
   return (
     <div className="mx-auto max-w-md space-y-3 p-4" data-testid="tag-search">
       <h1 className="flex items-center gap-2 text-lg font-bold text-ink"><QrCode className="size-5" /> 설비 코드 찾기</h1>
@@ -26,8 +30,17 @@ export default async function TagSearchPage({ searchParams }: { searchParams: Pr
       <TagSearchForm initial={q ?? ''} />
       {q && !code && <p className="text-sm text-red-600" data-testid="tag-search-invalid">코드에 쓸 수 없는 글자가 있습니다.</p>}
       {code && code.length < MANUAL_PREFIX_LEN && <p className="text-sm text-ink-meta">{MANUAL_PREFIX_LEN}자 이상 입력하세요.</p>}
-      {code && code.length >= MANUAL_PREFIX_LEN && hits.length === 0 && <p className="text-sm text-ink-meta" data-testid="tag-search-none">일치하는 코드가 없습니다.</p>}
-      {hits.length > 1 && (
+      {code && code.length >= MANUAL_PREFIX_LEN && hits.length === 0 && pointHits.length === 0 && <p className="text-sm text-ink-meta" data-testid="tag-search-none">일치하는 코드가 없습니다.</p>}
+      {pointHits.length > 0 && (hits.length + pointHits.length) > 1 && (
+        <ul className="divide-y rounded-lg border text-sm" data-testid="tag-search-points">
+          {pointHits.map(p => (
+            <li key={p.id}><Link className="block px-3 py-2 hover:bg-paper" href={`/t/${p.tag_code}`}>
+              <b>{tagHuman(p.tag_code ?? '')}</b> · 지점 · {p.customer?.customer_name ?? ''} {p.label}
+            </Link></li>
+          ))}
+        </ul>
+      )}
+      {hits.length > 0 && (hits.length + pointHits.length) > 1 && (
         <ul className="divide-y rounded-lg border text-sm" data-testid="tag-search-list">
           {hits.map(h => (
             <li key={h.id}><Link className="block px-3 py-2 hover:bg-paper" href={`/t/${h.tag_code}`}>
