@@ -63,10 +63,16 @@ export function CustomerTabs({ initialTab, tabs, panels, summary, banner, fullWi
   const [active, setActive] = useState(validInitial)
   // ?tab= 변경 동기화(11-5 누락 칩 router.push, 페이지 내 ?tab= Link) — state는 마운트 시 1회만
   // 초기화되므로 서버 재렌더로 initialTab 프롭이 바뀌면 여기서 반영한다 (렌더 중 상태 조정 패턴)
-  const prevInitialRef = useRef(validInitial)
-  if (prevInitialRef.current !== validInitial) {
-    prevInitialRef.current = validInitial
-    setActive(validInitial)
+  //
+  // 🚨 2026-10-03 — 비교 축을 **입력 둘**(서버 initialTab·주소 ?tab=)로 바꿨다. 종전엔 계산 결과(validInitial)를
+  //   비교했는데, 트리 노드 클릭(TabFormTree)이 `&form=1.4`를 붙이면 위 규칙상 urlTab이 null로 떨어져 결과가
+  //   서버 첫 탭(기본정보)으로 바뀌고, 그걸 「변경」으로 읽어 **보던 공통 탭을 기본정보로 되돌렸다**(97aad892부터,
+  //   test-plan-tab 「서식 1.4」 hidden으로 드러남). urlTab이 사라진 것은 사용자가 탭을 바꾼 게 아니다 —
+  //   서버 프롭이 바뀌었거나 주소 탭이 **다른 값으로** 바뀐 때만 따른다.
+  const [prevSync, setPrevSync] = useState({ initialTab, urlTab })
+  if (prevSync.initialTab !== initialTab || prevSync.urlTab !== urlTab) {
+    setPrevSync({ initialTab, urlTab })
+    if (prevSync.initialTab !== initialTab || urlTab) setActive(validInitial)
   }
   const dirtyRef = useRef<Set<string>>(new Set())
   const tablistRef = useRef<HTMLDivElement>(null)
