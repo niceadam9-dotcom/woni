@@ -6,7 +6,10 @@ import { HOME_PATH } from '@/lib/routes'
 // /api/health: 업타임 감시용 공개 경로(A3 2026-10-02) — 비밀·버전을 싣지 않는 DB·Gotenberg 생존 판정만
 // /p/: 관계인 열람·승인 링크(불량→매출 2단계 2026-10-02) — 토큰이 곧 권한, service role로만 읽는다(lib/share-links).
 //      ⚠ 끝의 '/'까지가 접두사다 — '/p'만 두면 /payroll·/purchase-orders 같은 사내 경로가 열린다.
-const PUBLIC_PATHS = ['/login', '/api/auth', '/api/cron', '/api/health', '/p/']
+// /api/mobile/: 모바일 앱(쿠키 없음, Bearer 토큰) — **라우트가 lib/mobile-auth requireMobileUser로 직접 검사**한다.
+//      종전엔 여기서 /login으로 307되어 모바일 AI 불량 분류가 운영에서 한 번도 닿지 않았다(2026-10-03 실측).
+//      ⚠ 새 /api/mobile/* 라우트는 첫 줄에서 반드시 requireMobileUser를 부를 것 — 통과만 열린 경로다.
+const PUBLIC_PATHS = ['/login', '/api/auth', '/api/cron', '/api/health', '/p/', '/api/mobile/']
 
 /** 폐지된 화면의 옛 주소 → 새 화면 (즐겨찾기·기존 링크가 404가 되지 않게).
  *

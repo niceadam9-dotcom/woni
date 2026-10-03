@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
+import { requireMobileUser } from '@/lib/mobile-auth'
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
@@ -23,6 +24,9 @@ severity 기준:
 반드시 유효한 JSON만 반환하고, 다른 텍스트는 포함하지 마세요.`
 
 export async function POST(req: NextRequest) {
+  // proxy가 /api/mobile/을 통과시킨다 — 인증은 여기서(lib/mobile-auth)
+  const auth = await requireMobileUser(req)
+  if ('response' in auth) return auth.response
   try {
     const { transcript } = await req.json()
     if (!transcript || typeof transcript !== 'string') {

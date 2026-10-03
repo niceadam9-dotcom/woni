@@ -454,6 +454,8 @@ const steps: Step[] = [
   { name: '가스 약제저장량(E2E)',        cmd: 'npx tsx scripts/test-gas-storage.mts', needServer: true },
   // C3 2단계 — 불량 자동 문장·asset_id · 목록/상세 만료 배지 · 주간 브리핑 재료 · 성능확인 연장·하자보수
   { name: '설비 대장 2단계(E2E)',        cmd: 'npx tsx scripts/test-equipment-stage2.mts', needServer: true },
+  // C3 3단계(설비 QR 절 1단계) — 개체로 나누기·코드 발급(재발급 없음)·라벨 HTML·QR 내용·/t 리졸버·수기 조회·만료 예정 → 견적 초안
+  { name: '설비 QR·견적 초안(E2E)',      cmd: 'npx tsx scripts/test-equipment-qr.mts', needServer: true },
   // 설비 구분 fold를 읽는 표면이 셋인데(8쪽·10호 7행·현5) 원천은 `foldDefectGroups` 하나다.
   // 원천이 하나여도 **표면마다 부르는 조건이 다르면** 갈라진다 — 실제로 10호가 미공급을
   // '전 구분 미해당'으로 읽어 7행을 전부 「해당없음」으로 단정한 적이 있다(2026-09-08 정정).
@@ -472,6 +474,8 @@ const steps: Step[] = [
   { name: '공문 직인',                  cmd: 'npx tsx --conditions=react-server scripts/test-company-seal.mts' },
   // 업로드 화면 → 비공개 확인 → 갑지 엑셀 「공문」 그림 → PDF 조립 → 삭제. 스테이징에 이미 직인이 있으면 지우지 않고 멈춘다
   { name: '공문 직인(E2E)',             cmd: 'npx tsx --conditions=react-server scripts/test-company-seal-e2e.mts', needServer: true },
+  // 모바일 앱 Bearer → /api/mobile/* — proxy는 통과만 시키고 라우트가 검사한다. 검사 없는 새 라우트를 정적 단언으로 막는다
+  { name: '모바일 API 인증(E2E)',       cmd: 'npx tsx scripts/test-mobile-api-auth.mts', needServer: true },
   // 3쪽 1절 두 축(설치 √ / 점검결과 ○×)의 귀속 — 양방향으로 조용히 틀릴 수 있는 자리다.
   // 번짐을 안 막으면 설치도 안 한 설비에 ○가 찍히고(위조), 과하게 막으면 대장에 체크를
   // 빠뜨렸을 뿐인 실점검이 해당없음 ／로 지워진다. 두 실패 모두 인쇄물만 보면 멀쩡하다.
