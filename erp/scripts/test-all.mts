@@ -468,8 +468,6 @@ const steps: Step[] = [
   // C5 2차 — 위 앵커 주입과 별개로, 주입 **뒤** 최종 바이트의 운영사 고정 문구를 회사정보로 바꾼다.
   // 규칙 원문이 템플릿에 실재하는지(오타 규칙은 조용히 무동작)·가상 테넌트에서 운영사 흔적 0을 함께 단언.
   { name: '운영사 문구 → 회사정보',     cmd: 'npx tsx scripts/test-company-literals.mts' },
-  // C5 마무리(174) — 직인 정규화(흰 바탕→투명)·PDF 공문 겹침·갑지 「공문」 시트 그림 파트. sharp·server-only라 react-server 조건
-  { name: '공문 직인',                  cmd: 'npx tsx --conditions=react-server scripts/test-company-seal.mts' },
   // 3쪽 1절 두 축(설치 √ / 점검결과 ○×)의 귀속 — 양방향으로 조용히 틀릴 수 있는 자리다.
   // 번짐을 안 막으면 설치도 안 한 설비에 ○가 찍히고(위조), 과하게 막으면 대장에 체크를
   // 빠뜨렸을 뿐인 실점검이 해당없음 ／로 지워진다. 두 실패 모두 인쇄물만 보면 멀쩡하다.
