@@ -482,6 +482,8 @@ const steps: Step[] = [
   { name: 'QR 카드 현장 동작(E2E)',     cmd: 'npx tsx scripts/test-tag-card-e2e.mts', needServer: true },
   // C4 — QR 절 3단계: 지점(책갈피, 178) 패널 CRUD·카드 시트 딥링크(진행 중 회차)·수기 조회·라벨·삭제
   { name: '지점 QR 책갈피(E2E)',        cmd: 'npx tsx scripts/test-tag-points-e2e.mts', needServer: true },
+  // C4 — QR 절 4단계: 자체점검기록표(별표 5) PDF — 건물마다 1쪽·건물 QR 자동 발급·불량 분류 체크·/t 건물 카드
+  { name: '자체점검기록표(E2E)',        cmd: 'npx tsx scripts/test-record-card-e2e.mts', needServer: true },
   // 3쪽 1절 두 축(설치 √ / 점검결과 ○×)의 귀속 — 양방향으로 조용히 틀릴 수 있는 자리다.
   // 번짐을 안 막으면 설치도 안 한 설비에 ○가 찍히고(위조), 과하게 막으면 대장에 체크를
   // 빠뜨렸을 뿐인 실점검이 해당없음 ／로 지워진다. 두 실패 모두 인쇄물만 보면 멀쩡하다.

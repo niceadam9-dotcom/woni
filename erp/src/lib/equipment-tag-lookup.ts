@@ -48,6 +48,20 @@ export async function searchPointsByTagPrefix(admin: Admin, prefix: string): Pro
   return (data ?? []) as unknown as TagPoint[]
 }
 
+/** 건물 QR(179) — 자체점검기록표에 찍힌다. /t/{code}가 건물 카드(회차 목록·단계 상태)를 연다 */
+export type TagBuilding = {
+  id: string; tag_code: string | null; customer_id: string; building_name: string; address: string | null
+  customer: { customer_name: string } | null
+}
+
+export async function findBuildingByTag(admin: Admin, code: string): Promise<TagBuilding | null> {
+  if (code.length !== TAG_LEN) return null
+  const { data } = await admin.from('buildings')
+    .select('id, tag_code, customer_id, building_name, address, customer:customers(customer_name)')
+    .eq('tag_code', code).maybeSingle()
+  return (data as unknown as TagBuilding | null) ?? null
+}
+
 /** 이 고객의 진행 중 회차 — 가장 최근 시작분. 상태값은 in_progress·completed 둘(2026-10-03 실측).
  *  지점 카드의 점검표 딥링크와 /t 카드 액션(tag-actions)이 같은 축을 쓴다. */
 export async function openInspectionIdForCustomer(admin: Admin, customerId: string): Promise<string | null> {

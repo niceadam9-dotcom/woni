@@ -5,7 +5,7 @@ import { getProfile, can } from '@/lib/auth'
 import type { UserRole } from '@/types'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { normalizeTagInput, tagHuman, TAG_LEN } from '@/lib/equipment-tag'
-import { findAssetByTag, findPointByTag, openInspectionIdForCustomer, recentAssetEvents } from '@/lib/equipment-tag-lookup'
+import { findAssetByTag, findPointByTag, findBuildingByTag, openInspectionIdForCustomer, recentAssetEvents } from '@/lib/equipment-tag-lookup'
 import { getSheets } from '@/lib/sheet-catalog'
 import { Bookmark, ClipboardList } from 'lucide-react'
 import { CATEGORY_LABEL, RULE_LABEL, expiryOf, expiryState } from '@/lib/equipment-lifespan'
@@ -63,6 +63,56 @@ export default async function TagPage({ params }: { params: Promise<{ code: stri
               </div>
             ) : (
               <p className="text-sm text-amber-700" data-testid="tag-point-no-inspection">진행 중 점검 회차가 없습니다 — 점검 달력에서 회차를 시작한 뒤 다시 찍으세요.</p>
+            )}
+          </div>
+        </div>
+      )
+    }
+  }
+  // 건물(기록표 QR, 179) — 출입구 게시물의 QR. 회차 목록과 단계 상태(직원용 — 공개 카드는 두지 않는다, 사용자 결정)
+  if (!a) {
+    const b = await findBuildingByTag(admin, code)
+    if (b) {
+      const { data: inspsRaw } = await admin.from('inspections')
+        .select('id, year, sequence_num, inspection_type, status, inspection_start_date, inspection_end_date')
+        .eq('customer_id', b.customer_id)
+        .order('inspection_start_date', { ascending: false, nullsFirst: false }).order('created_at', { ascending: false })
+        .limit(5)
+      const insps = (inspsRaw ?? []) as Array<{ id: string; year: number; sequence_num: number; inspection_type: string | null; status: string; inspection_start_date: string | null; inspection_end_date: string | null }>
+      const { data: stepsRaw } = insps.length
+        ? await admin.from('inspection_steps').select('inspection_id, status').in('inspection_id', insps.map(i => i.id))
+        : { data: [] }
+      const done = new Map<string, { d: number; t: number }>()
+      for (const s of (stepsRaw ?? []) as Array<{ inspection_id: string; status: string }>) {
+        const e = done.get(s.inspection_id) ?? { d: 0, t: 0 }
+        e.t++; if (s.status === 'done') e.d++
+        done.set(s.inspection_id, e)
+      }
+      const INS_STATUS: Record<string, string> = { in_progress: '진행 중', completed: '완료' }
+      return (
+        <div className="mx-auto max-w-md space-y-3 p-4" data-testid="tag-building-card">
+          <div className="flex items-center gap-2 text-ink-meta text-xs"><QrCode className="size-4" /> {tagHuman(code)}</div>
+          <h1 className="text-lg font-bold text-ink" data-testid="tag-building-name">{b.building_name}</h1>
+          <dl className="grid grid-cols-[6rem_1fr] gap-y-1.5 text-sm">
+            <dt className="text-ink-meta">고객</dt><dd><Link className="underline" href={`/customers/${b.customer_id}`}>{b.customer?.customer_name ?? '고객'}</Link></dd>
+            <dt className="text-ink-meta">주소</dt><dd>{b.address || '—'}</dd>
+          </dl>
+          <div>
+            <h2 className="mb-1 text-sm font-semibold text-ink">자체점검 회차</h2>
+            {insps.length === 0 ? <p className="text-sm text-ink-meta">회차가 없습니다.</p> : (
+              <ul className="divide-y rounded-lg border text-sm" data-testid="tag-building-inspections">
+                {insps.map(i => {
+                  const st = done.get(i.id)
+                  return (
+                    <li key={i.id}><Link className="flex items-center gap-2 px-3 py-2 hover:bg-paper" href={`/inspections/${i.id}`}>
+                      <b>{i.year}년 {i.sequence_num}차</b> {i.inspection_type ?? ''}
+                      <span className="flex-1" />
+                      {st && <span className="text-ink-meta">단계 {st.d}/{st.t}</span>}
+                      <span className={`rounded-full px-1.5 py-0.5 text-xs ${i.status === 'completed' ? 'bg-gray-100 text-gray-600' : 'bg-brand-tint text-brand'}`}>{INS_STATUS[i.status] ?? i.status}</span>
+                    </Link></li>
+                  )
+                })}
+              </ul>
             )}
           </div>
         </div>

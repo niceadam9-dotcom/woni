@@ -1217,6 +1217,11 @@ export function InspectionWorkbench({
                     </a>
                     {/* B4 1단계 — 업로드할 별지 9호 한글파일. 입구 옆에 둔다(받아서 → 올린다) */}
                     {canManage && <SominHwpxButton inspectionId={inspectionId} />}
+                    {/* C4 — QR 4단계: 별표 5 자체점검기록표(게시용 PDF, 건물 QR 동봉). 보고 후 10일 내 30일 이상 게시 — 6단계 완료 조건 아님 */}
+                    <a href={`/inspections/${inspectionId}/record-card`} target="_blank" rel="noreferrer" data-testid="record-card-link"
+                      className="inline-flex items-center gap-1 text-brand hover:underline">
+                      자체점검기록표 <ExternalLink className="size-3" />
+                    </a>
                     {data.delivery?.sentAt
                       ? <span>관계인 교부 {mmdd(kstDate(data.delivery.sentAt))} (이메일 송달)</span>
                       : data.submit9.ownerDue
