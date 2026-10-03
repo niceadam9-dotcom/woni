@@ -46,7 +46,9 @@ for (const f of ['timeline-actions.ts', 'defect-actions.ts']) {
 {
   const src = read('sheet-actions.ts')
   const r = count(src, RE_REVAL), s = count(src, RE_SYNC)
-  check('sheet-actions.ts — 미전환 revalidatePath가 12를 넘지 않는다', r <= 12, `${r}회`)
+  // 12→13: cba5dc03(2026-09-07) 「✕ 재등록 동기화」 — 불량 이름만 고치고 단계 상태는 안 바꾸므로 단계 헬퍼 대상이
+  //   아니다(상세 1회만 무효화). 그날부터 빨강이던 것을 근거 확인 후 갱신(2026-10-03).
+  check('sheet-actions.ts — 미전환 revalidatePath가 13을 넘지 않는다', r <= 13, `${r}회`)
   check('sheet-actions.ts — 미전환 syncInspectionSteps가 6을 넘지 않는다', s <= 6, `${s}회`)
   check('sheet-actions.ts — 기준 경로(saveSheetResponses)는 헬퍼를 쓴다',
     /const \{ stepsChanged \} = await syncStepsAndRevalidate\(admin, inspectionId, profile\.id\)/.test(src))
@@ -71,7 +73,12 @@ for (const f of ['timeline-actions.ts', 'defect-actions.ts']) {
   //      · sheet 응답저장   → 소방계획서_28의 자동저장 경로가 화면을 책임진다
   //      · defect 조치저장  → S3-5 집계 미러 + F-21 부모 편집분,
   //                          그리고 그 둘을 test-workbench-defect-pane-switch.mts(7/0)가 지킨다
-  check('가드 경로(alsoChanged 생략)는 정확히 3곳', guarded === 3,
+  //      · defect ⑥ 완료 체크·해제(setDefectCompletionAction 2곳, cc91e504 2026-09-10 추가)
+  //                        → 불량표(defect-grid toggleDone)는 서버가 돌려준 날짜로 편집분·기준선·집계(onSaved)를
+  //                          맞추고, 점검 카드(inspection-defects-client)는 저장 뒤 router.refresh()로 다시 읽는다.
+  //                          ⑤/⑥ 단계가 바뀌는 체크는 stepsChanged가 참이라 가드가 통과시킨다.
+  //   이 단언은 cc91e504부터 3→5로 빨강이었다(2026-10-03 근거 확인 후 5로 갱신).
+  check('가드 경로(alsoChanged 생략)는 정확히 5곳', guarded === 5,
     `${guarded}곳 — 늘었다면 F-1 위반 가능(단계 외 서버 prop이 안 갱신된다)`)
 }
 
