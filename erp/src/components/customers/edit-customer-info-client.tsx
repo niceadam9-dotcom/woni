@@ -15,7 +15,7 @@ import { anchorRoles } from '@/lib/anchor-role'
 import type { Customer } from '@/types'
 
 type Props = {
-  customer: Pick<Customer, 'id' | 'customer_name' | 'contract_date' | 'use_approval_date' | 'plan_anchor_date' | 'zipcode' | 'address' | 'region_si' | 'region_myeon' | 'region_ri' | 'notes' | 'fire_station' | 'inspection_type' | 'monthly_fee_taxed' | 'monthly_fee_untaxed' | 'fee_taxed' | 'fee_untaxed' | 'somin_object_no' | 'kfma_object_no'>
+  customer: Pick<Customer, 'id' | 'customer_name' | 'contract_date' | 'use_approval_date' | 'plan_anchor_date' | 'zipcode' | 'address' | 'region_si' | 'region_myeon' | 'region_ri' | 'notes' | 'fire_station' | 'inspection_type' | 'monthly_fee_taxed' | 'monthly_fee_untaxed' | 'fee_taxed' | 'fee_untaxed' | 'somin_object_no' | 'kfma_object_no' | 'somin_name' | 'somin_address'>
   /** §11: 점검유형 뱃지(+인라인 유형 편집) 슬롯과 연n회 라벨은 페이지가 구성 */
   typeSlot?: ReactNode
   /** 점검 종류(종합/작동) — 법정 시기 배지가 2차 유무를 판정하는 데 쓴다 */
@@ -53,6 +53,9 @@ function makeInitial(c: Props['customer']) {
     // 167 — 외부 시스템 대상물 번호(선택). 167 미적용 DB에서는 undefined → 빈칸
     somin_object_no: c.somin_object_no ?? '',
     kfma_object_no: c.kfma_object_no ?? '',
+    // 175 — 소민터 등록 명칭·소재지(선택). 175 미적용 DB에서는 undefined → 빈칸
+    somin_name: c.somin_name ?? '',
+    somin_address: c.somin_address ?? '',
   }
 }
 
@@ -76,7 +79,7 @@ export function EditCustomerInfoClient({ customer, typeSlot, annualLabel, lastCh
   const pendingSaveRef = useRef(false)                          // [저장]
 
   // customer props가 갱신(router.refresh)되면 form 초기화 — 렌더 중 상태 조정 패턴 (effect 아님)
-  const syncKey = [customer.customer_name, customer.contract_date, customer.use_approval_date, customer.plan_anchor_date, customer.address, customer.notes, customer.fire_station, customer.somin_object_no, customer.kfma_object_no].join('|')
+  const syncKey = [customer.customer_name, customer.contract_date, customer.use_approval_date, customer.plan_anchor_date, customer.address, customer.notes, customer.fire_station, customer.somin_object_no, customer.kfma_object_no, customer.somin_name, customer.somin_address].join('|')
   const [prevSyncKey, setPrevSyncKey] = useState(syncKey)
   if (prevSyncKey !== syncKey) {
     setPrevSyncKey(syncKey)
@@ -159,6 +162,8 @@ export function EditCustomerInfoClient({ customer, typeSlot, annualLabel, lastCh
       fire_station: form.fire_station.trim() || null,
       somin_object_no: form.somin_object_no.trim() || null,
       kfma_object_no: form.kfma_object_no.trim() || null,
+      somin_name: form.somin_name.trim() || null,
+      somin_address: form.somin_address.trim() || null,
     }
   }
 
@@ -317,6 +322,19 @@ export function EditCustomerInfoClient({ customer, typeSlot, annualLabel, lastCh
           <Cell span={2} label="협회 대상물번호" htmlFor="cf-kfma">
             <input id="cf-kfma" type="text" value={form.kfma_object_no} onChange={e => set('kfma_object_no', e.target.value)} disabled={dis}
               placeholder="관리업종합정보시스템 대상물번호(선택)" maxLength={40} className={inputCls} />
+          </Cell>
+        </SubRow>
+        {/* 175 — 소민터 등록 명칭·소재지. 소민터 한글파일 업로드는 명칭·소재지가 등록값과 한 글자라도 다르면
+            「소방대상물을 찾을 수 없습니다」로 거부된다. 다를 때만 적는다 — 비우면 고객명·주소 그대로.
+            「소민터용 한글파일」에만 쓰이고 PDF·엑셀(관계인에게 주는 문서)은 사내 표기를 유지한다. */}
+        <SubRow label="소민터 등록" testId="info-somin-registered">
+          <Cell span={2} label="소민터 등록 명칭" htmlFor="cf-somin-name">
+            <input id="cf-somin-name" type="text" value={form.somin_name} onChange={e => set('somin_name', e.target.value)} disabled={dis}
+              placeholder="고객명과 다를 때만 — 비우면 고객명" maxLength={100} className={inputCls} />
+          </Cell>
+          <Cell span={2} label="소민터 등록 소재지" htmlFor="cf-somin-address">
+            <input id="cf-somin-address" type="text" value={form.somin_address} onChange={e => set('somin_address', e.target.value)} disabled={dis}
+              placeholder="주소와 다를 때만 — 비우면 주소" maxLength={200} className={inputCls} />
           </Cell>
         </SubRow>
 

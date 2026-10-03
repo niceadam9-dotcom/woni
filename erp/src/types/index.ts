@@ -97,6 +97,8 @@ export interface Customer {
   fire_station: string | null            // 관할 소방서 (보고서 개요·공문)
   /** 167 — 소민터 대상물 일련번호·협회 대상물번호(선택). 배치확인서 불러오기 일치 조건·복사 카드 표시용 */
   somin_object_no?: string | null; kfma_object_no?: string | null
+  /** 175 — 소민터 등록 명칭·소재지(고객명·주소와 다를 때만). 소민터용 별지 9호 한글파일에만 쓴다 */
+  somin_name?: string | null; somin_address?: string | null
   fee_untaxed: number | null; fee_taxed: number | null                 // 일반관리 건별
   monthly_fee_untaxed: number | null; monthly_fee_taxed: number | null // 종합/작동 월정액
   fee_note: string | null

@@ -37,18 +37,35 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
   if (!insp) return NextResponse.json({ error: '점검 건을 찾을 수 없습니다.' }, { status: 404 })
   const row = insp as { customer_id: string; year: number }
 
+  // 175 — 소민터 등록 명칭·소재지. 값이 있으면 이 파일에만 그 값으로 인쇄한다(PDF·엑셀은 고객명·주소 그대로).
+  // ⚠ error를 본다 — 175 미적용 DB면 42703인데, 그걸 null로 삼키면 「등록값 없음」으로 조용히 넘어간다
+  const { data: somin, error: sominErr } = await admin.from('customers')
+    .select('somin_name, somin_address').eq('id', row.customer_id).maybeSingle()
+  if (sominErr) return NextResponse.json({ error: `고객 조회 실패: ${sominErr.message}` }, { status: 500 })
+  const sominName = String((somin as { somin_name?: string | null } | null)?.somin_name ?? '').trim()
+  const sominAddr = String((somin as { somin_address?: string | null } | null)?.somin_address ?? '').trim()
+
   try {
-    const { data, missing } = await assembleReport9(admin, row.customer_id, id)
+    const { data: assembled, missing } = await assembleReport9(admin, row.customer_id, id)
+    const data = {
+      ...assembled,
+      ...(sominName ? { customerName: sominName } : {}),
+      ...(sominAddr ? { address: sominAddr } : {}),
+    }
     const { bytes, stats } = await renderReport9Hwpx(readFileSync(TEMPLATE_PATH), data)
     if (stats.extra.missed.length) {
       // 템플릿에서 칸을 못 찾음 = 서식 개정 등으로 앵커가 어긋남 — 산출은 하되 서버 로그에 남긴다
       console.warn('[hwpx] 템플릿 앵커 미발견', stats.extra.missed)
     }
-    const name = `${data.customerName || '점검'}_별지9호_소민터_${row.year}.hwpx`
+    // 파일 이름은 사내 고객명 — 받는 사람이 ERP에서 찾는 이름이다
+    const name = `${assembled.customerName || '점검'}_별지9호_소민터_${row.year}.hwpx`
     // 고지 — 소민터 업로드 실패의 첫 원인(명칭·소재지 불일치)을 맨 앞에. 헤더 한도 보호로 600자에서 자른다
     const notice = (() => {
+      const used = [sominName && `명칭 「${sominName}」`, sominAddr && `소재지 「${sominAddr}」`].filter(Boolean).join('·')
       const parts = [
-        '소민터에 등록된 대상물 명칭·소재지와 한 글자라도 다르면 업로드가 거부됩니다',
+        used
+          ? `소민터 등록값으로 인쇄: ${used}`
+          : '소민터에 등록된 대상물 명칭·소재지와 한 글자라도 다르면 업로드가 거부됩니다 — 다르면 고객 정보 「소민터 등록」 칸에 적어 주세요',
         ...stats.unfilled.map(u => `${u}은 빈 서식 — 소민터 화면에서 입력`),
         ...stats.warnings, ...missing,
       ]

@@ -576,6 +576,9 @@ export type UpdateCustomerInput = {
   /** 167 — 외부 시스템 대상물 번호(선택) */
   somin_object_no?: string | null
   kfma_object_no?: string | null
+  /** 175 — 소민터 등록 명칭·소재지(선택) */
+  somin_name?: string | null
+  somin_address?: string | null
 }
 
 // 확정 보호 팝업(B안, 2026-07-14)의 requiresConfirmedDecision/confirmedItems 계약과
@@ -718,6 +721,9 @@ export async function updateCustomerAction(
   // 167 — 외부 대상물 번호. 숫자·영문·하이픈만 40자(소민터·협회 화면의 번호 형식은 미공개라 느슨하게)
   if (input.somin_object_no !== undefined)   updateFields.somin_object_no   = (input.somin_object_no ?? '').trim().slice(0, 40) || null
   if (input.kfma_object_no !== undefined)    updateFields.kfma_object_no    = (input.kfma_object_no ?? '').trim().slice(0, 40) || null
+  // 175 — 소민터 등록 명칭·소재지. 비우면 null(= 고객명·주소로 인쇄)
+  if (input.somin_name !== undefined)        updateFields.somin_name        = (input.somin_name ?? '').trim().slice(0, 100) || null
+  if (input.somin_address !== undefined)     updateFields.somin_address     = (input.somin_address ?? '').trim().slice(0, 200) || null
   if (input.zipcode !== undefined)           updateFields.zipcode           = input.zipcode || null
   if (input.inspection_type !== undefined) {
     updateFields.inspection_type     = input.inspection_type
