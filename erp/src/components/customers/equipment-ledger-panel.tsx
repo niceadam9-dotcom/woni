@@ -6,9 +6,10 @@
  *  3-1 동별 수량과는 **대조만** 한다 — 「대장 분말 n대 / 3-1 분말 m대」를 나란히 보이고 어느 쪽도 덮어쓰지 않는다.
  *  탭이 열릴 때 액션으로 한 번 읽는다(lazy — 고객 상세 서버 물결에 얹지 않는다). */
 import { Fragment, useEffect, useMemo, useRef, useState, useTransition } from 'react'
-import { Boxes, Loader2, Plus, Upload, X } from 'lucide-react'
+import { Boxes, FileText, Loader2, Plus, Printer, QrCode, Upload, X } from 'lucide-react'
 import {
   listEquipmentAction, addEquipmentRowsAction, closeEquipmentAction, splitEquipmentAction, getS31TotalsAction, setEquipmentTermsAction,
+  issueEquipmentTagsAction, explodeEquipmentBundleAction, createEquipmentQuoteDraftAction,
   type EquipmentRow, type EquipmentInput,
 } from '@/app/(dashboard)/customers/equipment-actions'
 import {
@@ -31,6 +32,7 @@ export function EquipmentLedgerPanel({ customerId, buildings, canManage }: { cus
   const fileRef = useRef<HTMLInputElement>(null)
   const [preview, setPreview] = useState<{ inputs: EquipmentInput[]; errors: string[] } | null>(null)
   const [termsId, setTermsId] = useState<string | null>(null)
+  const [quoteMsg, setQuoteMsg] = useState<string | null>(null)
 
   const load = async () => {
     const [r, t] = await Promise.all([listEquipmentAction(customerId), getS31TotalsAction(customerId)])
@@ -49,6 +51,10 @@ export function EquipmentLedgerPanel({ customerId, buildings, canManage }: { cus
 
   const tally = useMemo(() => tallyAssets(rows ?? [], today), [rows, today])
   const powderInLedger = useMemo(() => (rows ?? []).filter(r => r.category === 'powder').reduce((s, r) => s + r.qty, 0), [rows])
+  // QR·견적 초안 버튼 숫자 — 사용 중 행 기준(대장 목록은 사용 중만 싣는다)
+  const untagged = useMemo(() => (rows ?? []).filter(r => r.qty === 1 && !r.tag_code).length, [rows])
+  const tagged = useMemo(() => (rows ?? []).filter(r => r.tag_code).length, [rows])
+  const dueQty = useMemo(() => (rows ?? []).filter(r => { const s = expiryState(r, today, 90); return (s === 'expired' || s === 'soon') && !(r.warranty_until && r.warranty_until >= today) }).reduce((n, r) => n + r.qty, 0), [rows, today])
   const bName = (id: string | null) => buildings.find(b => b.id === id)?.building_name ?? (id ? '?' : '공통')
 
   const run = (fn: () => Promise<{ error?: string } & Record<string, unknown>>, ok: string) => start(async () => {
@@ -110,6 +116,24 @@ export function EquipmentLedgerPanel({ customerId, buildings, canManage }: { cus
           <span className="text-form-2xs text-ink-meta">엑셀 열: 품목·수량·제조연월(필수) + 위치·규격·건물(선택). 같은 위치·제조연월·규격은 한 줄에 수량으로(묶음 행).</span>
         </div>
       )}
+      {canManage && rows && rows.length > 0 && (
+        /* C3 3단계 — QR(개체 한 대 행에만) · 만료 예정 → 견적 초안. QR 없이도 대장은 그대로 동작한다 */
+        <div className="flex flex-wrap items-center gap-1.5" data-testid="equipment-qr-bar">
+          <button disabled={pending || untagged === 0} data-testid="equipment-tag-issue"
+            onClick={() => run(async () => { const r = await issueEquipmentTagsAction(customerId); return r.error ? r : { ...r, ok: true } }, `QR 코드 ${untagged}개를 발급했습니다`)}
+            className="inline-flex h-8 items-center gap-1 rounded-lg border border-brand-line-soft px-3 text-form-sm text-ink-sub hover:bg-brand-tint disabled:opacity-50"
+            title="개체 한 대 행(수량 1)에만 붙습니다. 묶음 행은 [개체로]로 먼저 나누세요. 한 번 발급한 코드는 바꾸지 않습니다."><QrCode className="size-3.5" /> QR 코드 발급{untagged ? ` (${untagged}대)` : ''}</button>
+          {tagged > 0 && (
+            <a href={`/customers/${customerId}/equipment-labels`} target="_blank" rel="noopener" data-testid="equipment-label-pdf"
+              className="inline-flex h-8 items-center gap-1 rounded-lg border border-brand-line-soft px-3 text-form-sm text-ink-sub hover:bg-brand-tint"><Printer className="size-3.5" /> 라벨 인쇄 PDF ({tagged}장)</a>
+          )}
+          <button disabled={pending || dueQty === 0} data-testid="equipment-quote-draft"
+            onClick={() => run(async () => { const r = await createEquipmentQuoteDraftAction(customerId); if (!r.error) setQuoteMsg(r.quoteNumber ?? null); return r }, '견적 초안을 만들었습니다 — 견적 관리에서 단가를 확인하세요')}
+            className="inline-flex h-8 items-center gap-1 rounded-lg border border-brand-line-soft px-3 text-form-sm text-ink-sub hover:bg-brand-tint disabled:opacity-50"
+            title="만료됐거나 90일 안에 만료되는 설비를 품목별 줄로 묶어 견적 초안(작성중)을 만듭니다. 하자보수 기간 중인 설비는 시공사 무상이라 뺍니다."><FileText className="size-3.5" /> 만료 예정 → 견적 초안{dueQty ? ` (${dueQty}대)` : ''}</button>
+          {quoteMsg && <a href="/quotes" className="text-form-sm text-brand underline" data-testid="equipment-quote-link">{quoteMsg} 열기</a>}
+        </div>
+      )}
 
       {adding && canManage && <AddForm buildings={buildings} disabled={pending} onCancel={() => setAdding(false)}
         onSubmit={inp => run(async () => { const r = await addEquipmentRowsAction(customerId, [inp]); if (!r.error) setAdding(false); return r }, '대장에 추가했습니다')} />}
@@ -132,8 +156,8 @@ export function EquipmentLedgerPanel({ customerId, buildings, canManage }: { cus
         <div className="overflow-x-auto">
           <table className="w-full text-form-sm" data-testid="equipment-table">
             <thead><tr className="border-b text-ink-sub">
-              <th className={th}>품목</th><th className={th}>건물</th><th className={th}>위치</th><th className={`${th} text-right`}>수량</th>
-              <th className={th}>제조연월</th><th className={th}>규칙</th><th className={th}>만료</th><th className={th}>상태</th>{canManage && <th className={th}></th>}
+              <th className={th}>품목</th><th className={`${th} whitespace-nowrap`}>건물</th><th className={th}>위치</th><th className={`${th} text-right whitespace-nowrap`}>수량</th>
+              <th className={th}>제조연월</th><th className={th}>규칙</th><th className={th}>만료</th><th className={th}>상태</th><th className={th}>QR</th>{canManage && <th className={th}></th>}
             </tr></thead>
             <tbody>
               {rows.map(r => {
@@ -142,19 +166,31 @@ export function EquipmentLedgerPanel({ customerId, buildings, canManage }: { cus
                   <Fragment key={r.id}>
                   <tr className="border-b last:border-0" data-testid="equipment-row">
                     <td className="px-2 py-1.5">{CATEGORY_LABEL[r.category]}{r.sub_type ? <span className="text-ink-meta"> · {r.sub_type}</span> : null}</td>
-                    <td className="px-2 py-1.5">{bName(r.building_id)}</td>
+                    <td className="px-2 py-1.5 whitespace-nowrap">{bName(r.building_id)}</td>
                     <td className="px-2 py-1.5">{r.location ?? '—'}</td>
                     <td className="px-2 py-1.5 text-right">{r.qty}</td>
-                    <td className="px-2 py-1.5">{r.manufactured_on?.slice(0, 7) ?? '—'}</td>
-                    <td className="px-2 py-1.5 text-ink-meta">{RULE_LABEL[r.lifespan_rule]}{r.extension_until ? ' · 연장' : ''}</td>
-                    <td className="px-2 py-1.5">
+                    <td className="px-2 py-1.5 whitespace-nowrap">{r.manufactured_on?.slice(0, 7) ?? '—'}</td>
+                    <td className="px-2 py-1.5 whitespace-nowrap text-ink-meta">{RULE_LABEL[r.lifespan_rule]}{r.extension_until ? ' · 연장' : ''}</td>
+                    <td className="px-2 py-1.5 whitespace-nowrap">
                       {expiryOf(r) ?? '—'}
                       {r.warranty_until && (
                         <div className={`text-form-2xs ${r.warranty_until < today ? 'text-ink-meta line-through' : 'text-blue-700'}`} data-testid="equipment-warranty"
                           title="공사 하자보수 만료일 — 이 날까지는 시공사 무상 보수 대상입니다">하자보수 ~{r.warranty_until}</div>
                       )}
                     </td>
-                    <td className="px-2 py-1.5"><span className={`rounded-full px-1.5 py-0.5 text-form-2xs ${STATE_STYLE[st]}`}>{STATE_LABEL[st]}</span></td>
+                    <td className="px-2 py-1.5"><span className={`whitespace-nowrap rounded-full px-1.5 py-0.5 text-form-2xs ${STATE_STYLE[st]}`}>{STATE_LABEL[st]}</span></td>
+                    <td className="px-2 py-1.5 whitespace-nowrap" data-testid="equipment-tag-cell">
+                      {r.tag_code ? (
+                        <>
+                          <a href={`/t/${r.tag_code}`} className="font-mono text-form-2xs underline" data-testid="equipment-tag-code" title={r.tag_printed_at ? `라벨 인쇄 ${r.tag_printed_at.slice(0, 10)}` : '라벨 미인쇄'}>{r.tag_code.slice(0, 6)}</a>
+                          {canManage && <a href={`/customers/${customerId}/equipment-labels?ids=${r.id}`} target="_blank" rel="noopener" className="ml-1 text-form-2xs text-ink-meta underline" title="이 한 장만 다시 인쇄(코드는 그대로)">재발행</a>}
+                        </>
+                      ) : r.qty > 1 && canManage ? (
+                        <button disabled={pending} className="text-form-2xs text-ink-sub underline" data-testid="equipment-explode"
+                          title={`묶음 ${r.qty}대를 한 대씩 ${r.qty}행으로 나눕니다 — QR은 한 대 행에만 붙습니다`}
+                          onClick={() => { if (confirm(`${CATEGORY_LABEL[r.category]} ${r.qty}대를 한 대씩 ${r.qty}행으로 나눌까요?`)) run(() => explodeEquipmentBundleAction(customerId, r.id), `${r.qty}행으로 나눴습니다`) }}>개체로</button>
+                      ) : <span className="text-form-2xs text-ink-meta">—</span>}
+                    </td>
                     {canManage && (
                       <td className="px-2 py-1.5 whitespace-nowrap">
                         {r.qty > 1 && (
@@ -169,7 +205,7 @@ export function EquipmentLedgerPanel({ customerId, buildings, canManage }: { cus
                     )}
                   </tr>
                   {termsId === r.id && canManage && (
-                    <tr className="border-b bg-brand-tint/20"><td colSpan={9} className="px-2 py-2">
+                    <tr className="border-b bg-brand-tint/20"><td colSpan={10} className="px-2 py-2">
                       <TermsForm row={r} disabled={pending} onCancel={() => setTermsId(null)}
                         onSubmit={t => run(async () => { const res = await setEquipmentTermsAction(customerId, r.id, t); if (!res.error) setTermsId(null); return res }, '기한을 저장했습니다')} />
                     </td></tr>

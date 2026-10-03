@@ -3,6 +3,7 @@
 import { normalizeYm, expiryOf, expiryState, tallyAssets, expiredSentence, DEFAULT_RULE, warrantyUntilOf } from '../src/lib/equipment-lifespan.ts'
 import { gasDefectSentence } from '../src/lib/gas-storage.ts'
 import { expiryBadge } from '../src/lib/equipment-expiry.ts'
+import { newTagCode, normalizeTagInput, tagHuman } from '../src/lib/equipment-tag.ts'
 
 let pass = 0, fail = 0
 const ok = (name: string, cond: boolean, detail = '') => { if (cond) { pass++; console.log(`  ✅ ${name}`) } else { fail++; console.log(`  ❌ ${name}${detail ? ` — ${detail}` : ''}`) } }
@@ -64,6 +65,17 @@ ok('정확히 5%는 양호(초과만 불량)', gasDefectSentence([{ location: 'A
 ok('배지: 경과 있으면 빨강 「만료 n」', expiryBadge({ expired: 4, soon: 2 })?.label === '만료 4' && expiryBadge({ expired: 4, soon: 2 })?.tone === 'red')
 ok('배지: 임박만 있으면 주황', expiryBadge({ expired: 0, soon: 2 })?.label === '만료 임박 2' && expiryBadge({ expired: 0, soon: 2 })?.tone === 'amber')
 ok('배지: 0/0·없음 → null', expiryBadge({ expired: 0, soon: 0 }) === null && expiryBadge(undefined) === null)
+
+console.log('— 3단계: QR 코드 규칙')
+const codes = Array.from({ length: 500 }, () => newTagCode())
+ok('8자 · Crockford 알파벳만(I·L·O·U 없음)', codes.every(c => c.length === 8 && /^[0-9A-HJKMNP-TV-Z]{8}$/.test(c)))
+ok('500개 중복 0', new Set(codes).size === 500)
+ok('결정적 난수 → 결정적 코드', newTagCode(n => new Uint8Array(n).fill(33)) === '11111111')
+ok('수기 입력: 소문자·하이픈·공백 허용', normalizeTagInput(' 7k2m9q-ab ') === '7K2M9QAB')
+ok('수기 입력: O→0, I·L→1', normalizeTagInput('oil') === '011')
+ok('수기 입력: U·기호는 거절', normalizeTagInput('7K2U') === null && normalizeTagInput('7K2#') === null)
+ok('수기 입력: 9자 이상 거절', normalizeTagInput('123456789') === null)
+ok('사람용 표기 앞 6자-뒤 2자', tagHuman('7K2M9QAB') === '7K2M9Q-AB')
 
 console.log(`\n결과: ${pass} 통과 / ${fail} 실패`)
 process.exit(fail ? 1 : 0)
