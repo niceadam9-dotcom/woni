@@ -66,6 +66,7 @@ console.log(`  대상물 ${data.customerName} · 점검 ${data.inspPeriod} · �
 console.log(`  자리표시자 ${stats.filled}/${stats.placeholders} 채움(체크칸 제외 빈 칸 ${stats.empty.length}: ${stats.empty.join(', ') || '없음'})`)
 console.log(`  3쪽 설치 √ ${stats.checks.ok}/${stats.checks.total}${stats.checks.missed.length ? ` — 못 찾음: ${stats.checks.missed.join(', ')}` : ''}`)
 console.log(`  3쪽 결과 ${stats.results.ok}/${stats.results.total}${stats.results.missed.length ? ` — 못 찾음: ${stats.results.missed.join(', ')}` : ''}`)
+console.log(`  3쪽 기타·2절 결과 ${stats.extra.page3Marks} · 8쪽 불량 ${stats.extra.defectRows}행${stats.extra.missed.length ? ` — ⚠ 템플릿에서 못 찾음: ${stats.extra.missed.join(', ')}` : ''}`)
 console.log(`  아직 안 채우는 칸: ${stats.unfilled.join(' · ')}`)
 for (const w of stats.warnings) console.log(`  ⚠ ${w}`)
 if (missing.length) console.log(`  조립기 미입력 안내(PDF와 같음): ${missing.join(', ')}`)

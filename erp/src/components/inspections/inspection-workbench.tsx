@@ -34,6 +34,7 @@ import { confirmSheetProtocolAction } from '@/app/(dashboard)/inspections/sheet-
 import { BundleGeneratePanel } from '@/components/inspections/bundle-generate-panel'
 import { GeneratedDocList } from '@/components/inspections/generated-doc-list'
 import { WorkbookXlsxButton } from '@/components/inspections/workbook-xlsx-button'
+import { SominHwpxButton } from '@/components/inspections/somin-hwpx-button'
 import { AnnexMissingChip } from '@/components/inspections/annex-missing-list'
 import { AnnexPrintButton } from '@/components/customers/annex-print-button'
 import { FIELD_DEFS, AnnexFieldInput, type ComposeAnnexNo, type FieldDef } from '@/components/inspections/annex-fields'
@@ -1214,6 +1215,8 @@ export function InspectionWorkbench({
                       className="inline-flex items-center gap-1 text-brand hover:underline">
                       소방민원센터 열기 <ExternalLink className="size-3" />
                     </a>
+                    {/* B4 1단계 — 업로드할 별지 9호 한글파일. 입구 옆에 둔다(받아서 → 올린다) */}
+                    {canManage && <SominHwpxButton inspectionId={inspectionId} />}
                     {data.delivery?.sentAt
                       ? <span>관계인 교부 {mmdd(kstDate(data.delivery.sentAt))} (이메일 송달)</span>
                       : data.submit9.ownerDue

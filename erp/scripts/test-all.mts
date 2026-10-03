@@ -770,6 +770,7 @@ const steps: Step[] = [
   { name: 'B2 세금계산서 발행 화면(E2E)', cmd: 'npx tsx scripts/test-tax-invoice-issue-b2.mts', needServer: true },
   { name: 'B5 능력평가 실적 시트',       cmd: 'npx tsx scripts/test-capability-eval.mts' },
   { name: 'B4 별지 9호 HWPX 렌더러',     cmd: 'npx tsx scripts/test-report9-hwpx.mts' },
+  { name: 'B4 소민터용 한글파일(E2E)',   cmd: 'npx tsx scripts/test-somin-hwpx-e2e.mts',      needServer: true },
   { name: 'B5 능력평가 실적(E2E)',       cmd: 'npx tsx scripts/test-capability-eval-e2e.mts',  needServer: true },
   // 드로어 전체화면·배율 연동(소방계획서_38). 위 두 스위트는 **배율 md 한 점에서만** 돌기 때문에
   // lg/xl에서 sticky 2층이 겹쳐 항목 첫 행이 가려져도 전부 초록이다. test-font-scale S-1은 CSS

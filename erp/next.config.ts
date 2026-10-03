@@ -7,6 +7,8 @@ const nextConfig: NextConfig = {
   // 번들에서 빠진다. 이 라우트에 명시로 딸려 보낸다 (번들 문서 output.md — 키는 라우트 경로).
   outputFileTracingIncludes: {
     '/inspections/[id]/workbook': ['./templates/**/*'],
+    // 소민터용 별지 9호 한글파일(B4 1단계) — 같은 이유로 템플릿을 딸려 보낸다
+    '/inspections/[id]/hwpx': ['./templates/report9-placeholder.hwpx'],
   },
   experimental: {
     serverActions: {
