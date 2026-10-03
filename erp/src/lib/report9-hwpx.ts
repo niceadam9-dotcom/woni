@@ -9,7 +9,8 @@
  *
  *  2026-10-03 소민터 실업로드 통과(HWPX 수용 확인) → 1단계: 2쪽 선임 형태·다중이용업소 개소수·경사로·계단,
  *  3쪽 하위 항목 √·기타 3항목·2절 안전시설등, 8쪽 불량 세부 사항을 더 채운다.
- *  범위(정직하게): 4~7쪽 세부 현황은 아직 **빈 서식 그대로**다 — `stats.unfilled`에 적어 내보낸다.
+ *  2단계(같은 날): 4~7쪽 세부 현황 — `report9-hwpx-specs`(PDF 세부현황 렌더를 줄 골격으로 옮김).
+ *  범위(정직하게): 서식과 HTML 표기가 달라 짝을 못 지은 문단은 빈 서식 — `stats.unfilled`·`stats.specs`에 적어 내보낸다.
  *
  *  **순수 모듈**: 파일을 읽지 않는다(호출부가 템플릿 바이트를 넘긴다). */
 import JSZip from 'jszip'
@@ -18,6 +19,7 @@ import {
 } from '@/lib/doc-templates/report9'
 import { EVAC_FORM3_GROUPS, FIRE_SUB_ITEMS, evacTypesFromSpecs } from '@/lib/facility-codes'
 import { ETC_LEDGER_CODE, type EtcKey } from '@/lib/etc-sheet-map'
+import { fillSpecPages, type SpecFillStats } from '@/lib/report9-hwpx-specs'
 
 const CK_ON = '[√]', CK_OFF = '[  ]'
 const ck = (b: boolean | undefined | null) => (b ? CK_ON : CK_OFF)
@@ -287,6 +289,8 @@ export type Report9HwpxStats = {
   results: { ok: number; total: number; missed: string[] }
   /** 1단계 — 3쪽 기타·2절 결과 주입 수, 8쪽 불량 행 수, 템플릿에서 못 찾은 칸(0이어야 정상) */
   extra: { page3Marks: number; defectRows: number; missed: string[] }
+  /** 2단계 — 4~7쪽 세부 현황: 칸 있는 문단 수·짝지은 수·못 붙인 문단 앞머리·바꾼 칸 수 */
+  specs: SpecFillStats
   unfilled: string[]; warnings: string[]
 }
 
@@ -332,6 +336,8 @@ export async function renderReport9Hwpx(
   })
   xml = editTable(xml, 1, t => fillPage2(t, d, miss))
   xml = editTable(xml, 7, t => { const r = fillPage8(t, d, miss); defectRows = r.rows; return r.t })
+  // 4~7쪽 — PDF와 같은 세부현황 렌더를 줄 골격으로 옮긴다(report9-hwpx-specs)
+  const specs = fillSpecPages((k, fn) => { xml = editTable(xml, k, fn) }, d)
   const leftover = (xml.match(/\{\{[a-z0-9_]+\}\}/g) ?? []).length
   zip.file('Contents/section0.xml', xml, { createFolders: false })
   // 미리보기 텍스트도 같은 값으로(탐색기 미리보기에 {{key}}가 보이지 않게)
@@ -354,7 +360,9 @@ export async function renderReport9Hwpx(
       checks: { ok: ckOk, total: d.facilityChecks.length, missed: ckMissed },
       results: { ok: rsOk, total: rsTotal, missed: rsMissed },
       extra: { page3Marks: p3marks, defectRows, missed: miss },
-      unfilled: ['4~7쪽 세부 현황'],
+      specs,
+      // 세부현황은 채우되, 서식과 HTML 표기가 달라 짝을 못 지은 문단은 빈 서식으로 남는다 — 그 수를 밝힌다
+      unfilled: specs.unmatched.length ? [`4~7쪽 세부 현황 중 ${specs.unmatched.length}줄`] : [],
       warnings,
     },
   }

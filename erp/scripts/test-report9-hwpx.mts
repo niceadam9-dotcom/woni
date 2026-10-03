@@ -5,6 +5,7 @@ import JSZip from 'jszip'
 import { renderReport9Hwpx, report9HwpxValues } from '../src/lib/report9-hwpx'
 import { base9 } from './_fixtures-doc-templates.mts'
 import type { Report9Data } from '../src/lib/doc-templates/report9'
+import { FACILITY_SPEC_SECTIONS } from '../src/lib/facility-spec-schema'
 
 let pass = 0, fail = 0
 const check = (name: string, ok: boolean, detail = '') => {
@@ -139,6 +140,54 @@ check('4-16 8쪽 불량 행 수 3', r4.stats.extra.defectRows === 3, String(r4.s
 check('4-17 불량내용 XML 이스케이프', x4.includes('4개 &lt;B동&gt;'))
 check('4-18 XML 정형성', wellFormed(x4))
 check('4-19 3쪽 1절 설치 √·결과 전부 매칭', r4.stats.checks.ok === 2 && r4.stats.results.ok === r4.stats.results.total, JSON.stringify(r4.stats.checks) + JSON.stringify(r4.stats.results))
+
+console.log('\n[6] 2단계 — 4~7쪽 세부 현황(PDF 세부현황 렌더를 줄 골격으로 옮김)')
+// 카탈로그 전 필드를 채운 픽스처 — 값은 필드 순번(T1·2…)이라 어느 블록에 붙었는지 바로 보인다
+const fullSpecs = (pick: 'first' | 'last') => {
+  const specs: Record<string, Record<string, Record<string, unknown>>> = {}
+  let n = 0
+  for (const s of FACILITY_SPEC_SECTIONS) {
+    specs[s.key] = {}
+    for (const b of s.blocks) {
+      const o: Record<string, unknown> = {}
+      for (const f of b.fields) {
+        n++
+        if (f.type === 'text') o[f.key] = `T${n}`
+        else if (f.type === 'number') o[f.key] = String(n)
+        else if (f.type === 'check') o[f.key] = true
+        else if (f.type === 'select') o[f.key] = pick === 'first' ? f.options![0] : f.options![f.options!.length - 1]
+        else if (f.type === 'multicheck') o[f.key] = [...(f.options ?? [])]
+        else if (f.type === 'rowtable') o[f.key] = [
+          { dong: '본관', qty_ext_powder: '3', qty_ext_other: '1', qty_simple_throw: '2', qty_simple_other: '', qty_auto_diffuse: '4', qty_auto_device: '1', note: '비고1' },
+          { dong: '별관', qty_ext_powder: '2', note: '' }]
+      }
+      specs[s.key][b.key] = o
+    }
+  }
+  return specs
+}
+// 서식엔 있으나 PDF 세부현황 렌더(spec-sections)에 입력칸이 없는 줄 — PDF도 빈 서식이라 같은 결과다
+const KNOWN_UNMATCHED = ['[ ]전동기 [ ]내연기관', '[ ]전용 [ ]겸용/[ ]흡수식', '◦ 가압송수장치  전양정', '◦ 기동스위치 설치장소: [ ]채수구', '◦ 채수구 지름', '◦ 방수구 위치']
+for (const pick of ['first', 'last'] as const) {
+  const r6 = await renderReport9Hwpx(tpl, { ...base9, specs: fullSpecs(pick), ledgerCodes: [] } as unknown as Report9Data)
+  const x6 = await (await JSZip.loadAsync(r6.bytes)).file('Contents/section0.xml')!.async('string')
+  const sp = r6.stats.specs
+  const p4to7 = [3, 4, 5, 6].map(k => page(x6, k)).join('\n')
+  check(`6-1(${pick}) 짝지은 문단 189/197`, sp.matched === 189 && sp.paragraphs === 197, `${sp.matched}/${sp.paragraphs}`)
+  check(`6-2(${pick}) 못 붙인 8줄은 전부 PDF에도 없는 줄`, sp.unmatched.length === 8 && sp.unmatched.every(u => KNOWN_UNMATCHED.some(k => u.startsWith(k))), sp.unmatched.join(' | '))
+  check(`6-3(${pick}) XML 정형성`, wellFormed(x6))
+  check(`6-4(${pick}) 3-1 합계 행·동별 2행`, sp.s31Rows === 2 && /합계\n동명\n5\n1\n2\n\n4\n1\n\n본관\n3\n1\n2\n\n4\n1\n비고1\n별관\n2\n/.test(p4to7), p4to7.slice(p4to7.indexOf('합계'), p4to7.indexOf('합계') + 80))
+  const g = pick === 'first' ? '[√]지상/[ ]지하' : '[ ]지상/[√]지하'
+  check(`6-5(${pick}) 주된수원 설치장소 — 그 블록 값(T4·T6·T7)·select`, p4to7.includes(`◦ 설치장소: 동명(T4) ${g} (T6)층, 실명(T7)`))
+  check(`6-6(${pick}) 3-2 설비의 종류 8칸 √(서식 한 문단 ↔ HTML 세 줄)`, p4to7.includes('◦ 설비의 종류: [√]옥내소화전설비, [√]옥외소화전설비, [√]스프링클러설비,[√]간이스프링클러설비, [√]화재조기진압용스프링클러설비, [√]물분무소화설비, [√]미분무소화설비, [√]포소화설비'))
+  check(`6-7(${pick}) 자탐 설치장소 둘째 줄(HTML 「:」 시작)도 채움`, /\n +동명\(T197\) /.test(p4to7))
+  check(`6-8(${pick}) 서식 원문 괄호 글자 보존`, p4to7.includes('(또는') || p4to7.includes('그 밖의 것(') )
+}
+// 건물 정보(비상용승강기 대수 등)는 세부현황 파생값이라 PDF처럼 찍힌다 — 대조군에서는 비운다
+const r7 = await renderReport9Hwpx(tpl, { ...base9, specs: {}, ledgerCodes: [], building: undefined } as unknown as Report9Data)
+const x7 = await (await JSZip.loadAsync(r7.bytes)).file('Contents/section0.xml')!.async('string')
+const tpages = [3, 4, 5, 6].map(k => page(tx, k)).join('\n'), epages = [3, 4, 5, 6].map(k => page(x7, k)).join('\n')
+check('6-9 세부제원 비면 4~7쪽 글자 = 빈 서식 그대로', epages === tpages && r7.stats.specs.edits === 0)
 
 console.log('\n[5] 배포 사본 — 라우트(/inspections/[id]/hwpx)가 읽는 templates 사본 = 서식 원본')
 const shipped = readFileSync(new URL('../templates/report9-placeholder.hwpx', import.meta.url))

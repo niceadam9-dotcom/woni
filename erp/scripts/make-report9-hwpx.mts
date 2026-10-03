@@ -67,6 +67,7 @@ console.log(`  자리표시자 ${stats.filled}/${stats.placeholders} 채움(체�
 console.log(`  3쪽 설치 √ ${stats.checks.ok}/${stats.checks.total}${stats.checks.missed.length ? ` — 못 찾음: ${stats.checks.missed.join(', ')}` : ''}`)
 console.log(`  3쪽 결과 ${stats.results.ok}/${stats.results.total}${stats.results.missed.length ? ` — 못 찾음: ${stats.results.missed.join(', ')}` : ''}`)
 console.log(`  3쪽 기타·2절 결과 ${stats.extra.page3Marks} · 8쪽 불량 ${stats.extra.defectRows}행${stats.extra.missed.length ? ` — ⚠ 템플릿에서 못 찾음: ${stats.extra.missed.join(', ')}` : ''}`)
+console.log(`  4~7쪽 세부 현황 문단 ${stats.specs.matched}/${stats.specs.paragraphs} 짝 · 칸 ${stats.specs.edits} · 3-1 동별 ${stats.specs.s31Rows}행${stats.specs.warnings.length ? ` · ⚠ ${stats.specs.warnings.join(", ")}` : ""}`)
 console.log(`  아직 안 채우는 칸: ${stats.unfilled.join(' · ')}`)
 for (const w of stats.warnings) console.log(`  ⚠ ${w}`)
 if (missing.length) console.log(`  조립기 미입력 안내(PDF와 같음): ${missing.join(', ')}`)
