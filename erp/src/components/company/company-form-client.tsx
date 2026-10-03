@@ -7,6 +7,7 @@ import { upsertCompanyAction } from '@/app/(dashboard)/company/actions'
 import { DateInput } from '@/components/ui/date-input'
 import { formatPhoneKR } from '@/components/ui/fields'
 import { formatBizNo, formatBizNoKR, formatTel } from '@/lib/format-contact'
+import { CompanySealField } from '@/components/company/company-seal-field'
 
 const inputCls = 'w-full h-10 rounded-lg border border-brand-line bg-surface px-3 text-sm text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition'
 
@@ -32,7 +33,7 @@ type CompanyInfo = {
   official_sender_name?: string | null; official_rep_title?: string | null
 }
 
-export function CompanyFormClient({ existing }: { existing?: CompanyInfo }) {
+export function CompanyFormClient({ existing, sealSrc }: { existing?: CompanyInfo; sealSrc?: string | null }) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState('')
@@ -226,17 +227,13 @@ export function CompanyFormClient({ existing }: { existing?: CompanyInfo }) {
             </div>
           </Field>
         </div>
-        {/* 비워도 되는 칸이라는 걸 미리보기로 말한다 — 폴백 규약을 글로만 적으면 안 읽는다 */}
-        <div className="rounded-lg border border-brand-line-soft bg-brand-tint px-4 py-3">
-          <p className="text-form-xs font-medium text-ink-sub">공문에 이렇게 찍힙니다</p>
-          <p className="mt-1.5 text-center text-sm font-bold leading-relaxed text-ink">
-            {form.official_sender_name.trim() || form.company_name.trim() || '회사명'}<br />
-            {(form.official_rep_title.trim() || '대표이사')} {form.representative.trim() || '대표자'}(직인생략)
-          </p>
-          <p className="mt-1.5 text-form-xs text-ink-faint">
-            비워두면 상호는 [회사명], 직함은 &lsquo;대표이사&rsquo;로 나갑니다 · 대표자 이름은 위 [대표자] 칸을 씁니다
-          </p>
-        </div>
+        {/* 비워도 되는 칸이라는 걸 미리보기로 말한다 — 폴백 규약을 글로만 적으면 안 읽는다.
+            직인(174)은 저장 버튼과 별개로 즉시 올라간다(파일은 폼 상태가 아니다) */}
+        <CompanySealField
+          senderName={form.official_sender_name.trim() || form.company_name.trim() || '회사명'}
+          signWho={form.representative.trim() ? `${form.official_rep_title.trim() || '대표이사'} ${form.representative.trim()}` : ''}
+          sealSrc={sealSrc ?? null}
+        />
       </section>
 
       {error && <p className="text-sm text-red-600 bg-red-50 rounded-lg px-4 py-3">{error}</p>}

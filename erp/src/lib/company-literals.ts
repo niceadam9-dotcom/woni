@@ -67,13 +67,41 @@ const SIGN_BLOCK =
   ' '.repeat(36) + '소방시설관리업체(등록번호):  승진소방 ENG  (제 경기양평-2020-01호)\n\n' +
   ' '.repeat(54) + '대 표 자:          김  흥  준             (인)        '
 
-/** 갑지(report-workbook-full.xlsx) 규칙 — 원문은 2026-10-02 템플릿 실측값 */
-export function reportWorkbookRules(p: CompanyLiteralSource): LiteralRule[] {
+/** 갑지 「공문」 하단 명의 칸 — 직인(174)을 겹칠 자리. 서식 실측(2026-10-03): A34:I34 병합·가운데 정렬·맑은 고딕 굵게 20pt */
+export const OFFICIAL_SIGN_CELL = { sheet: '공문', cell: 'A34', fontPx: 20 * 96 / 72 }
+
+/** 한 줄 글자 폭 추정(px) — 한글·한자 1em, 공백 0.3em, 그 밖(영숫자·기호) 0.55em. 직인 자리 잡기용 근사 */
+export function estimateTextPx(text: string, fontPx: number): number {
+  let em = 0
+  for (const ch of text) em += /\s/.test(ch) ? 0.3 : /[ᄀ-ᇿ㄰-㆏가-힯一-鿿]/.test(ch) ? 1 : 0.55
+  return em * fontPx
+}
+
+/** 명의 끝 글자에 직인 중심을 둔다(절반 걸침) — 상자 중심 기준 (dx, dy)와 크기(px). 가운데 정렬 칸이라 글자 오른쪽 끝 = 중심 + 폭/2.
+ *  ⚠ 뷰어마다 열 폭 환산이 다르다 — LibreOffice 렌더(2026-10-03)에선 의도보다 약 23px 오른쪽에 앉았다. 그래서 겹침을
+ *    넉넉히(절반) 잡아 어느 뷰어에서도 이름에 걸치게 한다. 72px은 윗줄(상호)까지 닿아 60px(약 16mm)로 줄였다. */
+export function sealPlacement(signText: string, fontPx = OFFICIAL_SIGN_CELL.fontPx, sealPx = 60) {
+  const textRight = estimateTextPx(signText, fontPx) / 2
+  // dy +12 — 행 가운데(또는 +6)면 윗줄(상호) 끝 글자에 닿는다(LibreOffice 렌더 실측)
+  return { w: sealPx, h: sealPx, dx: textRight, dy: 12 }
+}
+
+/** 공문 하단 명의 문구 — PDF(official.ts signBlock)와 같은 규칙. 직인이 있으면 「(직인생략)」을 뺀다 */
+export function officialSignLine(p: Pick<CompanyLiteralSource, 'representative' | 'official_rep_title'>, hasSeal: boolean): string {
+  const rep = t(p.representative)
+  if (!rep) return ''
+  const who = `${t(p.official_rep_title) || '대표이사'} ${rep}`
+  return hasSeal ? who : `${who}(직인생략)`
+}
+
+/** 갑지(report-workbook-full.xlsx) 규칙 — 원문은 2026-10-02 템플릿 실측값.
+ *  opts.seal — 직인 이미지를 실제로 앉힐 때만 true(읽기 실패면 false로 두어 「(직인생략)」 유지) */
+export function reportWorkbookRules(p: CompanyLiteralSource, opts: { seal?: boolean } = {}): LiteralRule[] {
   const { formal, short } = companyNames(p)
   const road = t(p.address), jibun = t(p.address_jibun)
   const tail = road && jibun ? jibunTail(road, jibun) : ''
   const rep = t(p.representative), phone = t(p.phone), reg = t(p.management_reg_no)
-  const fax = t(p.fax), title = t(p.official_rep_title) || '대표이사'
+  const fax = t(p.fax)
   const roadFull = tail ? `${road} (${tail})` : road
   return [
     { mode: 'exact', from: '주식회사 승진소방 ENG', to: formal, note: '공문 레터헤드 상호(si426) — 정식' },
@@ -90,7 +118,7 @@ export function reportWorkbookRules(p: CompanyLiteralSource): LiteralRule[] {
       to: [road, phone && `Tel) ${phone}`, fax && `Fax) ${fax}`].filter(Boolean).join(' / '),
       note: '공문 레터헤드 연락처 줄(si427) — 비는 항목은 줄에서 뺀다',
     },
-    { mode: 'exact', from: '대표이사 김흥준(직인생략)', to: rep ? `${title} ${rep}(직인생략)` : '', note: '공문 하단 명의(si452) — companyIssuer와 같은 직함 규칙' },
+    { mode: 'exact', from: '대표이사 김흥준(직인생략)', to: officialSignLine(p, !!opts.seal), note: '공문 하단 명의(si452) — companyIssuer와 같은 직함 규칙, 직인 있으면 (직인생략) 뺌' },
     {
       mode: 'exact',
       from: SIGN_BLOCK,

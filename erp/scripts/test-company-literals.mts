@@ -10,6 +10,7 @@ import { readFileSync } from 'fs'
 import JSZip from 'jszip'
 import {
   reportWorkbookRules, firePlanWorkbookRules, companyNames, jibunTail, spacedName, applyLiteralRules,
+  officialSignLine, sealPlacement, estimateTextPx,
   type CompanyLiteralSource,
 } from '../src/lib/company-literals'
 import { personalizeWorkbook } from '../src/lib/xlsx-personalize'
@@ -112,6 +113,15 @@ ok(!applyLiteralRules(signFrom, blank).includes('()'), '[3] 등록번호 없음 
 ok(applyLiteralRules('경기도 양평군 양평읍 잿말길10번길 50-1 / Tel) 031-772-3019 / Fax) 031-772-2419', reportWorkbookRules({ ...TENANT, fax: null })) === '서울특별시 마포구 월드컵로 100 / Tel) 02-555-0100', '[3] 팩스 없음 → 연락처 줄에서 뺀다')
 ok(applyLiteralRules('대표이사 김흥준(직인생략)', reportWorkbookRules({ ...TENANT, official_rep_title: null })) === '대표이사 이도윤(직인생략)', '[3] 직함 비면 대표이사')
 ok(spacedName('이도윤', '  ') === '이  도  윤', '[3] 띄운 이름 — 간격 지정')
+
+// [5] 직인(174) — 엑셀 공문 명의 문구·자리
+console.log('\n── 직인 ──')
+ok(applyLiteralRules('대표이사 김흥준(직인생략)', reportWorkbookRules(SEUNGJIN, { seal: true })) === '대표이사 김흥준', '[5] 직인 있음 → (직인생략) 뺌')
+ok(applyLiteralRules('대표이사 김흥준(직인생략)', reportWorkbookRules(SEUNGJIN)) === '대표이사 김흥준(직인생략)', '[5] 직인 없음(기본) → 종전 문구')
+ok(officialSignLine({ representative: null, official_rep_title: '대표' }, true) === '', '[5] 대표자 없음 → 빈 명의(직인 안 찍음)')
+ok(estimateTextPx('대표이사 김흥준', 20) === 7.3 * 20, '[5] 글자 폭 추정 — 한글 7 + 공백 0.3em')
+const sp = sealPlacement('대표이사 김흥준')
+ok(sp.w === 60 && sp.h === 60 && sp.dy === 12 && Math.abs(sp.dx - 7.3 * 20 * 96 / 72 / 2) < 1e-9, '[5] 직인 자리 — 중심이 이름 끝(절반 걸침)', JSON.stringify(sp))
 
 console.log(fail === 0 ? `\n✅ 운영사 문구 치환 전건 통과 (${pass})` : `\n❌ 실패 ${fail}건 / 통과 ${pass}`)
 process.exit(fail ? 1 : 0)

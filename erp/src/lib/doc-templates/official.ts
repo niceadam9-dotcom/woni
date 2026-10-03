@@ -23,7 +23,9 @@ export type OfficialData = {
   sender: string
   /** 하단 발신 명의 (147) — 사내 서식 재현. 상단 레터헤드와 **다른 값일 수 있다**:
    *  레터헤드는 약식 상호, 명의는 법인 정식 상호(주식회사 …). 회사정보에서 따로 관리한다. */
-  senderSign: { name: string; title: string; rep: string }
+  senderSign: { name: string; title: string; rep: string
+    /** 직인 이미지 data URI (174) — 있으면 「(직인생략)」 대신 명의 끝에 겹쳐 찍는다 */
+    seal?: string | null }
   year: number
   /** 점검종류 라벨 — 제목·붙임 문구 가변(S7-1, S5-10과 동일 원리) */
   typeLabel: string
@@ -50,6 +52,9 @@ const CSS = `
   .of-end { text-align: center; margin-top: 4mm; letter-spacing: 1em; font-size: 11pt; }
   /* 발신 명의 — 사내 서식(갑지 공문)은 본문보다 크고 굵게, 가운데. '끝.' 아래로 충분히 띄운다 */
   .of-sign { text-align: center; margin-top: 26mm; font-size: 14pt; font-weight: bold; line-height: 1.7; }
+  /* 직인 — 실무 관행대로 대표자 이름 끝 글자에 반쯤 걸치게(중심 = 이름 끝, 갑지 엑셀 sealPlacement와 같은 규칙), 윗줄 상호에 닿지 않게 조금 아래로. 글자 흐름에서 빼(absolute) 가운데 정렬을 흔들지 않는다 */
+  .of-rep { position: relative; display: inline-block; }
+  .of-seal { position: absolute; width: 16mm; height: 16mm; object-fit: contain; right: -8mm; top: calc(50% + 1.5mm); transform: translateY(-50%); }
 `
 
 /** 결재란 — image-66: 선결/지시 상단, 접수(일자·시간/번호)+결재, 처리과/담당자+공람. 전부 빈 칸 */
@@ -66,14 +71,18 @@ function approvalBox(): string {
 
 /** 하단 발신 명의 — '주식회사 승진소방ENG / 대표이사 김흥준(직인생략)' 2줄.
  *  상호가 아예 없으면(회사정보 미등록) 블록을 만들지 않는다 — 이름 없는 명의를 찍는 것보다 낫다.
- *  (직인생략)은 고정 문구다: 직인 이미지 기능이 없어 실제로 생략하고 있고, 생기면 그때 갈린다. */
+ *  직인(174)이 있으면 「(직인생략)」을 빼고 이름 끝에 직인을 겹친다. 갑지 엑셀 「공문」 시트도 같은 규칙
+ *  (lib/company-literals·workbook 라우트) — 두 출력이 갈라지지 않게(D-7). */
 function signBlock(s: OfficialData['senderSign']): string {
   if (!s.name.trim()) return ''
   // 둘째 줄은 **대표자 이름이 있을 때만**. 직함만 남으면 '대표이사(직인생략)'처럼
   // 사람 없는 명의가 찍힌다 — 상호 한 줄로 끝내는 편이 낫다(조립부가 missing으로 알린다).
   const rep = s.rep.trim()
-  const line2 = rep ? `${[s.title.trim(), rep].filter(Boolean).join(' ')}(직인생략)` : ''
-  return `<div class="of-sign">${esc(s.name)}${line2 ? `<br>${esc(line2)}` : ''}</div>`
+  const who = [s.title.trim(), rep].filter(Boolean).join(' ')
+  const line2 = !rep ? ''
+    : s.seal ? `<span class="of-rep">${esc(who)}<img class="of-seal" src="${s.seal}" alt="직인"></span>`
+    : esc(`${who}(직인생략)`)
+  return `<div class="of-sign">${esc(s.name)}${line2 ? `<br>${line2}` : ''}</div>`
 }
 
 export function renderOfficial(d: OfficialData): string {

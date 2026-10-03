@@ -10,7 +10,8 @@ import { resolveActionPeriod, unifyDoneDates, hasDefectForLegalPeriod } from '@/
 import { validateAnchors, SCRUB_NEEDLES, DEFECT_SHEET } from '@/lib/xlsx-anchors'
 import { injectWorkbook, type InjectTarget } from '@/lib/xlsx-inject'
 import { personalizeWorkbook } from '@/lib/xlsx-personalize'
-import { reportWorkbookRules } from '@/lib/company-literals'
+import { reportWorkbookRules, officialSignLine, sealPlacement, OFFICIAL_SIGN_CELL } from '@/lib/company-literals'
+import { embedFirePlanImages } from '@/lib/fire-plan-xlsx-images'
 import { getCompanyProfile } from '@/lib/company-profile'
 import { buildWorkbookValues, toInjectTargets, defectOverflow, doneOverflow, s31RowOverflow } from '@/lib/xlsx-workbook'
 import { donorGroupsToKeep, donorGapsForFacilities, allDonorSheets, DONOR_TOC_SHEET, BASE_TOC_SHEET, DONOR_TOC_BODY_CELLS } from '@/lib/xlsx-donors'
@@ -275,10 +276,28 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
   //   주입 **뒤**·사진 대지 **앞**이다: 앞이면 주입이 템플릿 원문을 되살리는 칸이 남고, 뒤면 불량 캡션(DB 자유
   //   텍스트)까지 치환 대상이 된다. 회사정보가 아예 없으면 템플릿 그대로 둔다(lib/company-literals 머리말).
   const companyForLiterals = await getCompanyProfile()
-  if (companyForLiterals) {
-    outBytes = (await personalizeWorkbook(outBytes, reportWorkbookRules(companyForLiterals))).bytes
-  }
   const photoNotes: string[] = []
+  if (companyForLiterals) {
+    // C5 마무리(174) — 직인이 있으면 「공문」 하단 명의 끝에 겹쳐 앉힌다. PDF 공문과 **같은 바이트**
+    //   (assembleOfficial이 내려받은 것, D-7). 실제로 앉았을 때만 「(직인생략)」을 뺀다 — 실패하면
+    //   직인도 문구도 없는 명의가 나가는 대신 종전 문구가 남는다.
+    let sealPlaced = false
+    const signLine = officialSignLine(companyForLiterals, true)
+    if (official.seal && signLine) {
+      try {
+        const r = await embedFirePlanImages(outBytes, [{
+          sheet: OFFICIAL_SIGN_CELL.sheet, cell: OFFICIAL_SIGN_CELL.cell, data: official.seal.png,
+          descr: '직인', place: sealPlacement(signLine),
+        }])
+        outBytes = r.bytes
+        sealPlaced = r.placed === 1
+        photoNotes.push(...r.notes)
+      } catch (e) {
+        photoNotes.push(`공문 직인 미표기: ${e instanceof Error ? e.message : String(e)}`)
+      }
+    }
+    outBytes = (await personalizeWorkbook(outBytes, reportWorkbookRules(companyForLiterals, { seal: sealPlaced }))).bytes
+  }
   try {
     const { data: defectPhotos, error: dpErr } = await admin.from('inspection_defects')
       .select('defect_code, defect_name, defect_detail, action_taken, photo_url, after_photo_url')

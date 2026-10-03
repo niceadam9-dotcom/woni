@@ -23,6 +23,8 @@ export type CompanyProfile = {
   management_reg_no: string | null
   /** 지번 주소 전체 (173) — 비우면 도로명 주소로 대신 */
   address_jibun: string | null
+  /** 직인 이미지의 company-assets(비공개) 경로 (174) — 공문 하단 명의. 읽기는 lib/company-seal */
+  seal_path: string | null
 }
 
 /** 회사 프로필 조회 — 기본 지역·로고 등. 없으면 null
@@ -55,6 +57,8 @@ const BASE_COLS = 'company_name, representative, business_number, phone, fax, em
 const OFFICIAL_COLS = 'official_sender_name, official_rep_title'
 /** C5(2026-10-02) — 등록번호는 열이 오래전부터 있었지만 여기서 안 읽었다. address_jibun은 173 신설 */
 const C5_COLS = 'management_reg_no, address_jibun'
+/** 174 직인 */
+const SEAL_COLS = 'seal_path'
 
 export const getCompanyProfile = cache(async (): Promise<CompanyProfile | null> => {
   const admin = createAdminClient()
@@ -69,14 +73,14 @@ export const getCompanyProfile = cache(async (): Promise<CompanyProfile | null> 
   // 소방계획서·별지 9호가 전부 쓰는 길목이라, 마이그레이션 한 건 때문에 문서 생성이 통째로 멈추면 안 된다 —
   // 기존 zipcode 재시도(customers/actions.ts)와 같은 관례로 **새 묶음부터 하나씩 떼며** 다시 읽는다.
   let data: unknown = null
-  for (const cols of [`${BASE_COLS}, ${OFFICIAL_COLS}, ${C5_COLS}`, `${BASE_COLS}, ${OFFICIAL_COLS}`, BASE_COLS]) {
+  for (const cols of [`${BASE_COLS}, ${OFFICIAL_COLS}, ${C5_COLS}, ${SEAL_COLS}`, `${BASE_COLS}, ${OFFICIAL_COLS}, ${C5_COLS}`, `${BASE_COLS}, ${OFFICIAL_COLS}`, BASE_COLS]) {
     const r = await pick(cols)
     if (!r.error) { data = r.data; break }
   }
   if (!data) return null
   // 폴백 경로에는 새 칸이 없다 — 호출부가 `?? ''`로 받도록 null로 채운다
   return {
-    official_sender_name: null, official_rep_title: null, management_reg_no: null, address_jibun: null,
+    official_sender_name: null, official_rep_title: null, management_reg_no: null, address_jibun: null, seal_path: null,
     ...(data as object),
   } as CompanyProfile
 })

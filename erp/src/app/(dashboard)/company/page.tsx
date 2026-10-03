@@ -4,6 +4,7 @@ import { requireRole } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { CompanyFormClient } from '@/components/company/company-form-client'
 import { COMPANY_PROFILE_ORDER } from '@/lib/company-profile'
+import { loadCompanySeal, sealDataUri } from '@/lib/company-seal'
 
 export default async function CompanyPage() {
   await requireRole(['admin'])
@@ -13,6 +14,9 @@ export default async function CompanyPage() {
   //   "저장했는데 그대로"가 된다(getCompanyProfile·upsertCompanyAction과 같은 축을 쓴다)
   const { data: company } = await admin.from('company_profile')
     .select('*').order(COMPANY_PROFILE_ORDER, { ascending: true }).limit(1).maybeSingle()
+
+  // 직인(174)은 비공개 버킷 — 이 관리자 화면에만 data URI로 내린다(공개 URL 없음)
+  const { seal } = await loadCompanySeal(admin, (company as { seal_path?: string | null } | null)?.seal_path)
 
   type CompanyRow = {
     company_name: string; business_number: string | null; representative: string | null
@@ -33,7 +37,7 @@ export default async function CompanyPage() {
         </div>
       </div>
 
-      <CompanyFormClient existing={company as CompanyRow | undefined ?? undefined} />
+      <CompanyFormClient existing={company as CompanyRow | undefined ?? undefined} sealSrc={seal ? sealDataUri(seal) : null} />
     </div>
   )
 }

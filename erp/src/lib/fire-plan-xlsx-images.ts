@@ -59,6 +59,10 @@ export type BoxTarget = {
   data: Uint8Array
   /** 그림 대체 텍스트 겸 실패 고지에 쓸 이름 */
   descr: string
+  /** 상자에 맞추지 않고 **정해진 크기·자리**에 둔다(직인, C5 2026-10-03). `data`는 투명 PNG 그대로 싣는다
+   *  (JPEG로 바꾸면 바탕이 희게 굳어 글자를 가린다). dx·dy는 **상자 중심**에서 그림 중심까지의 px —
+   *  상자 밖(위 행·왼쪽 열)으로 나가도 된다(행보다 큰 직인을 행 가운데에 걸칠 때). */
+  place?: { w: number; h: number; dx: number; dy: number }
 }
 
 export type EmbedResult = {
@@ -175,6 +179,15 @@ function fit(img: Prepared, boxW: number, boxH: number) {
  *   나왔고(2026-09-14 육안), 앵커·rels·좌표를 보는 구조 검사는 그걸 **한 건도 못 잡았다**.
  *   그래서 오프셋을 칸 단위로 걸어 들어가 `from.col`을 옮기고 나머지만 `colOff`로 준다.
  */
+/** 상자 왼쪽 위 칸에서 px만큼 떨어진 자리를 `{칸, 칸 안 나머지}`로 — **음수면 앞 칸으로** 걸어 나간다.
+ *  splitOffset은 상자 안에서만 걷는다(가운데 정렬용). 직인처럼 상자 밖에 걸치는 그림은 이것을 쓴다. */
+function walk(size: (n: number) => number, start: number, px: number): { n: number; off: number } {
+  let n = start, rest = px
+  while (rest < 0 && n > 1) { n--; rest += size(n) }
+  while (rest >= size(n)) { rest -= size(n); n++ }
+  return { n, off: Math.max(0, Math.round(rest)) }
+}
+
 function splitOffset(sizes: number[], pad: number): { i: number; off: number } {
   let i = 0, rest = pad
   while (i < sizes.length - 1 && rest >= sizes[i]) { rest -= sizes[i]; i++ }
@@ -205,11 +218,14 @@ function insertDrawingTag(xml: string, rid: string): string {
   return xml.slice(0, end) + tag + xml.slice(end)
 }
 
-/** `[Content_Types].xml`에 jpeg Default와 drawing Override를 단다(이미 있으면 그대로) */
+/** `[Content_Types].xml`에 jpeg·png Default와 drawing Override를 단다(이미 있으면 그대로) */
 function patchContentTypes(xml: string, drawingParts: string[]): string {
   let out = xml
   if (!/<Default\s+Extension="jpeg"/.test(out)) {
     out = out.replace(/<Types\b[^>]*>/, m => `${m}<Default Extension="jpeg" ContentType="image/jpeg"/>`)
+  }
+  if (!/<Default\s+Extension="png"/.test(out)) {
+    out = out.replace(/<Types\b[^>]*>/, m => `${m}<Default Extension="png" ContentType="image/png"/>`)
   }
   const add = drawingParts
     .filter(p => !out.includes(`PartName="/${p}"`))
@@ -364,6 +380,33 @@ export async function embedFirePlanImages(
       for (let r = box.r1; r <= box.r2; r++) rowSizes.push(rowPx(geom.rowH(r)))
       const boxW = colSizes.reduce((a, b) => a + b, 0)
       const boxH = rowSizes.reduce((a, b) => a + b, 0)
+      if (t.place) {
+        // 정해진 크기·자리 — 상자 중심 + (dx, dy)에 그림 중심. 재인코딩 없이 PNG 그대로
+        const { w, h, dx, dy } = t.place
+        const fromX = walk(c => colPx(geom.colW(c)), box.c1, boxW / 2 + dx - w / 2)
+        const fromY = walk(r => rowPx(geom.rowH(r)), box.r1, boxH / 2 + dy - h / 2)
+        if (t.data.byteLength === 0 || t.data.byteLength > budget) { notes.push(`${t.descr} 미표기(빈 파일 또는 용량 초과)`); continue }
+        budget -= t.data.byteLength
+        const rid = `rId${media.length + 1}`
+        const file = `fireplan-${nextDrawing}-${++mediaSeq}.png`
+        media.push({ rid, file, data: t.data })
+        const id = media.length
+        const cx = Math.round(w) * EMU_PER_PX, cy = Math.round(h) * EMU_PER_PX
+        anchors.push(
+          '<xdr:oneCellAnchor>'
+          + `<xdr:from><xdr:col>${fromX.n - 1}</xdr:col><xdr:colOff>${fromX.off * EMU_PER_PX}</xdr:colOff>`
+          + `<xdr:row>${fromY.n - 1}</xdr:row><xdr:rowOff>${fromY.off * EMU_PER_PX}</xdr:rowOff></xdr:from>`
+          + `<xdr:ext cx="${cx}" cy="${cy}"/>`
+          + '<xdr:pic><xdr:nvPicPr>'
+          + `<xdr:cNvPr id="${id}" name="img${id}" descr="${escXml(t.descr)}"/>`
+          + '<xdr:cNvPicPr><a:picLocks noChangeAspect="1"/></xdr:cNvPicPr></xdr:nvPicPr>'
+          + `<xdr:blipFill><a:blip r:embed="${rid}"/><a:stretch><a:fillRect/></a:stretch></xdr:blipFill>`
+          + `<xdr:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm>`
+          + '<a:prstGeom prst="rect"><a:avLst/></a:prstGeom></xdr:spPr>'
+          + '</xdr:pic><xdr:clientData/></xdr:oneCellAnchor>')
+        placed++
+        continue
+      }
       if (boxW < 40 || boxH < 40) {
         notes.push(`${t.descr} 미표기(상자가 ${boxW}×${boxH}px로 너무 작다)`)
         continue

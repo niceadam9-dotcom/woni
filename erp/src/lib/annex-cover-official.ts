@@ -12,6 +12,7 @@ import type { createAdminClient } from '@/lib/supabase/admin'
 import { fetchAllRows } from '@/lib/supabase/paginate'
 import { inspectionTypeLabel } from '@/lib/inspection-round'
 import { getCompanyProfile, companyIssuer } from '@/lib/company-profile'
+import { loadCompanySeal, sealDataUri, type SealImage } from '@/lib/company-seal'
 import { formatTel } from '@/lib/format-contact'
 import { listCustomerAssetEntries, ASSET_BUCKET, ASSET_URL_TTL } from '@/lib/customer-assets'
 import type { DocAsset } from '@/lib/doc-templates/base'
@@ -158,11 +159,14 @@ async function suggestDocNo(admin: Admin, abbrev: string, now = new Date()): Pro
 
 export async function assembleOfficial(
   admin: Admin, _customerId: string, inspectionId: string,
-): Promise<{ data: OfficialData; missing: string[] }> {
+): Promise<{ data: OfficialData; missing: string[]; seal: SealImage | null }> {
   const insp = await loadInspection(admin, inspectionId)
   if (!insp) throw new Error('점검을 찾을 수 없습니다.')
   const company = await getCompanyProfile()
   const missing: string[] = []
+  // 174 직인 — PDF는 data URI로 굽고, 같은 바이트를 갑지 엑셀 「공문」 시트에도 넘긴다(seal 반환, D-7)
+  const { seal, note: sealNote } = await loadCompanySeal(admin, company?.seal_path)
+  if (sealNote) missing.push(sealNote)
 
   // 서식 고유 값(annex_inputs 'official') — 수동 저장분이 자동 제안보다 우선(Q-14)
   const { data: inputRow } = await admin.from('annex_inputs').select('fields')
@@ -195,7 +199,7 @@ export async function assembleOfficial(
     sender: company?.company_name ?? '',
     // 147: 하단 발신 명의 — 회사정보 [공문 발신 명의]. 비우면 상호는 회사명, 직함은 '대표이사'.
     // 레터헤드(위 company.name)와 **일부러 다른 값**을 쓸 수 있다: 약식 상호 vs 법인 정식 상호.
-    senderSign: companyIssuer(company),
+    senderSign: { ...companyIssuer(company), seal: seal ? sealDataUri(seal) : null },
     year: insp.year,
     typeLabel: inspectionTypeLabel(insp.inspection_type, !!insp.is_initial, insp.plan_type),
   }
@@ -212,7 +216,8 @@ export async function assembleOfficial(
   if (!company?.fax) missing.push('회사 팩스 미등록 — 레터헤드에서 생략 (본사 정보에서 입력)')
   // 대표자가 없으면 명의가 상호 한 줄로만 나간다 — 조용히 반쪽으로 찍히지 않게 알린다
   if (!data.senderSign.rep) missing.push('대표자 미등록 — 공문 발신 명의가 상호 한 줄로만 인쇄됨 (본사 정보에서 입력)')
-  return { data, missing }
+  if (seal && !data.senderSign.rep) missing.push('직인이 등록돼 있지만 대표자가 없어 직인을 찍지 않음 (본사 정보에서 대표자 입력)')
+  return { data, missing, seal }
 }
 
 // ── 위임장 (S8) ──────────────────────────────────────────────────────────────
