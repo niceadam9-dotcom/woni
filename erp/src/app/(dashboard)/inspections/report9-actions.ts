@@ -10,6 +10,7 @@ import { renderReport4, type Report4Data, type Report4PumpRow, type Report4GasRo
 import { lossOf } from '@/lib/gas-storage'
 import { annexDownloadName } from '@/lib/annex-filename'
 import { judgePumpTest, PUMP_TEST_SHEETS, PUMP_SHEET_LABELS, type PumpTestRow } from '@/lib/pump-test'
+import { loadPumpPlates, plateFor } from '@/lib/pump-plates'
 import { renderExterior, type ExteriorData, type ExteriorMonthEntry } from '@/lib/doc-templates/exterior'
 import { renderCover } from '@/lib/doc-templates/cover'
 import { renderOfficial } from '@/lib/doc-templates/official'
@@ -293,7 +294,7 @@ async function assembleReport4(
   const [inspStart = '', inspEnd = ''] = d9.inspPeriod ? d9.inspPeriod.split(' ~ ') : ['', '']
   // ※ 펌프성능시험 — 법정 서식의 표(R5-7 후속). 37시트 엑셀만 담던 실측치가 여기로 들어온다.
   // 131 미적용 환경에서도 나머지 쪽은 정상 생성돼야 하므로 조회 실패는 빈 배열로 흡수한다.
-  const pumpRows = await loadPumpRows(admin, inspectionId)
+  const pumpRows = await loadPumpRows(admin, inspectionId, customerId)
   const gasRows = await loadGasRows(admin, inspectionId)
   // 송달 동의·사용승인일·건축허가일은 별지 9호 전용(1~2쪽) — 별지 4호 서식에 없음
   const missing = m9.filter(m => !['송달 동의', '사용승인일', '건축허가일'].includes(m))
@@ -346,7 +347,9 @@ async function loadGasRows(admin: Admin, inspectionId: string): Promise<Report4G
 
 /** 펌프성능시험 실측치 → 별지 4호 행. 판정은 lib/pump-test.judgePumpTest 하나만 쓴다
  *  (화면과 문서가 다른 규칙으로 판정하면 두 갈래가 된다). */
-async function loadPumpRows(admin: Admin, inspectionId: string): Promise<Report4PumpRow[]> {
+async function loadPumpRows(admin: Admin, inspectionId: string, customerId: string): Promise<Report4PumpRow[]> {
+  // C3 4단계 — 설비 대장 펌프 명판이 있으면 판정 ②가 자동(화면 패널과 같은 loadPumpPlates)
+  const plates = await loadPumpPlates(admin, customerId)
   const { data, error } = await admin.from('inspection_pump_tests')
     .select('sheet_no, pump_kind, shutoff_flow, shutoff_press, rated_flow, rated_press,'
       + ' over_flow, over_press, set_start_press, set_stop_press, judge1, judge2, judge3, note')
@@ -371,7 +374,7 @@ async function loadPumpRows(admin: Admin, inspectionId: string): Promise<Report4
       ratedFlow: row.ratedFlow, ratedPress: row.ratedPress,
       overFlow: row.overFlow, overPress: row.overPress,
       setStartPress: row.setStartPress, setStopPress: row.setStopPress,
-      judges: judgePumpTest(row).final,
+      judges: judgePumpTest(row, plateFor(plates, row.sheetNo, row.pumpKind)).final,
       note: row.note,
     }
   })

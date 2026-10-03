@@ -111,7 +111,9 @@ try {
   await page.getByTestId('tag-card').waitFor()
   check('3-3 /t?q=앞6자 → 같은 카드', page.url().endsWith(`/t/${c3}`), page.url())
   await page.goto(`${BASE}/t/ZZZZZZZZ`)
-  check('3-4 없는 코드 → 「등록되지 않은 코드」', await page.getByTestId('tag-unknown').isVisible())
+  // 부하 중엔 렌더가 늦다 — isVisible()은 기다리지 않아 간헐 빨강(erp-14 실측 2/4). 나타날 때까지 기다린다
+  const unknownShown = await page.getByTestId('tag-unknown').waitFor({ timeout: 30000 }).then(() => true, () => false)
+  check('3-4 없는 코드 → 「등록되지 않은 코드」', unknownShown)
   {
     const anon = await fetch(`${BASE}/t/${c3}`, { redirect: 'manual' })
     check('3-5 비로그인 /t/{code} → /login', anon.status >= 300 && anon.status < 400 && (anon.headers.get('location') ?? '').includes('/login'), `${anon.status} ${anon.headers.get('location')}`)

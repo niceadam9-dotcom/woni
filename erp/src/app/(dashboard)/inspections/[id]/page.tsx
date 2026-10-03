@@ -17,6 +17,7 @@ import { InspectionInfoPopover } from '@/components/inspections/inspection-info-
 import { PumpTestPanel } from '@/components/inspections/pump-test-panel'
 import { PUMP_TEST_SHEETS } from '@/lib/pump-test'
 import { listPumpTestsAction } from '@/app/(dashboard)/inspections/pump-test-actions'
+import { loadPumpPlates } from '@/lib/pump-plates'
 import { ExteriorMonthProvider } from '@/components/inspections/exterior-month'
 import { syncInspectionSteps, loadStepEvidence, fetchEvidenceLogs, type EvidencePreload, type SyncInspRow } from '@/lib/inspection-step-sync'
 import { fetchAllRows } from '@/lib/supabase/paginate'
@@ -250,6 +251,8 @@ export default async function InspectionDetailPage({
      시트별 진행률은 sheet_id 조인 집계(sheet-overview.ts) — 회차별 작성·조회 트리와 같은 소스라
      두 화면의 진행률이 어긋날 수 없다. withGroups: 머더 카드 보드(소방계획서_23 S5-7)가 중분류 버킷을 쓴다.
      preloaded: 점검 행·응답 전량은 1층에서 받았다 → 집계의 1층 왕복이 0. */
+  // C3 4단계 — 펌프 명판(판정 ② 규정치). 아래 물결과 함께 출발시키고 패널을 그릴 때 기다린다
+  const pumpPlatesP = pumpSheetNos.length > 0 ? loadPumpPlates(admin, inspection.customer_id) : Promise.resolve({})
   const [contactRes, employeeRes, filesRes, overviewRes, defects, submittersRes, pumpRows, custFullRes, bldRes9, holidayRes, ownerRes, legalCustRes, facInstalledRes] = await Promise.all([
     inspection.contact_id
       ? admin.from('customer_contacts').select('id, role, name, phone, email').eq('id', inspection.contact_id).single()
@@ -301,6 +304,7 @@ export default async function InspectionDetailPage({
           .eq('buildings.customer_id', inspection.customer_id).eq('buildings.is_active', true).eq('installed', true)
       : Promise.resolve({ data: [] as Array<{ facility_code: string }>, error: null }),
   ])
+  const pumpPlates = await pumpPlatesP
   const { overviews } = overviewRes
   const allObjects = filesRes.data ?? []
   const sheetProgress: Record<string, SheetProgress> = Object.fromEntries(
@@ -747,7 +751,7 @@ export default async function InspectionDetailPage({
             /* 펌프성능시험 실측치 — 점검표 바로 아래. 법정 별지 4호 표의 원천이고,
                이 자리가 생겨야 37시트 엑셀을 지울 수 있다(R5-6 선행, R5-7 대조 결과) */
             pumpTest: pumpSheetNos.length > 0 ? (
-              <PumpTestPanel key="pumpTest" inspectionId={id} sheetNos={pumpSheetNos} initial={pumpRows} canEdit={canEdit} />
+              <PumpTestPanel key="pumpTest" inspectionId={id} sheetNos={pumpSheetNos} initial={pumpRows} canEdit={canEdit} plates={pumpPlates} />
             ) : null,
             // 외관점검표 (§9-8d) — 월간 외관점검 건 전용, 별지 9호 준비 UI 재사용
             exterior: exteriorChecks ? (

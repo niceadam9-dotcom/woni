@@ -456,6 +456,8 @@ const steps: Step[] = [
   { name: '설비 대장 2단계(E2E)',        cmd: 'npx tsx scripts/test-equipment-stage2.mts', needServer: true },
   // C3 3단계(설비 QR 절 1단계) — 개체로 나누기·코드 발급(재발급 없음)·라벨 HTML·QR 내용·/t 리졸버·수기 조회·만료 예정 → 견적 초안
   { name: '설비 QR·견적 초안(E2E)',      cmd: 'npx tsx scripts/test-equipment-qr.mts', needServer: true },
+  // C3 4단계 — 대장 펌프 행 명판(specs, 마이그 177) → 펌프성능시험 판정 ② 자동(화면·별지 4호 같은 함수)
+  { name: '펌프 명판 → 판정 ②(E2E)',     cmd: 'npx tsx scripts/test-equipment-pump-plate.mts', needServer: true },
   // 설비 구분 fold를 읽는 표면이 셋인데(8쪽·10호 7행·현5) 원천은 `foldDefectGroups` 하나다.
   // 원천이 하나여도 **표면마다 부르는 조건이 다르면** 갈라진다 — 실제로 10호가 미공급을
   // '전 구분 미해당'으로 읽어 7행을 전부 「해당없음」으로 단정한 적이 있다(2026-09-08 정정).

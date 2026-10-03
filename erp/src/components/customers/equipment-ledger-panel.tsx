@@ -16,6 +16,9 @@ import {
   CATEGORIES, CATEGORY_LABEL, DEFAULT_RULE, RULE_LABEL, WARRANTY_YEARS, expiryOf, expiryState, tallyAssets, warrantyUntilOf, type EquipmentCategory,
 } from '@/lib/equipment-lifespan'
 import { parseEquipmentGrid } from '@/lib/equipment-import'
+import { listPumpSpecsAction, setPumpPlateAction } from '@/app/(dashboard)/customers/equipment-pump-actions'
+import { plateFromSpecs, type PumpSpecs } from '@/lib/pump-plates'
+import { PUMP_TEST_SHEETS, PUMP_SHEET_LABELS, PUMP_KINDS, headToMpa } from '@/lib/pump-test'
 
 type Building = { id: string; building_name: string }
 
@@ -33,18 +36,22 @@ export function EquipmentLedgerPanel({ customerId, buildings, canManage }: { cus
   const [preview, setPreview] = useState<{ inputs: EquipmentInput[]; errors: string[] } | null>(null)
   const [termsId, setTermsId] = useState<string | null>(null)
   const [quoteMsg, setQuoteMsg] = useState<string | null>(null)
+  const [pumpSpecs, setPumpSpecs] = useState<Record<string, PumpSpecs>>({})
+  const [plateId, setPlateId] = useState<string | null>(null)
 
   const load = async () => {
-    const [r, t] = await Promise.all([listEquipmentAction(customerId), getS31TotalsAction(customerId)])
+    const [r, t, ps] = await Promise.all([listEquipmentAction(customerId), getS31TotalsAction(customerId), listPumpSpecsAction(customerId)])
     if (r.error) setMsg(`⚠ ${r.error}`); else setRows(r.rows)
     setS31(t)
+    setPumpSpecs(ps.specs)
   }
   useEffect(() => {
     let alive = true
-    Promise.all([listEquipmentAction(customerId), getS31TotalsAction(customerId)]).then(([r, t]) => {
+    Promise.all([listEquipmentAction(customerId), getS31TotalsAction(customerId), listPumpSpecsAction(customerId)]).then(([r, t, ps]) => {
       if (!alive) return
       if (r.error) setMsg(`⚠ ${r.error}`); else setRows(r.rows)
       setS31(t)
+      setPumpSpecs(ps.specs)
     })
     return () => { alive = false }
   }, [customerId])
@@ -165,7 +172,14 @@ export function EquipmentLedgerPanel({ customerId, buildings, canManage }: { cus
                 return (
                   <Fragment key={r.id}>
                   <tr className="border-b last:border-0" data-testid="equipment-row">
-                    <td className="px-2 py-1.5">{CATEGORY_LABEL[r.category]}{r.sub_type ? <span className="text-ink-meta"> · {r.sub_type}</span> : null}</td>
+                    <td className="px-2 py-1.5">{CATEGORY_LABEL[r.category]}{r.sub_type ? <span className="text-ink-meta"> · {r.sub_type}</span> : null}
+                      {r.category === 'pump' && (() => {
+                        const p = plateFromSpecs(pumpSpecs[r.id]); const sp = pumpSpecs[r.id]
+                        return p
+                          ? <div className="text-form-2xs text-blue-700" data-testid="equipment-pump-plate">{PUMP_SHEET_LABELS[sp!.pump_sheet_no!]} {sp!.pump_kind}펌프 · {p.plate.ratedFlowLpm.toLocaleString()}ℓ/min · 양정 {p.plate.ratedHeadM}m</div>
+                          : <div className="text-form-2xs text-amber-700">명판 없음 — 펌프성능시험 판정 ②가 수동</div>
+                      })()}
+                    </td>
                     <td className="px-2 py-1.5 whitespace-nowrap">{bName(r.building_id)}</td>
                     <td className="px-2 py-1.5">{r.location ?? '—'}</td>
                     <td className="px-2 py-1.5 text-right">{r.qty}</td>
@@ -197,6 +211,10 @@ export function EquipmentLedgerPanel({ customerId, buildings, canManage }: { cus
                           <button disabled={pending} className="mr-1 underline text-ink-sub" title="묶음에서 일부를 떼어 새 행으로(한두 대만 교체할 때)"
                             onClick={() => { const k = Number(prompt(`${r.qty}대 중 몇 대를 떼어 낼까요?`, '1')); if (k) run(() => splitEquipmentAction(customerId, r.id, k), `${k}대를 새 행으로 나눴습니다`) }}>쪼개기</button>
                         )}
+                        {r.category === 'pump' && (
+                          <button disabled={pending} className="mr-1 underline text-ink-sub" data-testid="equipment-plate-open"
+                            title="펌프 명판(정격 토출량·양정) — 별지 4호 펌프성능시험 판정 ②의 규정치" onClick={() => setPlateId(v => (v === r.id ? null : r.id))}>명판</button>
+                        )}
                         <button disabled={pending} className="mr-1 underline text-ink-sub" data-testid="equipment-terms-open"
                           title="성능확인 합격(연장)·공사 완공(하자보수) 기한 기록" onClick={() => setTermsId(v => (v === r.id ? null : r.id))}>기한</button>
                         <button disabled={pending} className="underline text-red-600" data-testid="equipment-close"
@@ -204,6 +222,12 @@ export function EquipmentLedgerPanel({ customerId, buildings, canManage }: { cus
                       </td>
                     )}
                   </tr>
+                  {plateId === r.id && canManage && (
+                    <tr className="border-b bg-brand-tint/20"><td colSpan={10} className="px-2 py-2">
+                      <PlateForm specs={pumpSpecs[r.id]} disabled={pending} onCancel={() => setPlateId(null)}
+                        onSubmit={inp => run(async () => { const res = await setPumpPlateAction(customerId, r.id, inp); if (!res.error) setPlateId(null); return res }, '명판을 저장했습니다')} />
+                    </td></tr>
+                  )}
                   {termsId === r.id && canManage && (
                     <tr className="border-b bg-brand-tint/20"><td colSpan={10} className="px-2 py-2">
                       <TermsForm row={r} disabled={pending} onCancel={() => setTermsId(null)}
@@ -283,6 +307,44 @@ function TermsForm({ row, disabled, onSubmit, onCancel }: {
       <button onClick={onCancel} disabled={disabled} className="h-8 rounded-lg border px-2"><X className="size-3.5" /></button>
       <span className="basis-full text-form-2xs text-ink-meta">
         연장 만료일이 있으면 만료 판정은 그 날짜를 따릅니다(성능확인 연장 연수는 사람이 확인해 적습니다). 하자보수는 소방시설공사업법 시행령 6조 — 피난기구 2년, 소화전·자탐·물분무등·펌프 3년, 소화기구는 해당 없음.
+      </span>
+    </div>
+  )
+}
+
+/** 펌프 명판 — 어느 설비의 주/예비 펌프인지 + 정격 토출량(ℓ/min)·정격 양정(m). 펌프성능시험 판정 ②의 규정치가 된다 */
+function PlateForm({ specs, disabled, onSubmit, onCancel }: {
+  specs: PumpSpecs | undefined; disabled: boolean
+  onSubmit: (i: { sheetNo?: number; kind?: string; ratedFlowLpm?: number; ratedHeadM?: number; clear?: boolean }) => void; onCancel: () => void
+}) {
+  const [sheet, setSheet] = useState(String(specs?.pump_sheet_no ?? PUMP_TEST_SHEETS[0]))
+  const [kind, setKind] = useState(specs?.pump_kind ?? '주')
+  const [q, setQ] = useState(specs?.rated_flow_lpm != null ? String(specs.rated_flow_lpm) : '')
+  const [h, setH] = useState(specs?.rated_head_m != null ? String(specs.rated_head_m) : '')
+  const field = 'h-8 rounded border border-brand-line px-2 text-form-sm'
+  const hn = Number(h)
+  return (
+    <div className="flex flex-wrap items-end gap-1.5" data-testid="equipment-plate-form">
+      <label className="text-form-2xs">설비<br />
+        <select value={sheet} onChange={e => setSheet(e.target.value)} className={field} disabled={disabled} data-testid="equipment-plate-sheet">
+          {PUMP_TEST_SHEETS.map(n => <option key={n} value={n}>{PUMP_SHEET_LABELS[n]}</option>)}
+        </select></label>
+      <label className="text-form-2xs">구분<br />
+        <select value={kind} onChange={e => setKind(e.target.value)} className={field} disabled={disabled} data-testid="equipment-plate-kind">
+          {PUMP_KINDS.map(k => <option key={k} value={k}>{k}펌프</option>)}
+        </select></label>
+      <label className="text-form-2xs">정격 토출량(ℓ/min)<br /><input value={q} onChange={e => setQ(e.target.value)} inputMode="decimal" className={`${field} w-24 text-right`} disabled={disabled} data-testid="equipment-plate-flow" /></label>
+      <label className="text-form-2xs">정격 양정(m)<br /><input value={h} onChange={e => setH(e.target.value)} inputMode="decimal" className={`${field} w-20 text-right`} disabled={disabled} data-testid="equipment-plate-head" /></label>
+      {hn > 0 && <span className="text-form-2xs text-ink-meta">≈ {headToMpa(hn)} MPa</span>}
+      <button disabled={disabled} data-testid="equipment-plate-submit"
+        onClick={() => onSubmit({ sheetNo: Number(sheet), kind, ratedFlowLpm: Number(q), ratedHeadM: Number(h) })}
+        className="h-8 rounded-lg bg-brand px-3 text-form-sm text-white disabled:opacity-50">저장</button>
+      {specs?.rated_flow_lpm != null && (
+        <button disabled={disabled} onClick={() => onSubmit({ clear: true })} className="h-8 rounded-lg border px-2 text-form-sm text-red-600">명판 지우기</button>
+      )}
+      <button onClick={onCancel} disabled={disabled} className="h-8 rounded-lg border px-2"><X className="size-3.5" /></button>
+      <span className="basis-full text-form-2xs text-ink-meta">
+        펌프 명판의 정격 토출량·전양정을 그대로 적습니다. 점검표 펌프성능시험 판정 ②(정격운전 토출량·토출압 ≥ 규정치)가 이 값으로 자동 판정됩니다 — 같은 설비·같은 구분에 명판이 둘이면 자동 판정하지 않습니다.
       </span>
     </div>
   )

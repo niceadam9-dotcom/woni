@@ -5,9 +5,10 @@ import { Check, Loader2 } from 'lucide-react'
 import { savePumpTestAction } from '@/app/(dashboard)/inspections/pump-test-actions'
 import { useUnsavedWarning } from '@/components/ui/fields'
 import {
-  PUMP_KINDS, PUMP_JUDGE_LABELS, PUMP_SHEET_LABELS, emptyPumpRow, judgePumpTest,
-  type PumpKind, type PumpTestRow,
+  PUMP_KINDS, PUMP_JUDGE_LABELS, PUMP_SHEET_LABELS, emptyPumpRow, judgePumpTest, headToMpa,
+  type PumpKind, type PumpTestRow, type PumpPlate,
 } from '@/lib/pump-test'
+import { plateFor, type PumpPlateMap } from '@/lib/pump-plates'
 
 /** 펌프성능시험 실측치 입력 (소방계획서_21 R5-7 후속)
  *
@@ -19,12 +20,14 @@ type Field = keyof Pick<PumpTestRow,
   'shutoffFlow' | 'shutoffPress' | 'ratedFlow' | 'ratedPress' | 'overFlow' | 'overPress'
   | 'setStartPress' | 'setStopPress'>
 
-export function PumpTestPanel({ inspectionId, sheetNos, initial, canEdit }: {
+export function PumpTestPanel({ inspectionId, sheetNos, initial, canEdit, plates }: {
   inspectionId: string
   /** 이 점검 건에 실제로 포함된 설비 중 펌프성능시험 대상 번호 */
   sheetNos: number[]
   initial: PumpTestRow[]
   canEdit: boolean
+  /** 설비 대장 펌프 명판(C3 4단계) — 있으면 판정 ②가 자동이 된다. 문서 조립과 같은 loadPumpPlates 결과 */
+  plates?: PumpPlateMap
 }) {
   const key = (s: number, k: PumpKind) => `${s}|${k}`
   const [rows, setRows] = useState<Record<string, PumpTestRow>>(() => {
@@ -178,7 +181,7 @@ export function PumpTestPanel({ inspectionId, sheetNos, initial, canEdit }: {
             </div>
 
             {/* 적정 여부 — 주펌프 기준으로 판정한다(서식도 표당 한 벌) */}
-            <JudgeBlock row={main} other={sub} canEdit={canEdit}
+            <JudgeBlock row={main} other={sub} canEdit={canEdit} plate={plateFor(plates, s, '주')}
               onPick={(idx, v) => {
                 const f = (['judge1', 'judge2', 'judge3'] as const)[idx]
                 set(s, '주', { [f]: v } as Partial<PumpTestRow>)
@@ -191,13 +194,14 @@ export function PumpTestPanel({ inspectionId, sheetNos, initial, canEdit }: {
   )
 }
 
-function JudgeBlock({ row, other, canEdit, onPick }: {
+function JudgeBlock({ row, other, canEdit, plate, onPick }: {
   row: PumpTestRow
   other: PumpTestRow
   canEdit: boolean
+  plate: PumpPlate | null
   onPick: (idx: number, v: 'O' | 'X' | null) => void
 }) {
-  const j = judgePumpTest(row)
+  const j = judgePumpTest(row, plate)
   const manual = [row.judge1, row.judge2, row.judge3]
   void other
   return (
@@ -223,9 +227,11 @@ function JudgeBlock({ row, other, canEdit, onPick }: {
           {!j.auto[i] && j.reasons[i] && <span className="w-full text-form-3xs text-amber-600">⚠ {j.reasons[i]}</span>}
         </div>
       ))}
-      <p className="text-form-3xs text-ink-meta">
-        ①③은 정격토출압 대비 비율이라 실측치만으로 계산됩니다. ②의 &lsquo;규정치&rsquo;는 펌프 명판·설계치라
-        시스템에 없어 자동 판정하지 않습니다 — 직접 눌러 주세요.
+      <p className="text-form-3xs text-ink-meta" data-testid="pump-plate-note">
+        ①③은 정격토출압 대비 비율이라 실측치만으로 계산됩니다. ②의 &lsquo;규정치&rsquo;는 펌프 명판·설계치입니다 —{' '}
+        {plate
+          ? <>설비 대장 명판 <b>{plate.ratedFlowLpm.toLocaleString()}ℓ/min · 양정 {plate.ratedHeadM}m(≈{headToMpa(plate.ratedHeadM)}MPa)</b>과 비교해 자동 판정합니다(흡입측 압력 제외 — 엄한 쪽).</>
+          : <>설비 대장에 이 펌프 명판이 없어 자동 판정하지 않습니다. 직접 누르거나 고객 [공통] 1.4 설비 대장 펌프 행의 [명판]에 넣어 주세요.</>}
       </p>
     </div>
   )

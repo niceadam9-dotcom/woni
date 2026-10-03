@@ -68,11 +68,19 @@ export type PumpJudgement = {
   reasons: [string | null, string | null, string | null]
 }
 
+/** 펌프 명판(설비 대장 펌프 행 specs, 마이그 177 — C3 4단계) — 판정 ②의 규정치 */
+export type PumpPlate = { ratedFlowLpm: number; ratedHeadM: number }
+
+/** 양정(m, 물기둥) → 압력(MPa). 1 m H2O = 9.80665 kPa. 흡입측 압력은 넣지 않는다 —
+ *  수조가 펌프보다 높으면(정압 흡입) 실제 토출압이 그만큼 더 나오므로, 토출압만으로 대는 이 비교는 펌프에 **엄한** 쪽이다. */
+export const headToMpa = (m: number) => Math.round(m * 0.00980665 * 10000) / 10000
+
 /** 판정 계산.
  *  ①③은 정격토출압 대비 비율이라 실측치만으로 계산된다.
- *  ②의 '규정치'는 펌프 명판·설계치라서 우리 데이터에 없다 — 자동 판정하지 않고 사람이 넣는다.
- *  없는 근거로 O를 찍으면 점검을 했다는 기록만 남고 실제로는 판정이 없는 것이 된다. */
-export function judgePumpTest(r: PumpTestRow): PumpJudgement {
+ *  ②의 '규정치'는 펌프 명판·설계치다. 설비 대장에 이 펌프의 명판(plate)이 있으면 자동 판정하고,
+ *  없으면 판정하지 않고 사람이 넣는다 — 없는 근거로 O를 찍으면 점검 기록만 남고 판정은 없는 것이 된다.
+ *  수동 보정(judge2)이 있으면 언제나 그것이 이긴다. */
+export function judgePumpTest(r: PumpTestRow, plate?: PumpPlate | null): PumpJudgement {
   const auto: PumpJudgement['auto'] = [null, null, null]
   const reasons: PumpJudgement['reasons'] = [null, null, null]
 
@@ -82,7 +90,13 @@ export function judgePumpTest(r: PumpTestRow): PumpJudgement {
     auto[0] = r.shutoffPress <= r.ratedPress * 1.4 ? 'O' : 'X'
   }
 
-  reasons[1] = '규정치(펌프 명판·설계치)는 시스템에 없습니다 — 직접 판정해 주세요'
+  if (!plate) {
+    reasons[1] = '규정치(펌프 명판·설계치)가 설비 대장에 없습니다 — 직접 판정하거나 대장 펌프 행에 명판을 넣어 주세요'
+  } else if (r.ratedFlow == null || r.ratedPress == null) {
+    reasons[1] = '정격운전 토출량과 토출압이 있어야 명판과 비교됩니다'
+  } else {
+    auto[1] = r.ratedFlow >= plate.ratedFlowLpm && r.ratedPress >= headToMpa(plate.ratedHeadM) ? 'O' : 'X'
+  }
 
   if (r.ratedPress == null || r.overPress == null) {
     reasons[2] = '정격운전 토출압과 150% 운전 토출압이 있어야 계산됩니다'
