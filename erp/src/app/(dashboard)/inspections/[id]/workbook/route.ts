@@ -9,6 +9,9 @@ import { assembleReport9, loadAnnexInputs, annexReportDateISO } from '@/lib/repo
 import { resolveActionPeriod, unifyDoneDates, hasDefectForLegalPeriod } from '@/lib/annex-total-period'
 import { validateAnchors, SCRUB_NEEDLES, DEFECT_SHEET } from '@/lib/xlsx-anchors'
 import { injectWorkbook, type InjectTarget } from '@/lib/xlsx-inject'
+import { personalizeWorkbook } from '@/lib/xlsx-personalize'
+import { reportWorkbookRules } from '@/lib/company-literals'
+import { getCompanyProfile } from '@/lib/company-profile'
 import { buildWorkbookValues, toInjectTargets, defectOverflow, doneOverflow, s31RowOverflow } from '@/lib/xlsx-workbook'
 import { donorGroupsToKeep, donorGapsForFacilities, allDonorSheets, DONOR_TOC_SHEET, BASE_TOC_SHEET, DONOR_TOC_BODY_CELLS } from '@/lib/xlsx-donors'
 import { removeSheets, insertSheetAfter } from '@/lib/xlsx-sheet-surgery'
@@ -268,6 +271,13 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
   //   아님), 조립 select를 넓히면 PDF 경로 전체가 영향권에 든다. 키·정렬은 조립과 같은 축.
   // 실패해도 워크북은 그대로 내보낸다(사진은 부수 자산) — 대신 사유를 헤더 고지에 싣는다.
   let outBytes = result.bytes
+  // C5 2차(2026-10-02) — 템플릿의 운영사 고정 문구(상호 4꼴·주소·등록번호·대표자·전화 14칸)를 회사정보로.
+  //   주입 **뒤**·사진 대지 **앞**이다: 앞이면 주입이 템플릿 원문을 되살리는 칸이 남고, 뒤면 불량 캡션(DB 자유
+  //   텍스트)까지 치환 대상이 된다. 회사정보가 아예 없으면 템플릿 그대로 둔다(lib/company-literals 머리말).
+  const companyForLiterals = await getCompanyProfile()
+  if (companyForLiterals) {
+    outBytes = (await personalizeWorkbook(outBytes, reportWorkbookRules(companyForLiterals))).bytes
+  }
   const photoNotes: string[] = []
   try {
     const { data: defectPhotos, error: dpErr } = await admin.from('inspection_defects')

@@ -16,6 +16,8 @@ export type UpsertCompanyInput = {
   fax?: string
   email?: string
   address?: string
+  /** 173 — 지번 주소 전체(소방계획서 1.8 업체주소·완료보고서 괄호 지번). 비우면 도로명으로 대신 */
+  address_jibun?: string
   industry?: string
   /** 169 — 세금계산서 공급자 업태·종목·이메일(홈택스 엑셀) */
   business_type?: string
@@ -58,6 +60,7 @@ export async function upsertCompanyAction(input: UpsertCompanyInput): Promise<{ 
         fax: input.fax || null,
         email: input.email || null,
         address: input.address || null,
+        address_jibun: input.address_jibun || null,
         industry: input.industry || null,
         business_type: input.business_type || null,
         business_item: input.business_item || null,
@@ -82,6 +85,7 @@ export async function upsertCompanyAction(input: UpsertCompanyInput): Promise<{ 
         fax: input.fax || null,
         email: input.email || null,
         address: input.address || null,
+        address_jibun: input.address_jibun || null,
         industry: input.industry || null,
         business_type: input.business_type || null,
         business_item: input.business_item || null,

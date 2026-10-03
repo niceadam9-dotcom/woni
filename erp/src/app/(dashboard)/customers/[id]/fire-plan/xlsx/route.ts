@@ -6,6 +6,9 @@ import { assembleFirePlan } from '@/lib/fire-plan-generate'
 import { firePlanTemplate } from '@/lib/fire-plan-template-cache'
 import { toInjectTargets } from '@/lib/xlsx-workbook'
 import { injectWorkbook } from '@/lib/xlsx-inject'
+import { personalizeWorkbook } from '@/lib/xlsx-personalize'
+import { firePlanWorkbookRules } from '@/lib/company-literals'
+import { getCompanyProfile } from '@/lib/company-profile'
 import { brigadeRowOverflow, buildFirePlanValues, attendanceOverflow, constructionRowOverflow, constructionUnmapped, equipRowOverflow, evac3RowOverflow, evacDetailOverflow, evacDetailStatusUnmapped, hazmatItemOverflow, evacRouteOverflow, evac210RouteOverflow, fire115Overflow, fireworkRowOverflow, haz29Overflow, hazardUnmatched, mgr171Overflow, missingValueFields, revisionRowOverflow, tenantRowOverflow, valuableRowOverflow, vulnerableAreaUnsplit, vulnerableMethodsUnmapped, vulnerablePlanOverflow, zoneRowOverflow } from '@/lib/fire-plan-xlsx-values'
 import { FIRE_PLAN_MANIFEST } from '@/lib/fire-plan-xlsx-manifest'
 import { embedFirePlanImages, planFirePlanImages } from '@/lib/fire-plan-xlsx-images'
@@ -111,7 +114,14 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
     //     좌표는 **앵커에서 얻는다** — 자가치유로 제목 칸이 옮겨졌으면 그 자리를 따라가야 한다.
     //     실패해도 **문서는 나간다**(제목이 종전 크기로 남을 뿐) — 사유는 아래 고지에 싣는다.
     const titleCell = check.anchors.find(a => a.field === 'cover_title')?.cell ?? 'A3'
-    const coverTitle = await applyFirePlanCoverTitle(result.bytes, FP_SHEET.COVER, titleCell)
+    // C5 2차(2026-10-02) — 운영사 고정 문구(1.8 업무대행 업체명·주소·등록번호·연락처, 1.15 피해복구 업체,
+    //   2.4 임무카드 비상연락처 5장, 1.11.2 교보재 예문)를 회사정보로. 주입 **뒤**여야 한다 — 입력이 없는 칸은
+    //   주입이 템플릿 원문(예문)을 다시 쓰기 때문이다. 회사정보가 없으면 템플릿 그대로(lib/company-literals).
+    const companyForLiterals = await getCompanyProfile()
+    const personalized = companyForLiterals
+      ? (await personalizeWorkbook(result.bytes, firePlanWorkbookRules(companyForLiterals))).bytes
+      : result.bytes
+    const coverTitle = await applyFirePlanCoverTitle(personalized, FP_SHEET.COVER, titleCell)
 
     // ⑤ 체크박스 — 상자 글자(`□`/`■`)를 **클릭 가능한 양식 컨트롤**로 바꾼다.
     //    받는 사람이 엑셀에서 직접 체크·해제하게 하는 것이 목적이고, 체크 상태는 바로 위 주입이

@@ -21,6 +21,8 @@ import { STAIR_KINDS, stairCountsFromLegacyMap, type StairKind } from '@/lib/fac
 import type { ManagerRow } from '@/components/customers/plan-form17'
 import { toStandardCodes } from '@/lib/facility-codes'
 import { formatBizNo, formatTel } from '@/lib/format-contact'
+import { getCompanyProfile, type CompanyProfile } from '@/lib/company-profile'
+import { companyNames } from '@/lib/company-literals'
 import { listCustomerAssets, ASSET_BUCKET } from '@/lib/customer-assets'
 import {
   planFirePlanImageRefs, collectFirePlanImages,
@@ -89,8 +91,10 @@ export async function assembleFirePlan(
       .select('*')
       .eq('customer_id', customerId).eq('is_active', true)
       .order('created_at', { ascending: true }),
-    // M-6(소방계획서_15): 대표자·사업자등록번호 추가 — 1.8 표 유실 복구
-    admin.from('company_profile').select('company_name, address, phone, representative, business_number').limit(1).maybeSingle(),
+    // M-6(소방계획서_15): 대표자·사업자등록번호 — 1.8 표 유실 복구.
+    // C5 2차(2026-10-02): 종전엔 정렬 없는 `.limit(1)` 직접 조회였다(행이 둘이면 문서마다 다른 행을 잡을 수 있었다 —
+    // company-profile.ts 머리말). 공용 조회로 바꿔 정렬 고정·지번 주소·등록번호를 함께 받는다.
+    getCompanyProfile().then(data => ({ data })),
     admin.from('fire_plan_forms').select('sections').eq('customer_id', customerId).maybeSingle(),
     admin.from('fire_brigade_members').select('team, name, duty, phone').eq('customer_id', customerId).order('sort_order'),
     // 개정이력(120) — 인쇄는 전 연도 시계열 오름차순
@@ -132,10 +136,7 @@ export async function assembleFirePlan(
   // 대표동 — 종전 `buildings[0]`을 단일 원천으로 대체. 160 적용 전에는 `is_primary`가 undefined라
   // 종전과 **같은 답**(최고참)이 나온다. 설비는 계속 전 동을 읽는다(서식 1.4는 대상물 단위).
   const b = primaryBuilding(buildings)
-  const company = companyRes.data as {
-    company_name: string; address: string | null; phone: string | null
-    representative: string | null; business_number: string | null
-  } | null
+  const company: CompanyProfile | null = companyRes.data
 
   const rawSections = ((formRes.data as { sections?: Record<string, unknown> } | null)?.sections) ?? {}
   const sections = rawSections as FirePlanFormSections & {
@@ -293,8 +294,10 @@ export async function assembleFirePlan(
     repRole: cust.rep_role ?? '',
     managerGrade: cust.manager_license_grade ?? '',
     managerEduDate: cust.manager_edu_date ?? '',
-    companyName: company?.company_name ?? '',
-    companyAddress: company?.address ?? '',
+    // C5 2차(2026-10-02) — 엑셀 템플릿 치환(lib/company-literals)과 **같은 규칙**: 상호는 약식(㈜+회사명),
+    //   1.8 업체주소는 지번 주소(없으면 도로명). PDF와 엑셀이 같은 값을 찍게 한다(D-7).
+    companyName: company ? companyNames(company).short : '',
+    companyAddress: (company?.address_jibun ?? '').trim() || (company?.address ?? ''),
     companyPhone: formatTel(company?.phone),
     // M-6: 1.8 대행업체 대표자·사업자등록번호
     companyRep: company?.representative ?? '',

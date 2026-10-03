@@ -19,6 +19,10 @@ export type CompanyProfile = {
   official_sender_name: string | null
   /** 공문 발신 명의 대표 직함 (147) — 비우면 '대표이사' */
   official_rep_title: string | null
+  /** 소방시설관리업 등록번호 (예: '경기양평 제2020-01호') — 엑셀 템플릿 운영사 칸 치환(C5)이 읽는다 */
+  management_reg_no: string | null
+  /** 지번 주소 전체 (173) — 비우면 도로명 주소로 대신 */
+  address_jibun: string | null
 }
 
 /** 회사 프로필 조회 — 기본 지역·로고 등. 없으면 null
@@ -49,6 +53,8 @@ export function companyIssuer(p: Pick<CompanyProfile, 'company_name' | 'official
 const BASE_COLS = 'company_name, representative, business_number, phone, fax, email, address, logo_url, mark_url, default_region_si, default_region_myeon'
 /** 147 신설 — 아직 적용되지 않은 DB가 있을 수 있다 */
 const OFFICIAL_COLS = 'official_sender_name, official_rep_title'
+/** C5(2026-10-02) — 등록번호는 열이 오래전부터 있었지만 여기서 안 읽었다. address_jibun은 173 신설 */
+const C5_COLS = 'management_reg_no, address_jibun'
 
 export const getCompanyProfile = cache(async (): Promise<CompanyProfile | null> => {
   const admin = createAdminClient()
@@ -59,14 +65,18 @@ export const getCompanyProfile = cache(async (): Promise<CompanyProfile | null> 
     .limit(1)
     .maybeSingle()
 
-  const first = await pick(`${BASE_COLS}, ${OFFICIAL_COLS}`)
-  const error = first.error
-  let data = first.data
-  // 147 미적용 DB는 컬럼이 없어 PostgREST가 거부한다. 이 함수는 표지·공문·위임장·소방계획서·별지 9호가
-  // 전부 쓰는 길목이라, 마이그레이션 한 건 때문에 문서 생성이 통째로 멈추면 안 된다 —
-  // 기존 zipcode 재시도(customers/actions.ts)와 같은 관례로 기본 컬럼만 다시 읽는다.
-  if (error) ({ data } = await pick(BASE_COLS))
+  // 147(OFFICIAL)·173(C5) 미적용 DB는 컬럼이 없어 PostgREST가 거부한다. 이 함수는 표지·공문·위임장·
+  // 소방계획서·별지 9호가 전부 쓰는 길목이라, 마이그레이션 한 건 때문에 문서 생성이 통째로 멈추면 안 된다 —
+  // 기존 zipcode 재시도(customers/actions.ts)와 같은 관례로 **새 묶음부터 하나씩 떼며** 다시 읽는다.
+  let data: unknown = null
+  for (const cols of [`${BASE_COLS}, ${OFFICIAL_COLS}, ${C5_COLS}`, `${BASE_COLS}, ${OFFICIAL_COLS}`, BASE_COLS]) {
+    const r = await pick(cols)
+    if (!r.error) { data = r.data; break }
+  }
   if (!data) return null
-  // 폴백 경로에는 새 두 칸이 없다 — 호출부가 `?? ''`로 받도록 null로 채운다
-  return { official_sender_name: null, official_rep_title: null, ...(data as object) } as CompanyProfile
+  // 폴백 경로에는 새 칸이 없다 — 호출부가 `?? ''`로 받도록 null로 채운다
+  return {
+    official_sender_name: null, official_rep_title: null, management_reg_no: null, address_jibun: null,
+    ...(data as object),
+  } as CompanyProfile
 })

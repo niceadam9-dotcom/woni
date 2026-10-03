@@ -23,6 +23,8 @@ type CompanyInfo = {
   company_name: string; business_number: string | null; representative: string | null
   management_reg_no: string | null
   phone: string | null; fax: string | null; email: string | null; address: string | null
+  /** 173 — 지번 주소 전체 */
+  address_jibun?: string | null
   industry: string | null; established_date: string | null; logo_url: string | null
   /** 169 — 세금계산서 공급자 업태·종목·이메일 */
   business_type?: string | null; business_item?: string | null; tax_email?: string | null
@@ -46,6 +48,7 @@ export function CompanyFormClient({ existing }: { existing?: CompanyInfo }) {
     fax: formatTel(existing?.fax),
     email: existing?.email ?? '',
     address: existing?.address ?? '',
+    address_jibun: existing?.address_jibun ?? '',
     industry: existing?.industry ?? '',
     business_type: existing?.business_type ?? '',
     business_item: existing?.business_item ?? '',
@@ -74,6 +77,7 @@ export function CompanyFormClient({ existing }: { existing?: CompanyInfo }) {
         fax: form.fax.trim() || undefined,
         email: form.email.trim() || undefined,
         address: form.address.trim() || undefined,
+        address_jibun: form.address_jibun.trim() || undefined,
         industry: form.industry.trim() || undefined,
         business_type: form.business_type.trim() || undefined,
         business_item: form.business_item.trim() || undefined,
@@ -184,6 +188,15 @@ export function CompanyFormClient({ existing }: { existing?: CompanyInfo }) {
             <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-ink-faint" />
             <input value={form.address} onChange={e => setField('address', e.target.value)}
               placeholder="본사 주소" className={`${inputCls} pl-8`} />
+          </div>
+        </Field>
+
+        {/* 173(C5 2차) — 소방계획서 1.8 업체주소는 지번, 갑지 완료보고서는 「도로명 (지번 끝부분)」으로 인쇄된다 */}
+        <Field label="지번 주소">
+          <div className="relative">
+            <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-ink-faint" />
+            <input value={form.address_jibun} onChange={e => setField('address_jibun', e.target.value)}
+              placeholder="예: 경기도 양평군 양평읍 덕평리 98-1 (비우면 위 주소로 인쇄)" className={`${inputCls} pl-8`} />
           </div>
         </Field>
       </section>
