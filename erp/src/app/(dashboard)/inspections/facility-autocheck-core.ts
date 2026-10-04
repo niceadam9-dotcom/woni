@@ -17,6 +17,7 @@ import { sheetItemGroupRef } from '@/lib/sheet-scope'
 import { getAllSheetItems, getSheets } from '@/lib/sheet-catalog'
 import { planFacilityAutoCheck, type AutoCheckResult } from '@/lib/facility-autocheck'
 import { FORM3_ITEMS } from '@/lib/doc-templates/report9'
+import { todayKst } from '@/lib/kst-date'
 
 /** 읽기·쓰기 공용 — 판정은 한 번만 정의한다(보이는 것과 켜지는 것이 갈리면 안 된다) */
 export async function runAutoCheck(
@@ -73,7 +74,7 @@ export async function runAutoCheck(
 
   // 행 단위로만 손댄다. 기존 행이 있으면 `installed`만 올리고 **`detail.note`(사람이 쓴 비고)는 보존**한다.
   const byCode = new Map(facRows.map(f => [f.facility_code, f]))
-  const stamp = { auto: new Date().toISOString().slice(0, 10) }
+  const stamp = { auto: todayKst() }
   const added: string[] = []
   for (const code of targets) {
     const prev = byCode.get(code)
