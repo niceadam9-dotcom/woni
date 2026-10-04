@@ -4,8 +4,10 @@ import {
   StyleSheet, ActivityIndicator, Alert, Platform, ScrollView,
 } from 'react-native'
 import { useLocalSearchParams, useNavigation } from 'expo-router'
+import { useNetworkState } from 'expo-network'
 import { supabase } from '@/lib/supabase'
 import { saveSheetResponses, type SheetSaveRow } from '@/lib/api'
+import { enqueueSheetSave, type QueuedRow } from '@/lib/offline/queue'
 import { getCatalog, type SheetCatalogItem } from '@/lib/sheet-catalog'
 import { sheetScope, isItemInScope, sheetItemGroupRef } from '@/lib/sheet-scope'
 
@@ -42,6 +44,8 @@ export default function SheetEntryScreen() {
   const [memoOpen, setMemoOpen] = useState<Record<string, boolean>>({})
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const network = useNetworkState()
+  const offline = network.isConnected === false
 
   const load = useCallback(async (m: number) => {
     setLoading(true)
@@ -145,9 +149,18 @@ export default function SheetEntryScreen() {
     setSaving(false)
 
     if (res.error) {
-      showAlert('저장 실패', res.offline
-        ? '네트워크에 연결되지 않았습니다. 연결 후 다시 저장해주세요.'   // Phase D에서 오프라인 큐로 대체
-        : res.error)
+      if (res.offline) {
+        // 오프라인 — 큐에 적재(손실 0). 복귀 시 sync.ts가 자동 전송한다.
+        const queued: QueuedRow[] = rows.map(r => ({
+          item_code: r.item_code, result: r.result,
+          memo: r.memo ?? null, base_updated_at: r.base_updated_at ?? null, editedAt: Date.now(),
+        }))
+        await enqueueSheetSave({ inspectionId, month: isExterior ? month : 0, rows: queued, clearCodes })
+        setOriginal(JSON.parse(JSON.stringify(state)) as Record<string, ItemState>)   // 적재분은 화면상 저장됨
+        showAlert('오프라인 보관', '입력을 기기에 보관했습니다.\n네트워크가 연결되면 자동으로 전송됩니다.')
+        return
+      }
+      showAlert('저장 실패', res.error)
       return
     }
     if (res.conflicts && res.conflicts.length > 0) {
@@ -181,6 +194,11 @@ export default function SheetEntryScreen() {
 
   return (
     <View style={styles.container}>
+      {offline && (
+        <View style={styles.offlineBanner}>
+          <Text style={styles.offlineBannerText}>📴 오프라인 — 입력은 기기에 보관되며 연결 시 자동 전송됩니다</Text>
+        </View>
+      )}
       {isExterior && (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.monthBar} contentContainerStyle={styles.monthBarContent}>
           {Array.from({ length: 12 }, (_, i) => i + 1).map(m => (
@@ -274,6 +292,8 @@ export default function SheetEntryScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f6f7fa' },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
+  offlineBanner: { backgroundColor: '#1e2a4a', paddingVertical: 7, paddingHorizontal: 12 },
+  offlineBannerText: { color: '#fff', fontSize: 12, fontWeight: '600', textAlign: 'center' },
   listWrap: { flex: 1 },
   list: { padding: 12, paddingBottom: 90 },
   monthBar: { flexGrow: 0, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#eef0f4' },

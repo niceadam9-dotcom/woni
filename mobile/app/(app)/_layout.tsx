@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { Tabs, useRouter } from 'expo-router'
 import { Text } from 'react-native'
 import { supabase } from '@/lib/supabase'
+import { startSyncTriggers } from '@/lib/offline/sync'
 
 export default function AppLayout() {
   const router = useRouter()
@@ -11,11 +12,14 @@ export default function AppLayout() {
       if (!session) router.replace('/(auth)/login')
     })
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (!session) router.replace('/(auth)/login')
+    // ⚠ 명시적 SIGNED_OUT일 때만 내보낸다(C1 Phase D) — 오프라인에서 토큰 리프레시가
+    // 실패했다고 입력 중인 화면을 닫으면 안 된다. 진짜 로그아웃만 이 이벤트를 낸다.
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_OUT') router.replace('/(auth)/login')
     })
 
-    return () => subscription.unsubscribe()
+    const stopSync = startSyncTriggers()   // 오프라인 큐 — 시작·연결·복귀 시 flush
+    return () => { subscription.unsubscribe(); stopSync() }
   }, [router])
 
   return (
