@@ -23,7 +23,8 @@ const RE_SYNC = /syncInspectionSteps\(/g
 console.log('— 소방계획서_36 S2-7 revalidate 축')
 
 // ── 전환 완료 파일: 직접 호출이 0이어야 한다
-for (const f of ['timeline-actions.ts', 'defect-actions.ts']) {
+//    C1(2026-10-04) — 저장 몸통이 코어 두 파일로 옮겨 갔다(웹 액션·모바일 라우트 공유). 같은 규약을 진다.
+for (const f of ['timeline-actions.ts', 'defect-actions.ts', 'sheet-save-core.ts', 'defect-save-core.ts']) {
   const src = read(f)
   check(`${f} — revalidatePath 직접 호출 0회`, count(src, RE_REVAL) === 0, `${count(src, RE_REVAL)}회`)
   check(`${f} — syncInspectionSteps 직접 호출 0회`, count(src, RE_SYNC) === 0, `${count(src, RE_SYNC)}회`)
@@ -50,14 +51,33 @@ for (const f of ['timeline-actions.ts', 'defect-actions.ts']) {
   //   아니다(상세 1회만 무효화). 그날부터 빨강이던 것을 근거 확인 후 갱신(2026-10-03).
   check('sheet-actions.ts — 미전환 revalidatePath가 13을 넘지 않는다', r <= 13, `${r}회`)
   check('sheet-actions.ts — 미전환 syncInspectionSteps가 6을 넘지 않는다', s <= 6, `${s}회`)
-  check('sheet-actions.ts — 기준 경로(saveSheetResponses)는 헬퍼를 쓴다',
-    /const \{ stepsChanged \} = await syncStepsAndRevalidate\(admin, inspectionId, profile\.id\)/.test(src))
+  // C1(2026-10-04) — 기준 경로의 몸통은 sheet-save-core.ts로 옮겼다. 액션은 코어에 위임만 한다.
+  check('sheet-actions.ts — 기준 경로(saveSheetResponses)는 코어에 위임한다',
+    /return saveSheetResponsesCore\(admin, profile\.id, inspectionId, rows, month, clearCodes\)/.test(src))
+  check('sheet-save-core.ts — 기준 경로(saveSheetResponses)는 헬퍼를 쓴다',
+    /const \{ stepsChanged \} = await syncStepsAndRevalidate\(admin, inspectionId, actorId, \{ ctx \}\)/.test(read('sheet-save-core.ts')))
+}
+
+// ── 호출 맥락(2026-10-04) — updateTag는 Server Action 전용이다. Route Handler(/api/mobile/*)가
+//    'route'를 넘기지 않으면 단계가 바뀌는 저장마다 **DB엔 들어가고 응답은 실패**한다(실측).
+{
+  const helper = read('step-revalidate.ts')
+  check("step-revalidate.ts — 'route' 맥락은 revalidateTag(…, { expire: 0 })",
+    /if \(ctx === 'route'\) revalidateTag\(STEP_BADGE_TAG, \{ expire: 0 \}\)/.test(helper))
+  const API = join(process.cwd(), 'src', 'app', 'api', 'mobile')
+  const sheetRoute = readFileSync(join(API, 'sheet-save', 'route.ts'), 'utf8')
+  const defectRoute = readFileSync(join(API, 'defect-add', 'route.ts'), 'utf8')
+  check("sheet-save 라우트가 'route' 맥락을 넘긴다", /month, clearCodes, 'route',/.test(sheetRoute))
+  check("defect-add 라우트가 등록·사진 둘 다 'route' 맥락을 넘긴다",
+    (defectRoute.match(/'route'\)/g) ?? []).length === 2)
 }
 
 // ── F-1 회귀 방지: 헬퍼를 쓰면서 alsoChanged를 **빠뜨린** 자리는 단 하나여야 한다.
 //    (제출일 기록 = justSubmitted 선반영이 있는 유일한 순수 후보)
 {
-  const files = ['timeline-actions.ts', 'defect-actions.ts', 'sheet-actions.ts']
+  // C1(2026-10-04) — 저장 몸통이 옮겨 간 코어 두 파일도 센다. 빼면 sheet 응답저장 가드 1곳이 빠져
+  // 4로 떨어지고, 반대로 코어에 새 가드가 생겨도 못 본다.
+  const files = ['timeline-actions.ts', 'defect-actions.ts', 'sheet-actions.ts', 'sheet-save-core.ts', 'defect-save-core.ts']
   let guarded = 0
   for (const f of files) {
     for (const m of read(f).matchAll(/syncStepsAndRevalidate\([^)]*\)/g)) {

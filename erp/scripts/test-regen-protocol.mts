@@ -56,11 +56,15 @@ console.log('\n── 3) 날짜 축 부활 금지 — CUTOFF 상수가 다시 �
 console.log('\n── 4) 스탬프 배선 — 점검표 쓰기 액션 전부가 첫 입력 스탬프를 단다 (결정 2)')
 {
   const src = readFileSync(path.join(import.meta.dirname, '..', 'src', 'app', '(dashboard)', 'inspections', 'sheet-actions.ts'), 'utf8')
-  const stamps = (src.match(/await stampSheetProtocol\(/g) ?? []).length
+  // C1(2026-10-04) — stampSheetProtocol 정의와 save 경로는 sheet-save-core.ts로 옮겼다(모바일 라우트와 공유).
+  //   호출 수는 **두 파일을 합쳐** 센다 — 한쪽만 세면 옮긴 1곳이 「스탬프를 잃었다」로 보인다.
+  const core = readFileSync(path.join(import.meta.dirname, '..', 'src', 'app', '(dashboard)', 'inspections', 'sheet-save-core.ts'), 'utf8')
+  const stamps = ((src + '\n' + core).match(/await stampSheetProtocol\(/g) ?? []).length
   // NA release·NA apply·bulkGood·save·bulkAllGood·copyPrevious = 6곳. 줄면 어느 경로가 스탬프를 잃은 것.
   check(`stampSheetProtocol 호출 6곳 (실제 ${stamps})`, stamps === 6)
   check('스탬프는 IS NULL 조건 — 확정값(legacy_na 포함)을 절대 덮지 않는다',
-    /stampSheetProtocol[\s\S]{0,400}?\.is\('sheet_protocol', null\)/.test(src))
+    /stampSheetProtocol[\s\S]{0,400}?\.is\('sheet_protocol', null\)/.test(core))
+  check('sheet-actions.ts가 정의를 다시 적지 않는다(코어 한 벌)', !/async function stampSheetProtocol/.test(src))
   check('confirmSheetProtocolAction — 관리자 검사 존재', /confirmSheetProtocolAction[\s\S]{0,300}?role !== 'admin'/.test(src))
   check('confirm도 IS NULL 조건 (legacy_na를 뒤집을 수 없다)',
     /confirmSheetProtocolAction[\s\S]{0,900}?\.is\('sheet_protocol', null\)/.test(src))

@@ -87,7 +87,7 @@ export async function POST(req: NextRequest) {
     const result = await saveSheetResponsesCore(
       admin, auth.userId, inspectionId,
       saveRows.map(r => ({ item_code: r.item_code, result: r.result, memo: r.memo })),
-      month, clearCodes,
+      month, clearCodes, 'route',
     )
     if (result.error) return NextResponse.json({ error: result.error }, { status: 500 })
     return NextResponse.json({

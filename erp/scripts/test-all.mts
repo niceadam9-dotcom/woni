@@ -556,6 +556,10 @@ const steps: Step[] = [
   // 드로어와 같은 규약(Realtime + 훅 계약 ③ pause/resume)으로 막았다. 코드 존재로는 증명되지 않는
   // 축이라(이식 전 대조군에서 '차단' 검사가 itemC=O로 붉었다) 브라우저 + DB 실측으로 고정한다
   { name: '점검표 동시 편집 보호(E2E)',   cmd: 'npx tsx scripts/test-sheet-entry-concurrent.mts', needServer: true },
+  // C1 모바일 API 실호출(2026-10-04) — 앱처럼 Bearer로 부른다. 배포 확증의 401 관문만으로는
+  //   「DB엔 저장되고 응답은 실패」(Route Handler에서 updateTag가 던짐)를 못 잡았다 — 이 검사가 잡았다.
+  //   멱등(재전송 중복 0)·충돌(서버 최신 우선)·소유 403·사진 경로 저장이 오프라인 손실 0의 서버 축이다.
+  { name: '모바일 API 저장·멱등·충돌(E2E)', cmd: 'npx tsx scripts/test-mobile-api.mts', needServer: true },
   // 지난 회차 제안 배너(2026-09-07) — 새 회차는 항상 빈 상태로 시작한다(자동 승계는 §6-6 때문에
   // 일부러 안 만들었다). 그래서 [지난 회차 결과 불러오기]를 모르면 605항목을 처음부터 찍는다.
   // ★ '배너가 뜬다'가 아니라 **권한 회차 = 복사가 집는 회차**임을 감사 로그로 대조하는 것이 핵심 —

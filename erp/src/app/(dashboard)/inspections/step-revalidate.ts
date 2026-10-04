@@ -12,7 +12,7 @@
  *  철회 버튼 노출축 등. 그래서 같은 가드를 복붙하면 8곳이 조용히 깨진다.
  *  → 판단을 옵션으로 **명시**하게 만들고, 각 호출부가 "무엇이 바뀌는지" 한 줄로 남긴다.
  */
-import { revalidatePath, updateTag } from 'next/cache'
+import { revalidatePath, revalidateTag, updateTag } from 'next/cache'
 import { syncInspectionSteps } from '@/lib/inspection-step-sync'
 import { shouldRevalidate, stepsChangedFrom } from '@/lib/step-revalidate-rule'
 import { STEP_BADGE_TAG } from '@/lib/cache-tags'
@@ -26,11 +26,19 @@ type Admin = Parameters<typeof syncInspectionSteps>[0]
  *  ⚠ 2026-08-30 — "현재 보고 있는 상세를 무효화하면 RSC 페이로드가 액션 응답에 실려
  *  화면 반영이 늦어진다"는 가설로 detail 스킵 옵션을 넣어 봤으나 **실측상 이득 0**이라
  *  되돌렸다(F-15). ⑥ 제출일 경로의 지연은 여기가 아니라 ⑥ 칸 자체의 재렌더 비용이다. */
-export function revalidateInspection(inspectionId: string): void {
+/** 호출 맥락 — `updateTag`는 **Server Action 안에서만** 부를 수 있고 Route Handler에서는 던진다
+ *  (번들 문서 `04-functions/updateTag.md`). 모바일 입구(/api/mobile/*)는 Route Handler라
+ *  `'route'`로 부르면 `revalidateTag(tag, { expire: 0 })`(즉시 만료 — Route Handler 허용)로 바꾼다.
+ *  🚨 2026-10-04 실측: 이 구분이 없어 모바일 저장이 **DB엔 들어가고 응답은 실패**였다 — 단계가 바뀌는
+ *  첫 저장마다. 앱은 실패로 알고 재전송하고, 두 번째는 단계 무변경이라 통과해 겉으론 멀쩡해 보였다. */
+export type RevalidateContext = 'action' | 'route'
+
+export function revalidateInspection(inspectionId: string, ctx: RevalidateContext = 'action'): void {
   revalidatePath(`/inspections/${inspectionId}`)
   revalidatePath('/inspections')
   // 사이드바 뱃지(60초 캐시)도 함께 — 단계가 바뀌었는데 빨강이 1분 남으면 「완료했는데 왜 아직」이 된다
-  updateTag(STEP_BADGE_TAG)
+  if (ctx === 'route') revalidateTag(STEP_BADGE_TAG, { expire: 0 })
+  else updateTag(STEP_BADGE_TAG)
 }
 
 /**
@@ -50,12 +58,12 @@ export async function syncStepsAndRevalidate(
   admin: Admin,
   inspectionId: string,
   actorId: string | null,
-  opts: { alsoChanged?: boolean } = {},
+  opts: { alsoChanged?: boolean; ctx?: RevalidateContext } = {},
 ): Promise<{ stepsChanged: boolean }> {
   const sync = await syncInspectionSteps(admin, inspectionId, actorId)
   // 규칙은 lib/step-revalidate-rule.ts의 순수 술어다 — 이 파일은 next/cache를 끌어들여
   // Next 밖에서 못 부르므로, 규칙이 여기 있으면 단독 단언이 불가능하다(S2-2 수용 기준 ⓐ)
   const stepsChanged = stepsChangedFrom(sync)
-  if (shouldRevalidate(stepsChanged, opts.alsoChanged)) revalidateInspection(inspectionId)
+  if (shouldRevalidate(stepsChanged, opts.alsoChanged)) revalidateInspection(inspectionId, opts.ctx)
   return { stepsChanged }
 }

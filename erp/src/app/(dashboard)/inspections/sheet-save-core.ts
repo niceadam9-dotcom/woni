@@ -10,7 +10,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { sheetScope } from '@/lib/sheet-scope'
 import { getAllSheetItems } from '@/lib/sheet-catalog'
 import { CURRENT_SHEET_PROTOCOL } from '@/lib/annex-regen-policy'
-import { syncStepsAndRevalidate } from './step-revalidate'
+import { syncStepsAndRevalidate, type RevalidateContext } from './step-revalidate'
 import { runAutoCheck } from './facility-autocheck-core'
 import type { AutoCheckResult } from '@/lib/facility-autocheck'
 
@@ -57,6 +57,8 @@ export async function saveSheetResponsesCore(
    *  2026-08-13 기본값이 ／(해당없음)이 되면서 필요해졌다. upsert만으로는 해제가 반영되지 않아
    *  화면에서는 풀렸는데 DB에는 O가 남는다(문서에도 그대로 인쇄된다). */
   clearCodes: string[] = [],
+  /** 호출 맥락 — 모바일 라우트는 'route'(updateTag는 Server Action 전용이라 던진다, step-revalidate.ts) */
+  ctx: RevalidateContext = 'action',
 ): Promise<{ error?: string; stepsChanged?: boolean; autoCheck?: AutoCheckResult }> {
   if (!Number.isInteger(month) || month < 0 || month > 12) return { error: '점검 월 값을 확인해주세요.' }
 
@@ -123,6 +125,6 @@ export async function saveSheetResponsesCore(
 
   // 36 S2-2 — 가드째로 헬퍼에 위임. alsoChanged 생략 = 단계가 바뀐 저장에만 무효화(종전과 동일).
   // 이 경로만 가드를 쓸 수 있는 이유는 sheet-actions.ts :319-320 주석이 밝힌 전제 때문이다(소비처가 없다).
-  const { stepsChanged } = await syncStepsAndRevalidate(admin, inspectionId, actorId)
+  const { stepsChanged } = await syncStepsAndRevalidate(admin, inspectionId, actorId, { ctx })
   return { stepsChanged, autoCheck }
 }

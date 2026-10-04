@@ -8,7 +8,7 @@ import { dateRangeError } from '@/lib/date-range'
 import { loadAnnexInputs, actionPlanPeriod } from '@/lib/report9-assemble'
 import { resolveActionPeriod, type ActionPeriod } from '@/lib/annex-total-period'
 import { completionDateFrom } from '@/lib/action-period-derive'
-import { checkImageUpload } from '@/lib/upload-guard'
+import { addDefectCore, attachDefectPhotoCore } from './defect-save-core'
 
 export type DefectSeverity = '경미' | '보통' | '중대'
 
@@ -79,26 +79,9 @@ export async function addDefectAction(input: {
   // 인증만으로는 부족하다 — 같은 파일의 다른 액션·점검표 저장과 같은 권한 축을 쓴다
   // ('use server' export는 그 자체가 공개 엔드포인트다. R4 독립 검증 지적)
   const user = await requirePermission('inspection_register')
-  const admin = createAdminClient()
-
-  const { data, error } = await admin
-    .from('inspection_defects')
-    .insert({
-      inspection_id: input.inspectionId,
-      defect_code:   input.defectCode   ?? null,
-      defect_name:   input.defectName,
-      defect_detail: input.defectDetail ?? null,
-      severity:      input.severity,
-    })
-    .select('id')
-    .single()
-
-  if (error) return { error: '불량내역 저장에 실패했습니다.' }
-  // R4-6: ⑤ 불량이 생기면 분모가 6으로 늘고 ⑤가 미완료로 열린다 (증거 기반 동기화)
-  // 36 S2-5(이웃) — 바뀌는 서버 prop: defects.total(칸 제목 분모)·불량 목록 자체.
-  // ⚠ 설계 §2.1은 이 자리를 세지 않았다(:148만 적혀 있었다) — 같은 파일·같은 형태라 함께 옮긴다.
-  await syncStepsAndRevalidate(admin, input.inspectionId, user.id, { alsoChanged: true })
-  return { id: (data as { id: string }).id }
+  // 몸통은 defect-save-core.ts — 모바일 라우트(/api/mobile/defect-add)와 같은 등록 한 벌
+  const res = await addDefectCore(createAdminClient(), user.id, input)
+  return res.error ? { error: res.error } : { id: res.id }
 }
 
 // 단골 불량 원터치 칩 TOP 8 + 표준 문구 (소방계획서_5 R13-a·R13-e) —
@@ -135,46 +118,20 @@ export async function getDefectSuggestionsAction(): Promise<{ chips: string[]; s
 // 불량사진 업로드 (FormData 방식)
 export async function uploadDefectPhotoAction(formData: FormData): Promise<{ error?: string; url?: string }> {
   // 전·후 사진은 별지 11호 증빙이다 — 쓰기 액션이므로 같은 권한 축으로 통일
-  const user = await requirePermission('inspection_register')
-  const admin = createAdminClient()
+  await requirePermission('inspection_register')
 
   const defectId     = formData.get('defectId')     as string | null
   const inspectionId = formData.get('inspectionId') as string | null
   const file         = formData.get('file')         as File | null
-  const field        = (formData.get('field') as string | null) === 'after' ? 'after_photo_url' : 'photo_url'
+  const field        = (formData.get('field') as string | null) === 'after' ? 'after' : 'before'
 
   if (!defectId || !inspectionId || !file) return { error: '파일 정보가 없습니다.' }
   if (!/^[0-9a-f-]{36}$/i.test(defectId) || !/^[0-9a-f-]{36}$/i.test(inspectionId)) return { error: '잘못된 식별자입니다.' }
 
-  // A2(2026-10-02) — 종전엔 확장자·Content-Type을 클라이언트 값 그대로 저장하고 크기 상한도 없었다.
-  // 공용 가드가 확장자 허용목록·10MB·머리 바이트를 보고 서버가 정한 Content-Type을 준다.
-  const checked = await checkImageUpload(file, 'photo')
-  if (!checked.ok) return { error: checked.error }
-  const path = `${inspectionId}/${defectId}/${field === 'after_photo_url' ? 'after_' : ''}${Date.now()}.${checked.ext}`
-
-  const { error: uploadErr } = await admin.storage
-    .from('inspection-defects')
-    .upload(path, checked.buffer, { contentType: checked.contentType, upsert: true })
-
-  if (uploadErr) return { error: '사진 업로드에 실패했습니다.' }
-
-  // ⚠ 종전엔 getPublicUrl()을 저장했다 — 이 버킷은 비공개라 그 주소는 400(Bucket not found)이고
-  // 불량사진이 화면 전체에서 뜨지 않았다. DB에는 경로만 두고 표시 시점에 서명한다(lib/defect-photos).
-  await admin
-    .from('inspection_defects')
-    .update({ [field]: path } as Record<string, unknown>)
-    .eq('id', defectId)
-
-  // 호출부는 업로드 직후 미리보기에 이 값을 그대로 <img src>로 쓴다 — 서명 URL이어야 보인다
-  const { data: signed } = await admin.storage
-    .from('inspection-defects')
-    .createSignedUrl(path, 3600)
-
-  // 36 S2-6 — 고립 호출 흡수. 종전엔 상세 경로만 무효화해 **목록(/inspections)의 진행률이
-  // 조용히 낡았다** — 사진도 ⑤ 증빙(전·후 쌍)이라 목록 집계에 들어간다.
-  // sync는 부르지 않는다: 사진은 photoPairs를 바꿀 뿐 단계 판정 근거가 아니다(완료 조건은 조치).
-  revalidateInspection(inspectionId)
-  return { url: signed?.signedUrl }
+  // 몸통은 defect-save-core.ts — 가드·경로 저장(공개 URL 금지)·무효화가 모바일 라우트와 한 벌.
+  // 호출부는 업로드 직후 미리보기에 url을 그대로 <img src>로 쓴다 — 서명 URL이어야 보인다
+  const res = await attachDefectPhotoCore(createAdminClient(), { inspectionId, defectId, file, field })
+  return res.error ? { error: res.error } : { url: res.signedUrl }
 }
 
 // 불량 조치 저장 (P34-4 + R-3 §9-7) — 이행계획(별지 10호: 계획·기간) + 조치완료(별지 11호: 내용·완료일)
