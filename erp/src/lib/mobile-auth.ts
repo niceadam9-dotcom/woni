@@ -23,3 +23,22 @@ export async function requireMobileUser(req: NextRequest): Promise<{ userId: str
   }
   return { userId: user.id }
 }
+
+/** 이 사용자가 이 점검을 건드릴 수 있는가 — 담당자(assigned_employee_id) 또는 참여자(inspection_participants)
+ *  또는 manager/admin. 점검이 없으면 false. 엣지 함수 `_shared/edge.ts canTouchInspection`과 같은 판정이다 —
+ *  모바일 저장 입구가 Next 라우트로 옮겨 오면서(C1) 서버판이 필요해졌다. 판정이 갈리면
+ *  불량 등록(Edge)은 되는데 점검표 저장(라우트)은 안 되는 반쪽 권한이 생긴다. */
+export async function canTouchInspection(inspectionId: string, userId: string): Promise<boolean> {
+  const admin = createAdminClient()
+  const { data: insp } = await admin
+    .from('inspections').select('id, assigned_employee_id').eq('id', inspectionId).maybeSingle()
+  if (!insp) return false
+  if ((insp as { assigned_employee_id?: string }).assigned_employee_id === userId) return true
+  const { data: profile } = await admin.from('profiles').select('role').eq('id', userId).maybeSingle()
+  const role = (profile as { role?: string } | null)?.role ?? null
+  if (role === 'manager' || role === 'admin') return true
+  const { data: part } = await admin
+    .from('inspection_participants').select('id')
+    .eq('inspection_id', inspectionId).eq('employee_id', userId).maybeSingle()
+  return !!part
+}

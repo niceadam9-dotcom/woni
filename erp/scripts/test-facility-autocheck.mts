@@ -102,29 +102,41 @@ const codeOnly = (src: string) => src
   .replace(/\/\*[\s\S]*?\*\//g, '')          // 블록 주석
   .split('\n').filter(l => !/^\s*\/\//.test(l) && !/^\s*import\s/.test(l)).join('\n')
 
+/* C1(2026-10-04) — 쓰기 본체 runAutoCheck는 facility-autocheck-core.ts로, 저장 몸통은
+   sheet-save-core.ts로 옮겼다(웹 액션과 모바일 /api/mobile/sheet-save가 한 벌을 공유).
+   단언의 뜻은 그대로다 — **하는 일**이 있는 파일을 읽는다. `act`는 'use server' 관문(내보내기 규약·
+   후보 검증)용으로 남기고, 쓰기 성질은 `core`에서, 음성(확인일 미접촉)은 **두 파일 모두**에서 본다 —
+   한쪽만 보면 옮긴 쪽이 확인일을 찍어도 초록이 된다. */
 const act = codeOnly(readFileSync(new URL('../src/app/(dashboard)/inspections/facility-autocheck-actions.ts', import.meta.url), 'utf8'))
-const save = codeOnly(readFileSync(new URL('../src/app/(dashboard)/inspections/sheet-actions.ts', import.meta.url), 'utf8'))
+const core = codeOnly(readFileSync(new URL('../src/app/(dashboard)/inspections/facility-autocheck-core.ts', import.meta.url), 'utf8'))
+const save = codeOnly(readFileSync(new URL('../src/app/(dashboard)/inspections/sheet-save-core.ts', import.meta.url), 'utf8'))
+const actAndCore = act + '\n' + core
 
-ok(/planFacilityAutoCheck\(/.test(act), '쓰기 액션이 순수 판정 함수를 부른다(규칙을 다시 적지 않는다)')
-ok(!/facilities_verified_at/.test(act),
+ok(/planFacilityAutoCheck\(/.test(core), '쓰기 액션이 순수 판정 함수를 부른다(규칙을 다시 적지 않는다)')
+ok(!/facilities_verified_at/.test(actAndCore),
   '🎯🚨 (음성) 자동 체크가 `facilities_verified_at`을 **건드리지 않는다** — 찍으면 경고가 스스로 꺼진다')
-ok(!/saveFacilitiesAction/.test(act),
+ok(!/saveFacilitiesAction/.test(actAndCore),
   '🚨 (음성) replace 방식 `saveFacilitiesAction`을 재사용하지 않는다 — 한 행 켜려다 대장 전체가 지워진다')
-ok(/\.update\(|\.insert\(/.test(act) && /eq\('facility_code'/.test(act),
+ok(/\.update\(|\.insert\(/.test(core) && /eq\('facility_code'/.test(core),
   '행 단위로만 쓴다(설비 코드 지정)')
-ok(/installed: true/.test(act), '`installed`만 켠다')
-ok(/\.\.\.\(prev\?\.detail \?\? \{\}\)/.test(act),
+ok(/installed: true/.test(core), '`installed`만 켠다')
+ok(/\.\.\.\(prev\?\.detail \?\? \{\}\)/.test(core),
   '🚨 기존 `detail`(사람이 쓴 비고)을 보존한 채 출처를 얹는다')
 // `'use server'` 파일은 async 함수만 내보내야 한다 — 타입 재수출이 화면을 500으로 죽인 전례(2026-09-10)
 const exports = (act.match(/^export .*/gm) ?? [])
 ok(exports.length > 0 && exports.every(l => l.startsWith('export async function')),
   `🚨 'use server' 파일이 async 함수만 내보낸다(타입 재수출 = 런타임 500)`, exports.join(' | '))
 
-ok(/autoCheckFacilitiesFromSheetAction\(/.test(save), '🎯 점검표 저장이 따라잡기를 실제로 부른다')
-ok(/try \{ autoCheck = await autoCheckFacilitiesFromSheetAction/.test(save),
+ok(/runAutoCheck\(inspectionId, \{ write: true \}\)/.test(save), '🎯 점검표 저장이 따라잡기를 실제로 부른다')
+ok(/try \{ autoCheck = await runAutoCheck\(/.test(save),
   '🚨 best-effort로 감쌌다 — 대장 반영 실패가 **점검 입력을 날리면 안 된다**')
-ok(save.indexOf('autoCheckFacilitiesFromSheetAction(inspectionId)') < save.indexOf('syncStepsAndRevalidate'),
+ok(save.indexOf('runAutoCheck(inspectionId, { write: true })') >= 0
+  && save.indexOf('runAutoCheck(inspectionId, { write: true })') < save.indexOf('syncStepsAndRevalidate('),
   '🚨 단계 동기화 **앞에서** 돈다 — 대장이 켜지면 필수 분모가 늘어 단계 판정이 달라진다')
+// 웹 액션이 정말 그 코어를 타는가 — 액션이 저장을 다시 적으면 웹·모바일이 두 벌로 갈린다
+const actions = codeOnly(readFileSync(new URL('../src/app/(dashboard)/inspections/sheet-actions.ts', import.meta.url), 'utf8'))
+ok(/return saveSheetResponsesCore\(admin, profile\.id, inspectionId, rows, month, clearCodes\)/.test(actions),
+  '🎯 웹 저장 액션이 같은 코어에 위임한다(저장 한 벌 — 모바일 라우트와 공유)')
 
 console.log('\n── H. 「어느 것입니까?」 배선 — 못 정한 갈래가 화면에 남는가 ──')
 /* 🚨 모호한 갈래를 **저장 응답에만** 실어 보내면 새로고침 한 번에 사라진다. 그러면 사용자는
@@ -143,10 +155,10 @@ ok(/refreshAutoCheck\(\)/.test(ui), '  · 고른 뒤 목록을 다시 읽는다(
 // 공개 엔드포인트라 인자를 믿지 않는다 — 아무 코드나 켜지면 이 화면이 대장 전체를 쓰는 창구가 된다
 ok(/allowed\.has\(facilityCode\)/.test(act),
   '🚨 후보 목록에 있는 코드만 받는다(임의 코드로 대장을 못 쓴다)')
-ok(!/facilities_verified_at/.test(act),
+ok(!/facilities_verified_at/.test(actAndCore),
   '🚨 (음성) 고르는 경로도 확인일을 건드리지 않는다 — 설치 사실과 「전체를 확인했다」는 별개다')
 // 읽기 전용 경로가 정말 안 쓰는가 — 이게 깨지면 화면을 여는 것만으로 대장이 바뀐다
-ok(/if \(!opts\.write\) return/.test(act),
+ok(/if \(!opts\.write\) return/.test(core),
   '🚨 읽기 전용 호출은 **아무것도 쓰지 않는다**(화면 진입이 대장을 바꾸면 안 된다)')
 
 console.log(`\n${fail === 0 ? '✅' : '❌'} ${pass}/${pass + fail} 통과`)
