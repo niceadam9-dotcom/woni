@@ -55,6 +55,20 @@ function row(page: Page) {
   return page.locator('tr', { has: page.getByText(NAME) }).first()
 }
 
+/** 9366e6f1(2026-09-02)부터 인라인 칸도 기산점·종류 변경 시 전체 폼과 같은 미리보기
+ *  「저장하면 이렇게 바뀝니다」를 띄우고, 사용자가 [이대로 저장]을 눌러야 저장된다.
+ *  일정이 안 바뀌면 팝업 없이 조용히 저장하므로(anchorPreviewWorthShowing) 떴을 때만 누른다.
+ *  종전 이 검사는 팝업을 몰라 저장이 안 된 채 끝났다(유형·점검일자 단언 4건 빨강). */
+async function confirmPreviewIfShown(page: Page): Promise<boolean> {
+  const title = page.getByText('저장하면 이렇게 바뀝니다')
+  const shown = await title.waitFor({ timeout: 5000 }).then(() => true, () => false)
+  if (shown) {
+    await page.getByRole('button', { name: '이대로 저장' }).click()
+    await title.waitFor({ state: 'hidden' })
+  }
+  return shown
+}
+
 try {
   // ── 셋업: 관리자 + 작동 고객 + 연간 계획 ──
   console.log('\n[셋업]')
@@ -105,6 +119,7 @@ try {
   // 일반(작동)을 고르는 이유: 110 백필 기본이 작동이라 기존 동작과 같은 자리에 떨어진다.
   await typeSel.selectOption('일반작동')
   await page.locator('h1').click() // blur → 저장
+  console.log(`  (미리보기 팝업 ${await confirmPreviewIfShown(page) ? '표시 → 이대로 저장' : '없음 — 조용히 저장'})`)
   // ⚠ 기대를 현행 설계로 바꿨다(2026-08-19). 소방계획서_6 W-9·W-26으로 일반관리는
   //   **event를 만들지 않는다** — 소방안전관리와 같은 special_* 파이프라인을 쓰고
   //   정기(monthly)만 미생성한다(customers/actions.ts:290-291 및 312-313 주석).
@@ -138,7 +153,7 @@ try {
   check('계획항목(확정 event 포함)에 담당 전파', afterEmp.every(i => i.assigned_employee_id === userId), JSON.stringify(afterEmp.map(i => i.assigned_employee_id)))
 
   // ── 3) 점검계획일 인라인 변경 (일반관리): 그 달 안에서 날짜만 따라간다 ──
-  console.log('\n[3] 점검계획일 변경 (10일 → 5일, 계획 달은 유지)')
+  console.log('\n[3] 점검일자 변경 (9-10 → 10-05, 특별은 기산월로 이동)')
   lastAlert = ''
   // 점검일자는 4번 컬럼(위 주석 참조) — 종전 nth(2)는 토글 시절 인덱스다
   await row(page).locator('td').nth(4).locator('[title="클릭하여 수정"]').click()
@@ -148,29 +163,40 @@ try {
   await dateInput.press('Enter')
   await page.waitForTimeout(500)
   const popupShown = await page.getByText('확정된 점검 일정이 있습니다').count()
-  check('확정보호 팝업 미표시 (확정된 건이 없다)', popupShown === 0)
+  check('확정보호 팝업 미표시 (확정 보호 팝업은 2026-09-12 폐지)', popupShown === 0)
+  // 같은 달 안에서 날짜가 바뀌므로 미리보기는 반드시 뜬다 — 안 뜨면 그 자체가 회귀다
+  check('기산점 변경 미리보기 표시 → 이대로 저장', await confirmPreviewIfShown(page))
   // ★ 먼저 **저장 자체**를 확인한다 — 이게 빠져 있어서, 인라인 저장이 안 된 경우에도
   //   아래 항목 단언만 실패하고 원인이 계획 재계산 쪽으로 오인됐다.
   const savedAnchor = await waitFor(
     async () => ((await raw.from('customers').select('plan_anchor_date').eq('id', customerId).single()).data as { plan_anchor_date: string } | null)?.plan_anchor_date ?? '',
     v => v === ANCHOR1)
   check('★ 점검계획일이 실제로 저장된다', savedAnchor === ANCHOR1, `anchor=${savedAnchor}`)
-  // ★ 기준일이 옮기는 것은 **달이 아니라 그 달 안의 날짜**다.
-  //   _resetPlanItemsForCustomer(customers/actions.ts:766-795)는 각 항목의 원래 계획 달을
-  //   유지한 채 기준일의 **일(日)**만 다시 적용하고, 주말·공휴일이면 다음 영업일로 민다.
-  //   즉 특별점검을 몇 월에 하느냐는 계획이 정하고, 기준일은 그 달의 며칠에 가느냐를 정한다.
-  //   종전 기대(10월로 이동)는 event 모델의 것이다 — event 1건은 기준일 달로 재생성됐었다.
+  // ★ 기준일은 **달까지** 옮긴다 — 「변동 = 재계산」(reconcileSpecialSlots, customers/actions.ts
+  //   기산점 변경 분기). 이 고객은 사용승인일이 없어 점검일자가 곧 기산점(잠정 기산점, ac9cbed7)이고,
+  //   특별점검은 기산월(10월)로 자리를 옮긴 뒤 그 달의 기준일 일자(주말·공휴일이면 다음 영업일)에 앉는다.
+  //   롤링이라 올해+내년 두 해를 맞추므로 내년 특별도 생긴다 — **해마다 1건**이 계약이다.
+  //   종전 기대(「달은 그대로·특별 1건뿐」)는 _resetPlanItemsForCustomer만 돌던 시절의 것이고,
+  //   그 단언들은 인라인 저장이 미리보기 팝업에 막혀(위 confirmPreviewIfShown) 오래 가려져 있었다.
   const beforeDate = afterEmp.find(i => i.plan_type?.startsWith('special'))?.planned_date ?? ''
   const anchorDay = +ANCHOR1.slice(8, 10)
+  const thisYearSpecial = (list: ItemRow[]) =>
+    list.find(i => i.plan_type?.startsWith('special') && i.planned_date?.startsWith(`${YEAR}-`))
   const afterAnchor = await waitFor(getItems, list => {
-    const sp = list.find(i => i.plan_type?.startsWith('special'))
+    const sp = thisYearSpecial(list)
     return !!sp && sp.planned_date !== beforeDate
   })
-  const sp2 = afterAnchor.find(i => i.plan_type?.startsWith('special'))
-  check('특별 항목은 1건뿐 (재계산이 항목을 늘리지 않는다)',
-    afterAnchor.filter(i => i.plan_type?.startsWith('special')).length === 1, JSON.stringify(afterAnchor))
-  check('★ 계획 달은 그대로 — 기준일은 달을 옮기지 않는다',
-    !!sp2 && sp2.planned_date?.slice(0, 7) === beforeDate.slice(0, 7), `${beforeDate} → ${sp2?.planned_date}`)
+  const sp2 = thisYearSpecial(afterAnchor)
+  const specialsPerYear = new Map<string, number>()
+  for (const i of afterAnchor) if (i.plan_type?.startsWith('special')) {
+    const y = i.planned_date?.slice(0, 4) ?? '?'
+    specialsPerYear.set(y, (specialsPerYear.get(y) ?? 0) + 1)
+  }
+  check('특별 항목은 해마다 1건 (재계산이 같은 해에 중복을 만들지 않는다)',
+    specialsPerYear.size >= 1 && [...specialsPerYear.values()].every(n => n === 1),
+    JSON.stringify(Object.fromEntries(specialsPerYear)))
+  check('★ 올해 특별은 새 기준일의 달로 옮겨진다',
+    !!sp2 && sp2.planned_date?.slice(0, 7) === ANCHOR1.slice(0, 7), `${beforeDate} → ${sp2?.planned_date}`)
   check('★ 그 달 안에서 새 기준일의 일자로 이동(주말·공휴일이면 다음 영업일)',
     !!sp2 && +sp2.planned_date!.slice(8, 10) >= anchorDay && +sp2.planned_date!.slice(8, 10) <= anchorDay + 4,
     `기준일 ${anchorDay}일 → ${sp2?.planned_date}`)
