@@ -89,6 +89,59 @@ export async function saveSheetResponses(params: {
   }
 }
 
+// 불량 등록(+사진) — 서버 /api/mobile/defect-add (웹 등록과 같은 코어 · clientKey 멱등).
+// offline=true면 네트워크 실패(큐 보관), retryable=true면 서버 일시 오류(큐 보관·재시도).
+// 그 밖의 error는 다시 보내도 같다(입력 오류) — 큐에 두면 영원히 재시도하므로 호출부가 알린다.
+export interface DefectAddResult {
+  defectId?: string
+  existed?: boolean
+  photoAttached?: boolean
+  photoRejected?: string
+  error?: string
+  offline?: boolean
+  retryable?: boolean
+}
+
+export async function addDefectMobile(params: {
+  inspectionId: string
+  clientKey: string
+  defectName: string
+  defectDetail?: string | null
+  severity: '경미' | '보통' | '중대'
+  photoUri?: string | null
+}): Promise<DefectAddResult> {
+  try {
+    const headers = await getAuthHeaders() as Record<string, string>
+    const fd = new FormData()
+    fd.append('inspectionId', params.inspectionId)
+    fd.append('clientKey', params.clientKey)
+    fd.append('defectName', params.defectName)
+    if (params.defectDetail) fd.append('defectDetail', params.defectDetail)
+    fd.append('severity', params.severity)
+    if (params.photoUri) {
+      const ext = (params.photoUri.split('.').pop() ?? 'jpg').toLowerCase()
+      const type = ext === 'png' ? 'image/png' : ext === 'heic' ? 'image/heic' : ext === 'webp' ? 'image/webp' : 'image/jpeg'
+      // React Native FormData 파일 규약 — { uri, name, type }
+      fd.append('photo', { uri: params.photoUri, name: `photo.${ext}`, type } as unknown as Blob)
+    }
+    const res = await fetch(`${ERP_URL}/api/mobile/defect-add`, {
+      method: 'POST',
+      // Content-Type은 넣지 않는다 — fetch가 multipart 경계(boundary)를 붙여 직접 정한다
+      headers: headers.Authorization ? { Authorization: headers.Authorization } : {},
+      body: fd,
+    })
+    const json = await res.json().catch(() => ({})) as DefectAddResult & { photoPending?: boolean }
+    if (res.ok) return json
+    return {
+      error: json.error ?? '서버 오류가 발생했습니다.',
+      retryable: res.status >= 500 || json.photoPending === true,
+      defectId: json.defectId,
+    }
+  } catch {
+    return { error: '네트워크 오류가 발생했습니다.', offline: true }
+  }
+}
+
 // 음성 텍스트로 불량항목 AI 분류
 export async function classifyVoiceDefects(
   transcript: string

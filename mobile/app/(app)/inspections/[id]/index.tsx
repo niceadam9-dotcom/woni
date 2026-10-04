@@ -8,6 +8,8 @@ import { supabase } from '@/lib/supabase'
 import type { PlanItem, Inspection, InspectionStep, InspectionDefect } from '@/lib/types'
 import { DefectFormModal } from '@/components/DefectFormModal'
 import { activeStepNums, hasSheetDefect, isSelfInspection, visibleStepNums } from '@/lib/inspection-steps'
+import { pendingDefectsFor, type DefectAddOp } from '@/lib/offline/queue'
+import { onSyncChanged } from '@/lib/offline/sync'
 
 const SEVERITY_COLORS = {
   '경미': { bg: '#fef9c3', text: '#ca8a04' },
@@ -79,6 +81,8 @@ export default function InspectionDetailScreen() {
   const [inspection, setInspection] = useState<Inspection | null>(null)
   const [steps, setSteps] = useState<InspectionStep[]>([])
   const [defects, setDefects] = useState<InspectionDefect[]>([])
+  /** 오프라인 큐에 있는(아직 서버에 없는) 불량 — 현장에서 「넣었는데 안 보인다」가 없게 함께 보여 준다 */
+  const [pendingDefects, setPendingDefects] = useState<DefectAddOp['payload'][]>([])
   /** 점검표 ✕ 응답 수 — 불량내역 등록 **전**의 불량 신호. ⑤⑥ 활성 축의 절반이다(소방계획서_45) */
   const [sheetX, setSheetX] = useState(0)
   /** 그 두 축을 잰 조회가 불완전했는가 — 참이면 ⑤⑥을 지우지 않는다(보수 판정) */
@@ -135,6 +139,7 @@ export default function InspectionDetailScreen() {
       if (inspRes.data) setInspection(inspRes.data as unknown as Inspection)
       setSteps((stepsRes.data ?? []) as unknown as InspectionStep[])
       setDefects((defectsRes.data ?? []) as unknown as InspectionDefect[])
+      setPendingDefects(await pendingDefectsFor(item.inspection_id))
       setSheetX(xRes.count ?? 0)
       // 조회가 실패하면 0을 진실로 믿지 않는다 — 못 잰 것은 '조치가 필요하다'로 본다
       setAxisIncomplete(!!(xRes.error || defectsRes.error))
@@ -144,6 +149,8 @@ export default function InspectionDetailScreen() {
   }, [id, router])
 
   useEffect(() => { load() }, [load])
+  // 큐가 전송되면 「대기 중」이 실제 불량으로 바뀐다 — 동기화 끝날 때마다 다시 읽는다
+  useEffect(() => onSyncChanged(() => { load() }), [load])
 
   async function saveScheduledDate(date: string) {
     if (!planItem) return
@@ -419,7 +426,22 @@ export default function InspectionDetailScreen() {
               </TouchableOpacity>
             </View>
 
-            {defects.length === 0 ? (
+            {pendingDefects.length > 0 && (
+              <View style={styles.section}>
+                {pendingDefects.map(p => (
+                  <View key={p.clientKey} style={[styles.defectCard, styles.pendingCard]}>
+                    <View style={styles.defectHeader}>
+                      <Text style={styles.defectName}>{p.defectName}</Text>
+                      <Text style={styles.pendingBadge}>⏳ 전송 대기</Text>
+                    </View>
+                    {p.defectDetail && <Text style={styles.defectDetail}>{p.defectDetail}</Text>}
+                    {p.photoPath && <Text style={styles.defectPhoto}>📷 사진 보관됨</Text>}
+                  </View>
+                ))}
+              </View>
+            )}
+
+            {defects.length === 0 && pendingDefects.length === 0 ? (
               <View style={styles.emptyDefects}>
                 <Text style={styles.emptyDefectsText}>등록된 불량내역이 없습니다.</Text>
               </View>
@@ -600,6 +622,8 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   emptyDefectsText: { fontSize: 14, color: '#9ca3af' },
+  pendingCard: { borderWidth: 1, borderColor: '#fdba74', borderStyle: 'dashed', backgroundColor: '#fffaf5' },
+  pendingBadge: { fontSize: 12, fontWeight: '700', color: '#f97316' },
   defectCard: {
     paddingVertical: 10,
     borderBottomWidth: 1,

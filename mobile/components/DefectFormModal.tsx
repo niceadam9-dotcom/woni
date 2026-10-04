@@ -6,8 +6,9 @@ import {
 } from 'react-native'
 import * as ImagePicker from 'expo-image-picker'
 import { useAudioRecorder, RecordingPresets, requestRecordingPermissionsAsync } from 'expo-audio'
-import { supabase } from '@/lib/supabase'
-import { classifyVoiceDefects } from '@/lib/api'
+import { classifyVoiceDefects, addDefectMobile } from '@/lib/api'
+import { enqueueDefectAdd, newClientKey } from '@/lib/offline/queue'
+import { persistPhoto } from '@/lib/offline/photos'
 import type { DefectSeverity, ClassifiedDefect } from '@/lib/types'
 
 const SEVERITIES: DefectSeverity[] = ['경미', '보통', '중대']
@@ -145,57 +146,37 @@ export function DefectFormModal({ visible, inspectionId, onClose, onSaved }: Pro
     }
     setSaving(true)
 
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) { setSaving(false); return }
+    // 불량+사진을 한 번에 — 서버 /api/mobile/defect-add(웹 등록과 같은 코어: 단계 동기화·사진 경로 저장).
+    // 종전 Edge add-defect는 단계 동기화가 없었고, 사진은 비공개 버킷의 공개 URL을 저장했다.
+    const clientKey = newClientKey()
+    const payload = {
+      inspectionId, clientKey,
+      defectName: defectName.trim(),
+      defectDetail: defectDetail.trim() || null,
+      severity,
+    }
+    const res = await addDefectMobile({ ...payload, photoUri })
 
-    // 1. inspection_defects 행 삽입 (RLS 우회를 위해 Edge Function 사용)
-    const { data: defectData, error: defectError } = await supabase.functions.invoke('add-defect', {
-      body: {
-        inspection_id: inspectionId,
-        defect_name: defectName.trim(),
-        defect_detail: defectDetail.trim() || null,
-        severity,
-      },
-    })
-
-    if (defectError || !defectData?.defect_id) {
-      Alert.alert('저장 오류', '불량내역 저장에 실패했습니다.')
+    if (res.offline || (res.error && res.retryable)) {
+      // 오프라인·서버 일시 오류 — 같은 키로 큐에 보관(손실 0). 사진은 OS가 못 지우는 곳으로 복사해 둔다.
+      const photoPath = photoUri ? await persistPhoto(photoUri, clientKey) : null
+      await enqueueDefectAdd({ ...payload, photoPath })
+      setSaving(false)
+      Alert.alert('오프라인 보관', '불량을 기기에 보관했습니다.\n네트워크가 연결되면 자동으로 전송됩니다.')
+      reset()
+      onSaved()
+      return
+    }
+    if (res.error) {
+      Alert.alert('저장 오류', res.error)
       setSaving(false)
       return
     }
-
-    const defectId: string = defectData.defect_id
-
-    // 2. 사진 업로드 (선택)
-    if (photoUri) {
-      await uploadPhoto(defectId, inspectionId, photoUri)
-    }
+    if (res.photoRejected) Alert.alert('사진 미첨부', `불량은 저장했지만 사진은 올리지 못했습니다.\n${res.photoRejected}`)
 
     setSaving(false)
     reset()
     onSaved()
-  }
-
-  async function uploadPhoto(defectId: string, inspId: string, uri: string) {
-    const ext = uri.split('.').pop() ?? 'jpg'
-    const path = `${inspId}/${defectId}/${Date.now()}.${ext}`
-    const mimeType = ext === 'png' ? 'image/png' : 'image/jpeg'
-
-    // React Native에서 파일 fetch → ArrayBuffer
-    const response = await fetch(uri)
-    const blob = await response.blob()
-
-    const { error: uploadErr } = await supabase.storage
-      .from('inspection-defects')
-      .upload(path, blob, { contentType: mimeType, upsert: true })
-
-    if (uploadErr) { Alert.alert('사진 오류', '사진 업로드에 실패했습니다.'); return }
-
-    const { data: urlData } = supabase.storage.from('inspection-defects').getPublicUrl(path)
-
-    await supabase.functions.invoke('update-defect-photo', {
-      body: { defect_id: defectId, photo_url: urlData.publicUrl },
-    })
   }
 
   return (

@@ -31,6 +31,27 @@ export type SheetSaveOp = {
   }
 }
 
+/** 불량 등록 op (Phase E) — 서버가 clientKey로 멱등 처리한다(마이그 180).
+ *  사진은 기기 문서 폴더로 **복사해 둔** 경로다 — 카메라 임시 파일은 OS가 지울 수 있어서
+ *  큐가 며칠 기다리는 사이 사진이 사라지면 손실이다. 전송 성공 뒤 지운다. */
+export type DefectAddOp = {
+  opId: string
+  kind: 'defect-add'
+  createdAt: number
+  tries: number
+  lastError?: string
+  payload: {
+    inspectionId: string
+    clientKey: string
+    defectName: string
+    defectDetail: string | null
+    severity: '경미' | '보통' | '중대'
+    photoPath: string | null
+  }
+}
+
+export type QueueOp = SheetSaveOp | DefectAddOp
+
 /** 충돌 보관함 — flush 응답의 conflicts를 큐에서 분리 보관한다.
  *  큐에 남기면 같은 충돌로 영원히 재시도하고, 버리면 현장 입력이 사라진다(손실 0 위반). */
 export type ConflictItem = {
@@ -60,8 +81,28 @@ async function writeJson(key: string, value: unknown): Promise<void> {
   try { await AsyncStorage.setItem(key, JSON.stringify(value)) } catch { /* 저장 실패 시 다음 쓰기가 복구 */ }
 }
 
-export async function readQueue(): Promise<SheetSaveOp[]> {
-  return readJson<SheetSaveOp[]>(QUEUE_KEY, [])
+export async function readQueue(): Promise<QueueOp[]> {
+  return readJson<QueueOp[]>(QUEUE_KEY, [])
+}
+
+/** 불량 등록 op 적재 — clientKey는 호출부가 만든다(같은 불량의 재전송이 같은 키를 들고 가야 멱등) */
+export async function enqueueDefectAdd(payload: DefectAddOp['payload']): Promise<void> {
+  const queue = await readQueue()
+  if (queue.some(op => op.kind === 'defect-add' && op.payload.clientKey === payload.clientKey)) return
+  queue.push({ opId: newId(), kind: 'defect-add', createdAt: Date.now(), tries: 0, payload })
+  await writeJson(QUEUE_KEY, queue)
+}
+
+/** 이 점검의 전송 대기 불량 — 상세 화면이 「대기 중」으로 함께 보여 준다 */
+export async function pendingDefectsFor(inspectionId: string): Promise<DefectAddOp['payload'][]> {
+  return (await readQueue())
+    .filter((op): op is DefectAddOp => op.kind === 'defect-add' && op.payload.inspectionId === inspectionId)
+    .map(op => op.payload)
+}
+
+/** 멱등 키 — 서버 규약 [A-Za-z0-9_-]{8,64} */
+export function newClientKey(): string {
+  return `m${Date.now().toString(36)}${Math.random().toString(36).slice(2, 12)}`
 }
 
 export async function queueCount(): Promise<number> {
@@ -76,7 +117,7 @@ export async function enqueueSheetSave(payload: {
   clearCodes: string[]
 }): Promise<void> {
   const queue = await readQueue()
-  const existing = queue.find(op =>
+  const existing = queue.find((op): op is SheetSaveOp =>
     op.kind === 'sheet-save'
     && op.payload.inspectionId === payload.inspectionId
     && op.payload.month === payload.month)
@@ -102,7 +143,7 @@ export async function enqueueSheetSave(payload: {
   await writeJson(QUEUE_KEY, queue)
 }
 
-export async function updateOp(op: SheetSaveOp): Promise<void> {
+export async function updateOp(op: QueueOp): Promise<void> {
   const queue = await readQueue()
   const i = queue.findIndex(o => o.opId === op.opId)
   if (i >= 0) { queue[i] = op; await writeJson(QUEUE_KEY, queue) }
