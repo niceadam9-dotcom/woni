@@ -21,14 +21,15 @@ export default function AppLayout() {
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: '#7b68ee',
-        tabBarInactiveTintColor: '#b0acd6',
+        // 소방넷(정평이앤씨) 동일 아이덴티티 — 주황 상단 바 + 하단 아이콘 툴바
+        tabBarActiveTintColor: '#f97316',
+        tabBarInactiveTintColor: '#c4c9d4',
         tabBarStyle: {
           backgroundColor: '#fff',
-          borderTopColor: '#e8e6f8',
+          borderTopColor: '#f0e9e2',
           borderTopWidth: 1,
         },
-        headerStyle: { backgroundColor: '#7b68ee' },
+        headerStyle: { backgroundColor: '#f97316' },
         headerTintColor: '#fff',
         headerTitleStyle: { fontWeight: '700' },
       }}
@@ -36,13 +37,38 @@ export default function AppLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: '점검 목록',
-          tabBarIcon: ({ color }) => <Text style={{ fontSize: 20, color }}>📋</Text>,
+          title: '홈',
+          headerShown: false,
+          tabBarIcon: ({ color }) => <Text style={{ fontSize: 20, color }}>🏠</Text>,
         }}
       />
       <Tabs.Screen
-        name="inspections/[id]"
+        name="inspections/index"
+        options={{ href: null, title: '점검 목록' }}
+      />
+      <Tabs.Screen
+        name="inspections/[id]/index"
         options={{ href: null }}
+      />
+      <Tabs.Screen
+        name="inspections/[id]/sheets/index"
+        options={{ href: null, title: '점검표' }}
+      />
+      <Tabs.Screen
+        name="inspections/[id]/sheets/[sheetId]"
+        options={{ href: null, title: '점검표 입력' }}
+      />
+      <Tabs.Screen
+        name="notices"
+        options={{ href: null, title: '공지사항' }}
+      />
+      <Tabs.Screen
+        name="schedule"
+        options={{ href: null, title: '점검 일정' }}
+      />
+      <Tabs.Screen
+        name="defects"
+        options={{ href: null, title: '불량 현황' }}
       />
       <Tabs.Screen
         name="docs"

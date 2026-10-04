@@ -1,220 +1,297 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import {
-  View, Text, FlatList, TouchableOpacity,
-  StyleSheet, RefreshControl, ActivityIndicator,
+  View, Text, ScrollView, TouchableOpacity,
+  StyleSheet, RefreshControl,
 } from 'react-native'
+import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
 import { fetchMyPlanItems } from '@/lib/api'
+import { fetchNotices, formatNoticeDate, type NoticePost } from '@/lib/notices'
 import type { PlanItem } from '@/lib/types'
 
-const TYPE_COLORS: Record<string, string> = {
-  '종합': '#7b68ee',
-  '최초': '#3b82f6',
-  '기타': '#6b7280',
-}
-
-const STATUS_LABELS: Record<string, string> = {
-  planned: '예정',
-  confirmed: '확정',
-  completed: '완료',
-  cancelled: '취소',
-}
-
-function formatDate(dateStr: string | null): string {
-  if (!dateStr) return '날짜 미정'
-  const d = new Date(dateStr)
-  return `${d.getMonth() + 1}/${d.getDate()}(${['일', '월', '화', '수', '목', '금', '토'][d.getDay()]})`
-}
+// 홈 레이아웃은 소방넷(sobangnet.com) 모바일 화면과 동일 구성:
+// 주황 헤더 카드 → 2×2 메뉴 카드 → 공지사항 목록.
+// 메뉴 4칸은 승진소방 웹 ERP에 실재하는 기능만 연결한다(2026-10-04 사용자 지시 — 소방법 앱류 제외).
+const MENU_ITEMS = [
+  {
+    key: 'inspection',
+    title: '소방점검',
+    desc: '배정된 점검과 점검표를\n현장에서 입력합니다.',
+    icon: '🧯',
+    href: '/(app)/inspections' as const,
+  },
+  {
+    key: 'schedule',
+    title: '점검 일정',
+    desc: '오늘과 예정된 점검 일정을\n확인합니다.',
+    icon: '📅',
+    href: '/(app)/schedule' as const,
+  },
+  {
+    key: 'defects',
+    title: '불량 현황',
+    desc: '등록한 불량과 조치 상태를\n확인합니다.',
+    icon: '⚠️',
+    href: '/(app)/defects' as const,
+  },
+  {
+    key: 'docs',
+    title: '현장 서류',
+    desc: '소방계획서 등 현장 서류\n5종을 작성합니다.',
+    icon: '📄',
+    href: '/(app)/docs' as const,
+  },
+] as const
 
 function isToday(dateStr: string | null): boolean {
   if (!dateStr) return false
-  const today = new Date().toISOString().split('T')[0]
-  return dateStr === today
+  return dateStr === new Date().toISOString().split('T')[0]
 }
 
-function PlanCard({ item, onPress }: { item: PlanItem; onPress: () => void }) {
-  const today = isToday(item.scheduled_date)
-  return (
-    <TouchableOpacity
-      style={[styles.card, today && styles.cardToday]}
-      onPress={onPress}
-      activeOpacity={0.7}
-    >
-      <View style={styles.cardHeader}>
-        <View style={[styles.typeBadge, { backgroundColor: TYPE_COLORS[item.inspection_type] + '20' }]}>
-          <Text style={[styles.typeText, { color: TYPE_COLORS[item.inspection_type] }]}>
-            {item.inspection_type} {item.sequence_num}차
-          </Text>
-        </View>
-        <View style={[styles.statusBadge, today && styles.statusBadgeToday]}>
-          <Text style={[styles.statusText, today && styles.statusTextToday]}>
-            {today ? '오늘' : STATUS_LABELS[item.status]}
-          </Text>
-        </View>
-      </View>
-
-      <Text style={styles.customerName}>{item.customer_name}</Text>
-      <Text style={styles.customerCode}>{item.customer_code}</Text>
-
-      <View style={styles.cardFooter}>
-        <Text style={styles.dateText}>📅 {formatDate(item.scheduled_date)}</Text>
-        {item.customer_address && (
-          <Text style={styles.addressText} numberOfLines={1}>
-            📍 {item.customer_address}
-          </Text>
-        )}
-      </View>
-
-      {item.inspection_id && (
-        <View style={styles.startedBadge}>
-          <Text style={styles.startedText}>점검 진행중</Text>
-        </View>
-      )}
-    </TouchableOpacity>
-  )
-}
-
-export default function InspectionsScreen() {
+export default function HomeScreen() {
   const router = useRouter()
-  const [items, setItems] = useState<PlanItem[]>([])
-  const [loading, setLoading] = useState(true)
+  const [planItems, setPlanItems] = useState<PlanItem[]>([])
+  const [notices, setNotices] = useState<NoticePost[]>([])
   const [refreshing, setRefreshing] = useState(false)
 
   const load = useCallback(async () => {
-    const data = await fetchMyPlanItems()
-    setItems(data)
-    setLoading(false)
+    const [plans, posts] = await Promise.all([fetchMyPlanItems(), fetchNotices(5)])
+    setPlanItems(plans)
+    setNotices(posts)
     setRefreshing(false)
   }, [])
 
   useEffect(() => { load() }, [load])
 
-  const todayItems = items.filter(i => isToday(i.scheduled_date))
-  const upcomingItems = items.filter(i => !isToday(i.scheduled_date))
+  const todayCount = planItems.filter(i => isToday(i.scheduled_date)).length
+  const upcomingCount = planItems.length - todayCount
 
-  if (loading) {
-    return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" color="#7b68ee" />
-      </View>
-    )
+  const onMenuPress = (item: (typeof MENU_ITEMS)[number]) => {
+    router.push(item.href)
   }
 
   return (
-    <FlatList
-      style={styles.container}
-      data={[...todayItems, ...upcomingItems]}
-      keyExtractor={item => item.id}
-      refreshControl={
-        <RefreshControl
-          refreshing={refreshing}
-          onRefresh={() => { setRefreshing(true); load() }}
-          tintColor="#7b68ee"
-        />
-      }
-      ListHeaderComponent={
-        <View style={styles.header}>
-          {todayItems.length > 0 && (
-            <View style={styles.sectionLabel}>
-              <Text style={styles.sectionLabelText}>오늘 점검 {todayItems.length}건</Text>
+    <SafeAreaView style={styles.safe} edges={['top']}>
+      <View style={styles.topBar}>
+        <Text style={styles.brand}>승진소방</Text>
+        <TouchableOpacity onPress={() => router.push('/(app)/profile')}>
+          <Text style={styles.topBarIcon}>👤</Text>
+        </TouchableOpacity>
+      </View>
+
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={styles.content}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load() }} tintColor="#f97316" />
+        }
+      >
+        {/* 주황 헤더 카드 */}
+        <TouchableOpacity
+          style={styles.hero}
+          activeOpacity={0.85}
+          onPress={() => router.push('/(app)/inspections')}
+        >
+          <View style={styles.heroTextArea}>
+            <Text style={styles.heroTitle}>소방안전관리</Text>
+            <Text style={styles.heroDesc}>승진소방 현장 업무를{'\n'}한 곳에서 처리합니다.</Text>
+            <View style={styles.heroBadge}>
+              <Text style={styles.heroBadgeText}>
+                오늘 점검 {todayCount}건 · 예정 {upcomingCount}건
+              </Text>
             </View>
-          )}
-        </View>
-      }
-      ListEmptyComponent={
-        <View style={styles.empty}>
-          <Text style={styles.emptyIcon}>📋</Text>
-          <Text style={styles.emptyText}>배정된 점검이 없습니다.</Text>
-        </View>
-      }
-      renderItem={({ item, index }) => {
-        const showUpcomingHeader = index === todayItems.length && upcomingItems.length > 0
-        return (
-          <View>
-            {showUpcomingHeader && (
-              <View style={styles.sectionLabel}>
-                <Text style={styles.sectionLabelText}>예정 점검</Text>
-              </View>
-            )}
-            <PlanCard
-              item={item}
-              onPress={() => router.push(`/(app)/inspections/${item.id}`)}
-            />
           </View>
-        )
-      }}
-      contentContainerStyle={styles.list}
-    />
+          <View style={styles.heroIconWrap}>
+            <Text style={styles.heroIcon}>🚒</Text>
+          </View>
+        </TouchableOpacity>
+
+        {/* 2×2 메뉴 카드 */}
+        <View style={styles.grid}>
+          {MENU_ITEMS.map(item => (
+            <TouchableOpacity
+              key={item.key}
+              style={styles.menuCard}
+              activeOpacity={0.7}
+              onPress={() => onMenuPress(item)}
+            >
+              <Text style={styles.menuTitle}>{item.title}</Text>
+              <Text style={styles.menuDesc}>{item.desc}</Text>
+              <View style={styles.menuFooter}>
+                <Text style={styles.menuIcon}>{item.icon}</Text>
+              </View>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        {/* 공지사항 */}
+        <View style={styles.noticeSection}>
+          <View style={styles.noticeHeader}>
+            <Text style={styles.noticeHeading}>📢 공지사항</Text>
+            <TouchableOpacity onPress={() => router.push('/(app)/notices')}>
+              <Text style={styles.noticeMore}>더보기 ›</Text>
+            </TouchableOpacity>
+          </View>
+          <View style={styles.noticeTable}>
+            <View style={styles.noticeTableHead}>
+              <Text style={[styles.noticeHeadCell, styles.noticeTitleCol]}>제목</Text>
+              <Text style={[styles.noticeHeadCell, styles.noticeDateCol]}>작성일</Text>
+            </View>
+            {notices.length === 0 ? (
+              <View style={styles.noticeEmpty}>
+                <Text style={styles.noticeEmptyText}>등록된 공지가 없습니다.</Text>
+              </View>
+            ) : (
+              notices.map(post => (
+                <TouchableOpacity
+                  key={post.id}
+                  style={styles.noticeRow}
+                  activeOpacity={0.6}
+                  onPress={() => router.push('/(app)/notices')}
+                >
+                  <Text style={[styles.noticeCell, styles.noticeTitleCol]} numberOfLines={1}>
+                    {post.title}
+                  </Text>
+                  <Text style={[styles.noticeDateText, styles.noticeDateCol]}>
+                    {formatNoticeDate(post.created_at)}
+                  </Text>
+                </TouchableOpacity>
+              ))
+            )}
+          </View>
+        </View>
+      </ScrollView>
+    </SafeAreaView>
   )
 }
 
+const ORANGE = '#f97316'
+const NAVY = '#1e2a4a'
+
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f0eefc' },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  list: { padding: 16, paddingBottom: 32 },
-  header: { marginBottom: 4 },
-  sectionLabel: {
-    paddingVertical: 8,
-    paddingHorizontal: 4,
-    marginBottom: 4,
+  safe: { flex: 1, backgroundColor: ORANGE },
+  topBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 18,
+    paddingVertical: 12,
+    backgroundColor: ORANGE,
   },
-  sectionLabelText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#514b81',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
+  brand: { fontSize: 18, fontWeight: '800', color: '#fff', letterSpacing: 1 },
+  topBarIcon: { fontSize: 20 },
+  container: { flex: 1, backgroundColor: '#f6f7fa' },
+  content: { padding: 16, paddingBottom: 40 },
+
+  hero: {
+    flexDirection: 'row',
+    backgroundColor: ORANGE,
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 14,
+    shadowColor: ORANGE,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    elevation: 5,
   },
-  card: {
+  heroTextArea: { flex: 1 },
+  heroTitle: { fontSize: 21, fontWeight: '800', color: '#fff', marginBottom: 6 },
+  heroDesc: { fontSize: 13, color: '#ffedd5', lineHeight: 19, marginBottom: 12 },
+  heroBadge: {
+    alignSelf: 'flex-start',
+    backgroundColor: 'rgba(255,255,255,0.22)',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+  },
+  heroBadgeText: { fontSize: 12, fontWeight: '700', color: '#fff' },
+  heroIconWrap: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    alignSelf: 'center',
+    marginLeft: 12,
+  },
+  heroIcon: { fontSize: 32 },
+
+  grid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+    marginBottom: 18,
+  },
+  menuCard: {
+    width: '48%',
+    flexGrow: 1,
     backgroundColor: '#fff',
     borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#e8eaf0',
     padding: 16,
-    marginBottom: 12,
-    shadowColor: '#7b68ee',
+    shadowColor: '#0f172a',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 3,
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    elevation: 2,
   },
-  cardToday: {
-    borderLeftWidth: 4,
-    borderLeftColor: '#7b68ee',
-  },
-  cardHeader: {
+  menuTitle: { fontSize: 16, fontWeight: '800', color: NAVY, marginBottom: 6 },
+  menuDesc: { fontSize: 12, color: '#6b7280', lineHeight: 17, marginBottom: 12 },
+  menuFooter: {
     flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 10,
   },
-  typeBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 8,
-  },
-  typeText: { fontSize: 12, fontWeight: '600' },
-  statusBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 8,
+  soonBadge: {
     backgroundColor: '#f3f4f6',
-  },
-  statusBadgeToday: { backgroundColor: '#f5f4ff' },
-  statusText: { fontSize: 12, fontWeight: '600', color: '#6b7280' },
-  statusTextToday: { color: '#7b68ee' },
-  customerName: { fontSize: 17, fontWeight: '700', color: '#090c1d', marginBottom: 2 },
-  customerCode: { fontSize: 12, color: '#b0acd6', marginBottom: 10 },
-  cardFooter: { gap: 4 },
-  dateText: { fontSize: 13, color: '#514b81' },
-  addressText: { fontSize: 12, color: '#9ca3af' },
-  startedBadge: {
-    marginTop: 10,
-    alignSelf: 'flex-start',
-    backgroundColor: '#dcfce7',
-    paddingHorizontal: 10,
+    paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 6,
   },
-  startedText: { fontSize: 11, color: '#16a34a', fontWeight: '600' },
-  empty: { flex: 1, alignItems: 'center', paddingTop: 80 },
-  emptyIcon: { fontSize: 48, marginBottom: 12 },
-  emptyText: { fontSize: 16, color: '#9ca3af' },
+  soonBadgeText: { fontSize: 10, fontWeight: '700', color: '#9ca3af' },
+  menuIcon: { fontSize: 22, marginLeft: 'auto' },
+
+  noticeSection: { marginBottom: 8 },
+  noticeHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+    paddingHorizontal: 2,
+  },
+  noticeHeading: { fontSize: 15, fontWeight: '800', color: NAVY },
+  noticeMore: { fontSize: 13, color: '#6b7280', fontWeight: '600' },
+  noticeTable: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#e8eaf0',
+    overflow: 'hidden',
+  },
+  noticeTableHead: {
+    flexDirection: 'row',
+    backgroundColor: '#f8f9fc',
+    paddingVertical: 9,
+    paddingHorizontal: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#eef0f4',
+  },
+  noticeHeadCell: { fontSize: 12, fontWeight: '700', color: '#6b7280' },
+  noticeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f3f4f8',
+  },
+  noticeCell: { fontSize: 13, color: '#111827' },
+  noticeDateText: { fontSize: 12, color: '#9ca3af' },
+  noticeTitleCol: { flex: 1, paddingRight: 10 },
+  noticeDateCol: { width: 82, textAlign: 'right' },
+  noticeEmpty: { paddingVertical: 24, alignItems: 'center' },
+  noticeEmptyText: { fontSize: 13, color: '#9ca3af' },
 })

@@ -39,6 +39,7 @@ export interface Inspection {
   sequence_num: 1 | 2
   status: InspectionStatus
   notes: string | null
+  plan_type?: string | null
 }
 
 export interface InspectionStep {

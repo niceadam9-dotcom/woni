@@ -51,6 +51,44 @@ export async function fetchMyPlanItems(): Promise<PlanItem[]> {
   })
 }
 
+// 점검표 응답 저장 — 서버 /api/mobile/sheet-save (웹 저장과 같은 코어를 탄다).
+// 충돌(conflicts)이 오면 그 항목은 저장되지 않은 것 — 화면이 서버값/내값을 보여 고르게 한다.
+export interface SheetSaveRow {
+  item_code: string
+  result: 'O' | 'X' | 'N'
+  memo?: string | null
+  /** 클라이언트가 마지막으로 본 서버 updated_at — 신규 입력은 null. 충돌 판정의 기준점. */
+  base_updated_at?: string | null
+}
+
+export interface SheetSaveConflict {
+  item_code: string
+  server: { result: string; memo: string | null; updated_at: string; updated_by: string | null }
+}
+
+export async function saveSheetResponses(params: {
+  inspectionId: string
+  rows: SheetSaveRow[]
+  month?: number
+  clearCodes?: string[]
+  force?: boolean
+}): Promise<{ saved?: number; conflicts?: SheetSaveConflict[]; stepsChanged?: boolean; error?: string; offline?: boolean }> {
+  try {
+    const headers = await getAuthHeaders()
+    const res = await fetch(`${ERP_URL}/api/mobile/sheet-save`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(params),
+    })
+    const json = await res.json().catch(() => ({}))
+    if (!res.ok) return { error: (json as { error?: string }).error ?? '서버 오류가 발생했습니다.' }
+    return json as { saved: number; conflicts: SheetSaveConflict[]; stepsChanged: boolean }
+  } catch {
+    // 네트워크 실패 — 오프라인 큐(Phase D)가 이 신호를 받아 적재한다
+    return { error: '네트워크 오류가 발생했습니다.', offline: true }
+  }
+}
+
 // 음성 텍스트로 불량항목 AI 분류
 export async function classifyVoiceDefects(
   transcript: string

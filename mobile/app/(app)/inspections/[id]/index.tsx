@@ -360,6 +360,20 @@ export default function InspectionDetailScreen() {
 
         {inspection && (
           <>
+            {/* 점검표 입력 (C1) — 웹 「입력의 정본」의 모바일 입구. sheetX 카운트가 진행 신호다 */}
+            <TouchableOpacity
+              style={styles.sheetEntryBtn}
+              activeOpacity={0.8}
+              onPress={() => router.push(`/(app)/inspections/${id}/sheets`)}
+            >
+              <Text style={styles.sheetEntryBtnText}>📋 점검표 입력</Text>
+              {sheetX > 0 && (
+                <View style={styles.sheetXBadge}>
+                  <Text style={styles.sheetXBadgeText}>✕ {sheetX}</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+
             {/* 7단계 진행 현황 */}
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>점검 단계</Text>
@@ -526,6 +540,24 @@ const styles = StyleSheet.create({
   },
   startButtonDisabled: { opacity: 0.6 },
   startButtonText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  sheetEntryBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#f97316',
+    borderRadius: 12,
+    paddingVertical: 14,
+    marginBottom: 16,
+  },
+  sheetEntryBtnText: { color: '#fff', fontSize: 16, fontWeight: '800' },
+  sheetXBadge: {
+    backgroundColor: 'rgba(255,255,255,0.25)',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  sheetXBadgeText: { color: '#fff', fontSize: 13, fontWeight: '700' },
   stepRow: {
     flexDirection: 'row',
     alignItems: 'center',
