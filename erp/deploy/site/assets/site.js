@@ -1,5 +1,5 @@
 // 상담 신청 — 1단계는 서버 없이 메일 작성 창으로 넘긴다. 앱 API(sjfire.co.kr/api/…) 접수는 2단계에서.
-var INQUIRY_TO = 'support@sjfirekorea.co.kr'
+var INQUIRY_TO = 'sj78920@naver.com'
 
 function sendInquiry(form) {
   var d = new FormData(form)
