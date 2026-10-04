@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>점검 업무 프로그램 — 승진소방ENG IT S/W</title>
+<meta name="description" content="소방시설 점검업체를 위한 업무 프로그램. 점검 달력, 6단계 점검, 별지 9·10·11호 자동 작성, 모바일 오프라인 점검표.">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pretendard@1.3.9/dist/web/static/pretendard.min.css">
+<link rel="stylesheet" href="assets/site.css">
+</head>
+<body>
+
+<header class="top" id="top">
+  <div class="wrap">
+    <a class="logo" href="/"><span class="logo-mark">SJ</span><span>승진소방ENG<small>IT S/W</small></span></a>
+    <nav class="nav">
+      <a href="/#about">회사소개</a>
+      <a href="/#services">소방업무</a>
+      <a class="on" href="software.html">IT S/W</a>
+      <a href="#demo">도입문의</a>
+    </nav>
+    <div class="top-cta">
+      <a class="btn btn-line" href="https://sjfire.co.kr/login">로그인</a>
+      <a class="btn btn-accent" href="#demo">데모 신청</a>
+    </div>
+    <button class="menu-toggle" type="button" aria-label="메뉴" onclick="document.getElementById('top').classList.toggle('open')">메뉴</button>
+  </div>
+</header>
+
+<section class="hero">
+  <div class="wrap">
+    <div>
+      <span class="eyebrow">소방시설 점검업체 업무 프로그램 · 제품명 <span class="todo">미정</span></span>
+      <h1>점검 일정부터<br><em>소방서 제출까지 한 화면</em></h1>
+      <p class="lead">점검업체가 직접 쓰려고 만든 프로그램입니다. 법정 점검 시기와 보고 기한을 자동으로 계산하고, 별지 서식과 소방계획서를 점검 기록에서 바로 만들어 냅니다.</p>
+      <div class="actions">
+        <a class="btn btn-accent" href="#demo">데모 신청</a>
+        <a class="btn btn-ghost" href="#features">기능 보기</a>
+      </div>
+    </div>
+    <div class="hero-card">
+      <h3>이런 일이 줄어듭니다</h3>
+      <ul>
+        <li><span class="dot">✓</span><span>달력에 점검 시기를 손으로 옮겨 적는 일</span></li>
+        <li><span class="dot">✓</span><span>별지 서식에 같은 내용을 다시 타이핑하는 일</span></li>
+        <li><span class="dot">✓</span><span>보고 기한 15일·이행 기한을 놓치는 일</span></li>
+        <li><span class="dot">✓</span><span>현장에서 종이에 적고 사무실에서 다시 입력하는 일</span></li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section class="block" id="features">
+  <div class="wrap">
+    <div class="head">
+      <span class="eyebrow">주요 기능</span>
+      <h2>점검 한 바퀴를 그대로 옮겼습니다</h2>
+      <p>점검업체가 실제로 일하는 순서대로 화면을 만들었습니다.</p>
+    </div>
+
+    <div class="feature-row">
+      <div class="txt">
+        <span class="eyebrow">점검 달력</span>
+        <h3>법정 점검 시기를 자동으로 잡습니다</h3>
+        <p>사용승인일을 넣으면 종합점검과 작동점검 달이 계산되어 달력에 올라갑니다. 주말과 공휴일은 다음 영업일로 밀어 줍니다.</p>
+        <ul><li>고객별 점검 일정·담당자 배정</li><li>점검 전 관계인 안내 문자</li><li>보고 기한 임박 경고</li></ul>
+      </div>
+      <div class="mock" aria-hidden="true">
+        <div class="mock-bar"><i></i><i></i><i></i></div>
+        <span class="mock-chip">일</span><span class="mock-chip">월</span><span class="mock-chip">화</span><span class="mock-chip">수</span><span class="mock-chip">목</span><span class="mock-chip">금</span><span class="mock-chip">토</span>
+        <div class="mock-row a"></div><div class="mock-row"></div><div class="mock-row n"></div><div class="mock-row"></div><div class="mock-row a"></div>
+      </div>
+    </div>
+
+    <div class="feature-row rev">
+      <div class="txt">
+        <span class="eyebrow">6단계 점검</span>
+        <h3>점검표에서 이행 완료까지 단계별로</h3>
+        <p>점검표 → 결과 보고 → 관계인 보고 → 소방서 제출 → 이행계획 → 이행완료. 각 단계의 완료 조건과 마감일이 화면에 보입니다.</p>
+        <ul><li>불량이 없으면 이행 단계는 자동으로 감춤</li><li>단계마다 남은 기한 표시</li></ul>
+      </div>
+      <div class="mock" aria-hidden="true">
+        <div class="mock-bar"><i></i><i></i><i></i></div>
+        <span class="mock-chip ok">① 점검표</span><span class="mock-chip ok">② 결과 보고</span><span class="mock-chip ok">③ 관계인 보고</span><span class="mock-chip on">④ 소방서 제출</span>
+        <div class="mock-row n"></div><div class="mock-row"></div><div class="mock-row a"></div><div class="mock-row"></div>
+      </div>
+    </div>
+
+    <div class="feature-row">
+      <div class="txt">
+        <span class="eyebrow">법정 서식</span>
+        <h3>별지 9·10·11호와 소방계획서를 자동으로</h3>
+        <p>점검 기록이 그대로 서식에 들어갑니다. 소방시설 민원센터에 올릴 한글(HWPX) 파일도 만들어 줍니다.</p>
+        <ul><li>점검결과보고서·이행계획서·이행완료보고서</li><li>소방계획서 엑셀·PDF</li><li>자체점검 기록표 게시물</li></ul>
+      </div>
+      <div class="mock" aria-hidden="true">
+        <div class="mock-bar"><i></i><i></i><i></i></div>
+        <span class="mock-chip on">별지 9호</span><span class="mock-chip">별지 10호</span><span class="mock-chip">별지 11호</span><span class="mock-chip">소방계획서</span>
+        <div class="mock-row"></div><div class="mock-row n"></div><div class="mock-row"></div><div class="mock-row n"></div><div class="mock-row"></div>
+      </div>
+    </div>
+
+    <div class="feature-row rev">
+      <div class="txt">
+        <span class="eyebrow">모바일 점검표</span>
+        <h3>지하 기계실에서도 끊기지 않습니다</h3>
+        <p>휴대폰으로 점검표를 입력합니다. 전파가 안 잡히는 곳에서 입력한 내용은 휴대폰에 쌓였다가 연결되면 자동으로 올라갑니다.</p>
+        <ul><li>오프라인 입력·자동 동기화</li><li>설비 QR을 찍으면 이력 바로 확인</li></ul>
+      </div>
+      <div class="mock" aria-hidden="true">
+        <div class="mock-bar"><i></i><i></i><i></i></div>
+        <span class="mock-chip ok">○ 양호</span><span class="mock-chip on">✕ 불량</span><span class="mock-chip">／ 해당없음</span>
+        <div class="mock-row a"></div><div class="mock-row"></div><div class="mock-row n"></div>
+      </div>
+    </div>
+
+    <div class="feature-row">
+      <div class="txt">
+        <span class="eyebrow">불량 → 매출</span>
+        <h3>불량이 보수 견적으로 이어집니다</h3>
+        <p>점검에서 나온 불량으로 견적서를 만들고, 관계인에게 링크로 보내 열람·승인·서명을 받습니다.</p>
+        <ul><li>견적 → 발주 → 청구 연결</li><li>홈택스 세금계산서 일괄발급 엑셀</li></ul>
+      </div>
+      <div class="mock" aria-hidden="true">
+        <div class="mock-bar"><i></i><i></i><i></i></div>
+        <span class="mock-chip">불량 3건</span><span class="mock-chip on">견적서 만들기</span>
+        <div class="mock-row n"></div><div class="mock-row"></div><div class="mock-row a"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="block soft">
+  <div class="wrap">
+    <div class="head"><span class="eyebrow">요금</span><h2>대상물 수에 따라</h2><p>요금표는 준비 중입니다. 데모를 신청하시면 먼저 안내해 드립니다.</p></div>
+    <table class="compare">
+      <thead><tr><th>구분</th><th>기본</th><th>부가 서비스</th></tr></thead>
+      <tbody>
+        <tr><td>포함 기능</td><td>점검 달력 · 6단계 점검 · 법정 서식 · 모바일 점검표</td><td>설비 대장·QR · 견적·청구 · 문자 발송</td></tr>
+        <tr><td>요금</td><td class="price"><span class="todo">준비 중</span></td><td class="price"><span class="todo">준비 중</span></td></tr>
+        <tr><td>데이터</td><td colspan="2">입력한 고객·점검 데이터는 이용하는 업체의 것입니다. 해지할 때 엑셀로 내려받을 수 있습니다.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="block" id="demo">
+  <div class="wrap">
+    <div class="head"><span class="eyebrow">도입문의</span><h2>데모로 먼저 써 보세요</h2><p>가짜 고객 데이터가 들어 있는 데모 화면으로 점검 한 바퀴를 직접 돌려 보실 수 있습니다.</p></div>
+    <div class="contact">
+      <div class="contact-info">
+        <h3>도입 상담</h3>
+        <dl>
+          <dt>전화</dt><dd><a href="tel:031-772-3019">031-772-3019</a></dd>
+          <dt>이메일</dt><dd><a href="mailto:support@sjfirekorea.co.kr">support@sjfirekorea.co.kr</a></dd>
+          <dt>대상</dt><dd>소방시설관리업 · 소방시설공사업 등록 업체</dd>
+        </dl>
+      </div>
+      <form class="form" onsubmit="return sendInquiry(this)">
+        <input type="hidden" name="kind" value="프로그램 도입">
+        <div class="row2">
+          <div class="field"><label>회사명 / 담당자</label><input name="name" required></div>
+          <div class="field"><label>연락처</label><input name="phone" required></div>
+        </div>
+        <div class="field"><label>관리 대상물 수 (대략)</label><input name="place" placeholder="예: 150곳"></div>
+        <div class="field"><label>궁금한 점</label><textarea name="msg" rows="4"></textarea></div>
+        <label class="agree"><input type="checkbox" required> <span>상담을 위해 회사명·연락처를 수집하고 상담이 끝나면 지체 없이 파기하는 데 동의합니다.</span></label>
+        <button class="btn btn-accent" type="submit">데모 신청 보내기</button>
+      </form>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div class="flinks"><a href="privacy.html">개인정보 처리방침</a><a href="/">회사 홈</a><a href="https://sjfire.co.kr/login">로그인</a></div>
+    <div class="biz">
+      <span>주식회사 승진소방ENG</span><span>대표이사 김흥준</span><span>사업자등록번호 586-86-00740</span><br>
+      <span>경기도 양평군 양평읍 잿말길10번길 50-1</span><span>전화 031-772-3019</span><span>support@sjfirekorea.co.kr</span>
+    </div>
+    <div>© 승진소방ENG. All rights reserved.</div>
+  </div>
+</footer>
+
+<script src="assets/site.js"></script>
+</body>
+</html>

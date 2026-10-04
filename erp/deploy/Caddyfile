@@ -42,7 +42,15 @@ sjfire.co.kr {
 }
 
 www.sjfire.co.kr {
-	redir https://sjfire.co.kr{uri} permanent
+	root * /srv/site
+	file_server
+	encode gzip
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		?Cache-Control "public, max-age=300"
+	}
 }
 
 # 스테이징 — 별도 체크아웃(/home/ubuntu/woni-staging, staging 브랜치) 컨테이너로 프록시
