@@ -843,6 +843,8 @@ const steps: Step[] = [
   //   변이 프로브: `node scripts/_mutate-onboarding-order.mjs` (17/17 빨강 실측 2026-09-15 —
   //   M11이 「한 상태만 재던 단언」을 뚫어 네 상태 전수로 고쳤다)
   { name: '신규등록 순서',             cmd: 'npx tsx scripts/test-onboarding-order.mts' },
+  // 직접 친 주소로 [주소 검색]을 바로 띄울 때 — 검색어 본체와 덧붙인 동/호수 가르기(2026-10-06)
+  { name: '주소 본체·상세 가르기',     cmd: 'npx tsx scripts/test-address-detail.mts' },
   // 권한 경계 — 등재된 권한 검사가 **0건**이었다. 알맹이는 직원 JWT로 배정·고객삭제·계획항목삭제를
   // **직접 호출**했을 때 RLS가 막는가이다(화면을 감추는 것은 방어가 아니다). 관리자로 같은 3건이
   // 통하는 양성 짝을 붙였다 — 없으면 '요청이 애초에 안 닿았다'와 구별되지 않는다.

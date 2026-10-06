@@ -62,7 +62,7 @@ ok('폼의 필수는 여전히 **6칸**이고 그 6칸이다', () => {
   //   `matchAll`로 캡처 그룹만 꺼낸다.
   const items = [...m[0].matchAll(/\n\s*\['([^']+)'/g)].map(x => x[1])
   return items.length === 6
-    && ['주소', '고객명', '점검유형', '점검일자', '사용승인일', '대표 관계인'].every(k => items.includes(k))
+    && ['주소', '고객명', '점검유형', '점검일자', '사용승인일', '관계인'].every(k => items.includes(k))
 }, (form.match(/const requiredChecks[\s\S]*?\n  \]/)?.[0].match(/\n\s*\['[^']+'/g) ?? []).join(' '))
 
 console.log('\n— ② 권한 — 버튼 자체를 가린다')

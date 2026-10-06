@@ -26,7 +26,7 @@ declare global {
         width?: string | number
         height?: string | number
         theme?: Record<string, string>
-      }) => { open: () => void; embed: (el: HTMLElement) => void }
+      }) => { open: () => void; embed: (el: HTMLElement, opts?: { q?: string }) => void }
     }
   }
 }
@@ -43,7 +43,9 @@ export function useDaumPostcode() {
 
   // 레이어(임베드) 방식 — 구 팝업(open) 방식은 브라우저 팝업 차단기에 걸리면 클릭해도 무반응
   // (2026-08-04 주소 조회 불가 이슈). 화면 안 오버레이에 임베드해 차단기와 무관하게 동작.
-  return (onComplete: (data: DaumPostcodeData) => void) => {
+  /** `opts.q` — 검색창에 미리 넣을 글자(2026-10-06). 주소 칸에 직접 친 주소로 결과가 바로 뜬다 —
+   *  다시 칠 필요가 없다. 안 넘기면 종전대로 빈 검색창이다(다른 호출부 무변경). */
+  return (onComplete: (data: DaumPostcodeData) => void, opts?: { q?: string }) => {
     if (!window.daum?.Postcode) {
       alert('주소 검색 서비스를 불러오는 중입니다. 잠시 후 다시 시도해주세요.\n(계속 안 되면 인터넷 연결을 확인해주세요)')
       return
@@ -69,6 +71,6 @@ export function useDaumPostcode() {
       oncomplete: data => { destroy(); onComplete(data) },
       width: '100%',
       height: '100%',
-    }).embed(inner)
+    }).embed(inner, opts?.q?.trim() ? { q: opts.q.trim() } : undefined)
   }
 }

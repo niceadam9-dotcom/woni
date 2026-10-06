@@ -12,6 +12,7 @@ import { DateInput, isCompleteDate } from '@/components/ui/date-input'
 import { ComboInput } from '@/components/ui/combo-input'
 import { formatPhoneKR } from '@/components/ui/fields'
 import { anchorRoles } from '@/lib/anchor-role'
+import { splitAddressDetail, joinAddressDetail } from '@/lib/address-detail'
 import { GroupBox, SubRow, Cell, RoleBadge, keyInputCls, emptyRequiredCls } from '@/components/customers/key-fields'
 import type { InspectionType } from '@/types'
 
@@ -66,6 +67,8 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
   const searchedAddrRef = useRef('')
   const lastTypedLookupRef = useRef('')
   const buildingLookupSeq = useRef(0)
+  // 직접 입력 조회가 맞춘 정식 도로명 — [주소 검색]의 검색어로 쓴다(친 글자가 그대로일 때만)
+  const typedRoadRef = useRef<{ typed: string; road: string }>({ typed: '', road: '' })
   // ADD-3: 관계인 — 대표만 기본, [추가] 버튼으로 직원1/직원2 노출
   const [visibleContactRoles, setVisibleContactRoles] = useState<Array<'대표' | '직원1' | '직원2'>>(['대표'])
 
@@ -128,13 +131,20 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
   }, [])
 
   function handleAddressSearch() {
+    /* 칸에 이미 친 주소로 검색창을 채워 연다(2026-10-06 사용자 요청: 「직접 입력한 후 주소검색하면 바로 주소입력이
+       되게 — 다시 입력할 필요 없이」). 검색어 = 본체(도로명+건물번호)만 — 「3층」이 섞이면 Daum 검색이 0건이다.
+       직접 입력 조회가 이미 정식 도로명을 찾았으면 그걸 넣는다(「서울 중구…」로 줄여 쳐도 한 건이 뜬다).
+       덧붙인 상세(동/호수)는 결과를 고른 뒤 도로명 뒤에 다시 붙인다 — 검색이 지우지 않게. */
+    const typed = form.address.trim()
+    const { base, detail } = splitAddressDetail(typed)
+    const q = typedRoadRef.current.typed === typed && typedRoadRef.current.road ? typedRoadRef.current.road : base
     openPostcode(data => {
       setAddrJibun(data.jibunAddress)
       // ADD-1: 지역 필드는 UI에서 제거됐지만 지역배정/필터/검색이 사용하므로 백그라운드 자동 저장 유지
       setForm(prev => ({
         ...prev,
         zipcode: data.zonecode,
-        address: data.roadAddress,
+        address: joinAddressDetail(data.roadAddress, detail),
         region_si: data.sigungu,
         region_myeon: data.bname1 || data.bname,
         region_ri: data.bname2 || '',
@@ -165,7 +175,7 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
       searchedAddrRef.current = data.roadAddress
       lastTypedLookupRef.current = ''
       loadBuildingInfo(data.roadAddress, data.bcode ? { bcode: data.bcode, jibun: data.jibunAddress } : null, '')
-    })
+    }, { q })
   }
 
   /** 주소 하나에 대해 건물정보를 채운다 — [주소 검색]과 **직접 입력**(2026-10-06 사용자 요청)이 같은 한 벌을 쓴다.
@@ -266,6 +276,8 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
         region_myeon: geo.regionMyeon  || prev.region_myeon,
         region_ri:    geo.regionRi     ?? '',
       }))
+      // [주소 검색]이 이 정식 도로명으로 검색창을 채운다 — 칸 글자가 그대로일 때만(고치면 다시 친 글자로)
+      typedRoadRef.current = { typed: addr, road: geo.roadAddress ?? '' }
       loadBuildingInfo(geo.roadAddress || addr, { bcode: geo.bcode, jibun: geo.jibunAddress },
         geo.roadAddress ? ` (도로명 「${geo.roadAddress}」 기준)` : '')
     }).catch(() => {
@@ -422,7 +434,7 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
   }
 
   // §10-2(T9): 필수 충족 체크 — 하단 바 칩·[등록] 활성화.
-  // 순서 = **화면 순서**(① 고객명·주소 → ② 사용승인일·점검일자·점검유형 → ③ 대표) — 칩이 위→아래로 읽힌다.
+  // 순서 = **화면 순서**(① 고객명 → 사용승인일·점검일자·점검유형 → 주소 → ② 관계인) — 칩이 위→아래로 읽힌다.
   const requiredChecks: Array<[string, boolean]> = [
     ['고객명', !!form.customer_name.trim()],
     ['주소', !!form.address.trim()],
@@ -433,7 +445,7 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
     ['사용승인일', isCompleteDate(form.use_approval_date)],
     ['점검일자', isCompleteDate(form.plan_anchor_date)],
     ['점검유형', !!form.inspection_type],
-    ['대표 관계인', !!contacts['대표'].name.trim()],
+    ['관계인', !!contacts['대표'].name.trim()],
   ]
   const allFieldsOk = requiredChecks.every(c => c[1])
   const requiredOk = allFieldsOk && !!form.customer_code.trim()  // 고객코드 자동 생성 완료까지 등록 보류
@@ -453,7 +465,8 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
   return (
     <form className="space-y-4" onSubmit={e => { e.preventDefault(); handleSubmit() }}>
     {/* 그룹 단위 정렬 (2026-09-23 사용자 요청 — 「산만하게 조회되지 않게, 그룹 단위로 묶어서 정렬」).
-        ① 기본정보 → ② 건물·시설 → ③ 관계인 세 상자를 **고객 상세 탭과 같은 이름·순서**로 쌓는다.
+        ① 기본정보 → ② 관계인 → ③ 건물정보 — 2026-10-06 사용자 요청으로 **필수 칸이 있는 상자를 위로** 모았다
+        (「필수값이 스크롤바 내리지 않고 한눈에」). 고객 상세 탭 순서(건물정보 → 관계인)와는 이제 다르다.
         상자 안은 소그룹 줄(왼쪽 이름 + 4열 격자) — 칸은 span 1·2·3·4 중 하나라 세로줄이 끝까지 맞는다.
         ★ 기준일(사용승인일·점검일자)은 보라 바탕 + 큰 칸 + `기산점` 배지 — 「중요하니 눈에 띄게」.
         ⚠ 종전의 ④ 접이는 없앴다 — 폭을 넓게 쓰니 다 펼쳐도 산만하지 않고, 대장 자동값이 바로 보인다. */}
@@ -555,11 +568,10 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
                 ⚠ 이 스위치가 plan_anchor_manual=true를 만드는 **유일한 화면**이었다(상세 수정은 기존 값을 보존만 한다).
                   이제 새 고객은 늘 법정 축(사용승인일 없으면 점검일자 잠정)이다. 기존 예외 고객은 그대로다. */}
           </Cell>
-        </SubRow>
-
-        {/* 점검유형 — 라디오를 **세그먼트 버튼** 모양으로(라디오 자체는 남긴다: 화살표 키·name 묶음이 그대로 산다).
-            자체점검 종류 — 소방안전관리·일반관리 공통 종합/작동 선택 (소방계획서_6 W-1) */}
-        <SubRow label="점검">
+          {/* 점검유형 — 기준일 줄의 빈 두 칸으로 올렸다(2026-10-06 사용자 요청: 필수값을 스크롤 없이 한눈에).
+              「점검」 줄이 통째로 빠져 ~100px가 준다. 연간 점검 설명은 이 칸 아래 작은 글씨로.
+              라디오를 **세그먼트 버튼** 모양으로(라디오 자체는 남긴다: 화살표 키·name 묶음이 그대로 산다).
+              자체점검 종류 — 소방안전관리·일반관리 공통 종합/작동 선택 (소방계획서_6 W-1) */}
           <Cell span={2} label="점검유형" required>
             <div className="flex flex-wrap items-center gap-2">
               <div role="radiogroup" aria-label="관리 구분" className="inline-flex rounded-lg border border-line overflow-hidden">
@@ -598,10 +610,8 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
                 })}
               </div>
             </div>
-          </Cell>
-          <Cell span={2} label="연간 점검">
-            <p className="h-10 flex items-center text-form-sm text-ink-sub">
-              {form.inspection_type !== '일반관리' ? `소방안전관리 › ${form.inspection_type}` : `일반관리 › ${form.general_sub_type}`} — {INSPECTION_ANNUAL[form.inspection_type]}
+            <p data-testid="new-annual" className="text-form-xs text-ink-sub">
+              {INSPECTION_ANNUAL[form.inspection_type]}
             </p>
           </Cell>
         </SubRow>
@@ -649,68 +659,10 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
         </SubRow>
       </GroupBox>
 
-      {/* ② 건물·시설 — 주소 검색이 건축물대장에서 채워 준 값을 여기서 확인·보정한다(V9-3). */}
-      <GroupBox n={2} title="건물정보" testId="new-group-building"
-        right={ledgerNote.startsWith('건축물대장 자동') ? <span className="text-form-2xs text-green-700 bg-green-50 px-2 py-0.5 rounded-full">건축물대장 자동 채움</span> : undefined}>
-        <SubRow label="건물">
-          <Cell span={2} label="건물용도">
-            {/* 049 building_purposes 목록 제안 — select가 아닌 콤보: 건축물대장이 목록에 없는 용도를
-                자동 입력하는 경우가 있어 강제하면 값이 잘린다 (buildings.purpose는 자유 TEXT).
-                datalist에서 ComboInput으로 교체(2026-08-19) — datalist는 타이핑 전에는 목록이
-                안 떠서 "선택하거나"가 거짓말이었다. 이제 칸을 누르면 전체가 펼쳐진다. */}
-            <ComboInput
-              value={form.building_purpose}
-              onChange={v => setField('building_purpose', v)}
-              options={purposes}
-              ariaLabel="건물용도"
-              placeholder={purposes.length > 0 ? '선택하거나 직접 입력' : '예: 업무시설, 근린생활시설'}
-              className={inputCls}
-            />
-          </Cell>
-          <Cell label="연면적 (㎡)">
-            <input type="number" aria-label="연면적 (㎡)" value={form.building_total_area}
-              onChange={e => setField('building_total_area', e.target.value)}
-              placeholder="예: 1500.5" min="0" step="0.01" className={inputCls} />
-          </Cell>
-          <Cell label="준공연도">
-            <input type="number" aria-label="준공연도" value={form.building_year_built}
-              onChange={e => setField('building_year_built', e.target.value)}
-              placeholder="예: 2005" min="1900" max={new Date().getFullYear()} className={inputCls} />
-          </Cell>
-        </SubRow>
-        <SubRow label="규모·등급">
-          <Cell label="지상층수">
-            <input type="number" aria-label="지상층수" value={form.building_floors_above}
-              onChange={e => setField('building_floors_above', e.target.value)}
-              placeholder="예: 5" min="0" className={inputCls} />
-          </Cell>
-          <Cell label="지하층수">
-            <input type="number" aria-label="지하층수" value={form.building_floors_below}
-              onChange={e => setField('building_floors_below', e.target.value)}
-              placeholder="예: 1" min="0" className={inputCls} />
-          </Cell>
-          {/* 소방안전관리등급 (2026-08-20) — 별지 9호 2쪽 «소방안전정보»에 실리는 대상물 급수(별표4).
-              **필수로 걸지 않는다**: 별표4의 2·3급은 설비 설치 여부로 갈리는데 등록 폼엔 설비 입력이 없어
-              등록 시점에 자동 산정이 사실상 불가하다. 실측상 최근 1년 등록 321건 중 315건이 미입력이었고,
-              필수로 걸었다면 그 전부가 등록 자체를 못 했다(2026-08-20). 아는 사람은 여기서 바로 채운다. */}
-          <Cell span={2} label="소방안전관리등급 (모르면 비워두세요 — 관계인 탭에서 나중에 입력·자동 산정)">
-            <div className="inline-flex rounded-lg border border-line overflow-hidden">
-              {(['특급', '1급', '2급', '3급'] as const).map(g => (
-                <button key={g} type="button"
-                  aria-pressed={form.building_grade === g}
-                  onClick={() => setField('building_grade', form.building_grade === g ? '' : g)}
-                  className={`${segCls} ${form.building_grade === g ? segOnCls : segOffCls}`}>
-                  {g}
-                </button>
-              ))}
-            </div>
-          </Cell>
-        </SubRow>
-      </GroupBox>
-
-      {/* ③ 관계인 — 대표 1명 필수, 추가는 최대 2명(ADD-3). 추가 행도 대표와 **같은 4칸**에 선다. */}
-      <GroupBox n={3} title="관계인" testId="new-group-contacts"
-        status={[reqOf('대표 관계인') ? 1 : 0, 1]}
+      {/* ② 관계인 — 필수 칸이 있는 상자라 기본정보 바로 밑(2026-10-06 사용자 요청: 필수값을 스크롤 없이 한눈에).
+          메모(비고) 줄은 같은 날 폐지 — 고객 상세 기본정보 탭의 「비고」에서 입력한다. 대표 1명 필수, 추가는 최대 2명(ADD-3). 추가 행도 대표와 **같은 4칸**에 선다. */}
+      <GroupBox n={2} title="관계인" testId="new-group-contacts"
+        status={[reqOf('관계인') ? 1 : 0, 1]}
         right={visibleContactRoles.length < 3 ? (
           <button
             type="button"
@@ -725,13 +677,13 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
         ) : undefined}>
         {/* 줄 이름·자리표시자는 「관계인」(사용자 지시 2026-10-06) — 저장 role 값 '대표'는 그대로 */}
         <SubRow label="관계인">
-          <Cell label="이름" required htmlFor="contact-대표-name" missing={need(reqOf('대표 관계인'))}>
+          <Cell label="이름" required htmlFor="contact-대표-name" missing={need(reqOf('관계인'))}>
             <input
               id="contact-대표-name"
               value={contacts['대표'].name}
               onChange={e => setContact('대표', 'name', e.target.value)}
               placeholder="관계인 이름 *"
-              className={`${inputCls} ${need(reqOf('대표 관계인')) ? emptyRequiredCls : ''}`}
+              className={`${inputCls} ${need(reqOf('관계인')) ? emptyRequiredCls : ''}`}
             />
           </Cell>
           <Cell label="연락처">
@@ -807,16 +759,63 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
             </Cell>
           </SubRow>
         ))}
-        <SubRow label="메모">
-          <Cell span={4} label="비고" htmlFor="new-notes">
-            <textarea
-              id="new-notes"
-              value={form.notes}
-              onChange={e => setField('notes', e.target.value)}
-              placeholder="특이사항 메모"
-              rows={2}
-              className="w-full rounded-lg border border-brand-line bg-surface px-3 py-2.5 text-sm text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition resize-none"
+      </GroupBox>
+
+      {/* ③ 건물정보 — 전부 선택 입력이라 맨 아래(2026-10-06). 주소 검색이 건축물대장에서 채워 준 값을 여기서 확인·보정한다(V9-3). */}
+      <GroupBox n={3} title="건물정보" testId="new-group-building"
+        right={ledgerNote.startsWith('건축물대장 자동') ? <span className="text-form-2xs text-green-700 bg-green-50 px-2 py-0.5 rounded-full">건축물대장 자동 채움</span> : undefined}>
+        <SubRow label="건물">
+          <Cell span={2} label="건물용도">
+            {/* 049 building_purposes 목록 제안 — select가 아닌 콤보: 건축물대장이 목록에 없는 용도를
+                자동 입력하는 경우가 있어 강제하면 값이 잘린다 (buildings.purpose는 자유 TEXT).
+                datalist에서 ComboInput으로 교체(2026-08-19) — datalist는 타이핑 전에는 목록이
+                안 떠서 "선택하거나"가 거짓말이었다. 이제 칸을 누르면 전체가 펼쳐진다. */}
+            <ComboInput
+              value={form.building_purpose}
+              onChange={v => setField('building_purpose', v)}
+              options={purposes}
+              ariaLabel="건물용도"
+              placeholder={purposes.length > 0 ? '선택하거나 직접 입력' : '예: 업무시설, 근린생활시설'}
+              className={inputCls}
             />
+          </Cell>
+          <Cell label="연면적 (㎡)">
+            <input type="number" aria-label="연면적 (㎡)" value={form.building_total_area}
+              onChange={e => setField('building_total_area', e.target.value)}
+              placeholder="예: 1500.5" min="0" step="0.01" className={inputCls} />
+          </Cell>
+          <Cell label="준공연도">
+            <input type="number" aria-label="준공연도" value={form.building_year_built}
+              onChange={e => setField('building_year_built', e.target.value)}
+              placeholder="예: 2005" min="1900" max={new Date().getFullYear()} className={inputCls} />
+          </Cell>
+        </SubRow>
+        <SubRow label="규모·등급">
+          <Cell label="지상층수">
+            <input type="number" aria-label="지상층수" value={form.building_floors_above}
+              onChange={e => setField('building_floors_above', e.target.value)}
+              placeholder="예: 5" min="0" className={inputCls} />
+          </Cell>
+          <Cell label="지하층수">
+            <input type="number" aria-label="지하층수" value={form.building_floors_below}
+              onChange={e => setField('building_floors_below', e.target.value)}
+              placeholder="예: 1" min="0" className={inputCls} />
+          </Cell>
+          {/* 소방안전관리등급 (2026-08-20) — 별지 9호 2쪽 «소방안전정보»에 실리는 대상물 급수(별표4).
+              **필수로 걸지 않는다**: 별표4의 2·3급은 설비 설치 여부로 갈리는데 등록 폼엔 설비 입력이 없어
+              등록 시점에 자동 산정이 사실상 불가하다. 실측상 최근 1년 등록 321건 중 315건이 미입력이었고,
+              필수로 걸었다면 그 전부가 등록 자체를 못 했다(2026-08-20). 아는 사람은 여기서 바로 채운다. */}
+          <Cell span={2} label="소방안전관리등급 (모르면 비워두세요 — 관계인 탭에서 나중에 입력·자동 산정)">
+            <div className="inline-flex rounded-lg border border-line overflow-hidden">
+              {(['특급', '1급', '2급', '3급'] as const).map(g => (
+                <button key={g} type="button"
+                  aria-pressed={form.building_grade === g}
+                  onClick={() => setField('building_grade', form.building_grade === g ? '' : g)}
+                  className={`${segCls} ${form.building_grade === g ? segOnCls : segOffCls}`}>
+                  {g}
+                </button>
+              ))}
+            </div>
           </Cell>
         </SubRow>
       </GroupBox>

@@ -60,6 +60,50 @@ try {
   check('★ B 없는 주소면 「찾지 못했습니다 — [주소 검색]」을 안내한다', miss, (await noteText()).match(/건물정보[^\n]*/)?.[0] ?? '')
   const metaB = (await meta.count()) ? await meta.innerText() : ''
   check('★ B 앞 주소의 지번·우편번호가 남지 않는다 (엉뚱한 건물로 저장 방지)', !/지번 |우편번호 /.test(metaB), metaB || '(없음)')
+
+  // ── D — 직접 친 주소로 [주소 검색] → 검색창이 채워져 열리고, 고르면 덧붙인 상세가 남는다 (2026-10-06) ──
+  //   「직접입력 한 후 주소검색하면 바로 주소입력이 되게 — 다시 입력할 필요 없이」
+  // 시·구 없이 친다 — 고른 뒤 「서울 중구 …」로 **바뀌어야** 선택이 적용됐다는 증거가 된다
+  //   (Daum 도로명은 「서울 중구 세종대로 110」 꼴이라, 처음부터 그렇게 치면 적용돼도 글자가 같아 구별이 안 된다)
+  await addr.fill('세종대로 110 3층 302호')
+  await page.locator('#new-customer-name').click()
+  await page.waitForTimeout(1500)
+  // 외부 스크립트(t1.daumcdn.net)가 늦게 올 수 있다 — 준비될 때까지 기다린다(안 오면 앱이 alert를 띄운다)
+  const daumReady = await page.waitForFunction(() => !!(window as unknown as { daum?: { Postcode?: unknown } }).daum?.Postcode,
+    undefined, { timeout: 30000 }).then(() => true).catch(() => false)
+  check('D Daum 우편번호 스크립트가 불러와졌다 (외부망)', daumReady)
+  page.once('dialog', d => { console.log('  (dialog)', d.message().slice(0, 80)); d.dismiss().catch(() => null) })
+  await page.getByRole('button', { name: '주소 검색' }).click()
+  const frameOf = async () => {
+    for (let i = 0; i < 40; i++) {
+      for (const f of page.frames()) {
+        const inp = f.locator('input[type="text"], input[type="search"]').first()
+        if (/postcode|daum|kakao/i.test(f.url()) && await inp.count().catch(() => 0)) return f
+      }
+      await page.waitForTimeout(500)
+    }
+    return null
+  }
+  const f = await frameOf()
+  check('D 주소 검색 창이 열린다', !!f, page.frames().map(x => x.url().slice(0, 60)).join(' | '))
+  if (f) {
+    const qv = await f.locator('input[type="text"], input[type="search"]').first().inputValue().catch(() => '')
+    check('★★ D 검색창에 친 주소가 **이미 들어 있다** (다시 칠 필요 없음)', /세종대로 110/.test(qv), qv)
+    check('★ D 검색어엔 「3층 302호」가 섞이지 않는다 (섞이면 0건)', !/3층|302호/.test(qv), qv)
+    // 결과 목록 — 「세종대로 110」이 든 첫 결과를 누른다
+    const hit = f.getByText(/세종대로 110/).first()
+    const shown = await hit.waitFor({ timeout: 20000 }).then(() => true).catch(() => false)
+    check('★ D 결과가 바로 뜬다', shown)
+    if (shown) {
+      if (process.env.PROBE_SHOT) await page.screenshot({ path: process.env.PROBE_SHOT })
+      await hit.click()
+      if (process.env.PROBE_SHOT) { await page.waitForTimeout(1500); await page.screenshot({ path: process.env.PROBE_SHOT.replace('.png', '-after.png') }) }
+      await page.waitForFunction(() => !document.querySelector('iframe[src*="postcode"], iframe[title*="우편번호"]'), undefined, { timeout: 15000 }).catch(() => null)
+      await page.waitForTimeout(800)
+      const v = await addr.inputValue()
+      check('★★ D 고르면 정식 도로명 + **덧붙인 「3층 302호」가 남는다**', /^서울(특별시)? 중구 세종대로 110 3층 302호$/.test(v), v)
+    }
+  }
 } catch (e) {
   check('예외 없음', false, String(e))
 } finally {

@@ -54,7 +54,11 @@ ok('★ 고객명 칸에 autoFocus', /id="new-customer-name"\s*\n\s*ref=\{custom
 ok('autoFocus는 하나뿐', (jsx.match(/\bautoFocus\b/g) ?? []).length === 1)
 {
   const i = src.indexOf('function handleAddressSearch()')
-  const body = i > 0 ? src.slice(i, src.indexOf('checkAddressAction(data.roadAddress)', i)) : ''
+  // 끝 표식 = 검색 콜백이 건물정보 조회로 넘기는 줄(2026-10-06 loadBuildingInfo로 공용화). 표식이 없으면 빈 본문 —
+  // indexOf가 -1이면 slice(i, -1)이 파일 끝까지 잡아 **아래 셋이 늘 초록**이 됐다(공허 단언).
+  const end = i > 0 ? src.indexOf('loadBuildingInfo(data.roadAddress', i) : -1
+  const body = i > 0 && end > i ? src.slice(i, end) : ''
+  ok('검색 콜백 본문을 찾았다 (아래 셋이 공허하지 않다)', body.length > 0 && body.length < 4000, `${body.length}자`)
   ok('판정은 칸의 **현재값**(ref)', /const typedName = \(customerNameRef\.current\?\.value \?\? ''\)\.trim\(\)/.test(body))
   ok('★ 친 이름이 있으면 건물명을 뽑지 않는다', /const building = typedName \? '' : extractBuildingName\(data\.roadAddress\)/.test(body))
   ok('★ setForm도 비었을 때만', /customer_name: prev\.customer_name\.trim\(\) \? prev\.customer_name : building/.test(body))
@@ -65,11 +69,15 @@ console.log('\n— ② 등록 화면 = 세 그룹 상자, 이 순서')
   const { missing, bad } = inOrder(jsx, [
     ['① 기본정보', 'title="기본정보"'], ['고객명', 'id="new-customer-name"'], ['담당직원', 'id="new-assignee"'],
     ['사용승인일', 'id="new-use-approval"'], ['점검일자', 'id="new-anchor-date"'], ['점검유형', 'name="inspection_category"'],
-    ['주소', 'id="new-address"'], ['② 건물정보', 'title="건물정보"'], ['건물용도', 'ariaLabel="건물용도"'],
-    ['③ 관계인', 'title="관계인"'], ['대표', 'id="contact-대표-name"'], ['비고', 'id="new-notes"'], ['하단 바', 'data-testid="new-submit-bar"'],
+    // 2026-10-06 사용자 요청 「필수값이 스크롤 없이 한눈에」 — ② 관계인 ↔ ③ 건물정보 맞바꿈, 메모(비고) 폐지
+    ['주소', 'id="new-address"'], ['② 관계인', 'title="관계인"'], ['관계인 이름', 'id="contact-대표-name"'],
+    ['③ 건물정보', 'title="건물정보"'], ['건물용도', 'ariaLabel="건물용도"'], ['하단 바', 'data-testid="new-submit-bar"'],
   ])
   ok('표식이 전부 있다', missing.length === 0, missing.join(', '))
-  ok('★ 순서: ①(고객명·담당·사용승인일·점검일자·유형·주소) → ②(용도) → ③(대표·비고) → 하단 바', bad.length === 0, bad.join(' · '))
+  ok('★ 순서: ①(고객명·담당·사용승인일·점검일자·유형·주소) → ②(관계인) → ③(용도) → 하단 바', bad.length === 0, bad.join(' · '))
+  ok('★ 메모(비고) 칸이 없다 — 상세 기본정보 탭에서 입력 (사용자 폐지 2026-10-06)', !/id="new-notes"/.test(jsx))
+  ok('★ 점검유형이 기준일 줄 안 — 「점검」 줄이 따로 없다(한 줄 절약)',
+    subRowOf(jsx, 'name="inspection_category"') === subRowOf(jsx, 'id="new-anchor-date"') && !/<SubRow label="점검">/.test(jsx))
   ok('★ 첫 줄 = 고객명 | 담당직원 (같은 소그룹 줄)', () => {
     const a = jsx.indexOf('id="new-customer-name"'), b = jsx.indexOf('id="new-assignee"')
     return a > 0 && b > a && !jsx.slice(a, b).includes('<SubRow')
@@ -81,7 +89,7 @@ console.log('\n— ② 등록 화면 = 세 그룹 상자, 이 순서')
   ok('칩 순서 = 화면 순서', () => {
     const m = src.match(/const requiredChecks[\s\S]*?\n  \]/)
     const items = m ? [...m[0].matchAll(/\n\s*\['([^']+)'/g)].map(x => x[1]) : []
-    return JSON.stringify(items) === JSON.stringify(['고객명', '주소', '사용승인일', '점검일자', '점검유형', '대표 관계인'])
+    return JSON.stringify(items) === JSON.stringify(['고객명', '주소', '사용승인일', '점검일자', '점검유형', '관계인'])
   })
 }
 
