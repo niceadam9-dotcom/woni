@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { requireMobileUser } from '@/lib/mobile-auth'
+import { normalizeClassifiedDefects } from '@/lib/classify-defects-normalize'
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
@@ -52,7 +53,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ defects: [] })
     }
 
-    const defects = JSON.parse(jsonMatch[0])
+    // 모델 출력은 **검증해서** 넘긴다(2026-10-06) — 심각도 세 값 밖이면 「보통」, 이름 없는 항목 버림(lib 머리말)
+    const defects = normalizeClassifiedDefects(JSON.parse(jsonMatch[0]))
     return NextResponse.json({ defects })
   } catch (err) {
     console.error('[classify-defects]', err)

@@ -480,6 +480,7 @@ const steps: Step[] = [
   // 업로드 화면 → 비공개 확인 → 갑지 엑셀 「공문」 그림 → PDF 조립 → 삭제. 스테이징에 이미 직인이 있으면 지우지 않고 멈춘다
   { name: '공문 직인(E2E)',             cmd: 'npx tsx --conditions=react-server scripts/test-company-seal-e2e.mts', needServer: true },
   // 모바일 앱 Bearer → /api/mobile/* — proxy는 통과만 시키고 라우트가 검사한다. 검사 없는 새 라우트를 정적 단언으로 막는다
+  { name: '모바일 AI 분류 결과 검증',   cmd: 'npx tsx scripts/test-classify-defects-normalize.mts' },
   { name: '모바일 API 인증(E2E)',       cmd: 'npx tsx scripts/test-mobile-api-auth.mts', needServer: true },
   // C4 2단계 웹 — QR 카드 현장 동작(폰 화면): 로그인 next= 복귀·scan 같은 날 1행·이상 없음·불량(진행 중 회차·asset_id)·첫 등록·교체
   { name: 'QR 카드 현장 동작(E2E)',     cmd: 'npx tsx scripts/test-tag-card-e2e.mts', needServer: true },

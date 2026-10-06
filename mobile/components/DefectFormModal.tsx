@@ -134,7 +134,8 @@ export function DefectFormModal({ visible, inspectionId, onClose, onSaved }: Pro
   function applySuggestion(item: ClassifiedDefect) {
     setDefectName(item.defect_name)
     setDefectDetail(item.defect_detail ?? '')
-    setSeverity(item.severity)
+    // 서버가 이미 세 값으로 맞추지만(classify-defects), 옛 서버·다른 경로에서 온 값이면 버튼이 하나도 안 켜진다 — 「보통」으로
+    setSeverity((['경미', '보통', '중대'] as const).includes(item.severity) ? item.severity : '보통')
     setSuggestedDefects([])
   }
 
