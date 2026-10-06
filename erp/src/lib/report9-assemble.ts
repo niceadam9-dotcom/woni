@@ -38,6 +38,7 @@ import {
 } from '@/lib/prev-year-duty'
 import { deriveMuFromStd32, fillNonApplicableMu } from '@/lib/mu-std32-map'
 import type { ManagerRow } from '@/components/customers/plan-form17'
+import { pickMainInspectorId, representativeProfileId } from '@/lib/main-inspector'
 
 export type Admin = ReturnType<typeof createAdminClient>
 
@@ -444,10 +445,13 @@ export async function assembleReport9(
     company_name?: string | null; phone?: string | null; management_reg_no?: string | null
   }
 
-  // 점검인력 — 주된 = 담당 직원(참여자에 '주된' 행이 있으면 우선), 보조 = inspection_participants (워커 동일)
+  // 점검인력 — 주된 = 참여자 '주된' → 회사 대표자 → 담당 직원(lib/main-inspector 한 벌), 보조 = inspection_participants.
+  // 배정은 내부 관리용(2026-10-06 사용자 지시) — 대표자를 정할 수 있으면 배정은 서류에 나가지 않는다.
+  // 대표자가 이미 보조로 들어 있던 점검(181이 유니크 충돌로 건너뜀)은 보조 줄에서 빼고 주된으로 올린다.
   let parts = (partsRes.data ?? []) as Array<{ employee_id: string; role: string; sort_order: number }>
-  if (!parts.some(p => p.role === '주된') && insp.assigned_employee_id) {
-    parts = [{ employee_id: insp.assigned_employee_id, role: '주된', sort_order: -1 }, ...parts]
+  if (!parts.some(p => p.role === '주된')) {
+    const mainId = pickMainInspectorId([], await representativeProfileId(admin), insp.assigned_employee_id ?? null)
+    if (mainId) parts = [{ employee_id: mainId, role: '주된', sort_order: -1 }, ...parts.filter(p => p.employee_id !== mainId)]
   }
   let profMap = new Map<string, { name: string | null; license_no: string | null; license_grade: string | null }>()
   const ids = [...new Set(parts.map(p => p.employee_id).filter(Boolean))]

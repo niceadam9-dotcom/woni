@@ -9,6 +9,7 @@ import {
   type EvalInspection, type EvalInvoice, type EvalStaff,
 } from '@/lib/capability-eval'
 import type { SubmissionVia, PlacementResult } from '@/lib/legal-link'
+import { pickMainInspectorId, representativeProfileId } from '@/lib/main-inspector'
 
 /** B5 — 점검능력평가 실적 묶음 조회. 엑셀은 클라이언트가 만든다(대장 엑셀과 같은 방식).
  *  세금계산서 금액이 들어가므로 `billing_manage`(매니저 이상) — 대장의 계약료 열과 같은 정책. */
@@ -42,7 +43,8 @@ export async function getCapabilityEvalAction(year: number): Promise<
     report9_submitted_at: string | null; report9_submitted_via: SubmissionVia | null; report9_receipt_no: string | null }
   const [legalRes, partRes, bldRes, staffRes, billRes] = await Promise.all([
     ids.length ? admin.from('inspections').select('id, placement_reported_at, placement_result, placement_no, report9_submitted_at, report9_submitted_via, report9_receipt_no').in('id', ids) : Promise.resolve({ data: [], error: null }),
-    ids.length ? admin.from('inspection_participants').select('inspection_id, role, sort_order, profiles:employee_id(name, license_no)').in('inspection_id', ids).eq('role', '보조').order('sort_order') : Promise.resolve({ data: [], error: null }),
+    // '주된'도 함께 — 주된 점검인력은 배정이 아니라 참여자 '주된' → 회사 대표자(lib/main-inspector, 2026-10-06)
+    ids.length ? admin.from('inspection_participants').select('inspection_id, employee_id, role, sort_order, profiles:employee_id(name, license_no)').in('inspection_id', ids).in('role', ['보조', '주된']).order('sort_order') : Promise.resolve({ data: [], error: null }),
     custIds.length ? admin.from('buildings').select('customer_id, total_area, is_primary').in('customer_id', custIds).eq('is_active', true) : Promise.resolve({ data: [], error: null }),
     admin.from('profiles').select('id, name, position, license_grade, license_no, hire_date').eq('is_active', true).eq('is_system', false),
     admin.from('bills').select('customer_id, billing_month, bill_type, supply_value, tax_value, total_amount, customers:customer_id(customer_name), tax_invoices(issue_date, approval_num, invoice_status)')
@@ -53,7 +55,9 @@ export async function getCapabilityEvalAction(year: number): Promise<
   }
   const legal = new Map(((legalRes.data ?? []) as LRow[]).map(r => [r.id, r]))
   const aux = new Map<string, Array<{ name: string; license: string | null }>>()
-  for (const p of (partRes.data ?? []) as unknown as Array<{ inspection_id: string; profiles: { name: string; license_no: string | null } | null }>) {
+  const mainParts = new Map<string, Array<{ employee_id: string | null; role: string; sort_order: number | null }>>()
+  for (const p of (partRes.data ?? []) as unknown as Array<{ inspection_id: string; employee_id: string | null; role: string; sort_order: number | null; profiles: { name: string; license_no: string | null } | null }>) {
+    if (p.role === '주된') { mainParts.set(p.inspection_id, [...(mainParts.get(p.inspection_id) ?? []), p]); continue }
     const a = aux.get(p.inspection_id) ?? []
     a.push({ name: p.profiles?.name ?? '(삭제된 직원)', license: p.profiles?.license_no ?? null })
     aux.set(p.inspection_id, a)
@@ -67,8 +71,10 @@ export async function getCapabilityEvalAction(year: number): Promise<
   const staffRows = (staffRes.data ?? []) as Array<{ id: string; name: string; position: string | null; license_grade: string | null; license_no: string | null; hire_date: string | null }>
   const staffById = new Map(staffRows.map(s => [s.id, s]))
 
+  const repId = await representativeProfileId(admin)
   const evalRows: EvalInspection[] = ins.map(i => {
-    const l = legal.get(i.id), m = i.assigned_employee_id ? staffById.get(i.assigned_employee_id) : undefined
+    const mid = pickMainInspectorId(mainParts.get(i.id) ?? [], repId, i.assigned_employee_id)
+    const l = legal.get(i.id), m = mid ? staffById.get(mid) : undefined
     return {
       id: i.id, customerId: i.customer_id, customerName: i.customer?.customer_name ?? '—', address: i.customer?.address ?? null,
       area: area.get(i.customer_id) ?? null, inspectionType: i.inspection_type, planType: i.plan_type, status: i.status,

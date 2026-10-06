@@ -76,6 +76,7 @@ import { inspectionTypeLabel } from '@/types'
 // — 같은 이름의 다른 함수가 lib/inspection-round에 또 있으니 주의.
 import { InspectionLegalTypeClient } from '@/components/inspections/inspection-legal-type-client'
 import type { ReportType } from '@/app/(dashboard)/inspections/report-constants'
+import { pickMainInspectorId, representativeProfileId } from '@/lib/main-inspector'
 
 const TYPE_COLORS: Record<InspectionType, string> = {
   '종합':   'bg-brand-tint text-brand',
@@ -324,6 +325,18 @@ export default async function InspectionDetailPage({
 
   const contact = contactRes.data as { id: string; role: string; name: string; phone: string | null; email: string | null } | null
   const employee = employeeRes.data as { id: string; name: string; position: string | null; license_no: string | null } | null
+  /* 주된 점검인력 = 보고서·위임장과 **같은 사람**(lib/main-inspector: 참여자 '주된' → 회사 대표자 → 배정).
+     `employee`(배정)는 내부 관리용 — 「담당」 표기에만 쓴다(2026-10-06 사용자 지시). 종전엔 이 화면만
+     배정을 「주된」으로 그려 「주된: 일반관리」가 보였는데 서류에는 김흥준이 찍혔다. */
+  const { data: mainRows } = await admin.from('inspection_participants')
+    .select('employee_id, role, sort_order').eq('inspection_id', id).eq('role', '주된')
+  const mainParts = (mainRows ?? []) as Array<{ employee_id: string | null; role: string; sort_order: number | null }>
+  const mainId = pickMainInspectorId(mainParts,
+    mainParts.length ? null : await representativeProfileId(admin), inspection.assigned_employee_id ?? null)
+  const mainInspector = !mainId ? null : mainId === employee?.id ? employee
+    : ((await admin.from('profiles').select('id, name, position, license_no').eq('id', mainId).maybeSingle()).data as typeof employee)
+  // 대표자가 이미 보조였던 점검(181 유니크 충돌)은 서류처럼 보조 줄에서 뺀다 — report9-assemble과 같은 처리
+  const auxShown = auxParticipants.filter(a => a.employee_id !== mainInspector?.id)
 
   const submitterMap = new Map<string, string>()
   for (const s of (submittersRes.data ?? []) as Array<{ id: string; name: string }>) submitterMap.set(s.id, s.name)
@@ -519,9 +532,9 @@ export default async function InspectionDetailPage({
         ['협회 대상물번호', dash(legalCust?.kfma_object_no)],
         ['점검 종류', `${inspectionTypeLabel(inspection.inspection_type)}${inspPlanType?.startsWith('special_') ? ' (자체점검)' : ''}`],
         ['점검 기간', periodText],
-        ['주된 기술인력', employee ? `${employee.name}${employee.license_no ? ` (경력수첩 ${employee.license_no})` : ' (경력수첩번호 없음)'}` : '—'],
-        ['보조 인력', auxParticipants.length > 0
-          ? auxParticipants.map(a => `${a.name}${a.license_no ? ` (${a.license_no})` : ''}`).join(', ') : '—'],
+        ['주된 기술인력', mainInspector ? `${mainInspector.name}${mainInspector.license_no ? ` (경력수첩 ${mainInspector.license_no})` : ' (경력수첩번호 없음)'}` : '—'],
+        ['보조 인력', auxShown.length > 0
+          ? auxShown.map(a => `${a.name}${a.license_no ? ` (${a.license_no})` : ''}`).join(', ') : '—'],
       ] as Array<[string, string]>,
       object: [
         ['관할서', dash(cf.fire_station)],
@@ -770,8 +783,8 @@ export default async function InspectionDetailPage({
               <InspectionParticipantsClient
                 key="participants"
                 inspectionId={id}
-                mainEmployee={employee ? { name: employee.name, license_no: employee.license_no } : null}
-                aux={auxParticipants}
+                mainEmployee={mainInspector ? { name: mainInspector.name, license_no: mainInspector.license_no } : null}
+                aux={auxShown}
                 employees={allEmployees}
                 canManage={canEdit}
               />

@@ -23,6 +23,7 @@ import { resolveFireSafetyManager, type ContactLite } from '@/lib/fire-safety-ma
 // 날짜 한글 표기의 단일 원천 — 별지 9·10·11호와 갑지가 같은 함수를 써야 형식이 갈리지 않는다(2026-09-07)
 import { kdate, annexReportDateISO } from '@/lib/report9-assemble'
 import type { ManagerRow } from '@/components/customers/plan-form17'
+import { pickMainInspectorId, representativeProfileId } from '@/lib/main-inspector'
 
 type Admin = ReturnType<typeof createAdminClient>
 
@@ -294,10 +295,11 @@ export async function assembleDelegation(
   if (!owner.name) missing.push('관계인 성명 없음 — 관계인 탭 [소방안전관리] 지정 또는 [입력]에서 기재')
   if (!owner.birth) missing.push('관계인 생년월일 미입력 — 공란 인쇄 (고객 상세 관계인 카드 또는 [입력]에서 기재)')
 
-  // 대리인(관리업체) — 주된 점검인력(참여자 '주된' → 담당 직원 폴백, report9와 동일 축)
+  // 대리인(관리업체) — 주된 점검인력(참여자 '주된' → 회사 대표자 → 담당 직원, lib/main-inspector 한 벌).
+  // 배정은 내부 관리용이라 대표자를 정할 수 있으면 서류에 나가지 않는다(2026-10-06 사용자 지시)
   const parts = (partsRes.data ?? []) as Array<{ employee_id: string; role: string; sort_order: number }>
-  const mainId = parts.filter(p => p.role === '주된').sort((a, b) => a.sort_order - b.sort_order)[0]?.employee_id
-    ?? insp.assigned_employee_id ?? null
+  const mainId = pickMainInspectorId(parts,
+    parts.some(p => p.role === '주된') ? null : await representativeProfileId(admin), insp.assigned_employee_id ?? null)
   // 146 — 직위·연락처·생년월일까지 직원 정보에서 가져온다. 종전엔 성명만 자동이고 나머지 3칸은
   // 점검 건마다 annex_inputs에 손으로 다시 넣어야 했다(같은 직원이 매 회차 같은 값을 반복 입력).
   type AgentProfile = { name: string | null; position: string | null; phone: string | null; birth_date: string | null }
