@@ -95,6 +95,10 @@ export type WorkbookSource = {
      *  규칙은 `annexReportDateISO()`(수기값 > ⑥ 소방서 제출 기록 > 오늘 KST). 미공급이면 서식 수식을
      *  건드리지 않은 종전 동작으로 남는다 — 대조군·하위 호환 보호. */
     reportDateISO?: string
+    /** 별지 10호 보고일 ISO — `계획서!L30`(제출 일자)의 원천이자 PDF 10호 `reportDate`와 **같은 값**(D-7).
+     *  서식은 `=개요!B10`(발신일자 = 점검일)이라 PDF 미리보기와 갈라졌다(2026-10-06 사용자 신고).
+     *  미공급이면 서식 수식을 그대로 둔다 — 대조군·하위 호환 보호. */
+    planReportDateISO?: string
     main: { name: string; grade: string; licenseNo: string } | null
     assistants: Array<{ name: string; grade: string; licenseNo: string; period: string }>
     // ── 정보 시트 12칸(별지 9호 2쪽) — 필수/옵션 구분은 **Report9Data와 정확히 같게** 둔다.
@@ -949,6 +953,14 @@ export function buildWorkbookValues(src: WorkbookSource): Map<string, CellValue>
   // 보고일 G25 — PDF 11호 `reportDate`와 같은 `annexReportDateISO()`에서 온다(43 S4).
   // 미공급이면 null → 앵커의 keepFormulaWhenEmpty가 서식 수식을 살린다(종전 동작 보존).
   entries.push(['doneReportSerial', p.reportDateISO ? (isoToSerial(p.reportDateISO) ?? null) : null])
+  // 위임 일자 P15·계획서 제출 일자 L30 (2026-10-06 사용자 신고 「위임장과 계획서 제출일이 미리보기와 다르다」).
+  // 서식은 둘 다 `=개요!B10`(발신일자 = 점검 종료/시작일)인데 PDF는 보고일을 인쇄했다(운영 6/6 불일치).
+  // 위임장 = 위임장 PDF와 같은 조립값(annexReportDateISO — 별지 9호 보고일 축, 수기 우선),
+  // 계획서 = PDF 10호 보고일. 수기 위임 일자가 날짜로 안 읽히면 그 표기 문자열 그대로.
+  // 미공급(옛 호출부·픽스처)이면 null → keepFormulaWhenEmpty로 서식 수식 존치(종전 동작).
+  entries.push(['delegationDateSerial', d.submitISO ? (isoToSerial(d.submitISO) ?? null)
+    : (d.submitISO === null && d.submitDate.trim() ? d.submitDate.trim() : null)])
+  entries.push(['planReportSerial', p.planReportDateISO ? (isoToSerial(p.planReportDateISO) ?? null) : null])
   // ── 자사 정보 4칸(43 D-8 부분 배선) — DB 값이 서식 리터럴과 **글자까지 같은 것만** 연다 ──
   // 값의 원천은 조립본 하나(`company_profile` → assembleOfficial)라 PDF 11호가 인쇄하는
   // `companyBizno`·`companyRep`·`companyPhone`과 갈라질 수 없다(D-7).

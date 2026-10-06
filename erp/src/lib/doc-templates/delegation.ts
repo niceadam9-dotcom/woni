@@ -23,6 +23,9 @@ export type DelegationData = {
   daysLabel: string
   /** 위임 일자 표기 — '2026년 7월 16일' */
   submitDate: string
+  /** 위임 일자 ISO — 갑지 엑셀 `위임장!P15`(날짜 셀)의 원천(2026-10-06). 수기 표기가 날짜로
+   *  읽히지 않으면 null — 엑셀엔 그 표기 문자열을 그대로 넣는다. 미공급(옛 픽스처)도 null 취급 */
+  submitISO?: string | null
   /** 관할 소방서 — '양평' (뒤에 고정 문구 "소방서(본부) 귀하"가 붙는다) */
   station: string
 }

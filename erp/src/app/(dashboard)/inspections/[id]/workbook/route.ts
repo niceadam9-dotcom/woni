@@ -172,6 +172,8 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
     report9: {
       ...r9.data,
       reportDateISO: annexReportDateISO(done11Fields, row.report11_submitted_at),
+      // 계획서!L30 제출 일자 = PDF 10호 보고일(위 actionPeriod 기산일과 같은 값, 2026-10-06)
+      planReportDateISO: annexReportDateISO(plan10Fields, row.report9_submitted_at),
       actionPeriod,
       // 「이행완료 사항」 4행 일자 = 총 이행기간 종료일(2026-09-10 사용자 지시).
       // PDF 11호도 **같은 함수**를 탄다(report9-actions) — 한쪽만 걸면 다시 갈라진다.

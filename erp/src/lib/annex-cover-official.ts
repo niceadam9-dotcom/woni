@@ -230,6 +230,17 @@ function ymdDots(iso: string | null): string {
   return y && m && d ? `${y}.${m}.${d}` : ''
 }
 
+/** 위임 일자 수기 표기 → ISO. '2026년 7월 16일'·'2026-07-16'·'2026.7.16' 꼴만 읽고, 실재하지 않는
+ *  날짜·자유 텍스트('7월 중')는 null — 엑셀은 그때 표기 문자열을 그대로 받는다(지어내지 않는다). */
+export function parseKoreanDateISO(s: string): string | null {
+  const m = s.trim().match(/^(\d{4})\s*(?:년|[-./])\s*(\d{1,2})\s*(?:월|[-./])\s*(\d{1,2})\s*일?\.?$/)
+  if (!m) return null
+  const [y, mo, d] = [Number(m[1]), Number(m[2]), Number(m[3])]
+  const dt = new Date(Date.UTC(y, mo - 1, d))
+  if (dt.getUTCFullYear() !== y || dt.getUTCMonth() !== mo - 1 || dt.getUTCDate() !== d) return null
+  return `${y}-${String(mo).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+}
+
 /** 점검결과 보고서 제출용 위임장 조립 — 서식 원천은 '보고서 갑지.xls' [위임장] 탭(사내 실무 서식, 재량 영역).
  *  자동 기본값: 관계인 = 서식 1.7 선임 소방안전관리자(폴백: 대표 연락처), 대리인 = 주된 점검인력(폴백: 담당 직원),
  *  관할 소방서 = customers.fire_station. 생년월일은 시스템 미보유 — annex_inputs('delegation') 수동 입력만.
@@ -332,11 +343,16 @@ export async function assembleDelegation(
   // 종전엔 이 사슬을 여기 손으로 다시 적어 두 번째 가지(④ 제출 기록, 2026-09-20)가 빠질 뻔했다 —
   // 별지 9호와 같은 함수를 불러야 같은 봉투의 두 문서가 같은 날짜를 인쇄한다(D-7).
   const r9f = ((r9Res.data as { fields: Record<string, unknown> | null } | null)?.fields ?? {}) as Record<string, unknown>
-  const [sy, sm, sdd] = annexReportDateISO(r9f, insp.report9_submitted_at).split('-').map(Number)
+  const autoISO = annexReportDateISO(r9f, insp.report9_submitted_at)
+  const [sy, sm, sdd] = autoISO.split('-').map(Number)
+  // 갑지 엑셀 `위임장!P15`도 **이 값**을 받는다(2026-10-06 사용자 신고 — 엑셀만 `=개요!B10` 점검일이었다).
+  // 수기 표기는 날짜로 읽히면 ISO로, 아니면(자유 텍스트) null — 엑셀은 그 문자열을 그대로 쓴다.
+  const manualDate = fstr('submitDate')
   const data: DelegationData = {
     typeLabel: inspectionTypeLabel(insp.inspection_type, !!insp.is_initial, insp.plan_type),
     owner, agent, periodLabel, daysLabel,
-    submitDate: fstr('submitDate') || `${sy}년 ${sm}월 ${sdd}일`,
+    submitDate: manualDate || `${sy}년 ${sm}월 ${sdd}일`,
+    submitISO: manualDate ? parseKoreanDateISO(manualDate) : autoISO,
     station,
   }
   return { data, missing }

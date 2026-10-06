@@ -257,6 +257,15 @@ export const ANCHORS: Anchor[] = [
     // 구 호출부·픽스처뿐이고, 그쪽 대조군을 무손상으로 지키는 효과가 있다.
     dropFormula: true, keepFormulaWhenEmpty: true,
   },
+  // 위임 일자 위임장!P15 · 계획서 제출 일자 계획서!L30 (2026-10-06 사용자 신고) — 서식은 둘 다
+  // `=개요!B10`(발신일자 = 점검 종료/시작일)인데 PDF 미리보기는 보고일을 인쇄해 운영 6/6이 갈렸다.
+  // 값은 위임장 PDF·PDF 10호와 같은 `annexReportDateISO()` 축. 셀 서식은 둘 다 `yyyy년 m월 d일`(실측).
+  // ⚠ dropFormula 필수 — 살려 두면 Excel 재계산이 개요!B10으로 되돌린다(G25와 같은 함정).
+  // ⚠ 인접 라벨이 없어 아래 서명 줄의 「관계인」(위임장 L17)·「관계인:」(계획서 I31)을 라벨로 삼는다(전 셀 덤프 실측).
+  { field: 'delegationDateSerial', sheet: '위임장', cell: 'P15', labelCell: 'L17', label: '관계인',
+    dropFormula: true, keepFormulaWhenEmpty: true },
+  { field: 'planReportSerial', sheet: '계획서', cell: 'L30', labelCell: 'I31', label: '관계인:',
+    dropFormula: true, keepFormulaWhenEmpty: true },
   // ── 자사(소방공사업체) 정보 4칸 (소방계획서_43 D-8 **부분 배선**) ──
   //
   // 갑지 서식에는 자사 정보가 **6시트 18칸**에 동결 리터럴로 박혀 있다. 정본은 DB
