@@ -998,6 +998,8 @@ export function InspectionCalendarClient({ inspections: serverInspections, planI
     // `day`도 **같은 이유로** 여기서 덮어쓴다(replaceState는 useSearchParams에 안 잡힌다).
     // 데이 패널이 열려 있으면 복귀 주소가 그 사이드바까지 되살린다 — 2026-09-22 사용자 요청.
     if (dayPanelDate) sp.set('day', dayPanelDate); else sp.delete('day')
+    // `new`(방금 등록한 고객 강조)는 **이번 방문 한정**이다 — 상세에 갔다 돌아왔을 때 띠가 다시 뜨지 않게 뗀다
+    sp.delete('new')
     // 보던 달(`m`)도 — 돌아왔을 때 서버가 그 달에 창을 맞춘다(이번 달이면 생략, 위 effect와 같은 규약)
     const ym = format(calDate, 'yyyy-MM')
     if (ym === todayKst().slice(0, 7)) sp.delete('m'); else sp.set('m', ym)
@@ -1088,6 +1090,46 @@ export function InspectionCalendarClient({ inspections: serverInspections, planI
        이제는 아예 그 페이지로 보내므로 복제할 여지 자체가 없다.
      ⚠ 복귀는 `calendarBackHref` **한 곳**이 만든다(cust·insp·day가 거기 다 실린다).
        데이 패널에서 왔으면 `day=`가 실려 **그 사이드바가 다시 열리고**, 툴바에서 왔으면 안 실린다. */
+  /* ── 방금 등록한 고객 (`?new=`, 2026-10-06 사용자 요청) ──
+     「방금 등록한 업체 상세정보를 입력하려고 해도 달력으로 가면 다시 고객을 선택해야 하므로 불편」.
+     등록 폼의 [나중에 입력 · 달력으로]와 상세 진행 띠의 [완료 · 달력으로]가 `new=고객id`를 실어 보낸다.
+     달력은 맨 위에 「등록 완료 · [상세정보 입력 →]」 띠를 띄우고 그 고객의 칩을 강조한다.
+     ⚠ 이름은 이미 실린 고객 후보(customerOptions — 활성 고객 전부)에서 찾는다. 서버 왕복을 더하지 않는다.
+     ⚠ 닫으면 주소에서도 뗀다(replaceState 첫 인자는 **null** — risk_history_replacestate_null). */
+  const [newCustomerId, setNewCustomerId] = useState(() => {
+    const v = searchParams.get('new') ?? ''
+    return /^[0-9a-f-]{36}$/i.test(v) ? v : ''
+  })
+  const newCustomer = newCustomerId ? (customerOptions ?? []).find(c => c.id === newCustomerId) ?? null : null
+  const dismissNewCustomer = useCallback(() => {
+    setNewCustomerId('')
+    const sp = new URLSearchParams(window.location.search)
+    sp.delete('new')
+    window.history.replaceState(null, '', `${pathname}${sp.size ? `?${sp}` : ''}`)
+  }, [pathname])
+
+  /** 「등록 완료 · [상세정보 입력 →] · ×」 한 줄 — 달력 위(page)와 데이 패널 머리(panel) **두 자리, 한 벌**.
+   *  [상세정보 입력]은 차례 모드(onboarding=1 + 달력 from)로 연다 — 끝의 [완료 · 달력으로]가 다시 여기로 데려온다. */
+  const newCustomerNotice = (where: 'page' | 'panel') => newCustomer && (
+    <div data-testid="cal-new-customer" data-where={where}
+      className={`flex flex-wrap items-center gap-2 rounded-lg border border-amber-300 bg-amber-50 shrink-0 ${where === 'page' ? 'px-4 py-2' : 'mt-2 px-3 py-1.5'}`}>
+      <span className="text-form-sm text-ink">
+        <b>{newCustomer.name}</b> 등록 완료{where === 'page' ? ' — 달력에 테두리로 표시했습니다.' : ''}
+      </span>
+      <Link
+        href={`/customers/${newCustomer.id}?created=1&onboarding=1&from=${encodeURIComponent(calendarBackHref)}`}
+        data-testid="cal-new-customer-detail"
+        className="inline-flex items-center gap-1 h-form-8 px-3 rounded-lg bg-brand text-white text-form-xs font-medium hover:opacity-90"
+      >
+        상세정보 입력 →
+      </Link>
+      <button type="button" onClick={dismissNewCustomer} data-testid="cal-new-customer-close"
+        aria-label="닫기" title="닫기" className="ml-auto p-1 text-ink-meta hover:text-ink">
+        <X className="size-4" />
+      </button>
+    </div>
+  )
+
   const openNewCustomer = useCallback((date: string) => {
     const q = new URLSearchParams({ anchor: date, from: calendarBackHref })
     router.push(`/customers/new?${q.toString()}`)
@@ -1722,6 +1764,12 @@ export function InspectionCalendarClient({ inspections: serverInspections, planI
          페이지가 스크롤된다(2026-09-07 결정 「일정이 숨는 것보다 스크롤이 낫다」를 그 구간에만 남긴다). */
     <div className="flex flex-col gap-4 h-full" style={{ minHeight: 'calc(480px * var(--fs-scale))' }}>
       {/* 페이지 타이틀은 글로벌 바 브레드크럼으로 이동 (2026-07-14 A안) — 본문은 툴바부터 시작 */}
+      {/* 방금 등록한 고객 — 다시 찾지 않고 바로 상세정보로(`?new=`). 상세는 차례 모드 띠로 열린다
+          (onboarding=1 + 달력 from) — 끝의 [완료 · 달력으로]가 다시 여기로 데려온다. */}
+      {/* 🚨 사이드바(데이 패널)가 열려 있으면 **그 안**에 그린다 — 패널은 화면 전체에 배경막(fixed inset-0 z-40,
+          누르면 패널이 닫힘)을 깔아서, 달력 위 띠는 보이기만 하고 눌리지 않았다(2026-10-06 실화면 프로브:
+          [×] 클릭이 배경막에 먹혔다). 사용자는 [상세정보 입력]을 두 번 눌러야 했을 것이다. */}
+      {newCustomer && !dayPanelDate && newCustomerNotice('page')}
       {/* ── 도구줄 두 줄 (2026-09-23 사용자 요청 「산만하다 — 달력 이동과 고객 검색이 눈에 잘 띄게」) ──
           ① 주인공 줄 — 달 이동(크게) · 고객 검색(가장 넓은 칸, `/`로 바로 커서) · 월/주/목록(작게)
           ② 보조 줄   — 종류·보기 필터(이름표 붙여 두 묶음) · 이번달 요약(글자) · 퇴사 칩·문자·등록·필터·범례(작게)
@@ -2205,7 +2253,13 @@ export function InspectionCalendarClient({ inspections: serverInspections, planI
               noEventsInRange: '이 기간에 점검 일정이 없습니다.',
               showMore: (total) => `+${total}개 더 보기`,
             }}
-            eventPropGetter={(event: object) => ({ style: chipStyle((event as CalEvent).resource) })}
+            eventPropGetter={(event: object) => {
+              const r = (event as CalEvent).resource
+              // 방금 등록한 고객(`?new=`)의 칩은 테두리로 강조 — 다시 찾지 않아도 눈에 들어오게
+              return newCustomerId && r.customerId === newCustomerId
+                ? { style: chipStyle(r), className: 'ring-2 ring-amber-400 ring-offset-1' }
+                : { style: chipStyle(r) }
+            }}
             formats={{
               weekdayFormat: d => ['일', '월', '화', '수', '목', '금', '토'][d.getDay()],
               dayFormat: d => format(d, 'M/d (EEE)', { locale: ko }),
@@ -2243,6 +2297,8 @@ export function InspectionCalendarClient({ inspections: serverInspections, planI
                     <X className="size-5" strokeWidth={2.75} />
                   </button>
                 </div>
+                {/* 방금 등록한 고객 — 패널이 열려 있으면 여기가 유일하게 눌리는 자리다(위 newCustomerNotice 주석) */}
+                {newCustomer && newCustomerNotice('panel')}
                 {/* 「이 날 문자」 카드 — 날짜를 누르면 **보낼지 말지부터** 보인다(2026-09-29 사용자 요청).
                     문자 버튼 둘([사전안내 문자]·[문자 선택])은 아래 버튼 줄에서 이리로 옮겼다.
                     ⚠ 날짜만 넘기던 원칙(Q-14)은 그대로다: 발송 창의 목록은 서버가 만든 그날 전체이고,
@@ -2339,7 +2395,7 @@ export function InspectionCalendarClient({ inspections: serverInspections, planI
                     <div className="space-y-0.5">
                       {panelSteps.map(e => (
                         // 지도 버튼을 행 버튼 **밖**에 둔다 — button 안의 button은 중첩이 안 된다
-                        <div key={e.id} className="flex items-center gap-1 rounded-lg hover:bg-paper transition-colors">
+                        <div key={e.id} className={`flex items-center gap-1 rounded-lg hover:bg-paper transition-colors ${newCustomerId && e.resource.customerId === newCustomerId ? 'ring-2 ring-amber-400' : ''}`}>
                           {/* 문자 선택 모드: 방문(1단계) 행만 체크박스, 나머지는 자리만 비워 이름 정렬을 유지 */}
                           {smsSelectMode && (isSmsStepRow(e) ? (
                             <input
@@ -2411,7 +2467,7 @@ export function InspectionCalendarClient({ inspections: serverInspections, planI
                         const showMove = movable && !moveSelectMode
                         return (
                           <div key={p.id}>
-                            <div className={`flex items-center gap-2 px-2 py-1.5 rounded-lg ${isOverdue ? 'bg-red-50/60' : 'hover:bg-paper'}`}>
+                            <div className={`flex items-center gap-2 px-2 py-1.5 rounded-lg ${isOverdue ? 'bg-red-50/60' : 'hover:bg-paper'} ${newCustomerId && p.customer_id === newCustomerId ? 'ring-2 ring-amber-400' : ''}`}>
                               {/* 선택 모드: 이동 가능한 정기만 체크박스, 나머지는 자리만 비워 이름 정렬을 유지 */}
                               {moveSelectMode && (movable ? (
                                 <input

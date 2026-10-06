@@ -50,7 +50,7 @@ export default async function CustomersNewPage({
             {initialAnchorDate
               /* 달력에서 왔다는 사실을 화면이 말한다 — 안 말하면 프리필된 점검일자가 어디서
                  왔는지 알 수 없고, 등록 후 달력으로 튕기는 것도 예고 없는 이동이 된다. */
-              ? <>점검일자 <b>{initialAnchorDate}</b>로 시작합니다 — 아래 폼에서 바꿀 수 있습니다{returnHref ? ' · 등록하면 점검달력으로 돌아갑니다' : ''}</>
+              ? <>점검일자 <b>{initialAnchorDate}</b>로 시작합니다 — 아래 폼에서 바꿀 수 있습니다{returnHref ? ' · 등록 뒤 건물정보 → 관계인 → 소방계획서를 차례로 입력하고 점검달력으로 돌아갑니다' : ''}</>
               : '새 고객과 관계인 정보를 등록합니다'}
           </p>
         </div>

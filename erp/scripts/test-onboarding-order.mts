@@ -10,6 +10,7 @@
 import {
   buildingsDone, contactsDone, nextOnboardingTab, onboardingComplete,
   onboardingSteps, onboardingHint, ONBOARDING_ORDER,
+  sequentialCurrent, sequentialNext, sequentialSteps, sequentialHint,
 } from '../src/lib/onboarding-steps.ts'
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
@@ -139,13 +140,16 @@ console.log('\n── 5) 배선 — 규칙이 한 벌인가, 그리고 차단이
   ok(stat.removed > 0 && stat.leftover === 0,
     '계측기 자기 검사: 주석이 실제로 걷혔다', `${stat.removed}자 제거 · 잔존 줄주석 ${stat.leftover}`)
   const neu = codeOnly(neuRaw)
-  ok(/router\.push\(`\/customers\/\$\{result\.customerId\}\?created=1&onboarding=1`\)/.test(neu),
+  // 2026-10-06 달력 차례 모드 — 뒤에 `&from=`(달력에서 왔을 때만)이 붙을 뿐 tab=은 여전히 없다
+  ok(/router\.push\(`\/customers\/\$\{result\.customerId\}\?created=1&onboarding=1\$\{returnHref \? `&from=/.test(neu),
     '🎯 등록 직후 URL이 탭을 지정하지 않는다(서버가 첫 미완을 고른다)')
   ok(!/tab=plan/.test(neu), '🎯 (음성) 등록 폼이 소방계획서로 직행시키지 않는다 — 원래 결함')
 
   /* 온보딩일 때만 서버가 탭을 고르고, 사용자가 ?tab=을 쓰면 그쪽이 이긴다 */
-  ok(/const effectiveTab = onboardingActive && !initialTab \? obNext : resolvedTab/.test(page),
-    '🎯 ?tab=을 명시하면 사용자 지정이 이긴다(온보딩이 덮어쓰지 않는다)')
+  ok(/const effectiveTab = onboardingActive && !initialTab \? \(onboardingSequence \? ONBOARDING_ORDER\[0\] : obNext\) : resolvedTab/.test(page),
+    '🎯 ?tab=을 명시하면 사용자 지정이 이긴다(온보딩이 덮어쓰지 않는다) — 차례 모드는 건물부터, 기본은 첫 미완')
+  ok(/const onboardingSequence = onboardingActive && returnHref\.startsWith\('\/inspections\/calendar'\)/.test(page),
+    '🎯 차례 모드는 **달력에서 시작한 등록**에서만 — 고객 목록 등록은 종전(첫 미완)대로')
   ok(/initialTab=\{effectiveTab\}/.test(page), '탭 셸이 그 값을 받는다')
   ok(/const onboardingActive = onboarding === '1'/.test(page), '띠는 ?onboarding=1일 때만')
 
@@ -159,10 +163,43 @@ console.log('\n── 5) 배선 — 규칙이 한 벌인가, 그리고 차단이
   const strip = codeOnly(src('components/customers/onboarding-strip.tsx'))
   ok(/tabs\?\.goTab\(next\)/.test(strip),
     '🎯 [다음]이 셸의 goTab을 부른다(URL만 바꾸면 화면이 안 따라온다)')
-  ok(!/<Link/.test(strip) && !/router\.push/.test(strip),
-    '🎯 (음성) 띠가 Link·push로 탭을 옮기지 않는다')
+  // [완료 · 달력으로]는 탭 이동이 아니라 페이지를 **떠나는** 전체 이동 <a>다 — 그 하나만 허용한다
+  const links = strip.match(/<(?:Link|a)\s[^>]*>/g) ?? []
+  ok(!/router\.push/.test(strip) && !/<Link\b/.test(strip) && links.every(l => /href=\{sequence\.doneHref\}/.test(l)),
+    '🎯 (음성) 띠가 Link·push로 탭을 옮기지 않는다(링크는 완료 <a> 하나뿐)', `링크 ${links.length}개`)
   ok(/sp\.delete\('onboarding'\)/.test(strip) && !/sp\.set\('tab'/.test(strip),
     '🎯 [안내 닫기]는 띠만 접는다 — 보던 탭을 뺏지 않는다')
+}
+
+/* 차례 모드 — 점검달력에서 시작한 등록(2026-10-06 사용자 요청 「기본정보 → 건물정보 → 관계인 → … 차례로」).
+   기본 모드는 첫 미완으로 건너뛰어 관계인(등록 폼 필수라 늘 찬다)이 사라진다 — 그게 이 모드가 막는 사고다. */
+console.log('\n── 6) 차례 모드 — 건너뛰지 않고 지금 칸의 다음으로')
+{
+  const full = { buildings: true, contacts: true }
+  const empty = { buildings: false, contacts: true }   // 새 고객의 흔한 모습 — 관계인만 찼다
+  ok(sequentialNext('buildings', full) === 'contacts',
+    '🎯 다 찼어도 건물 다음은 관계인 — 관계인 칸을 건너뛰지 않는다(기본 모드면 plan)')
+  ok(nextOnboardingTab(full) === 'plan', '대조: 기본 모드는 같은 상태에서 소방계획서로 건너뛴다')
+  ok(sequentialNext('buildings', empty) === 'contacts',
+    '🎯 건물이 비어도 넘어갈 수 있다 — 차단이 아니다(사용자 확정)')
+  ok(sequentialNext('contacts', empty) === 'plan', '관계인 다음은 소방계획서')
+  ok(sequentialNext('plan', empty) === null, '🎯 소방계획서가 끝 — null(= 완료 · 달력으로)')
+  ok(sequentialNext('facilities', empty) === 'buildings',
+    '순서 밖 탭(공통 등)에 가 있으면 첫 미완으로 데려온다')
+  ok(sequentialCurrent('annex') === null && sequentialCurrent('contacts') === 'contacts', '지금 단계 = 보는 탭(순서 안일 때만)')
+  const st = sequentialSteps('contacts', empty)
+  ok(st.filter(s => s.current).map(s => s.key).join() === 'contacts',
+    '🎯 띠 강조는 첫 미완이 아니라 **보는 탭**', st.map(s => `${s.key}${s.current ? '*' : ''}`).join(' '))
+  ok(st.find(s => s.key === 'buildings')?.done === false, '✓는 여전히 저장된 값 — 빈 건물은 ✓가 아니다')
+  ok(/용도/.test(sequentialHint('buildings', [B({ purpose: null })], empty)), '빈 건물 칸에선 무엇이 비었는지 말한다')
+  ok(/관계인/.test(sequentialHint('contacts', [], empty)), '관계인 칸은 확인 안내')
+
+  const strip = readFileSync(path.join(process.cwd(), 'src/components/customers/onboarding-strip.tsx'), 'utf8')
+  ok(/onClick=\{\(\) => tabs\?\.goTab\(seqNext\)\}/.test(strip), '🎯 차례 모드 [다음]도 셸의 goTab을 부른다')
+  ok(/건너뛰고 /.test(strip), '빈 칸에서 넘어가면 문구가 「건너뛰고」를 붙인다')
+  ok(/data-testid="onboarding-done"/.test(strip) && /완료 · 달력으로/.test(strip), '🎯 끝에서 [완료 · 달력으로]')
+  const page = readFileSync(path.join(process.cwd(), 'src/app/(dashboard)/customers/[id]/page.tsx'), 'utf8')
+  ok(/new=\$\{customer\.id\}/.test(page), '🎯 완료 링크가 달력에 new=를 실어 보낸다(달력이 방금 등록한 고객을 강조)')
 }
 
 console.log(`\n결과: ${pass} 통과 / ${fail} 실패`)

@@ -1941,6 +1941,8 @@ export async function fetchBuildingLedgerAction(
  *  환경변수 JUSO_CONFM_KEY 필요 — 미설정 시 unavailable(조용히 폴백), 매칭 실패 시 error. */
 export async function geocodeAddressToBcodeAction(address: string): Promise<{
   bcode?: string; jibunAddress?: string; roadAddress?: string; unavailable?: boolean; error?: string
+  /** 2026-10-06 — 등록 폼 직접 입력 주소용. Daum 검색과 같은 칸에 맞춘다(sigungu·bname1|bname·bname2) */
+  zipcode?: string; regionSi?: string; regionMyeon?: string; regionRi?: string
 }> {
   const key = process.env.JUSO_CONFM_KEY
   if (!key) return { unavailable: true }
@@ -1974,7 +1976,11 @@ export async function geocodeAddressToBcodeAction(address: string): Promise<{
     const bunji = `${mt}${juso.lnbrMnnm ?? ''}${juso.lnbrSlno && juso.lnbrSlno !== '0' ? `-${juso.lnbrSlno}` : ''}`.trim()
     const built = [juso.siNm, juso.sggNm, juso.emdNm, juso.liNm].filter(Boolean).join(' ')
     const jibun = (bunji && built) ? `${built} ${bunji}` : (juso.jibunAddr || '').trim()
-    return { bcode: admCd, jibunAddress: jibun.trim(), roadAddress: juso.roadAddr || undefined }
+    return {
+      bcode: admCd, jibunAddress: jibun.trim(), roadAddress: juso.roadAddr || undefined,
+      zipcode: juso.zipNo || undefined,
+      regionSi: juso.sggNm || undefined, regionMyeon: juso.emdNm || undefined, regionRi: juso.liNm || '',
+    }
   } catch (e) {
     return { error: `주소 조회 실패: ${e instanceof Error ? e.message : String(e)}` }
   }

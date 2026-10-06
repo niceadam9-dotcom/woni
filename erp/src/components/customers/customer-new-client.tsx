@@ -3,18 +3,16 @@
 import { useState, useTransition, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { Loader2, Phone, Mail, MapPin, Search, X, Plus, Check } from 'lucide-react'
-import { createCustomerAction, generateCustomerCodeAction, checkAddressAction, checkCustomerNameAction, fetchBuildingLedgerAction, type ContactInput, type BuildingLedgerInfo, type AddressDuplicateCustomer, type AddressDuplicateBuilding, type NameDuplicateCustomer } from '@/app/(dashboard)/customers/actions'
+import { Loader2, Phone, Mail, MapPin, Search, X, Plus, Check, ArrowRight } from 'lucide-react'
+import { createCustomerAction, generateCustomerCodeAction, checkAddressAction, checkCustomerNameAction, fetchBuildingLedgerAction, geocodeAddressToBcodeAction, type ContactInput, type BuildingLedgerInfo, type AddressDuplicateCustomer, type AddressDuplicateBuilding, type NameDuplicateCustomer } from '@/app/(dashboard)/customers/actions'
 import { AddressDuplicateDialog } from '@/components/customers/address-duplicate-dialog'
 import { NameDuplicateDialog } from '@/components/customers/name-duplicate-dialog'
 import { useDaumPostcode } from '@/hooks/use-daum-postcode'
 import { DateInput, isCompleteDate } from '@/components/ui/date-input'
 import { ComboInput } from '@/components/ui/combo-input'
 import { formatPhoneKR } from '@/components/ui/fields'
-import { isPastAnchor } from '@/lib/plan-anchor'
 import { anchorRoles } from '@/lib/anchor-role'
 import { GroupBox, SubRow, Cell, RoleBadge, keyInputCls, emptyRequiredCls } from '@/components/customers/key-fields'
-import { todayKst } from '@/lib/kst-date'
 import type { InspectionType } from '@/types'
 
 function extractBuildingName(fullAddress: string): string {
@@ -64,13 +62,16 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
   const ledgerRef = useRef<BuildingLedgerInfo | null>(null)
   const bcodeRef = useRef<{ bcode: string; jibun: string } | null>(null)  // 092: 건물에 저장 → 대장 재조회 원클릭화
   const [ledgerNote, setLedgerNote] = useState('')
+  // 직접 입력 주소 조회(2026-10-06) — 검색으로 정한 주소·마지막으로 조회한 글자·늦은 응답 차단 시퀀스
+  const searchedAddrRef = useRef('')
+  const lastTypedLookupRef = useRef('')
+  const buildingLookupSeq = useRef(0)
   // ADD-3: 관계인 — 대표만 기본, [추가] 버튼으로 직원1/직원2 노출
   const [visibleContactRoles, setVisibleContactRoles] = useState<Array<'대표' | '직원1' | '직원2'>>(['대표'])
 
-  // 「이 고객의 법정 점검 일정」 미리보기 상자는 2026-10-06 사용자 요청으로 폐지 — 어느 날짜가 쓰이는지는
-  // 기준일 줄의 배지(기산점/참고)와 「이 날짜로 잡히는 일정」 칸이 말한다. 예외 스위치는 그 칸으로 옮겼다.
-  /** 법정 축을 벗어나 「입력한 점검일자」를 쓰겠다는 예외 — 전 직원 허용(2026-09-14 사용자 결정) */
-  const [anchorManual, setAnchorManual] = useState(false)
+  // 「이 고객의 법정 점검 일정」 미리보기 상자·「이 날짜로 잡히는 일정」 칸·예외 스위치는 2026-10-06 사용자 요청으로
+  // 모두 폐지 — 어느 날짜가 쓰이는지는 기준일 줄의 배지(기산점/참고)가 말한다. 등록은 늘 법정 축(예외 없음)이다.
+  const anchorManual = false
 
   // 기본 지역 pre-fill: 시/군/구 ← 회사 기본, 읍/면 ← 최근 사용값(localStorage, 클라이언트에서만) — effect 대신 lazy 초기값
   const [form, setForm] = useState(() => ({
@@ -160,63 +161,126 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
         }, 50)
       }
 
-      // ADD-2/ADD-4: 중복 고객·건물 확인 + 기존 건물정보 자동 로드
-      checkAddressAction(data.roadAddress).then(res => {
-        if (res.duplicate || res.duplicateBuilding) {
-          setDupInfo({ customer: res.duplicate, building: res.duplicateBuilding })
-        }
-        if (res.building) {
-          const b = res.building
-          setForm(prev => ({
-            ...prev,
-            building_purpose:      prev.building_purpose      || (b.purpose ?? ''),
-            building_total_area:   prev.building_total_area   || (b.total_area != null ? String(b.total_area) : ''),
-            building_floors_above: prev.building_floors_above || (b.floors_above != null ? String(b.floors_above) : ''),
-            building_floors_below: prev.building_floors_below || (b.floors_below != null ? String(b.floors_below) : ''),
-            building_year_built:   prev.building_year_built   || (b.year_built != null ? String(b.year_built) : ''),
-          }))
-        }
-      }).catch(() => null)
-
-      // 건축물대장 API: 신규 주소도 소방안전 관련 건물정보 자동 조회 (키 미설정 시 조용히 건너뜀)
-      setLedgerNote('')
-      bcodeRef.current = data.bcode ? { bcode: data.bcode, jibun: data.jibunAddress } : null
-      if (data.bcode) {
-        fetchBuildingLedgerAction(data.bcode, data.jibunAddress).then(res => {
-          if (res.unavailable || res.error || !res.info) {
-            if (res.error) setLedgerNote(`건축물대장: ${res.error}`)
-            return
-          }
-          const L = res.info
-          ledgerRef.current = L
-          // 건물 물리정보(용도/연면적/층수/준공연도) + 사용승인일 자동 채움.
-          // 사용승인일 자동 적용: 계획 기산점이 점검계획일(필수 수동 입력)로 바뀌어 자동 입력해도 안전 (2026-07-13).
-          // 이미 입력된 값은 덮어쓰지 않고, 채워진 뒤에도 자유롭게 편집·삭제 가능.
-          setForm(prev => ({
-            ...prev,
-            use_approval_date:     prev.use_approval_date     || (L.use_approval_date ?? ''),
-            building_purpose:      prev.building_purpose      || (L.purpose ?? ''),
-            building_total_area:   prev.building_total_area   || (L.total_area != null ? String(L.total_area) : ''),
-            building_floors_above: prev.building_floors_above || (L.floors_above != null ? String(L.floors_above) : ''),
-            building_floors_below: prev.building_floors_below || (L.floors_below != null ? String(L.floors_below) : ''),
-            building_year_built:   prev.building_year_built   || (L.use_approval_date ? L.use_approval_date.slice(0, 4) : ''),
-          }))
-          const extras = [
-            L.use_approval_date && `사용승인일 ${L.use_approval_date} 자동 적용`,
-            L.height != null && `높이 ${L.height}m`,
-            L.main_structure && `구조 ${L.main_structure}`,
-            L.elevator_count != null && `승강기 ${L.elevator_count}대`,
-            L.emergency_elevator_count != null && `비상용 ${L.emergency_elevator_count}대`,
-            L.households != null && `세대 ${L.households}`,
-            L.seismic_design && `내진설계 ${L.seismic_design === '1' || L.seismic_design === 'Y' ? '적용' : '미적용'}`,
-          ].filter(Boolean).join(' · ')
-          setLedgerNote(`건축물대장 자동 조회 완료${extras ? ` — ${extras}` : ''}`)
-        }).catch(() => null)
-      }
+      // 검색으로 정한 주소 — 뒤에 동/호수를 덧붙여 쳐도(정상 동선) 직접 입력 조회를 다시 돌리지 않는 기준
+      searchedAddrRef.current = data.roadAddress
+      lastTypedLookupRef.current = ''
+      loadBuildingInfo(data.roadAddress, data.bcode ? { bcode: data.bcode, jibun: data.jibunAddress } : null, '')
     })
   }
 
-  function handleSubmit() {
+  /** 주소 하나에 대해 건물정보를 채운다 — [주소 검색]과 **직접 입력**(2026-10-06 사용자 요청)이 같은 한 벌을 쓴다.
+   *  ① 중복 고객·건물 확인 + 이미 등록된 건물의 정보(ADD-2/ADD-4)  ② 건축물대장 조회(용도·연면적·층수·사용승인일…).
+   *  이미 입력된 칸은 덮어쓰지 않는다 — 채워진 뒤에도 자유롭게 고칠 수 있다.
+   *  ⚠ 늦게 도착한 옛 주소의 응답이 새 주소의 값을 덮지 않게 시퀀스로 막는다(직접 입력은 blur마다 돈다).
+   *  `via`는 안내문 꼬리 — 직접 입력이면 「어느 도로명으로 맞췄는지」를 말해 오매칭을 사람이 알아보게 한다. */
+  function loadBuildingInfo(addrForDupCheck: string, code: { bcode: string; jibun: string } | null, via: string) {
+    const seq = ++buildingLookupSeq.current
+    const live = () => seq === buildingLookupSeq.current
+
+    checkAddressAction(addrForDupCheck).then(res => {
+      if (!live()) return
+      if (res.duplicate || res.duplicateBuilding) {
+        setDupInfo({ customer: res.duplicate, building: res.duplicateBuilding })
+      }
+      if (res.building) {
+        const b = res.building
+        setForm(prev => ({
+          ...prev,
+          building_purpose:      prev.building_purpose      || (b.purpose ?? ''),
+          building_total_area:   prev.building_total_area   || (b.total_area != null ? String(b.total_area) : ''),
+          building_floors_above: prev.building_floors_above || (b.floors_above != null ? String(b.floors_above) : ''),
+          building_floors_below: prev.building_floors_below || (b.floors_below != null ? String(b.floors_below) : ''),
+          building_year_built:   prev.building_year_built   || (b.year_built != null ? String(b.year_built) : ''),
+        }))
+      }
+    }).catch(() => null)
+
+    // 건축물대장 API: 신규 주소도 소방안전 관련 건물정보 자동 조회 (키 미설정 시 조용히 건너뜀)
+    setLedgerNote('')
+    ledgerRef.current = null
+    bcodeRef.current = code
+    if (!code) return
+    fetchBuildingLedgerAction(code.bcode, code.jibun).then(res => {
+      if (!live()) return
+      if (res.unavailable || res.error || !res.info) {
+        if (res.error) setLedgerNote(`건축물대장: ${res.error}`)
+        return
+      }
+      const L = res.info
+      ledgerRef.current = L
+      // 건물 물리정보(용도/연면적/층수/준공연도) + 사용승인일 자동 채움.
+      // 사용승인일 자동 적용: 계획 기산점이 점검계획일(필수 수동 입력)로 바뀌어 자동 입력해도 안전 (2026-07-13).
+      setForm(prev => ({
+        ...prev,
+        use_approval_date:     prev.use_approval_date     || (L.use_approval_date ?? ''),
+        building_purpose:      prev.building_purpose      || (L.purpose ?? ''),
+        building_total_area:   prev.building_total_area   || (L.total_area != null ? String(L.total_area) : ''),
+        building_floors_above: prev.building_floors_above || (L.floors_above != null ? String(L.floors_above) : ''),
+        building_floors_below: prev.building_floors_below || (L.floors_below != null ? String(L.floors_below) : ''),
+        building_year_built:   prev.building_year_built   || (L.use_approval_date ? L.use_approval_date.slice(0, 4) : ''),
+      }))
+      const extras = [
+        L.use_approval_date && `사용승인일 ${L.use_approval_date} 자동 적용`,
+        L.height != null && `높이 ${L.height}m`,
+        L.main_structure && `구조 ${L.main_structure}`,
+        L.elevator_count != null && `승강기 ${L.elevator_count}대`,
+        L.emergency_elevator_count != null && `비상용 ${L.emergency_elevator_count}대`,
+        L.households != null && `세대 ${L.households}`,
+        L.seismic_design && `내진설계 ${L.seismic_design === '1' || L.seismic_design === 'Y' ? '적용' : '미적용'}`,
+      ].filter(Boolean).join(' · ')
+      setLedgerNote(`건축물대장 자동 조회 완료${via}${extras ? ` — ${extras}` : ''}`)
+    }).catch(() => null)
+  }
+
+  /** 주소를 **직접 입력**했을 때(주소 검색 없이) — 칸을 벗어나면 도로명주소 API로 법정동코드·지번을 얻어
+   *  검색과 같은 건물정보 조회를 돌린다 (2026-10-06 사용자 요청). 역산 함수는 소방계획서가 이미 쓰는 것 한 벌이다.
+   *  ⚠ 검색한 주소로 **시작하면** 건너뛴다 — 「주소 검색 후 동/호수 등 추가 입력」이 이 칸의 정상 동선이다.
+   *  ⚠ 같은 글자로 두 번 돌리지 않는다(blur는 자주 난다).
+   *  ⚠ 칸의 글자는 바꾸지 않는다 — 사용자가 친 그대로 저장한다. 대신 우편번호·지번·지역(지역배정·필터가 쓰는
+   *    숨은 칸)은 API 값으로 채운다: 읍/면은 「최근 사용값」으로 프리필돼 있어 직접 입력이면 틀린 채 저장됐다. */
+  function lookupTypedAddress(value: string) {
+    const addr = value.trim()
+    if (addr.length < 6) return
+    if (searchedAddrRef.current && addr.startsWith(searchedAddrRef.current)) return
+    if (addr === lastTypedLookupRef.current) return
+    lastTypedLookupRef.current = addr
+    searchedAddrRef.current = ''
+    const seq = ++buildingLookupSeq.current
+    setLedgerNote('주소로 건물정보를 찾는 중…')
+    geocodeAddressToBcodeAction(addr).then(geo => {
+      if (seq !== buildingLookupSeq.current) return
+      if (geo.unavailable || geo.error || !geo.bcode || !geo.jibunAddress) {
+        // 못 찾았으면 앞서 다른 주소로 받아 둔 코드·대장값을 남기지 않는다 — 엉뚱한 건물로 저장된다
+        bcodeRef.current = null
+        ledgerRef.current = null
+        setAddrJibun('')
+        setForm(prev => ({ ...prev, zipcode: '' }))
+        setLedgerNote(geo.unavailable ? '' : `건물정보를 찾지 못했습니다${geo.error ? ` (${geo.error})` : ''} — [주소 검색]을 이용해 주세요.`)
+        return
+      }
+      setAddrJibun(geo.jibunAddress)
+      setForm(prev => ({
+        ...prev,
+        zipcode:      geo.zipcode      ?? prev.zipcode,
+        region_si:    geo.regionSi     || prev.region_si,
+        region_myeon: geo.regionMyeon  || prev.region_myeon,
+        region_ri:    geo.regionRi     ?? '',
+      }))
+      loadBuildingInfo(geo.roadAddress || addr, { bcode: geo.bcode, jibun: geo.jibunAddress },
+        geo.roadAddress ? ` (도로명 「${geo.roadAddress}」 기준)` : '')
+    }).catch(() => {
+      if (seq === buildingLookupSeq.current) setLedgerNote('')
+    })
+  }
+
+  /* 저장 뒤 갈 곳 — 달력에서 왔을 때만 고른다(2026-10-06 사용자 요청: 「달력으로 갈 수도 있고, 이어서 할 수 있도록」).
+     'continue' = 상세의 진행 띠(건물정보 → 관계인 → 소방계획서, 차례 모드)로, 'calendar' = 보낸 자리(사이드바)로.
+     ⚠ state가 아니라 ref다 — 제출은 이름 확인·주소 중복 팝업을 거쳐 비동기로 doSubmit에 닿는데,
+       그 사이 렌더가 끼어도 누른 버튼의 뜻이 남아야 한다. */
+  const afterSaveRef = useRef<'continue' | 'calendar'>('continue')
+
+  function handleSubmit(after: 'continue' | 'calendar' = 'continue') {
+    afterSaveRef.current = after
     setError('')
     if (!form.customer_code.trim()) { setError('고객코드 생성 중입니다. 잠시 후 다시 시도해주세요.'); return }
     if (!form.customer_name.trim()) { setError('고객명을 입력해주세요.'); return }
@@ -335,8 +399,16 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
          떠났으면 그 주소에 `day=`가 실려 있어 **그 사이드바가 다시 열린다**.
          ⚠ 방금 만든 고객의 계획·단계 칩은 그 목록에 이미 들어 있다 — 서버가 새로 그리기 때문이다.
          ⚠ 여기서 `refresh()`를 덧붙이지 않는다(위 주석과 같은 이유 — push가 이미 RSC를 받는다). */
-      if (returnHref) { router.push(returnHref); return }
-      router.push(`/customers/${result.customerId}?created=1&onboarding=1`)
+      // [나중에 입력 · 달력으로] — `new=`를 실어 달력이 방금 등록한 고객을 강조하고 [상세정보 입력]을 띄운다
+      // (2026-10-06 사용자: 「달력으로 가면 다시 고객을 선택해야 하므로 불편」)
+      if (returnHref && afterSaveRef.current === 'calendar') {
+        router.push(`${returnHref}${returnHref.includes('?') ? '&' : '?'}new=${result.customerId}`)
+        return
+      }
+      /* 이어서 입력 — 상세의 진행 띠로 간다. 달력에서 왔으면 `from=`을 실어 보낸다: 상세가 그걸 보고
+         **차례 모드**(건물정보 → 관계인 → 소방계획서 → [완료 · 달력으로])로 띠를 그린다(customers/[id]/page.tsx).
+         탭을 넘겨도 from이 남아(customer-tabs applySwitchTab) 어느 탭에서든 달력으로 돌아갈 수 있다. */
+      router.push(`/customers/${result.customerId}?created=1&onboarding=1${returnHref ? `&from=${encodeURIComponent(returnHref)}` : ''}`)
     })
   }
 
@@ -478,66 +550,10 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
               onChange={e => setField('plan_anchor_date', e.target.value)}
               className={`${inputCls} ${keyInputCls} ${need(reqOf('점검일자')) ? emptyRequiredCls : ''}`}
             />
-          </Cell>
-          <Cell span={2} label="이 날짜로 잡히는 일정">
-            {/* 이 칸이 **무엇을 정하는지** 그 자리에서 말한다 (2026-09-22 사용자 요청).
-                종전엔 아무 말도 없어서, 위 [점검일자]를 찍은 사용자는 자기가 고른 날짜로
-                일정이 잡히는 줄 알았다 — 실측 65%가 사용승인일에 밀려 다른 날에 앉았고
-                90명은 아예 달이 달랐다. 어느 칸이 이기는지를 입력 중에 보여준다.
-                ⚠ 막지 않는다. 사용승인일을 **못 내는** 건물이 실재한다(군부대·쉼터 등 —
-                  건축물대장 조회가 실패하는 건들). 막으면 그 고객은 등록 자체가 안 된다. */}
-            {/* 문구는 배지와 **같은 판정**(roles)을 따른다 — 예외 체크를 켜면 점검일자가 기산점이 된다 */}
-            {roles.approval === 'anchor' ? (
-              <p data-testid="new-anchor-legal" className="text-form-xs text-ink-sub leading-relaxed">
-                사용승인일 기준으로 <b className="text-ink">종합·작동·정기</b>가 잡힙니다 — 법정 기산점입니다.
-              </p>
-            ) : isCompleteDate(form.use_approval_date) ? (
-              <p data-testid="new-anchor-manual" className="text-form-xs text-amber-700 leading-relaxed">
-                ⚠ 예외 — <b>입력한 점검일자</b> 기준으로 종합·작동·정기가 잡힙니다.
-              </p>
-            ) : (
-              <p data-testid="new-anchor-provisional" className="text-form-xs text-amber-700 leading-relaxed">
-                ⚠ 사용승인일이 없어 <b>점검일자로 잠정 배치</b>됩니다.
-                일정은 <b>그대로 생성</b>되고(종합·작동·정기), 나중에 사용승인일을 넣으면 <b>법정 자리로 자동 재배치</b>됩니다.
-              </p>
-            )}
-            {/* 미래 날짜면 **지금은 단계가 안 생긴다**는 사실을 등록 전에 말한다 (2026-09-22).
-                막지 않는다 — 달력에서 앞당겨 잡는 것은 정상 동선이고, 막으면 그 자리에서
-                할 수 없는 일을 요구받는다(`inspection-step-links.ts:37`의 확립된 기울기).
-                ⚠ 판정은 **서버와 같은 순수 함수**(`isPastAnchor`)로 한다 — 두 벌로 적으면
-                  「생긴다고 했는데 안 생기는」 어긋남이 곧바로 생긴다. */}
-            {isCompleteDate(form.plan_anchor_date)
-              && !isPastAnchor(form.plan_anchor_date, todayKst()) && (
-              <p data-testid="anchor-future-note" className="text-form-xs text-amber-700">
-                점검일자가 미래라 <b>계획</b>으로 잡힙니다 — 1~4단계는 점검 당일에 열립니다.
-              </p>
-            )}
-            {/* 과거·오늘 점검일자 = 점검 사실 — 등록 즉시 그 날짜로 1차가 시작된다(2026-09-20 사용자 확정).
-                미래 고지와 **같은 판정 함수**의 반대편이라 둘이 동시에 서지 않는다. */}
-            {isCompleteDate(form.plan_anchor_date)
-              && isPastAnchor(form.plan_anchor_date, todayKst()) && (
-              <p data-testid="past-anchor-start-notice" className="text-form-xs text-amber-700">
-                점검일자가 지난(또는 오늘) 날짜라 등록과 동시에 <b>이 날짜 그대로</b> 1차 점검이 시작됩니다.
-              </p>
-            )}
-            {/* 예외 스위치 — 두 날짜가 다 있을 때만 의미가 있다(사용승인일이 없으면 점검일자가 이미 기산점).
-                ⚠ 켠 뒤에도 남겨야 끌 수 있다 — 그래서 roles가 아니라 두 날짜의 유무로 보인다.
-                ⚠ 과거 날짜에서도 남긴다 — 1차는 입력값으로 시작해도, 이 체크가 **차기 회차의 기산 축**을 정한다. */}
-            {isCompleteDate(form.use_approval_date) && isCompleteDate(form.plan_anchor_date) && (
-              <label className="flex items-center gap-1.5 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={anchorManual}
-                  onChange={e => setAnchorManual(e.target.checked)}
-                  data-testid="anchor-manual-toggle"
-                  className="accent-brand"
-                />
-                <span className="text-form-xs text-ink">
-                  그래도 <b>내가 입력한 점검일자</b>로 잡겠습니다
-                  <span className="text-ink-meta"> (법정 시기를 벗어날 수 있습니다)</span>
-                </span>
-              </label>
-            )}
+            {/* 「이 날짜로 잡히는 일정」 칸과 예외 스위치(「그래도 내가 입력한 점검일자로 잡겠습니다」)는
+                2026-10-06 사용자 요청으로 폐지 — 어느 날짜가 쓰이는지는 두 칸의 배지(기산점/참고)가 말한다.
+                ⚠ 이 스위치가 plan_anchor_manual=true를 만드는 **유일한 화면**이었다(상세 수정은 기존 값을 보존만 한다).
+                  이제 새 고객은 늘 법정 축(사용승인일 없으면 점검일자 잠정)이다. 기존 예외 고객은 그대로다. */}
           </Cell>
         </SubRow>
 
@@ -599,6 +615,8 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
                 id="new-address"
                 value={form.address}
                 onChange={e => setField('address', e.target.value)}
+                // 주소 검색 없이 직접 친 주소도 칸을 벗어나면 건물정보를 찾는다(2026-10-06 사용자 요청)
+                onBlur={e => lookupTypedAddress(e.target.value)}
                 placeholder="주소 검색 후 동/호수 등 추가 입력"
                 className={`${inputCls} pl-8 ${need(reqOf('주소')) ? emptyRequiredCls : ''}`}
               />
@@ -831,13 +849,27 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
         >
           취소
         </button>
+        {/* 달력에서 왔을 때만 갈 곳을 고른다 — 일반 등록(고객 목록)은 종전대로 상세로만 간다.
+            ⚠ 이 버튼은 type="button"이다 — Enter(암묵 제출)는 아래 「이어서 입력」이 받는다. */}
+        {returnHref && (
+          <button
+            type="button"
+            data-testid="new-submit-calendar"
+            onClick={() => handleSubmit('calendar')}
+            disabled={isPending || !requiredOk}
+            className="h-11 px-5 rounded-lg border border-brand-line text-sm font-medium text-brand hover:bg-brand-tint transition-colors disabled:opacity-50 shrink-0"
+          >
+            나중에 입력 · 달력으로
+          </button>
+        )}
         <button
           type="submit"
+          data-testid="new-submit-continue"
           disabled={isPending || !requiredOk}
-          className="h-11 px-8 rounded-lg bg-[#202023] hover:bg-[#292d34] text-white text-sm font-medium transition-colors flex items-center justify-center disabled:opacity-50 shrink-0"
+          className="h-11 px-8 rounded-lg bg-[#202023] hover:bg-[#292d34] text-white text-sm font-medium transition-colors flex items-center justify-center gap-1 disabled:opacity-50 shrink-0"
         >
           {isPending ? <Loader2 className="size-4 animate-spin" />
-            : requiredOk ? '고객 등록'
+            : requiredOk ? (returnHref ? <>저장하고 다음: 건물정보 <ArrowRight className="size-4" /></> : '고객 등록')
             : allFieldsOk ? '고객코드 생성 중…'
             : '필수 항목을 채워주세요'}
         </button>

@@ -79,15 +79,15 @@ check('①🚨 그 상태의 실제 기산점이 정말 점검일자인가(위 �
 check('① 레거시 + manual=true는 여전히 잠정 아님',
   isProvisionalAnchor({ use_approval_date: A, plan_anchor_date: P, plan_anchor_manual: true }) === false)
 
-// ══ ② 등록 폼 — 어느 칸이 이기는지 **입력 중에** 말하는가 ═══════════════════
-check('② 등록 폼이 잠정 안내를 낸다', newCode.includes('new-anchor-provisional'))
-check('② 사용승인일이 있으면 법정 기산점이라고 말한다', newCode.includes('new-anchor-legal'))
-check('② 두 안내가 **배타**다(같은 조건의 양 갈래 — 둘 다 뜨거나 둘 다 안 뜨면 거짓말)',
-  /isCompleteDate\(form\.use_approval_date\)\s*\?\s*\([\s\S]{0,600}?new-anchor-legal[\s\S]{0,600}?\)\s*:\s*\([\s\S]{0,800}?new-anchor-provisional/.test(newCode))
-check('② 잠정 안내가 「일정은 그대로 생성된다」를 말한다(막힌 줄 알면 사용자가 멈춘다)',
-  /new-anchor-provisional[\s\S]{0,700}?그대로 생성/.test(newCode))
-check('② 잠정 안내가 「나중에 넣으면 재배치」를 말한다(그래야 고칠 이유가 생긴다)',
-  /new-anchor-provisional[\s\S]{0,700}?재배치/.test(newCode))
+// ══ ② 등록 폼 — 어느 칸이 이기는지는 **배지**가 말한다 ═══════════════════
+// 2026-10-06 사용자 요청으로 「이 날짜로 잡히는 일정」 칸(법정·잠정·미래·과거 안내 문구)을 폐지했다.
+// 남는 것은 두 칸의 기산점/참고 배지(같은 판정 anchorRoles)뿐이다 — 예외 스위치도 같은 날 폐지됐다.
+check('② 등록 폼에 「이 날짜로 잡히는 일정」 칸이 없다 (사용자 폐지 2026-10-06)',
+  !/label="이 날짜로 잡히는 일정"/.test(newCode) && !newCode.includes('new-anchor-provisional') && !newCode.includes('new-anchor-legal'))
+check('② 어느 칸이 기산점인지는 두 칸의 배지가 말한다',
+  newCode.includes('testId="new-role-approval"') && newCode.includes('testId="new-role-plan"') && /anchorRoles\(/.test(newCode))
+check('② 예외 스위치가 없다 — 등록은 늘 법정 축으로 저장된다 (사용자 폐지 2026-10-06)',
+  !newCode.includes('data-testid="anchor-manual-toggle"') && /const anchorManual = false/.test(newCode))
 /* ⛔ 막지 않는다 — 사용승인일을 못 내는 건물이 실재한다(군부대·쉼터) */
 check('②⛔ 사용승인일을 **저장 차단 조건으로 쓰지 않는다**',
   !/setError\([^)]*사용승인일/.test(newCode))

@@ -90,6 +90,41 @@ export function onboardingSteps(s: OnboardingState): OnboardingStep[] {
   ]
 }
 
+/* ── 차례 모드 — 점검달력에서 시작한 등록 (2026-10-06 사용자 요청) ──
+ * 「달력을 통해서 신규고객을 등록할 때 기본정보 → 건물·시설 → 관계인 → … 등록할 수 있도록」.
+ * 위의 기본 모드는 **첫 미완**으로 건너뛴다 — 그러면 등록 폼이 관계인을 필수로 받으므로 관계인 단계가
+ * 늘 사라진다. 차례 모드는 **지금 보는 탭의 다음 칸**으로 간다(채워졌어도 들러 확인한다 — 직원
+ * 연락처를 더 넣는 일이 실제로 이때 생긴다). 마지막 칸에서는 「완료 · 달력으로」가 끝을 맺는다.
+ * ⚠ 차단은 여전히 없다 — 비어 있어도 다음으로 넘어간다(문구가 「건너뛰고」로 바뀔 뿐). */
+
+/** 차례 모드에서 지금 단계 — 보고 있는 탭이 순서 안이면 그 탭, 밖(공통·회차 등)이면 null */
+export function sequentialCurrent(activeTab: string | undefined): OnboardingTab | null {
+  return (ONBOARDING_ORDER as readonly string[]).includes(activeTab ?? '') ? activeTab as OnboardingTab : null
+}
+
+/** 차례 모드의 다음 칸 — 마지막(소방계획서)이면 null(= 완료). 순서 밖 탭이면 첫 미완으로 데려온다. */
+export function sequentialNext(activeTab: string | undefined, s: OnboardingState): OnboardingTab | null {
+  const cur = sequentialCurrent(activeTab)
+  if (!cur) return nextOnboardingTab(s)
+  const i = ONBOARDING_ORDER.indexOf(cur)
+  return ONBOARDING_ORDER[i + 1] ?? null
+}
+
+/** 차례 모드의 띠 단계 — ✓는 저장된 값(done), 강조는 **지금 보는 탭**이다. */
+export function sequentialSteps(activeTab: string | undefined, s: OnboardingState): OnboardingStep[] {
+  const cur = sequentialCurrent(activeTab)
+  return onboardingSteps(s).map(st => ({ ...st, current: st.key === cur }))
+}
+
+/** 차례 모드의 안내 한 줄 — 지금 칸에서 무엇을 하면 되는지 */
+export function sequentialHint(activeTab: string | undefined, buildings: readonly BuildingLike[], s: OnboardingState): string {
+  const cur = sequentialCurrent(activeTab)
+  if (cur === 'buildings') return s.buildings ? '건물 정보를 확인하고 다음으로 넘어가세요.' : onboardingHint('buildings', buildings)
+  if (cur === 'contacts') return '등록 때 넣은 관계인을 확인하세요 — 직원 연락처를 더 넣을 수 있습니다.'
+  if (cur === 'plan') return '소방계획서를 작성하세요 — 나중에 써도 됩니다.'
+  return '등록 단계로 돌아가 이어서 입력하세요.'
+}
+
 /** 지금 칸에서 무엇이 비었는지 — 띠에 그대로 인쇄한다.
  *
  *  ⚠ 「입력하세요」가 아니라 **무엇이** 빈지를 말한다. 실측상 미완의 94%가 「용도」 한 칸인데

@@ -118,7 +118,25 @@ ok('★ ㉣ 데이 패널 등록 버튼이 떠나기 전에 패널을 닫지 않
 // 등록 페이지 쪽 — 받은 값을 폼에 꽂고, 마치면 그리로 돌려보낸다
 ok('★ 등록 페이지가 anchor를 프리필로, from을 복귀 주소로 넘긴다',
   /initialAnchorDate=\{initialAnchorDate\}/.test(newPage) && /returnHref=\{returnHref\}/.test(newPage))
-ok('★ 폼이 복귀 주소로 돌아간다', /if \(returnHref\) \{ router\.push\(returnHref\); return \}/.test(form))
+// 2026-10-06 사용자 요청 「달력으로 갈 수도 있고, 이어서 할 수 있도록」 — 달력에서 왔으면 갈 곳을 고른다
+ok('★ [나중에 입력 · 달력으로]를 고르면 복귀 주소로 돌아가며 new=(방금 등록한 고객)를 싣는다',
+  /if \(returnHref && afterSaveRef\.current === 'calendar'\) \{\s*router\.push\(`\$\{returnHref\}\$\{returnHref\.includes\('\?'\) \? '&' : '\?'\}new=\$\{result\.customerId\}`\)/.test(form)
+  && /onClick=\{\(\) => handleSubmit\('calendar'\)\}/.test(form))
+/* 2026-10-06 「달력으로 가면 다시 고객을 선택해야 하므로 불편」 — 달력이 new=를 받아 띠·강조를 한다 */
+ok('★ 달력이 new=를 읽어 「등록 완료 · 상세정보 입력」 띠를 띄운다 (차례 모드로 연다)', () =>
+  /searchParams\.get\('new'\)/.test(client) && /data-testid="cal-new-customer"/.test(client)
+  && /\/customers\/\$\{newCustomer\.id\}\?created=1&onboarding=1&from=\$\{encodeURIComponent\(calendarBackHref\)\}/.test(client))
+ok('★ 달력의 복귀 주소는 new=를 뗀다 — 상세에 갔다 와도 띠가 다시 뜨지 않는다', /sp\.delete\('new'\)\s*\n\s*const ym = /.test(client))
+ok('★ 띠 닫기는 replaceState(null, …) — Next 라우터 동기화를 깨지 않는다',
+  /setNewCustomerId\(''\)[\s\S]{0,200}window\.history\.replaceState\(null,/.test(client))
+ok('방금 등록한 고객 칩을 달력·사이드바에서 강조한다',
+  (client.match(/newCustomerId && [\w.]+ === newCustomerId/g) ?? []).length >= 3)
+ok('★ [등록 후 이어서 입력]은 진행 띠(onboarding=1)로 가며 from을 실어 간다 — 상세에서 달력으로 돌아올 수 있다',
+  /\?created=1&onboarding=1\$\{returnHref \? `&from=\$\{encodeURIComponent\(returnHref\)\}` : ''\}/.test(form))
+ok('★ 갈 곳 선택 버튼은 달력에서 왔을 때만 보인다 — 「달력으로」는 type=button(Enter는 이어서 입력)', () => {
+  const i = form.indexOf('data-testid="new-submit-calendar"')
+  return i > 0 && /\{returnHref && \(\s*<button\s+type="button"\s*$/.test(form.slice(i - 120, i).trimEnd())
+}, '(버튼이 returnHref 가드 밖이거나 type=submit이다)')
 /* 🚨 오픈 리다이렉트 — 검증 없이 push하면 `//evil.com`이 프로토콜 상대 URL로 해석돼 밖으로 튄다.
    판정은 **페이지에서** 한 벌로 한다(폼은 이미 걸러진 값을 받는다). 실제로 걸러지는지 여기서 돌려 본다. */
 // 2026-09-23 검증식이 `lib/safe-return`으로 이사했다(고객 상세도 같은 문을 쓴다) — 소스에서 식을 뽑던
@@ -133,7 +151,7 @@ ok('★ 복귀 주소는 내부 경로만 받는다 (오픈 리다이렉트 차�
 
 console.log('\n— ④ 기존 화면 회귀 방지')
 ok('★ from이 없으면 종전대로 고객 상세로 이동한다 (폴백 보존)',
-  /router\.push\(`\/customers\/\$\{result\.customerId\}\?created=1&onboarding=1`\)/.test(form))
+  /router\.push\(`\/customers\/\$\{result\.customerId\}\?created=1&onboarding=1\$\{returnHref \?/.test(form))
 ok('프리필은 **lazy 초기값에만** 꽂힌다 (effect로 덮지 않는다)',
   /plan_anchor_date: initialAnchorDate/.test(form) && !/setField\('plan_anchor_date', initialAnchorDate/.test(form))
 ok('짚은 날짜가 세 입구(칸 [+]·툴바·데이 패널) 모두에서 점검일자로 넘어간다',

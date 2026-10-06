@@ -57,7 +57,7 @@ import { Suspense } from 'react'
 import { CustomerTabs, type CustomerTabDef } from '@/components/customers/customer-tabs'
 import { OnboardingStrip } from '@/components/customers/onboarding-strip'
 import {
-  buildingsDone, contactsDone, nextOnboardingTab, onboardingSteps, onboardingHint, onboardingComplete,
+  buildingsDone, contactsDone, nextOnboardingTab, onboardingSteps, onboardingHint, onboardingComplete, ONBOARDING_ORDER,
 } from '@/lib/onboarding-steps'
 import { RecordRecentCustomer } from '@/components/customers/recent-customers-strip'
 import { BuildingListPanel, type BuildingPanelRow } from '@/components/customers/building-inline-panel'
@@ -465,7 +465,14 @@ export default async function CustomerDetailPage({
   // ⚠ 이 계산은 tabDefs **뒤**에 있어야 한다 — 위쪽 resolvedTab은 조회 전이라 완성도를 모른다.
   const onboardingActive = onboarding === '1'
   const obNext = nextOnboardingTab(obState)
-  const effectiveTab = onboardingActive && !initialTab ? obNext : resolvedTab
+  // 차례 모드 — 점검달력에서 시작한 등록(`onboarding=1` + 달력 `from=`, 2026-10-06 사용자 요청).
+  // 첫 미완으로 건너뛰지 않고 **건물부터 차례로** 간다. 끝(소방계획서)의 [완료 · 달력으로]는 떠나온 달력에
+  // `new=`를 실어 돌려보낸다 — 달력이 방금 등록한 고객을 강조한다.
+  const onboardingSequence = onboardingActive && returnHref.startsWith('/inspections/calendar')
+  const sequenceDoneHref = onboardingSequence
+    ? `${returnHref}${returnHref.includes('?') ? '&' : '?'}new=${customer.id}`
+    : ''
+  const effectiveTab = onboardingActive && !initialTab ? (onboardingSequence ? ONBOARDING_ORDER[0] : obNext) : resolvedTab
 
   // ── §6-E: 지역 기반 담당 추천 — 같은 시군구+읍면 고객들의 최빈 담당 (미배정일 때만, 물결 B에서 조회) ──
   let regionRecommend: { employeeId: string; name: string; regionLabel: string } | null = null
@@ -1189,6 +1196,11 @@ export default async function CustomerDetailPage({
             hint={onboardingHint(obNext, buildings)}
             next={obNext}
             complete={onboardingComplete(obState)}
+            sequence={onboardingSequence ? {
+              doneHref: sequenceDoneHref, state: obState,
+              // 판정에 쓰는 세 칸만 — 건물 행 전체를 클라이언트로 싣지 않는다
+              buildings: buildings.map(b => ({ is_active: b.is_active, purpose: b.purpose, total_area: b.total_area })),
+            } : undefined}
           />
         ) : undefined}
         // 보고서 입력 다섯 탭은 맨 위에 「이 탭에서 채울 칸」 목록을 얹는다(2026-09-23 — report-gaps.tsx)
