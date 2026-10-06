@@ -49,11 +49,8 @@ try {
   check('2-5 남은 자리표시자 0', !/\{\{[a-z0-9_]+\}\}/.test(xml))
   const esc = custName.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
   check('2-6 본문에 대상물 명칭', !!custName && xml.includes(esc))
-  const notice = page.getByTestId('somin-hwpx-notice')
-  await notice.waitFor({ timeout: 10000 })
-  const nt = (await notice.textContent()) ?? ''
-  check('2-7 고지 — 명칭·소재지 일치 주의가 맨 앞', nt.includes('한글파일 고지: 소민터에 등록된 대상물 명칭·소재지'), nt.slice(0, 80))
-  check('2-8 고지 — 4~7쪽 빈 서식 안내', nt.includes('4~7쪽'), nt.slice(0, 200))
+  // 한글파일 고지는 화면에 띄우지 않는다(사용자 지시 2026-10-06)
+  check('2-7 한글파일 고지 칸 없음', await page.getByTestId('somin-hwpx-notice').count() === 0)
   check('2-9 오류 문구 없음', await page.getByTestId('somin-hwpx-error').count() === 0)
 
   console.log('\n[3] 175 소민터 등록 명칭·소재지 — 고객 정보에서 적으면 한글파일만 그 값으로')
@@ -83,9 +80,6 @@ try {
   const xml2 = await (await JSZip.loadAsync(readFileSync(path2))).file('Contents/section0.xml')!.async('string')
   check('3-5 명칭·소재지 칸 = 소민터 등록값', xml2.includes(SN) && xml2.includes(SA))
   check('3-6 사내 고객명은 명칭 칸에서 빠짐', !xml2.includes(`>${esc}<`) && !xml2.includes(`${esc}</hp:t>`), esc)
-  await page.getByTestId('somin-hwpx-notice').waitFor({ timeout: 10000 })
-  const nt2 = (await page.getByTestId('somin-hwpx-notice').textContent()) ?? ''
-  check('3-7 고지 — 소민터 등록값으로 인쇄', nt2.includes(`소민터 등록값으로 인쇄: 명칭 「${SN}」·소재지 「${SA}」`), nt2.slice(0, 120))
 } catch (e) {
   check('실행 중 예외 없음', false, e instanceof Error ? e.message : String(e))
 } finally {

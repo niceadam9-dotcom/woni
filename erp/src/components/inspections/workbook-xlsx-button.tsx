@@ -123,11 +123,7 @@ export function WorkbookXlsxButton({ inspectionId, disabled, variant = 'default'
       {error && (
         <p className="mt-1 w-full rounded-lg bg-red-50 px-2 py-1.5 text-form-xs text-red-600">{error}</p>
       )}
-      {notice && (
-        <p className="mt-1 w-full whitespace-pre-wrap break-words rounded-lg bg-amber-50 px-2 py-1.5 text-form-2xs text-amber-700">
-          엑셀 고지: {notice}
-        </p>
-      )}
+      {/* 「엑셀 고지:」 칸은 사용자 지시로 지웠다(2026-10-06) — 받기 실패(error)만 그린다 */}
     </>
   )
 }

@@ -19,7 +19,9 @@ export function DocNoticeToast({ notice, error, onClose }: {
   onClose: () => void
 }) {
   if (typeof document === 'undefined') return null
-  if (!notice && !error) return null
+  // 문서 고지(notice)는 사용자 지시로 띄우지 않는다(2026-10-06) — 받기 실패(error)만 알린다
+  void notice
+  if (!error) return null
 
   return createPortal(
     <div
@@ -33,7 +35,7 @@ export function DocNoticeToast({ notice, error, onClose }: {
         : 'bg-amber-50 border border-amber-200'}`}>
         <AlertTriangle className={`size-4 shrink-0 mt-0.5 ${error ? 'text-red-500' : 'text-amber-500'}`} />
         <p className={`text-form-xs whitespace-pre-wrap break-words ${error ? 'text-red-700' : 'text-amber-800'}`}>
-          {error ? error : <><span className="font-medium">문서 고지: </span>{notice}</>}
+          {error}
         </p>
         <button onClick={onClose} title="닫기"
           className={`shrink-0 rounded p-0.5 ${error ? 'text-red-400 hover:bg-red-100' : 'text-amber-500 hover:bg-amber-100'}`}>
