@@ -1,10 +1,9 @@
 'use client'
 
-import { useRouter, usePathname } from 'next/navigation'
-import { Check, ArrowRight, X } from 'lucide-react'
+import { Check, ArrowRight } from 'lucide-react'
 import { useCustomerTabs } from '@/components/customers/customer-tabs'
 import {
-  sequentialSteps, sequentialNext, sequentialHint,
+  sequentialSteps, sequentialNext,
   type OnboardingStep, type OnboardingTab, type OnboardingState,
 } from '@/lib/onboarding-steps'
 
@@ -23,7 +22,7 @@ import {
  *    반드시 셸의 `goTab`을 부른다 — 미저장 확인창도 그 경로에만 걸려 있다.
  *    (완료 링크는 탭 이동이 아니라 **페이지를 떠나는** 것이라 <a>다 — 셸의 링크 가로채기가 미저장을 묻는다.)
  */
-export function OnboardingStrip({ steps, hint, next, complete, sequence }: {
+export function OnboardingStrip({ steps, next, complete, sequence }: {
   steps: OnboardingStep[]
   hint: string
   next: OnboardingTab
@@ -38,22 +37,10 @@ export function OnboardingStrip({ steps, hint, next, complete, sequence }: {
   }
 }) {
   const tabs = useCustomerTabs()
-  const router = useRouter()
-  const pathname = usePathname()
-
-  /** 띠를 닫는다 — `onboarding`만 떼고 지금 보던 탭은 그대로 둔다(보던 화면을 뺏지 않는다) */
-  function dismiss() {
-    const sp = new URLSearchParams(window.location.search)
-    sp.delete('onboarding')
-    sp.delete('created')
-    router.replace(`${pathname}${sp.size ? `?${sp}` : ''}`, { scroll: false })
-  }
-
-  // 차례 모드면 단계·다음·안내를 **지금 보는 탭** 기준으로 다시 잡는다
+  // 차례 모드면 단계·다음을 **지금 보는 탭** 기준으로 다시 잡는다
   const active = tabs?.activeTab
   const shownSteps = sequence ? sequentialSteps(active, sequence.state) : steps
   const seqNext = sequence ? sequentialNext(active, sequence.state) : null
-  const shownHint = sequence ? sequentialHint(active, sequence.buildings, sequence.state) : hint
   const curStep = shownSteps.find(s => s.current)
   const labelOf = (k: OnboardingTab | null) => shownSteps.find(s => s.key === k)?.label ?? ''
 
@@ -61,23 +48,13 @@ export function OnboardingStrip({ steps, hint, next, complete, sequence }: {
     <div
       data-testid="onboarding-strip"
       data-mode={sequence ? 'sequence' : 'first-gap'}
-      className="max-w-3xl rounded-lg border border-brand-line-soft bg-brand-tint px-4 py-3"
+      className="max-w-3xl flex flex-wrap items-center justify-between gap-x-3 gap-y-2 rounded-lg border border-brand-line-soft bg-brand-tint px-4 py-2"
     >
-      <div className="flex items-start justify-between gap-3">
-        <p className="text-form-sm font-semibold text-ink">
-          고객 등록 완료 — {sequence ? '차례대로 이어서 입력하세요' : complete ? '이어서 소방계획서를 작성하세요' : '순서대로 이어서 입력하세요'}
-        </p>
-        <button
-          type="button" onClick={dismiss} data-testid="onboarding-dismiss"
-          className="shrink-0 inline-flex items-center gap-1 text-form-2xs text-ink-meta hover:text-ink"
-        >
-          <X className="size-3" /> 안내 닫기
-        </button>
-      </div>
-
+      {/* 제목(「고객 등록 완료 — …」)·안내 문구·[안내 닫기]는 2026-10-06 사용자 요청으로 폐지
+          (「안내닫기, 안내 만들필요없어」) — 단계 칩과 [다음]·[완료]만 한 줄로 남긴다. */}
       {/* 단계 표시 — 라벨은 탭 라벨과 **글자까지 같다**(같은 것으로 읽히게).
           차례 모드에선 단계 칩을 눌러 그 칸으로 바로 갈 수 있다(되돌아가 고치기). */}
-      <ol className="mt-2 flex flex-wrap items-center gap-x-1.5 gap-y-1">
+      <ol className="flex flex-wrap items-center gap-x-1.5 gap-y-1">
         {shownSteps.map((s, i) => {
           const cls = `inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-form-2xs font-medium ${
             s.current ? 'bg-brand text-white'
@@ -105,8 +82,7 @@ export function OnboardingStrip({ steps, hint, next, complete, sequence }: {
         })}
       </ol>
 
-      <div className="mt-2 flex flex-wrap items-center gap-2">
-        <span className="text-form-xs text-ink-sub" data-testid="onboarding-hint">{shownHint}</span>
+      <div className="flex flex-wrap items-center gap-2">
         {sequence ? (
           seqNext ? (
             /* 지금 칸이 비었으면 「건너뛰고」를 앞에 붙인다 — 막지는 않는다(나중에 탭에서 채운다) */

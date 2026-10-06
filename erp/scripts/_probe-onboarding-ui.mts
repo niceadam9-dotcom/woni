@@ -58,8 +58,9 @@ try {
   // 🚨 기댓값에서 가운뎃점을 빼지 말 것 — 위 정규화는 `·`(U+00B7)를 안 걷는다(문자클래스의 `.`은 리터럴).
   //    처음에 '건물시설'로 적어 **제품이 맞는데 빨갛게** 떴다. 계측기부터 의심할 것.
   check('🎯 첫 미완 탭(건물정보)에서 시작한다 — 종전엔 소방계획서로 직행했다', t1 === '건물정보', t1)
-  const hint = await page.locator('[data-testid="onboarding-hint"]').innerText()
-  check('🎯 무엇이 비었는지 말한다', /용도|연면적|건물을/.test(hint), hint)
+  // 2026-10-06 사용자 「안내닫기, 안내 만들필요없어」 — 안내 문구·[안내 닫기] 폐지(단계 칩·[다음]만)
+  check('🎯 안내 문구·[안내 닫기]가 없다',
+    (await page.locator('[data-testid="onboarding-hint"], [data-testid="onboarding-dismiss"]').count()) === 0)
   const cur = await page.locator('[data-testid="onboarding-step-buildings"]').getAttribute('data-state')
   check('띠의 「지금」이 건물정보', cur === 'current', String(cur))
   check('기본정보는 ✓', (await page.locator('[data-testid="onboarding-step-info"]').getAttribute('data-state')) === 'done')

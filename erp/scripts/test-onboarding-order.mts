@@ -171,8 +171,11 @@ console.log('\n── 5) 배선 — 규칙이 한 벌인가, 그리고 차단이
   const links = strip.match(/<(?:Link|a)\s[^>]*>/g) ?? []
   ok(!/router\.push/.test(strip) && !/<Link\b/.test(strip) && links.every(l => /href=\{sequence\.doneHref\}/.test(l)),
     '🎯 (음성) 띠가 Link·push로 탭을 옮기지 않는다(링크는 완료 <a> 하나뿐)', `링크 ${links.length}개`)
-  ok(/sp\.delete\('onboarding'\)/.test(strip) && !/sp\.set\('tab'/.test(strip),
-    '🎯 [안내 닫기]는 띠만 접는다 — 보던 탭을 뺏지 않는다')
+  // 2026-10-06 사용자 「안내닫기, 안내 만들필요없어」 — 제목·안내 문구·[안내 닫기] 폐지, 단계 칩과 [다음]·[완료]만
+  ok(!/onboarding-dismiss|안내 닫기/.test(strip) && !/onboarding-hint/.test(strip) && !/고객 등록 완료 —/.test(strip),
+    '🎯 띠에 안내 문구·[안내 닫기]가 없다 (사용자 폐지 2026-10-06)')
+  ok(/data-testid="onboarding-next"/.test(strip) && /onboarding-step-\$\{s\.key\}/.test(strip),
+    '단계 칩과 [다음]은 남는다')
 }
 
 /* 차례 모드 — 점검달력에서 시작한 등록(2026-10-06 사용자 요청 「기본정보 → 건물정보 → 관계인 → … 차례로」).
