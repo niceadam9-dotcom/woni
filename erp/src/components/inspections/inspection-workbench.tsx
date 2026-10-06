@@ -176,13 +176,6 @@ export function InspectionWorkbench({
   // 167 ④ 제출 수단·접수번호 — 소민터가 기본(법정 전자제출 창구). 접수번호는 관계인 승인 뒤 받는다
   const [subVia9, setSubVia9] = useState<SubmissionVia>(data.submit9.via ?? 'somin')
   const [subReceipt9, setSubReceipt9] = useState(data.submit9.receiptNo ?? '')
-  const [copiedBlock, setCopiedBlock] = useState<string | null>(null)
-  const copyRows = useCallback(async (key: string, rows: Array<[string, string]>) => {
-    try {
-      await navigator.clipboard.writeText(rows.map(([k, v]) => `${k}\t${v}`).join('\n'))
-      setCopiedBlock(key); setTimeout(() => setCopiedBlock(c => (c === key ? null : c)), 2000)
-    } catch { setMsg('❌ 클립보드 복사에 실패했습니다 — 브라우저 권한을 확인해주세요.') }
-  }, [])
   /** ②③ 완료 **선반영** (2026-10-01 단계 인지 개선).
    *  ④⑥은 justSubmitted, ⑤는 defectsLocal이 같은 역할을 하는데 ②③만 없어서, 체크·기록 뒤
    *  router.refresh()(이 화면은 ~5초)가 끝날 때까지 스텝 칩이 그대로였다 — 사용자는 "체크했는데
@@ -633,7 +626,8 @@ export function InspectionWorkbench({
        폭은 셋 중 둘째로 넓었다(가장 적게 말하는 칸이 가장 넓었다). 전제는 둘째 칸 머리로 접고,
        기한·점검기간과 [기간 고치기]는 의미가 같은 자리인 「소방서 제출일」 옆으로 옮겼다.
      ⚠ 조정치 배열의 길이는 이 칸 수와 같아야 한다 — 저장값도 칸 수별로 따로 보관한다. */
-  const stepKind: PaneKind = sel === 'submit9' ? 'duo'
+  // ②도 2칸(2026-10-06 사용자 지시 — 협회 입력값·배치 요약 칸 폐지): 참여 인력 | 배치신고
+  const stepKind: PaneKind = sel === 'submit9' || sel === 'cert' ? 'duo'
     : sel === 'checklist' ? 'entry'
     : PREVIEW_STEPS.has(sel) ? 'preview' : 'normal'
   const paneCount = paneCountOf(stepKind)
@@ -951,45 +945,8 @@ export function InspectionWorkbench({
               )}
             </StepGoal>
           </Pane>
-          {/* 167 — 협회 입력 복사 카드. API가 없어 사람이 협회 화면에 옮겨 적는다(비교진단 §2). 값은 서버가 조립 */}
-          {data.placementCard && (
-            <Pane title="협회 입력값 (복사)" cls={paneCls} head={paneHead}>
-              <div className="space-y-2 px-3 py-2 text-form-xs" data-testid="placement-card">
-                {([['report', '배치신고', data.placementCard.report], ['object', '대상물 등록(처음 한 번)', data.placementCard.object]] as const).map(([key, title, rows]) => (
-                  <div key={key}>
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="font-medium text-ink-sub">{title}</span>
-                      <button type="button" onClick={() => copyRows(key, rows)}
-                        className="h-6 rounded-lg border border-brand-line px-2 text-form-2xs hover:border-brand hover:text-brand">
-                        {copiedBlock === key ? '✓ 복사됨' : '복사'}
-                      </button>
-                    </div>
-                    <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5">
-                      {rows.map(([k, v]) => (
-                        <div key={k} className="contents">
-                          <dt className="text-ink-meta whitespace-nowrap">{k}</dt>
-                          <dd className={v === '—' ? 'text-amber-600' : 'text-ink'}>{v}</dd>
-                        </div>
-                      ))}
-                    </dl>
-                  </div>
-                ))}
-                <p className="text-form-2xs text-ink-meta">「—」는 ERP에 값이 없는 칸 — 협회 화면에서 직접 채웁니다. 협회 대상물번호는 고객 기본정보 「외부 번호」에 적어 두면 여기 실립니다.</p>
-              </div>
-            </Pane>
-          )}
-          <Pane title="배치 요약" cls={paneCls} head={paneHead}>
-            <Summary rows={[
-              ['점검표 응답', `${data.responded}건`],
-              // 신고 완료가 기본 축(2026-09-07) — 파일·종이는 과거 회차 폴백
-              // reportedOn — 체크 직후 서버 왕복 전에도 같은 화면의 두 칸이 같은 말을 하게(선반영)
-              ['배치신고', data.certReported ? `완료 ${data.certReported.date}`
-                : reportedOn ? `완료 ${reportedDate}`
-                : data.certFile ? data.certFile.name
-                  : data.certArchived ? '종이 보관' : '미완료'],
-              ['불량', `${defectStat.total}건`],
-            ]} />
-          </Pane>
+          {/* 「협회 입력값(복사)」·「배치 요약」 칸 폐지(2026-10-06 사용자 지시) — ②는 2칸(참여 인력 | 배치신고).
+              placementCard는 서버가 계속 조립한다(화면 소비처만 없앴다) */}
         </>)}
 
         {sel === 'ownerReport' && (<>

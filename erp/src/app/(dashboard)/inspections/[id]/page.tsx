@@ -9,9 +9,7 @@ import { addWorkingDays } from '@/lib/step-dates'
 import type { SubmissionVia, PlacementResult } from '@/lib/legal-link'
 import { InspectionParticipantsClient } from '@/components/inspections/inspection-participants-client'
 import { InspectionMultidayClient } from '@/components/inspections/inspection-multiday-client'
-import { ReportGenerateClient } from '@/components/inspections/report-generate-client'
 import { InspectionSheetClient } from '@/components/inspections/inspection-sheet-client'
-import { InspectionDeleteClient } from '@/components/inspections/inspection-delete-client'
 import { InspectionDefectsClient } from '@/components/inspections/inspection-defects-client'
 import { InspectionInfoPopover } from '@/components/inspections/inspection-info-popover'
 import { PumpTestPanel } from '@/components/inspections/pump-test-panel'
@@ -146,7 +144,7 @@ export default async function InspectionDetailPage({
     severity: '경미' | '보통' | '중대'; created_at: string
   }
   type CustomerEmbed = { id: string; customer_name: string; customer_code: string; inspection_type: InspectionType; address: string | null }
-  const [inspRes, stepsRes, reportsRes, defectsRes, participantsRes, allEmpRes, genReportsRes, responsesRes,
+  const [inspRes, stepsRes, reportsRes, defectsRes, participantsRes, allEmpRes, responsesRes,
     genJobsRes, deliveryRes, annex10Res, evidenceLogsRes, archivedSet, certPaper, certReported] = await Promise.all([
     // 고객은 임베드로 함께 — 시트 집계(관리유형)·헤더·링크가 쓰는 5컬럼. FK는 customer_id 하나라 힌트 불필요
     admin.from('inspections').select('*, customer:customers(id, customer_name, customer_code, inspection_type, address)').eq('id', id).single(),
@@ -164,9 +162,6 @@ export default async function InspectionDetailPage({
       .eq('inspection_id', id).eq('role', '보조').order('sort_order'),
     admin.from('profiles').select('id, name, position, license_no')
       .eq('is_active', true).eq('is_system', false).order('name'),
-    admin.from('generated_reports')
-      .select('id, report_kind, file_name, generated_at, generated_by')
-      .eq('inspection_id', id).order('generated_at', { ascending: false }),
     // 응답 **전량** — 종전엔 상한 없이 한 번에 읽어 1000행에서 조용히 잘렸다(✕ 집계·외관 체크가 틀어진다).
     // 동기화·시트 집계가 이 배열을 그대로 받으므로 여기서 끝까지 받아야 한다.
     fetchAllRows<{ item_code: string; result: 'O' | 'X' | 'N'; memo: string | null }>((from, to) =>
@@ -319,9 +314,6 @@ export default async function InspectionDetailPage({
     name: p.profiles?.name ?? '(삭제된 직원)', license_no: p.profiles?.license_no ?? null,
   }))
   const allEmployees = (allEmpRes.data ?? []) as Array<{ id: string; name: string; position: string | null; license_no: string | null }>
-  const empNameMap = new Map(allEmployees.map(e => [e.id, e.name]))
-  const genHistory = ((genReportsRes.data ?? []) as Array<{ id: string; report_kind: string; file_name: string; generated_at: string; generated_by: string | null }>)
-    .map(g => ({ id: g.id, report_kind: g.report_kind, file_name: g.file_name, generated_at: g.generated_at, by_name: g.generated_by ? (empNameMap.get(g.generated_by) ?? null) : null }))
 
   const contact = contactRes.data as { id: string; role: string; name: string; phone: string | null; email: string | null } | null
   const employee = employeeRes.data as { id: string; name: string; position: string | null; license_no: string | null } | null
@@ -806,21 +798,8 @@ export default async function InspectionDetailPage({
         />
       )}
 
-      {/* 상시 쓰지 않는 도구는 접어 둔다 — 펼치면 작업대가 그만큼 줄어들 뿐 페이지는 스크롤하지 않는다(R6-9) */}
-      <details className="shrink-0 rounded-xl border border-brand-line-soft bg-surface">
-        <summary className="cursor-pointer px-3 py-1.5 text-form-xs text-ink-soft hover:text-brand">
-          기타 도구{genHistory.length > 0 ? ' — 과거 엑셀 점검표' : ''}{canDelete ? ' · 점검 삭제' : ''}
-        </summary>
-        <div className="max-h-[40vh] space-y-3 overflow-y-auto border-t border-brand-line-soft p-3">
-          {/* 소방시설등점검표(엑셀) — **생성 폐지**(소방계획서_21 R5-6 / 소방계획서_7 D-9, 2026-08-13).
-              별지 4호 PDF가 대체하고, R5-7 대조로 유실 0을 확인한 뒤 걷어냈다.
-              과거 생성물 다운로드만 남는다(이력이 없으면 컴포넌트가 스스로 렌더하지 않는다) */}
-          <ReportGenerateClient history={genHistory} />
-
-          {/* 점검 삭제 — 단계 완료·보고서는 작업대가 흡수했고 삭제만 별도로 남는다 */}
-          {canDelete && <InspectionDeleteClient inspectionId={id} />}
-        </div>
-      </details>
+      {/* 「기타 도구 — 과거 엑셀 점검표 · 점검 삭제」 접이식 칸 폐지(2026-10-06 사용자 지시).
+          deleteInspectionAction·report-generate-client는 코드에 남아 있다(화면 진입점만 없앴다) */}
     </div>
   )
 }
