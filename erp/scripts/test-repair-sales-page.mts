@@ -55,6 +55,13 @@ try {
   await open.waitFor()
   const href = await open.getAttribute('href') ?? ''
   check('1-1 버튼 주소 = /repair + from=step=5', href.startsWith(`/inspections/${insp}/repair?from=`) && decodeURIComponent(href).includes('step=5'), href)
+  // 2026-10-06 사용자 「글자가 잘 안 보여」 — 좁은 칸에서도 버튼 글자가 잘리지 않는다(넘침 0)
+  const clip = await open.evaluate(el => ({ w: el.scrollWidth - el.clientWidth, h: el.scrollHeight - el.clientHeight }))
+  check('1-1b 견적 버튼 글자 잘림 없음', clip.w <= 1 && clip.h <= 1, JSON.stringify(clip))
+  // 같은 날 폐지 — 10호 칸 요약 3줄·계약서 업로드
+  check('1-1c 10호 칸 요약·계약서 업로드 없음',
+    (await page.locator('text=조치 계획 입력').count()) === 0 && (await page.locator('button:has-text("계약서 업로드")').count()) === 0)
+  if (process.env.SHOT) await open.locator('xpath=ancestor::*[contains(@class,"overflow")][1]').screenshot({ path: process.env.SHOT }).catch(() => page.screenshot({ path: process.env.SHOT! }))
   await open.click()
   await page.getByTestId('repair-sales-page').waitFor()
   check('1-2 전용 페이지 도착', page.url().includes(`/inspections/${insp}/repair`))

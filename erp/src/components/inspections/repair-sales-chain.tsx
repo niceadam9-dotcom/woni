@@ -194,7 +194,7 @@ export function RepairSalesChain({ inspectionId, defects, canManage, perms, cont
                   <span className={`text-form-2xs px-1.5 py-0.5 rounded-full ${ORDER_STYLE[o.status] ?? 'bg-gray-100 text-gray-500'}`} data-testid="order-status">{o.status}</span>
                   <span className="text-ink">{won(o.total_amount)}</span>
                   <span className="text-ink-meta">{o.contractor_name ? `시공 ${o.contractor_name}` : '자사 시공'}</span>
-                  <span className="text-ink-meta">{o.contract_file_path ? '계약서 첨부됨' : '계약서 없음(⑤ 칸에서 업로드)'}</span>
+                  <span className="text-ink-meta">{o.contract_file_path ? '계약서 첨부됨' : '계약서 없음'}</span>
                   {o.completed_at && <span className="text-ink-meta">완료 {o.completed_at}</span>}
                   {bill && <span className="text-form-2xs px-1.5 py-0.5 rounded-full bg-brand-tint text-brand" data-testid="order-bill">청구 {bill.billing_month} {won(bill.total_amount)}{Number(bill.paid_amount) >= Number(bill.total_amount) ? ' · 입금' : ''}</span>}
                 </div>

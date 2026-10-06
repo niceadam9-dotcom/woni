@@ -102,7 +102,7 @@ try {
   // ── 2-a) ⑤ 작업 축 입력 → 칸을 벗어나면 저장 ──
   await panel.locator('textarea[aria-label="계획 내용 요약"]').fill(SUMMARY)
   await panel.locator('input[aria-label="공사업체 메모"]').fill('E2E공사업체(주)')
-  await page.click('text=조치 계획 입력')   // blur → 저장
+  await page.click('text=10호 고유값·증빙')   // blur → 저장 (2026-10-06 요약 줄 폐지 — 칸 제목을 누른다)
   await panel.locator('text=저장됨').waitFor({ timeout: 30000 })
 
   // ── 2-b) ④ 문서 축 입력 — 나중에 저장되는 쪽이 ⑤ 입력을 덮어쓰지 않아야 한다 ──

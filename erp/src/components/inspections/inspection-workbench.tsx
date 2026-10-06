@@ -5,8 +5,8 @@ import { createPortal } from 'react-dom'
 import NextLink from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
-  AlertTriangle, Check, CheckCircle2, ChevronLeft, ChevronRight, Circle, Download, ExternalLink,
-  FileText, Loader2, Maximize2, MessageSquare, Package, RotateCcw, Send, Trash2, Upload, X,
+  AlertTriangle, Check, CheckCircle2, ChevronLeft, ChevronRight, Circle, ExternalLink,
+  FileText, Loader2, Maximize2, MessageSquare, Package, RotateCcw, Send, X,
 } from 'lucide-react'
 import {
   requestReport9Action, getReport9StatusAction, getAnnexPreviewHtmlAction,
@@ -14,9 +14,9 @@ import {
 } from '@/app/(dashboard)/inspections/report9-actions'
 import { getAnnexInputsAction, saveAnnexInputsAction, getAnnexAutoDefaultsAction, getAnnexDutySummaryAction } from '@/app/(dashboard)/customers/facility-spec-actions'
 import {
-  uploadTimelineFileAction, sendOwnerReportAction, recordSubmissionAction, downloadPackageAction,
+  sendOwnerReportAction, recordSubmissionAction, downloadPackageAction,
   forceCompleteStepAction, undoForceCompleteStepAction, recordOwnerReportOfflineAction, undoOwnerReportOfflineAction,
-  deleteTimelineFileAction, markCertReportedAction,
+  markCertReportedAction,
 } from '@/app/(dashboard)/inspections/timeline-actions'
 import { updateInspectionMultidayAction } from '@/app/(dashboard)/inspections/actions'
 import { getReportDownloadUrl } from '@/app/(dashboard)/inspections/report-actions'
@@ -200,8 +200,6 @@ export function InspectionWorkbench({
   // 재방문 안내 (소방계획서_24 Q-17) — 계획에 없는 방문을 담는 그릇이 시스템에 없어서(P-20)
   // 지금까지는 "가야 하는데 문자를 못 보내는" 상태였다
   const [adhocSms, setAdhocSms] = useState(false)
-  const [dragOver, setDragOver] = useState<'cert' | 'contract' | null>(null)
-  const contractRef = useRef<HTMLInputElement>(null)
   const busy = job?.status === 'pending' || job?.status === 'processing'
   // S9-1(2026-08-21) — 재생성 차단은 규약 버전 축. 서버(requestReport9Action)와 같은 순수 함수로
   // 판정해 화면 비활성과 서버 거부가 갈라지지 않는다. 관리자 확정 직후엔 로컬 선반영으로 즉시 열린다.
@@ -466,37 +464,8 @@ export function InspectionWorkbench({
       setMsg('✅ 생성 완료 — 아래 문서 목록에서 확인하세요.')
     })
   }
-  function doUpload(slot: 'cert' | 'contract', file: File) {
-    const fd = new FormData()
-    fd.append('file', file)
-    startTransition(async () => {
-      const res = await uploadTimelineFileAction(inspectionId, slot, fd)
-      if (res.error) { setMsg(`❌ ${res.error}`); return }
-      setMsg(`✅ ${slot === 'cert' ? '배치확인서' : '계약서'} 업로드됨`)
-      // 액션이 revalidatePath로 이 상세의 RSC를 응답에 실어 온다 — deferredRefresh()는 같은 페이지를
-      // **두 번째** 그리는 중복이었다(2026-10-01 제거). 항상 revalidate하는 액션에서만 뺐다.
-    })
-  }
-  function uploadSlot(slot: 'cert' | 'contract', e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    e.target.value = ''
-    if (file) doUpload(slot, file)
-  }
-  // ② 배치확인서 업로드는 2026-09-07에 폐지됐다(대표 직접 신고) — 남은 슬롯은 ⑤ 계약서뿐.
-  // uploadSlot·doUpload·드롭존은 그대로 두되 'cert' 진입점만 없앤다(계약서가 같은 코드를 쓴다).
-  const uploadContract = (e: React.ChangeEvent<HTMLInputElement>) => uploadSlot('contract', e)
-  /** 업로드 슬롯 = 드롭존 (R0-6, 문서 현황·타임라인과 같은 패턴) */
-  const dropProps = (slot: 'cert' | 'contract') => canManage ? {
-    onDragOver: (e: React.DragEvent) => { e.preventDefault(); setDragOver(slot) },
-    onDragLeave: () => setDragOver(null),
-    onDrop: (e: React.DragEvent) => {
-      e.preventDefault(); setDragOver(null)
-      const f = e.dataTransfer.files?.[0]
-      if (f) doUpload(slot, f)
-    },
-  } : {}
-  const dropCls = (slot: 'cert' | 'contract') =>
-    dragOver === slot ? ' bg-brand-tint outline outline-1 outline-dashed outline-brand' : ''
+  // ② 배치확인서(2026-09-07)·⑤ 계약서(2026-10-06 사용자 지시) 업로드 진입점이 모두 폐지돼
+  // 업로드 슬롯·드롭존·삭제 도우미를 걷어냈다. 서버 액션(uploadTimelineFileAction 등)은 그대로 있다.
 
   function saveAnchor() {
     setAnchorMsg('')
@@ -646,18 +615,6 @@ export function InspectionWorkbench({
       // 해제해도 과거 근거(파일·종이 보관)가 있으면 ②는 완료로 남는다 — 서버 판정과 같은 규칙
       setJustDone(p => ({ ...p, 2: !undo || !!data.certFile || !!data.certArchived }))
       setCelebrate(undo ? null : 'cert')
-      // 액션의 revalidatePath가 화면을 갱신한다 — 중복 refresh 제거(2026-10-01)
-    })
-  }
-
-  /** 제안2: 잘못 올린 업로드 파일 삭제 — 근거가 사라지므로 단계도 다시 판정된다 */
-  function removeFile(slot: 'cert' | 'contract') {
-    const label = slot === 'cert' ? '배치확인서' : '계약서'
-    if (!window.confirm(`${label} 파일을 삭제합니다.\n${slot === 'cert' ? '삭제하면 ② 단계가 다시 미완료로 돌아갑니다.\n' : ''}계속할까요?`)) return
-    startTransition(async () => {
-      const res = await deleteTimelineFileAction(inspectionId, slot)
-      if (res.error) { setMsg(`❌ ${res.error}`); return }
-      setMsg(`✅ ${label} 파일을 삭제했습니다 (${res.deleted ?? 0}건).`)
       // 액션의 revalidatePath가 화면을 갱신한다 — 중복 refresh 제거(2026-10-01)
     })
   }
@@ -1439,37 +1396,9 @@ export function InspectionWorkbench({
               : slots?.defects ?? <Empty>불량 목록을 불러올 수 없습니다.</Empty>}
           </Pane>
           <Pane title="10호 고유값·증빙" cls={paneCls} head={paneHead}>
-            <Summary rows={[
-              // ⚠ 같은 칸의 제목과 **반드시 같은 원천**을 써야 한다 — 갈리면 제목은 1/2인데
-              // 아래 요약은 0/2인 화면이 된다(위험 ①이 말하는 '데이터가 갈라진 것처럼')
-              ['조치 계획 입력', `${defectStat.planned}/${defectStat.total}`],
-              ['조치 완료', `${defectStat.done}/${defectStat.total}`],
-              ['전·후 사진 쌍', `${defectStat.photoPairs}/${defectStat.total}쌍 완료`],
-            ]} />
-            {/* 수리 계약서 — 선택 증빙(R10-a). ⑤ 완료 조건은 불량 전건 조치이지 계약서가 아니다 */}
-            <div className={`flex flex-wrap items-center gap-1.5 rounded-lg border-t border-brand-line-soft px-1 pt-2${dropCls('contract')}`}
-              {...dropProps('contract')}
-              title={canManage ? '수리 계약서 — 클릭 또는 파일을 이 칸에 끌어다 놓으세요' : undefined}>
-              {/* S7-1 4차 — 올린 계약서 **파일명**이 여기 뜬다(무엇이 붙었는지 확인하는 값) */}
-              <span className="text-form-2xs text-ink-meta">
-                (사진·계약서는 선택){data.contractFile ? ` · 계약서: ${data.contractFile.name}` : ''}
-              </span>
-              {data.contractFile && (
-                <button onClick={() => download(data.contractFile!.path)} className={btn}><Download className="size-3" /> 계약서</button>
-              )}
-              {canManage && (<>
-                <input ref={contractRef} type="file" accept=".pdf,.jpg,.jpeg,.png,.hwp" className="hidden" onChange={uploadContract} />
-                <button onClick={() => contractRef.current?.click()} disabled={isPending} className={btn}
-                  title="수리 계약서 (선택 증빙)"><Upload className="size-3" /> 계약서 업로드 (선택)</button>
-                {data.contractFile && (
-                  <button onClick={() => removeFile('contract')} disabled={isPending} data-testid="contract-delete"
-                    className="inline-flex items-center gap-1 h-7 px-2 rounded-lg border border-red-200 text-form-xs text-red-600 hover:bg-red-50 disabled:opacity-50">
-                    <Trash2 className="size-3" /> 삭제
-                  </button>
-                )}
-              </>)}
-            </div>
-            <div className="border-t border-brand-line-soft pt-2">
+            {/* 2026-10-06 사용자 지시 — 요약 3줄(조치 계획 입력·조치 완료·전·후 사진 쌍)과 계약서 업로드 줄 폐지.
+                진행 수치는 칸 제목·⑤ 완료 조건 띠가 이미 말한다. 계약서 저장 슬롯·다운로드 경로는 코드에 남아 있다 */}
+            <div>
               {/* 제출일·총 이행기간·총 일수는 ④ 소방서 제출로 옮겼다(2026-09-07) — 여기는 작업 축만 */}
               <AnnexFields inspectionId={inspectionId} annexNo="report10" canEdit={canManage}
                 only={ANNEX10_WORK_KEYS}
@@ -1482,8 +1411,9 @@ export function InspectionWorkbench({
               <div className="border-t border-brand-line-soft px-1 pt-2">
                 <NextLink href={`/inspections/${inspectionId}/repair?from=${encodeURIComponent(`/inspections/${inspectionId}?step=5`)}`}
                   data-testid="open-repair-page"
-                  className="inline-flex h-7 items-center gap-1 rounded-lg bg-brand px-3 text-form-xs text-white hover:bg-brand-strong">
-                  <FileText className="size-3" /> 보수 견적 페이지 — 작성·미리보기·메일 발송
+                  className="inline-flex min-h-7 items-center gap-1 rounded-lg bg-brand px-2.5 py-1 text-form-2xs leading-tight text-white hover:bg-brand-strong">
+                  {/* 2026-10-06 — 좁은 칸에서 글자가 잘려 보였다: 글자 한 단계 작게 + 높이 고정 해제(넘쳐도 잘리지 않게) */}
+                  <FileText className="size-3 shrink-0" /> 보수 견적 페이지 — 작성·미리보기·메일 발송
                 </NextLink>
               </div>
               <RepairSalesChain inspectionId={inspectionId} defects={defectRows} canManage={canManage} perms={salesPerms}

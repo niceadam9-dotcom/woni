@@ -134,15 +134,10 @@ try {
 
   await goStep('repair')
   await page.waitForSelector('[data-testid="defect-grid"]')
-  check('⑤ 전/후 사진 쌍 진행률(H-28)', await page.isVisible('text=/0\\/1쌍 완료/'))
-  check('⑤ 선택 증빙 표기(R10-a)', await page.isVisible('text=(사진·계약서는 선택)'))
-
-  // ⑤ 계약서 업로드 — ⑤ 칸에는 hwp 허용 input이 계약서 하나뿐이다(② cert 칸은 다른 단계)
-  await page.waitForSelector('button:has-text("계약서 업로드")')
-  await page.locator('input[type="file"][accept*="hwp"]').last().setInputFiles(tmpPdf)
-  await page.waitForSelector('text=계약서 업로드됨')
-  const { data: objs2 } = await raw.storage.from('fire-plans').list(`${custA}/inspections/${inspA}`)
-  check('⑤ storage contract_ 파일', (objs2 ?? []).some((o: { name: string }) => /^contract_\d+\.pdf$/.test(o.name)))
+  // 2026-10-06 사용자 지시 — 10호 칸의 요약 3줄(조치 계획 입력·조치 완료·전·후 사진 쌍)과 계약서 업로드 줄 폐지
+  check('⑤ 10호 칸 요약·계약서 업로드 없음(2026-10-06 폐지)',
+    !(await page.isVisible('text=조치 계획 입력')) && !(await page.isVisible('button:has-text("계약서 업로드")'))
+      && !(await page.isVisible('text=(사진·계약서는 선택)')))
 
   // ── 2) 정기(monthly) — ① 하나만 + 외관점검표 체계 ──
   await page.goto(`${BASE}/inspections/${inspB}`)
