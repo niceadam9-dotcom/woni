@@ -53,6 +53,8 @@ try {
   check('C 같은 주소로 다시 벗어나도 「찾는 중」으로 되돌아가지 않는다', !/주소로 건물정보를 찾는 중/.test(await noteText()))
 
   // ── B — 없는 주소 ──
+  // 손으로 고친 칸 하나(연면적) — 주소를 바꿔도 남아야 한다 (자동값만 걷는다, 2026-10-06)
+  await page.locator('[aria-label="연면적 (㎡)"]').fill('123')
   await addr.fill(`없는도 없는시 ${STAMP}로 99999`)
   await page.locator('#new-customer-name').click()
   const miss = await page.waitForFunction(() => /건물정보를 찾지 못했습니다/.test(document.body.innerText), undefined, { timeout: 30000 })
@@ -60,6 +62,11 @@ try {
   check('★ B 없는 주소면 「찾지 못했습니다 — [주소 검색]」을 안내한다', miss, (await noteText()).match(/건물정보[^\n]*/)?.[0] ?? '')
   const metaB = (await meta.count()) ? await meta.innerText() : ''
   check('★ B 앞 주소의 지번·우편번호가 남지 않는다 (엉뚱한 건물로 저장 방지)', !/지번 |우편번호 /.test(metaB), metaB || '(없음)')
+  const apB = await page.locator('#new-use-approval').inputValue()
+  const puB = await page.locator('[aria-label="건물용도"]').inputValue().catch(() => '?')
+  check('★★ B 주소를 바꾸면 앞 주소의 **자동값**(사용승인일·용도)이 비워진다', apB === '' && puB === '', `사용승인일=${apB} 용도=${puB}`)
+  check('★ B 손으로 고친 칸(연면적 123)은 남는다', (await page.locator('[aria-label="연면적 (㎡)"]').inputValue()) === '123')
+  await page.locator('[aria-label="연면적 (㎡)"]').fill('')
 
   // ── D — 직접 친 주소로 [주소 검색] → 검색창이 채워져 열리고, 고르면 덧붙인 상세가 남는다 (2026-10-06) ──
   //   「직접입력 한 후 주소검색하면 바로 주소입력이 되게 — 다시 입력할 필요 없이」

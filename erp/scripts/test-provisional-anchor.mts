@@ -97,10 +97,13 @@ check('③ 배지가 잠정을 받는다', /provisional\?*:\s*boolean/.test(badg
 check('③ 배지가 잠정을 그린다', badgeCode.includes('anchor-provisional'))
 check('③ 잠정과 divergent는 **다른 축**이다(둘을 한 조건으로 합치지 않았다)',
   /provisional\s*&&/.test(badgeCode) && /divergent\s*&&/.test(badgeCode))
-check('③ 고객 수정 화면이 배지에 잠정을 넘긴다',
-  /provisional=\{isProvisionalAnchor\(anchorInput\)\}/.test(editCode))
-check('③ 판정을 화면에서 다시 적지 않는다(공용 함수를 부른다)',
-  editCode.includes('isProvisionalAnchor(') && !/source\s*!==\s*'approval'/.test(editCode))
+// 2026-10-06 사용자 요청으로 고객 수정 화면의 「이 날짜로 잡히는 일정」(법정 시기 배지) 칸 폐지 — 잠정 표시는
+// 그 배지 안에 있었다. 잠정 고객은 목록(④)에서 계속 찾는다. 배지 컴포넌트(위 셋)는 지금 쓰는 화면이 없지만
+// 되살릴 때를 위해 지우지 않았다(anchor-change-preview.tsx).
+check('③ 고객 수정 화면엔 법정 시기 배지가 없다 (사용자 폐지 2026-10-06)',
+  !editCode.includes('LegalScheduleBadge') && !/label="이 날짜로 잡히는 일정"/.test(editCode))
+check('③ (음성) 수정 화면이 잠정 판정을 따로 적지 않는다',
+  !/source\s*!==\s*'approval'/.test(editCode))
 
 // ══ ④ 목록 — 열지 않고 찾을 수 있는가 ═══════════════════════════════════════
 check('④ 목록이 잠정을 계산해 싣는다', listCode.includes('provisionalAnchor:'))

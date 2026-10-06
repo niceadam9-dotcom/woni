@@ -96,14 +96,17 @@ console.log('\n— ② 등록 화면 = 세 그룹 상자, 이 순서')
 console.log('\n— ③ ★ 기준일 강조 (등록)')
 ok('★ 두 날짜가 **강조 줄(accent)** 안', /\baccent\b/.test(subRowOf(jsx, 'id="new-use-approval"'))
   && subRowOf(jsx, 'id="new-use-approval"') === subRowOf(jsx, 'id="new-anchor-date"'))
-ok('★ 두 날짜 칸이 큰 칸(keyInputCls)', ['new-use-approval', 'new-anchor-date'].every(id => {
-  const i = jsx.indexOf(`id="${id}"`); return i > 0 && /keyInputCls/.test(jsx.slice(i, i + 300))
+// 2026-10-06 — 등록 폼은 강조 칸을 40px(keyInputCompactCls)로: 1366×768에서도 필수가 한 화면에. 강조(굵게·두꺼운 테두리)는 그대로
+ok('★ 두 날짜 칸이 강조 칸(keyInputCompactCls)', ['new-use-approval', 'new-anchor-date'].every(id => {
+  const i = jsx.indexOf(`id="${id}"`); return i > 0 && /keyInputCompactCls/.test(jsx.slice(i, i + 300))
 }))
 ok('★ 역할 배지가 두 칸에 (anchorRoles 판정)', /RoleBadge role=\{roles\.approval\}/.test(jsx) && /RoleBadge role=\{roles\.plan\}/.test(jsx)
   && /const roles = anchorRoles\(/.test(src))
 ok('배지 판정 입력에 예외 스위치(anchorManual)가 들어간다 — 사용자가 「점검일자 쓰기」를 켜면 배지도 따라간다',
   /plan_anchor_manual: anchorManual/.test(src.slice(src.indexOf('const roles = anchorRoles('))))
-ok('고객명도 큰 칸', (() => { const i = jsx.indexOf('id="new-customer-name"'); return /keyInputCls/.test(jsx.slice(i, i + 700)) })())
+ok('고객명도 강조 칸', (() => { const i = jsx.indexOf('id="new-customer-name"'); return /keyInputCompactCls/.test(jsx.slice(i, i + 700)) })())
+ok('강조 칸 40px은 등록 폼만 — 공용 keyInputCls(48px)는 그대로(상세·패널 무변경)',
+  /export const keyInputCls = '!h-12/.test(kf) && /export const keyInputCompactCls = '!h-10/.test(kf))
 ok('빈 필수칸 강조(emptyRequiredCls)가 필수 칸들에 걸린다', (jsx.match(/emptyRequiredCls/g) ?? []).length >= 5)
 
 console.log('\n— ④ ★ 배지 판정 = resolveAnchor (값으로)')
@@ -133,21 +136,23 @@ console.log('\n— ⑥ 기본정보 탭')
 {
   const { missing, bad } = inOrder(infoJsx, [
     ['고객명', 'id="cf-name"'], ['담당(슬롯)', '{assigneeSlot}'], ['관할 소방서', 'id="cf-station"'],
-    ['사용승인일', 'id="cf-approval"'], ['점검일자', 'id="cf-plan"'], ['법정 시기', '{legalBadge'],
+    ['사용승인일', 'id="cf-approval"'], ['점검일자', 'id="cf-plan"'],
     ['점검유형', '{typeSlot}'], ['계약일', 'id="cf-contract"'], ['주소', 'id="cf-address"'], ['비고', 'id="cf-notes"'],
   ])
   ok('표식이 전부 있다', missing.length === 0, missing.join(', '))
-  ok('★ 순서: 고객명 → 담당 → 소방서 → 사용승인일 → 점검일자 → 법정 시기 → 유형 → 계약일 → 주소 → 비고', bad.length === 0, bad.join(' · '))
+  ok('★ 순서: 고객명 → 담당 → 소방서 → 사용승인일 → 점검일자 → 유형 → 계약일 → 주소 → 비고', bad.length === 0, bad.join(' · '))
+  // 2026-10-06 사용자 요청 — 상세에서도 「이 날짜로 잡히는 일정」(법정 시기 배지) 칸 폐지
+  ok('★ 「이 날짜로 잡히는 일정」 칸이 없다 (상세도 폐지 2026-10-06)',
+    !/label="이 날짜로 잡히는 일정"/.test(infoJsx) && !/legalBadge|LegalScheduleBadge/.test(info))
   ok('★ 고객명 | 담당이 같은 첫 줄', () => {
     const a = infoJsx.indexOf('id="cf-name"'), b = infoJsx.indexOf('{assigneeSlot}')
     return a > 0 && b > a && !infoJsx.slice(a, b).includes('<SubRow')
   })
-  ok('★ 기준일 두 칸 + 법정 시기가 한 강조 줄 안', /\baccent\b/.test(subRowOf(infoJsx, 'id="cf-approval"'))
-    && subRowOf(infoJsx, 'id="cf-approval"') === subRowOf(infoJsx, 'id="cf-plan"')
-    && subRowOf(infoJsx, 'id="cf-plan"') === subRowOf(infoJsx, '{legalBadge'))
+  ok('★ 기준일 두 칸이 한 강조 줄 안', /\baccent\b/.test(subRowOf(infoJsx, 'id="cf-approval"'))
+    && subRowOf(infoJsx, 'id="cf-approval"') === subRowOf(infoJsx, 'id="cf-plan"'))
   ok('역할 배지가 두 칸에', /RoleBadge role=\{roles\.approval\}/.test(infoJsx) && /RoleBadge role=\{roles\.plan\}/.test(infoJsx))
-  ok('배지와 법정 시기가 **같은 입력**(anchorInput)을 본다 — 둘이 갈라지지 않게',
-    /const roles = anchorRoles\(anchorInput\)/.test(info) && /resolveAnchor\(anchorInput\)/.test(info))
+  ok('역할 배지는 저장된 예외 플래그까지 본다(anchorInput)', /const roles = anchorRoles\(anchorInput\)/.test(info)
+    && /plan_anchor_manual: planAnchorManual/.test(info))
   ok('페이지가 담당을 슬롯으로 넣는다(폼 밖 머리에 따로 뜨지 않는다)',
     /assigneeSlot=\{/.test(page) && /unassigned=\{!customer\.assigned_employee_id\}/.test(page))
   ok('★ 기본정보 탭은 넓게(wideKeys) — 요약 패널은 유지', /wideKeys=\{\['info'/.test(page)

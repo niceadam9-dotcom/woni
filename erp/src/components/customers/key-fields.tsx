@@ -21,6 +21,9 @@ const cardCls = 'bg-surface rounded-xl border shadow-[rgba(18,43,165,0.08)_0px_1
 /** 핵심 칸 입력 모양 — 기준일·고객명. 나머지 칸은 각 화면의 보통 입력 그대로(대비가 강조를 만든다) */
 // ⚠ `!`(우선) — 화면마다 보통 칸 높이 토큰(h-10·h-form-9)이 먼저 붙어 있어도 핵심 칸이 이긴다
 export const keyInputCls = '!h-12 !text-lg font-semibold tabular-nums !border-2'
+/** 등록 폼 전용 — 보통 칸과 같은 높이(40px)에 강조(굵게·두꺼운 테두리)만 남긴다 (2026-10-06 사용자 요청:
+ *  필수값을 1366×768 노트북에서도 스크롤 없이 한눈에). 상세·패널은 종전 큰 칸 그대로. */
+export const keyInputCompactCls = '!h-10 !text-base font-semibold tabular-nums !border-2'
 /** 필수인데 비었을 때 — 멀리서도 보이게 */
 export const emptyRequiredCls = '!border-amber-400 bg-amber-50/40'
 

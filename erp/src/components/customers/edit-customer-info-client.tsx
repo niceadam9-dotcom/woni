@@ -6,9 +6,8 @@ import { Search } from 'lucide-react'
 import { updateCustomerAction, quickAddressApplyAction, checkAddressAction, previewAnchorChangeAction, type AnchorPreview, type UpdateCustomerInput, type AddressDuplicateCustomer, type AddressDuplicateBuilding } from '@/app/(dashboard)/customers/actions'
 import { useDaumPostcode, type DaumPostcodeData } from '@/hooks/use-daum-postcode'
 import { DateInput, isCompleteDate } from '@/components/ui/date-input'
-import { AnchorChangePreview, LegalScheduleBadge, anchorPreviewWorthShowing } from './anchor-change-preview'
+import { AnchorChangePreview, anchorPreviewWorthShowing } from './anchor-change-preview'
 import { todayKst } from '@/lib/kst-date'
-import { resolveAnchor, anchorSourceLabel, isProvisionalAnchor } from '@/lib/plan-anchor'
 import { AddressDuplicateDialog } from './address-duplicate-dialog'
 import { GroupBox, SubRow, Cell, RoleBadge, SaveBar, keyInputCls, emptyRequiredCls } from './key-fields'
 import { anchorRoles } from '@/lib/anchor-role'
@@ -18,7 +17,7 @@ type Props = {
   customer: Pick<Customer, 'id' | 'customer_name' | 'contract_date' | 'use_approval_date' | 'plan_anchor_date' | 'zipcode' | 'address' | 'region_si' | 'region_myeon' | 'region_ri' | 'notes' | 'fire_station' | 'inspection_type' | 'monthly_fee_taxed' | 'monthly_fee_untaxed' | 'fee_taxed' | 'fee_untaxed' | 'somin_object_no' | 'kfma_object_no' | 'somin_name' | 'somin_address'>
   /** §11: 점검유형 뱃지(+인라인 유형 편집) 슬롯과 연n회 라벨은 페이지가 구성 */
   typeSlot?: ReactNode
-  /** 점검 종류(종합/작동) — 법정 시기 배지가 2차 유무를 판정하는 데 쓴다 */
+  /** 점검 종류(종합/작동) — 법정 시기 배지용이었으나 2026-10-06 그 칸 폐지로 지금은 쓰지 않는다(페이지 호환용으로 남김) */
   inspectionSubType?: '종합' | '작동' | null
   /** 기산점 예외 플래그(마이그레이션 155). **undefined면 레거시**로 해석한다 —
    *  그게 코드가 실제로 하는 일이므로 배지도 같은 답을 내야 한다 */
@@ -59,7 +58,7 @@ function makeInitial(c: Props['customer']) {
   }
 }
 
-export function EditCustomerInfoClient({ customer, typeSlot, annualLabel, lastChangeText, canManage = true, inspectionSubType, planAnchorManual, assigneeSlot, unassigned }: Props) {
+export function EditCustomerInfoClient({ customer, typeSlot, annualLabel, lastChangeText, canManage = true, planAnchorManual, assigneeSlot, unassigned }: Props) {
   const router = useRouter()
   const openPostcode = useDaumPostcode()
   const [form, setForm] = useState(() => makeInitial(customer))
@@ -243,37 +242,15 @@ export function EditCustomerInfoClient({ customer, typeSlot, annualLabel, lastCh
 
   const dis = !canManage
 
-  /* 법정 시기 상시 배지 — **입력하는 즉시** 바뀐다(순수 계산이라 서버 왕복 0).
-     별지 9호 표기와 같은 성격이다: 늘 보이니 잘못을 눈치챈다.
-     ⚠ planAnchorManual이 undefined면 레거시로 해석한다 — 코드가 실제로 하는 그대로여야
-       배지가 거짓말을 하지 않는다.
-     2026-09-23 — 탭 맨 아래에 작게 있던 것을 **기준일 줄 안으로 올렸다**(날짜를 고치면 바로 옆에서 결과가 바뀐다). */
+  /* 기준일 두 칸의 역할 배지(기산점/참고) — 입력하는 즉시 바뀐다(순수 계산).
+     ⚠ planAnchorManual이 undefined면 레거시로 해석한다 — 코드가 실제로 하는 그대로여야 배지가 거짓말을 하지 않는다.
+     「이 날짜로 잡히는 일정」(법정 시기 배지)은 2026-10-06 사용자 요청으로 폐지. */
   const anchorInput = {
     use_approval_date: form.use_approval_date || null,
     plan_anchor_date: form.plan_anchor_date || null,
     plan_anchor_manual: planAnchorManual,
   }
   const roles = anchorRoles(anchorInput)
-  const legalBadge = (() => {
-    const r = resolveAnchor(anchorInput)
-    if (!r.date) return null
-    const m = Number(r.date.slice(5, 7))
-    const isComp = inspectionSubType === '종합'
-    const months = [{ seq: 1, month: m, planType: `special_${isComp ? '종합' : '작동'}` }]
-    if (isComp) months.push({ seq: 2, month: ((m - 1 + 6) % 12) + 1, planType: 'special_작동' })
-    // 최초점검 기한 — 종합 대상이고 사용승인일 기준일 때만, 그리고 **아직 안 지났을 때만** 띄운다
-    const due = (isComp && form.use_approval_date && isCompleteDate(form.use_approval_date))
-      ? new Date(Date.UTC(+form.use_approval_date.slice(0, 4), +form.use_approval_date.slice(5, 7) - 1, +form.use_approval_date.slice(8, 10)) + 60 * 86_400_000).toISOString().slice(0, 10)
-      : null
-    const stillOpen = due && due >= new Date().toISOString().slice(0, 10)
-    return (
-      <LegalScheduleBadge
-        months={months} anchorSource={anchorSourceLabel(r.source)} anchorDate={r.date}
-        divergent={r.divergent} initialDueDate={stillOpen ? due : null}
-        provisional={isProvisionalAnchor(anchorInput)}
-      />
-    )
-  })()
   // 필수 현황(머리 알약) — 고객명·점검일자·관할 소방서(주소가 있으면 서버가 자동 지정하므로 주소로도 충족)
   const reqs = [!!form.customer_name.trim(), !!form.plan_anchor_date, !!(form.fire_station.trim() || form.address.trim())]
 
@@ -281,7 +258,7 @@ export function EditCustomerInfoClient({ customer, typeSlot, annualLabel, lastCh
     <form className="space-y-3" onSubmit={e => { e.preventDefault(); if (!isPending && isDirty) handleSave() }}>
       {/* ① 기본정보 — 그룹 단위 정렬(2026-09-23 사용자 요청). 등록 화면의 ① 상자와 **같은 부품·같은 줄 순서**다.
           첫 줄 = 고객명 | 담당직원 | 관할 소방서 — 사용자 요청 「고객명을 담당 왼쪽으로」.
-          ★ 기준일 줄 = 사용승인일 | 점검일자 | 이 날짜로 잡히는 일정(보라 바탕 + 큰 칸 + 기산점 배지). */}
+          ★ 기준일 줄 = 사용승인일 | 점검일자(보라 바탕 + 큰 칸 + 기산점 배지). */}
       <GroupBox n={1} title="기본정보" testId="info-group" alert={unassigned} status={[reqs.filter(Boolean).length, reqs.length]}>
         <SubRow label="기본">
           <Cell span={2} label="고객명" required htmlFor="cf-name" missing={!form.customer_name.trim()}>
@@ -307,9 +284,8 @@ export function EditCustomerInfoClient({ customer, typeSlot, annualLabel, lastCh
             <DateInput id="cf-plan" value={form.plan_anchor_date} onChange={e => set('plan_anchor_date', e.target.value)} disabled={dis}
               className={`${inputCls} ${keyInputCls} ${!form.plan_anchor_date ? emptyRequiredCls : ''}`} />
           </Cell>
-          <Cell span={2} label="이 날짜로 잡히는 일정" testId="info-legal">
-            {legalBadge ?? <p className="text-form-xs text-ink-meta">날짜를 넣으면 법정 점검 시기가 여기 표시됩니다.</p>}
-          </Cell>
+          {/* 「이 날짜로 잡히는 일정」(법정 시기 배지) 칸은 2026-10-06 사용자 요청으로 폐지 — 등록 폼과 같이.
+              어느 날짜가 기산점인지는 두 칸의 RoleBadge가 말한다. */}
         </SubRow>
 
         {/* 167 외부 대상물 번호 — 소민터는 협회 배치신고 자료를 「배치확인서 불러오기」로 가져오는데

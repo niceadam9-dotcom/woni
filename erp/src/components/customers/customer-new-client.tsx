@@ -13,7 +13,7 @@ import { ComboInput } from '@/components/ui/combo-input'
 import { formatPhoneKR } from '@/components/ui/fields'
 import { anchorRoles } from '@/lib/anchor-role'
 import { splitAddressDetail, joinAddressDetail } from '@/lib/address-detail'
-import { GroupBox, SubRow, Cell, RoleBadge, keyInputCls, emptyRequiredCls } from '@/components/customers/key-fields'
+import { GroupBox, SubRow, Cell, RoleBadge, keyInputCompactCls, emptyRequiredCls } from '@/components/customers/key-fields'
 import type { InspectionType } from '@/types'
 
 function extractBuildingName(fullAddress: string): string {
@@ -183,9 +183,41 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
    *  이미 입력된 칸은 덮어쓰지 않는다 — 채워진 뒤에도 자유롭게 고칠 수 있다.
    *  ⚠ 늦게 도착한 옛 주소의 응답이 새 주소의 값을 덮지 않게 시퀀스로 막는다(직접 입력은 blur마다 돈다).
    *  `via`는 안내문 꼬리 — 직접 입력이면 「어느 도로명으로 맞췄는지」를 말해 오매칭을 사람이 알아보게 한다. */
+  /** 주소에서 자동으로 채운 칸과 그 값 — 주소를 바꾸면 **아직 그 값 그대로인 칸만** 비운다
+   *  (2026-10-06 사용자 요청: 「주소 바꾸면 자동값 비우기」). 손으로 고친 칸은 값이 달라 남는다.
+   *  ⚠ 종전엔 「이미 찬 칸은 덮지 않는다」만 있어서, 주소를 바꾸면 **앞 건물의 사용승인일·용도가 남아**
+   *    새 주소의 대장 값이 들어가지 못했다(엉뚱한 건물 값으로 등록). */
+  type AutoKey = 'use_approval_date' | 'building_purpose' | 'building_total_area' | 'building_floors_above' | 'building_floors_below' | 'building_year_built'
+  const autoFilledRef = useRef<Partial<Record<AutoKey, string>>>({})
+
+  /** 빈 칸에만 채우고, 채운 값을 기억한다 */
+  function fillAuto(vals: Partial<Record<AutoKey, string>>) {
+    setForm(prev => {
+      const next = { ...prev }
+      for (const [k, v] of Object.entries(vals) as [AutoKey, string][]) {
+        if (!prev[k] && v) { next[k] = v; autoFilledRef.current[k] = v }
+      }
+      return next
+    })
+  }
+
+  /** 앞 주소의 자동값 걷기 — 지금도 그 값 그대로인 칸만 */
+  function clearAutoFilled() {
+    const auto = autoFilledRef.current
+    autoFilledRef.current = {}
+    if (Object.keys(auto).length === 0) return
+    setForm(prev => {
+      const next = { ...prev }
+      for (const [k, v] of Object.entries(auto) as [AutoKey, string][]) if (prev[k] === v) next[k] = ''
+      return next
+    })
+  }
+
   function loadBuildingInfo(addrForDupCheck: string, code: { bcode: string; jibun: string } | null, via: string) {
     const seq = ++buildingLookupSeq.current
     const live = () => seq === buildingLookupSeq.current
+    // 새 주소 — 앞 주소가 자동으로 채운 값부터 걷는다(손으로 고친 칸은 그대로)
+    clearAutoFilled()
 
     checkAddressAction(addrForDupCheck).then(res => {
       if (!live()) return
@@ -194,14 +226,13 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
       }
       if (res.building) {
         const b = res.building
-        setForm(prev => ({
-          ...prev,
-          building_purpose:      prev.building_purpose      || (b.purpose ?? ''),
-          building_total_area:   prev.building_total_area   || (b.total_area != null ? String(b.total_area) : ''),
-          building_floors_above: prev.building_floors_above || (b.floors_above != null ? String(b.floors_above) : ''),
-          building_floors_below: prev.building_floors_below || (b.floors_below != null ? String(b.floors_below) : ''),
-          building_year_built:   prev.building_year_built   || (b.year_built != null ? String(b.year_built) : ''),
-        }))
+        fillAuto({
+          building_purpose:      b.purpose ?? '',
+          building_total_area:   b.total_area != null ? String(b.total_area) : '',
+          building_floors_above: b.floors_above != null ? String(b.floors_above) : '',
+          building_floors_below: b.floors_below != null ? String(b.floors_below) : '',
+          building_year_built:   b.year_built != null ? String(b.year_built) : '',
+        })
       }
     }).catch(() => null)
 
@@ -220,15 +251,14 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
       ledgerRef.current = L
       // 건물 물리정보(용도/연면적/층수/준공연도) + 사용승인일 자동 채움.
       // 사용승인일 자동 적용: 계획 기산점이 점검계획일(필수 수동 입력)로 바뀌어 자동 입력해도 안전 (2026-07-13).
-      setForm(prev => ({
-        ...prev,
-        use_approval_date:     prev.use_approval_date     || (L.use_approval_date ?? ''),
-        building_purpose:      prev.building_purpose      || (L.purpose ?? ''),
-        building_total_area:   prev.building_total_area   || (L.total_area != null ? String(L.total_area) : ''),
-        building_floors_above: prev.building_floors_above || (L.floors_above != null ? String(L.floors_above) : ''),
-        building_floors_below: prev.building_floors_below || (L.floors_below != null ? String(L.floors_below) : ''),
-        building_year_built:   prev.building_year_built   || (L.use_approval_date ? L.use_approval_date.slice(0, 4) : ''),
-      }))
+      fillAuto({
+        use_approval_date:     L.use_approval_date ?? '',
+        building_purpose:      L.purpose ?? '',
+        building_total_area:   L.total_area != null ? String(L.total_area) : '',
+        building_floors_above: L.floors_above != null ? String(L.floors_above) : '',
+        building_floors_below: L.floors_below != null ? String(L.floors_below) : '',
+        building_year_built:   L.use_approval_date ? L.use_approval_date.slice(0, 4) : '',
+      })
       const extras = [
         L.use_approval_date && `사용승인일 ${L.use_approval_date} 자동 적용`,
         L.height != null && `높이 ${L.height}m`,
@@ -265,6 +295,7 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
         ledgerRef.current = null
         setAddrJibun('')
         setForm(prev => ({ ...prev, zipcode: '' }))
+        clearAutoFilled()   // 앞 주소의 사용승인일·용도 등도 남기지 않는다
         setLedgerNote(geo.unavailable ? '' : `건물정보를 찾지 못했습니다${geo.error ? ` (${geo.error})` : ''} — [주소 검색]을 이용해 주세요.`)
         return
       }
@@ -486,7 +517,7 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
                 onChange={e => { setField('customer_name', e.target.value); setNameWarn(null) }}
                 onBlur={e => checkNameNow(e.target.value)}
                 placeholder="주소 검색 시 자동입력 또는 직접 입력"
-                className={`${inputCls} ${keyInputCls} ${nameWarn ? '!border-red-400 focus:!border-red-400 focus:ring-red-400/20' : need(reqOf('고객명')) ? emptyRequiredCls : ''}`}
+                className={`${inputCls} ${keyInputCompactCls} ${nameWarn ? '!border-red-400 focus:!border-red-400 focus:ring-red-400/20' : need(reqOf('고객명')) ? emptyRequiredCls : ''}`}
               />
               {form.customer_name && (
                 <button
@@ -511,7 +542,7 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
               id="new-assignee"
               value={form.assigned_employee_id}
               onChange={e => setField('assigned_employee_id', e.target.value)}
-              className={`${inputCls} h-12`}
+              className={inputCls}
             >
               <option value="">배정 안함</option>
               {employees.map(e => (
@@ -529,7 +560,7 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
               id="new-contract-date"
               value={form.contract_date}
               onChange={e => setField('contract_date', e.target.value)}
-              className={`${inputCls} h-12`}
+              className={inputCls}
             />
           </Cell>
         </SubRow>
@@ -543,7 +574,7 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
               id="new-use-approval"
               value={form.use_approval_date}
               onChange={e => setField('use_approval_date', e.target.value)}
-              className={`${inputCls} ${keyInputCls} ${need(reqOf('사용승인일')) ? emptyRequiredCls : ''}`}
+              className={`${inputCls} ${keyInputCompactCls} ${need(reqOf('사용승인일')) ? emptyRequiredCls : ''}`}
             />
             {ledgerRef.current?.use_approval_date && !form.use_approval_date && (
               <button
@@ -561,7 +592,7 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
               id="new-anchor-date"
               value={form.plan_anchor_date}
               onChange={e => setField('plan_anchor_date', e.target.value)}
-              className={`${inputCls} ${keyInputCls} ${need(reqOf('점검일자')) ? emptyRequiredCls : ''}`}
+              className={`${inputCls} ${keyInputCompactCls} ${need(reqOf('점검일자')) ? emptyRequiredCls : ''}`}
             />
             {/* 「이 날짜로 잡히는 일정」 칸과 예외 스위치(「그래도 내가 입력한 점검일자로 잡겠습니다」)는
                 2026-10-06 사용자 요청으로 폐지 — 어느 날짜가 쓰이는지는 두 칸의 배지(기산점/참고)가 말한다.
@@ -572,7 +603,9 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
               「점검」 줄이 통째로 빠져 ~100px가 준다. 연간 점검 설명은 이 칸 아래 작은 글씨로.
               라디오를 **세그먼트 버튼** 모양으로(라디오 자체는 남긴다: 화살표 키·name 묶음이 그대로 산다).
               자체점검 종류 — 소방안전관리·일반관리 공통 종합/작동 선택 (소방계획서_6 W-1) */}
-          <Cell span={2} label="점검유형" required>
+          {/* 연간 점검 설명은 라벨 옆 작은 글씨 — 칸 아래 한 줄이 이 줄의 키를 정해 1366×768에서 관계인이 바 밑으로 밀렸다 */}
+          <Cell span={2} label="점검유형" required
+            badge={<span data-testid="new-annual" className="text-form-2xs font-normal text-ink-meta">{INSPECTION_ANNUAL[form.inspection_type]}</span>}>
             <div className="flex flex-wrap items-center gap-2">
               <div role="radiogroup" aria-label="관리 구분" className="inline-flex rounded-lg border border-line overflow-hidden">
                 {(['소방안전관리', '일반관리'] as const).map(cat => {
@@ -610,9 +643,6 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
                 })}
               </div>
             </div>
-            <p data-testid="new-annual" className="text-form-xs text-ink-sub">
-              {INSPECTION_ANNUAL[form.inspection_type]}
-            </p>
           </Cell>
         </SubRow>
 
