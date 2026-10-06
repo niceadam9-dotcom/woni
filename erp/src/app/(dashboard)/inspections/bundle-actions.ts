@@ -28,7 +28,8 @@ async function bundleTargets(admin: Admin, inspectionId: string, isSpecial: bool
     .select('id', { count: 'exact', head: true }).eq('inspection_id', inspectionId)
   const base: AnnexType[] = ['official', 'delegation', 'cover', 'report9', 'report4']
   // 별지 10(이행계획)·11(완료보고)은 불량이 있어야 의미가 있다 — 0건이면 빈 서식 혼입 방지 차원에서 제외
-  return (count ?? 0) > 0 ? [...base, 'report10', 'report11'] : base
+  // 공사 완료 사진첩도 같은 축 — 불량이 있으면 반드시 나간다(2026-10-06 사용자 지시)
+  return (count ?? 0) > 0 ? [...base, 'report10', 'report11', 'photoalbum'] : base
 }
 
 /** 관련 데이터 최신 수정 시각 — 점검표 응답·불량·서식 고유 값·펌프성능시험(S13-1의 비교 축).

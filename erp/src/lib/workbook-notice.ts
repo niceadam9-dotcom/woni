@@ -94,6 +94,8 @@ export const WORKBOOK_NOTICE_RULES: readonly Rule[] = [
   { test: /\(엑셀 \d+행 상한\)/, kind: 'cap' },
   { test: /\(현1 \d+행 상한\)/, kind: 'cap' },
   { test: /\(시트 상한 \d+건\)/, kind: 'cap' },
+  // 공사 완료 사진첩(2026-10-06) — photo-album.ts prepareAlbumPhotos의 상한 문구
+  { test: /^사진첩 \d+건 미표기\(상한 \d+건\)/, kind: 'cap' },
   { test: /^목차 미표기:/, kind: 'cap' },
   { test: /^점검표 서식 미동봉\(자산 없음\):/, kind: 'cap' },
 
@@ -112,6 +114,9 @@ export const WORKBOOK_NOTICE_RULES: readonly Rule[] = [
   // ── 불량·사진 (회차 축) ─────────────────────────────────────
   { test: /^불량사진 \d+장 누락/, kind: 'fixable', target: 'defects', label: '불량 사진', scope: 'inspection' },
   { test: /^불량사진 시트 미첨부/, kind: 'fixable', target: 'defects', label: '불량 사진', scope: 'inspection' },
+  // 공사 완료 사진첩(2026-10-06, 종전 「불량사진」 시트) — 같은 자리(⑤ 불량)로 보낸다
+  { test: /^사진첩 사진 \d+장 누락/, kind: 'fixable', target: 'defects', label: '불량 사진', scope: 'inspection' },
+  { test: /^사진첩 시트 미첨부/, kind: 'fixable', target: 'defects', label: '불량 사진', scope: 'inspection' },
 
   // ── 점검 기본값 (회차 축) ───────────────────────────────────
   { test: /^점검기간$/, kind: 'fixable', target: 'period', label: '점검기간', scope: 'inspection' },

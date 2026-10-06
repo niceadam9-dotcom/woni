@@ -35,6 +35,7 @@ import { BundleGeneratePanel } from '@/components/inspections/bundle-generate-pa
 import { GeneratedDocList } from '@/components/inspections/generated-doc-list'
 import { WorkbookXlsxButton } from '@/components/inspections/workbook-xlsx-button'
 import { SominHwpxButton } from '@/components/inspections/somin-hwpx-button'
+import { PhotoAlbumHwpxButton } from '@/components/inspections/photo-album-hwpx-button'
 import { AnnexMissingChip } from '@/components/inspections/annex-missing-list'
 import { AnnexPrintButton } from '@/components/customers/annex-print-button'
 import { FIELD_DEFS, AnnexFieldInput, type ComposeAnnexNo, type FieldDef } from '@/components/inspections/annex-fields'
@@ -455,7 +456,7 @@ export function InspectionWorkbench({
     return () => clearInterval(t)
   }, [busy, inspectionId])
 
-  function generate(reportType: 'report4' | 'report9' | 'report10' | 'report11' | 'exterior' | 'cover' | 'official' | 'delegation') {
+  function generate(reportType: 'report4' | 'report9' | 'report10' | 'report11' | 'exterior' | 'cover' | 'official' | 'delegation' | 'photoalbum') {
     setMsg('')
     startTransition(async () => {
       const res = await requestReport9Action(inspectionId, reportType)
@@ -1569,6 +1570,13 @@ export function InspectionWorkbench({
                     {busy ? <Loader2 className="size-3 animate-spin" /> : <FileText className="size-3" />} 11호 PDF 생성
                   </button>
                   <button onClick={() => pkg('report11')} disabled={isPending} className={btn}><Package className="size-3" /> 제출 패키지</button>
+                  {/* 2026-10-06 — 공사 완료 사진첩(불량 건별 공사 전·후 사진). 엑셀은 [보고서 엑셀] 맨 끝 시트로 함께 나간다 */}
+                  {defectStat.total > 0 && (<>
+                    <button onClick={() => generate('photoalbum')} disabled={isPending || busy} className={btn} data-testid="photoalbum-generate">
+                      {busy ? <Loader2 className="size-3 animate-spin" /> : <FileText className="size-3" />} 사진첩 PDF 생성
+                    </button>
+                    <PhotoAlbumHwpxButton inspectionId={inspectionId} className={btn} />
+                  </>)}
                   {/* ④와 **같은 자리 규약**([제출 패키지] 옆). 워크북은 회차 1개짜리 통합 파일이라
                       ④에서 받든 ⑥에서 받든 같은 것이 나온다 — 형제 자리를 빠뜨리면 ⑥에서만
                       "엑셀이 사라졌다"가 된다(종전엔 네 DocPane 전부에 있었다) */}

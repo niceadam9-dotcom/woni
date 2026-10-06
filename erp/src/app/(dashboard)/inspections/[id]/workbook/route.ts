@@ -7,7 +7,7 @@ import type { UserRole } from '@/types'
 import { assembleOfficial, assembleDelegation } from '@/lib/annex-cover-official'
 import { assembleReport9, loadAnnexInputs, annexReportDateISO } from '@/lib/report9-assemble'
 import { resolveActionPeriod, unifyDoneDates, hasDefectForLegalPeriod } from '@/lib/annex-total-period'
-import { validateAnchors, SCRUB_NEEDLES, DEFECT_SHEET } from '@/lib/xlsx-anchors'
+import { validateAnchors, SCRUB_NEEDLES } from '@/lib/xlsx-anchors'
 import { injectWorkbook, type InjectTarget } from '@/lib/xlsx-inject'
 import { personalizeWorkbook } from '@/lib/xlsx-personalize'
 import { reportWorkbookRules, officialSignLine, sealPlacement, OFFICIAL_SIGN_CELL } from '@/lib/company-literals'
@@ -15,8 +15,9 @@ import { embedFirePlanImages } from '@/lib/fire-plan-xlsx-images'
 import { getCompanyProfile } from '@/lib/company-profile'
 import { buildWorkbookValues, toInjectTargets, defectOverflow, doneOverflow, s31RowOverflow } from '@/lib/xlsx-workbook'
 import { donorGroupsToKeep, donorGapsForFacilities, allDonorSheets, DONOR_TOC_SHEET, BASE_TOC_SHEET, DONOR_TOC_BODY_CELLS } from '@/lib/xlsx-donors'
-import { removeSheets, insertSheetAfter } from '@/lib/xlsx-sheet-surgery'
-import { buildDefectPhotoSheet, type DefectPhotoRow } from '@/lib/defect-photo-embed'
+import { removeSheets, insertSheetAfter, lastSheetName } from '@/lib/xlsx-sheet-surgery'
+import { buildPhotoAlbumSheet } from '@/lib/defect-photo-embed'
+import { loadPhotoAlbumItems, prepareAlbumPhotos } from '@/lib/photo-album'
 import { planDonorInjection, donorInjectSummary } from '@/lib/xlsx-donor-inject'
 import { sheetMatchesFacilities } from '@/lib/sheet-facility-map'
 import { evacTypesFromSpecs } from '@/lib/facility-codes'
@@ -265,7 +266,9 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
     console.warn(`[workbook] 표본 흔적 캐시 ${result.scrubbed.length}칸 소거(D-10) — 템플릿 재점검 필요: ${result.scrubbed.join(', ')}`)
   }
 
-  // 불량 전/후 사진 대지(소방계획서_46) — 「현5」(4. 소방시설등 불량 세부 사항) 바로 뒤에 끼운다.
+  // 공사 완료 사진첩(2026-10-06, 종전 소방계획서_46 「불량사진」) — 워크북 **맨 끝**에 붙인다.
+  //   불량이 있으면 사진이 0장이어도 나간다(사용자 지시 「불량이 있으면 반드시」). 목록·사진 준비는
+  //   photo-album.ts 한 벌 — PDF 사진첩·한글 사진첩과 같은 건수·순서다.
   //
   // ⚠ **주입이 끝난 뒤**에 붙인다. injectWorkbook은 SCRUB_NEEDLES를 문 캐시를 비우고 참조 0인
   //   공유문자열을 지우므로, 캡션에 실리는 불량명(DB 자유 텍스트)이 니들과 우연히 겹치면 그
@@ -301,23 +304,17 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
     outBytes = (await personalizeWorkbook(outBytes, reportWorkbookRules(companyForLiterals, { seal: sealPlaced }))).bytes
   }
   try {
-    const { data: defectPhotos, error: dpErr } = await admin.from('inspection_defects')
-      .select('defect_code, defect_name, defect_detail, action_taken, photo_url, after_photo_url')
-      .eq('inspection_id', id).order('created_at', { ascending: true })
-    if (dpErr) throw new Error(`불량 사진 조회 실패: ${dpErr.message}`)
-    const built = await buildDefectPhotoSheet(admin, (defectPhotos ?? []) as DefectPhotoRow[], outBytes)
+    const album = await prepareAlbumPhotos(admin, await loadPhotoAlbumItems(admin, id))
+    const heading = `공사 완료 사진첩  [ ${(cust as { customer_name: string } | null)?.customer_name ?? ''} ]`
+    const built = await buildPhotoAlbumSheet(album, heading, outBytes)
     if (built) {
-      const ins = await insertSheetAfter(outBytes, DEFECT_SHEET, built.part)
-      outBytes = ins.bytes
-      if (ins.renumbered === 0) {
-        // 자산에 시트별 인쇄영역이 실재하므로(실측 8건) 0은 정규식이 헛돈 신호다 — 산출은 계속하되 알린다
-        console.warn('[workbook] 불량사진 삽입: localSheetId 재번호 0건 — 템플릿 갱신 의심')
-      }
-      photoNotes.push(...built.notes)
+      // 맨 끝 = 꼬리에 붙이므로 localSheetId 재번호 0건이 정상이다(종전 현5 뒤 삽입과 다르다)
+      outBytes = (await insertSheetAfter(outBytes, await lastSheetName(outBytes), built.part)).bytes
+      photoNotes.push(...album.notes)
     }
   } catch (e) {
-    console.error('[workbook] 불량사진 시트 실패', e)
-    photoNotes.push(`불량사진 시트 미첨부: ${e instanceof Error ? e.message : String(e)}`)
+    console.error('[workbook] 사진첩 시트 실패', e)
+    photoNotes.push(`사진첩 시트 미첨부: ${e instanceof Error ? e.message : String(e)}`)
   }
 
   // 파일명 규약: 고객명_점검종류_연도(S4-4). 종류 라벨은 위임장 조립이 이미 판정한 것을 재사용

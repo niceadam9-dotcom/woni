@@ -1,235 +1,144 @@
 import 'server-only'
 import JSZip from 'jszip'
-import sharp from 'sharp'
 import { escXml } from '@/lib/xlsx-inject'
-import { extractStoragePath } from '@/lib/defect-photos'
 import type { SheetPart } from '@/lib/xlsx-sheet-surgery'
 import { colWidthToPx, rowHeightToPx } from '@/lib/xlsx-geometry'
+import { photoKey, type PreparedAlbum, type PreparedPhoto } from '@/lib/photo-album'
 
-/** 갑지 워크북 「불량사진」 시트 (소방계획서_46)
+/** 갑지 워크북 「사진첩」 시트 — 공사 완료 사진첩(2026-10-06 사용자 요청, 종전 「불량사진」 시트 대체)
  *
- *  불량 사진은 `inspection_defects.photo_url`(조치 전)·`after_photo_url`(조치 후)에 쌓이는데
- *  여태 **어떤 산출물에도 실리지 않았다** — 화면 미리보기가 유일한 소비처였다. 이 모듈이
- *  「현5」(별지 9호 8쪽 '4. 소방시설등 불량 세부 사항') 바로 뒤에 붙일 사진 대지를 만든다.
+ *  종전(소방계획서_46): 「현5」 바로 뒤 「불량사진」 시트, 1건 = 세로 3행(캡션·조치 전·조치 후),
+ *  **사진이 한 장도 없으면 시트를 뺐다**. 사용자 지시로 세 가지가 바뀌었다:
+ *   · 위치 — 워크북 **맨 끝**(본보기 `공사 완료 사진첩.hwp`처럼 보고서 뒤에 붙는 별책).
+ *   · 모양 — 「1. 제목」 한 줄 + **공사 전 | 공사 후 좌우** 사진 + 그 아래 라벨.
+ *   · 존재 — **불량이 있으면 반드시** 나간다. 사진 없는 칸은 「사진 없음」.
+ *  목록·사진 준비는 `photo-album.ts` 한 벌(PDF·한글파일과 공유)이다 — 여기는 그리기만 한다.
  *
- *  인쇄 규격(사용자 확정, 2026-09-08): **불량 1건 = 세로 3행**(캡션 · 조치 전 · 조치 후),
- *  **A4 세로 1장 = 3건 = 9행** → 1~3건 1쪽 · 4~6건 2쪽 · 7~9건 3쪽 · 10~12건 4쪽.
- *  ⚠ 최초 구현은 2건/장(6건=3쪽)이었다. 사용자가 「4건부터 2페이지」로 정정해 3건/장으로 바꿨다
- *    — 두 진술은 동시에 성립할 수 없어(6건이 3쪽이면 3건이 2쪽이 된다) 후자를 정본으로 택했다.
+ *  인쇄 규격: A4 세로 1장 = 3건. 1쪽 머리에만 제목 행(「공사 완료 사진첩 [건물명]」).
+ *    1건 = 제목 22pt + 사진 210pt + 라벨 18pt = 250pt, 3건 = 750pt, 1쪽은 + 머리 30pt = 780pt.
+ *    A4 가용 높이 (11.6929in − 상하 0.35×2) × 72 = 791.5pt 안. 이 부등식은 LO 렌더가 아니라
+ *    산수로 지킨다 — LO는 제 나름 축소해 여백이 남아 보이지만 Excel은 pt 그대로 찍는다.
  *
- *  ⚠ 이 파일은 이 저장소에서 **엑셀에 이미지를 넣는 유일한 코드**다. 조용히 깨지는 지점이
- *  많아 규약을 여기 못박는다:
+ *  ⚠ 이 파일은 저장소에서 **엑셀에 사진을 넣는 코드** 둘 중 하나다(다른 하나 fire-plan-xlsx-images).
+ *  조용히 깨지는 지점:
  *   · 미디어 확장자는 반드시 `.jpeg` — `[Content_Types]`에 `jpg` Default가 없어 `.jpg`면
  *     파일은 열리는데 **그림만 안 보인다**.
- *   · 치수는 sharp `toBuffer({resolveWithObject:true})`의 `info`(= **회전 후**)에서 얻는다.
- *     `metadata()`는 EXIF 회전 **전**이라 휴대폰 세로 사진이 가로 상자에 눌린다.
  *   · 텍스트는 inlineStr — 공유문자열에 넣으면 `t="s"` 인덱스가 밀려 **전 문서가 뒤섞인다**.
  *   · 워크시트 자식 태그는 CT_Worksheet 순서(… printOptions → pageMargins → pageSetup →
  *     headerFooter → rowBreaks → drawing). 어기면 **LibreOffice는 통과하고 Excel만** 복구한다.
  *   · 스타일은 fonts·borders·cellXfs **끝에 덧붙인다** — 기존 인덱스가 한 개도 안 밀린다. */
 
-/** 불량 1건이 쓰는 행 수 — 캡션 + 조치 전 + 조치 후 */
-const ROWS_PER_DEFECT = 3
-/** A4 세로 한 장에 들어가는 불량 건수 */
-const DEFECTS_PER_PAGE = 3
-const ROWS_PER_PAGE = ROWS_PER_DEFECT * DEFECTS_PER_PAGE
-
-/** 행 높이(pt) — 캡션 20 + 사진 117×2 = 254pt/건, 3건 = 762pt.
- *  A4 세로에서 쓸 수 있는 높이는 (11.6929in − 상하 0.35×2) × 72 = 791.5pt라 여유 29.5pt(3.7%).
- *  ⚠ 2건/장(캡션 21·사진 180)에서 3건/장으로 바꾸며 사진 높이를 180→117pt로 줄였다 —
- *    3건 × 381pt = 1143pt라 그대로는 A4에 못 담는다. 이 값을 키우면 3건이 한 장에서 넘친다:
- *    상한은 (791.5 − 여유) / 3 = 254pt 안에 캡션 + 사진 2장이 들어가는 것이다.
- *  ⚠ 사진이 낮아져 가로 사진은 이제 **높이에 걸려** 축소된다(폭이 남는다) — 왜곡은 아니다.
- *  ⚠⚠ **LibreOffice 렌더에 남는 아래 여백을 보고 이 값을 키우지 말 것.** LO는 제 나름의 축소를
- *    걸어 실제보다 여유 있게 그린다(762pt를 ~650pt로). 인쇄 정본은 Excel이고 Excel은 행을
- *    **명시한 pt 그대로** 찍으므로, LO 여백에 맞춰 키우면 **Excel에서 3건째가 다음 장으로 넘어간다**.
- *    구속 조건은 LO 렌더가 아니라 산수(3 × (캡션 + 사진×2) ≤ 791.5pt)다 —
- *    프로브가 이 부등식을 LO와 **무관하게** 따로 단언한다. */
-const CAPTION_PT = 20
-const PHOTO_PT = 117
-/** 열 너비(엑셀 width) — A 라벨 · B 사진 · C 내용. px = width×7 + 5 → 68 + 327 + 320 = 715px,
- *  A4 세로 가용 폭 (8.2677 − 0.30×2) × 96 = 736px 안 */
-const COL_W = { a: 9, b: 46, c: 45 } as const
-/** 사진 상자 안쪽 여백(px) — 테두리에 딱 붙지 않게 */
-const BOX_PAD = 3
-const EMU_PER_PX = 9525
-
-/** 사진 장변 상한(px)과 JPEG 품질 — 1200px q80이면 장당 대략 150~250KB */
-const LONG_EDGE = 1200
-const JPEG_Q = 80
-/** 시트가 감당하는 불량 건수 상한(= 30페이지)과 사진 총 바이트 예산 */
-const MAX_DEFECTS = 60
-const PHOTO_BUDGET = 12 * 1024 * 1024
-/** 다운로드 동시 실행 수 — 무제한 Promise.all은 sharp 네이티브 디코드가 RSS를 튀긴다 */
-const CONCURRENCY = 4
-
-const BUCKET = 'inspection-defects'
-const SHEET_NAME = '불량사진'
+export const PHOTO_SHEET_NAME = '사진첩'
 const SHEET_PATH = 'xl/worksheets/sheetPhoto.xml'
 
-/** Storage에서 바이트만 받으면 되므로 SupabaseClient 전체를 요구하지 않는다 —
- *  프로브가 스텁을 넘길 수 있어야 검사가 DB·네트워크에서 독립한다 */
-export type PhotoStorage = {
-  storage: {
-    from: (bucket: string) => {
-      download: (path: string) => Promise<{ data: Blob | null; error: unknown }>
-    }
-  }
-}
+/** 1건이 쓰는 행 — 제목 · 사진 · 라벨 */
+const ROWS_PER_ITEM = 3
+const ITEMS_PER_PAGE = 3
+const HEAD_PT = 30
+const TITLE_PT = 22
+export const PHOTO_PT = 210
+const LABEL_PT = 18
+/** 열 너비(엑셀 width) — A 공사 전 · B 공사 후. 51 → 357px ×2 = 714px, A4 세로 가용 폭
+ *  (8.2677 − 0.30×2) × 96 = 736px 안 */
+const COL_W = 51
+/** 사진 상자 안쪽 여백(px) — 테두리에 딱 붙지 않게 */
+const BOX_PAD = 4
+const EMU_PER_PX = 9525
 
-export type DefectPhotoRow = {
-  defect_code: string | null
-  defect_name: string | null
-  defect_detail: string | null
-  action_taken: string | null
-  photo_url: string | null
-  after_photo_url: string | null
-}
-
-type Prepared = { jpeg: Uint8Array; w: number; h: number }
-type Slot = { kind: 'before' | 'after'; img: Prepared | null }
-type Block = { no: number; caption: string; slots: [Slot, Slot]; texts: [string, string] }
-
-/* 격자 → px 환산은 `xlsx-geometry` 한 벌을 쓴다(2026-09-21) — 종전엔 이 파일과
- * `fire-plan-xlsx-images`가 같은 틀린 산식을 각자 들고 있었다. 여긴 2열만 병합해 오차가 5px라
- * 눈에 안 띄었고, 미세 격자 60열을 쓰는 저쪽에서 터졌다. 산식을 여기 다시 적지 말 것. */
-const px = { colW: colWidthToPx, rowH: rowHeightToPx }
+/** 1쪽 머리 행 다음부터 건별 3행. item i(0부터)의 첫 행 번호 */
+const rowOf = (i: number) => 2 + i * ROWS_PER_ITEM
 
 /** 한 사진을 상자에 맞춰 놓을 때의 EMU — **가로세로비를 바꾸지 않는다**(늘리면 증빙이 왜곡된다) */
-function fitBox(img: Prepared): { cx: number; cy: number; colOff: number; rowOff: number } {
-  const boxW = px.colW(COL_W.b) - BOX_PAD * 2
-  const boxH = px.rowH(PHOTO_PT) - BOX_PAD * 2
-  const scale = Math.min(boxW / img.w, boxH / img.h)
+function fitBox(img: PreparedPhoto): { cx: number; cy: number; colOff: number; rowOff: number } {
+  const cw = colWidthToPx(COL_W), rh = rowHeightToPx(PHOTO_PT)
+  const scale = Math.min((cw - BOX_PAD * 2) / img.w, (rh - BOX_PAD * 2) / img.h)
   const w = Math.max(1, Math.round(img.w * scale))
   const h = Math.max(1, Math.round(img.h * scale))
   return {
     cx: w * EMU_PER_PX, cy: h * EMU_PER_PX,
-    colOff: Math.floor((px.colW(COL_W.b) - w) / 2) * EMU_PER_PX,
-    rowOff: Math.floor((px.rowH(PHOTO_PT) - h) / 2) * EMU_PER_PX,
+    colOff: Math.floor((cw - w) / 2) * EMU_PER_PX,
+    rowOff: Math.floor((rh - h) / 2) * EMU_PER_PX,
   }
 }
 
-/** 다운로드 → EXIF 회전 굽기 → 축소 → JPEG 통일.
- *  ⚠ 버킷에는 JPEG만 있지 않다 — `image-prep.ts`가 작은 PNG/WebP는 원본 그대로 통과시킨다.
- *  webp Default가 [Content_Types]에 없으므로 재인코딩은 선택이 아니라 필수다. */
-async function prepPhoto(store: PhotoStorage, stored: string | null): Promise<Prepared> {
-  const path = extractStoragePath(stored)
-  if (!path) throw new Error('경로없음')
-  const { data, error } = await store.storage.from(BUCKET).download(path)
-  if (error || !data) throw new Error('다운로드실패')
-  const raw = new Uint8Array(await data.arrayBuffer())
-  if (raw.byteLength === 0) throw new Error('0바이트')
-  try {
-    const { data: jpeg, info } = await sharp(Buffer.from(raw), { failOn: 'none' })
-      .rotate()
-      .resize({ width: LONG_EDGE, height: LONG_EDGE, fit: 'inside', withoutEnlargement: true })
-      .jpeg({ quality: JPEG_Q })
-      .toBuffer({ resolveWithObject: true })
-    return { jpeg: new Uint8Array(jpeg), w: info.width, h: info.height }
-  } catch {
-    throw new Error('디코드실패')
-  }
-}
+type Xf = { xfHead: number; xfTitle: number; xfBox: number; xfLabel: number }
 
 /** fonts·borders·cellXfs 끝에 덧붙인다 — 기존 인덱스 무손상이 구성적으로 보장된다.
  *  ⚠ count 속성은 **실제 원소를 세어** 다시 쓴다(+N 하드코딩은 자산이 바뀌면 어긋난다).
  *  count가 어긋나면 LibreOffice는 통과하고 Excel만 복구 대화상자를 띄운다 */
-function patchStyles(xml: string): { xml: string; xfCaption: number; xfBox: number; xfText: number } {
-  const block = (tag: string) => {
-    const m = new RegExp(`<${tag}(?:\\s[^>]*)?>([\\s\\S]*?)</${tag}>`).exec(xml)
+function patchStyles(xml: string): { xml: string } & Xf {
+  const block = (src: string, tag: string) => {
+    const m = new RegExp(`<${tag}(?:\\s[^>]*)?>([\\s\\S]*?)</${tag}>`).exec(src)
     if (!m) throw new Error(`styles.xml ${tag} 블록 없음`)
     return m
   }
   const countEls = (inner: string, tag: string) =>
     [...inner.matchAll(new RegExp(`<${tag}\\b[^>]*(?:/>|>[\\s\\S]*?</${tag}>)`, 'g'))].length
+  const replaceBlock = (src: string, m: RegExpExecArray, tag: string, count: number, inner: string) =>
+    src.slice(0, m.index) + `<${tag} count="${count}">${inner}</${tag}>` + src.slice(m.index + m[0].length)
 
-  const fonts = block('fonts')
+  const fonts = block(xml, 'fonts')
   const fontBase = countEls(fonts[1], 'font')
-  const newFonts =
-    '<font><b val="true"/><sz val="11"/><color rgb="FF000000"/><name val="돋움"/><family val="3"/><charset val="129"/></font>'
-    + '<font><sz val="10"/><color rgb="FF000000"/><name val="돋움"/><family val="3"/><charset val="129"/></font>'
-  let out = xml.slice(0, fonts.index) + `<fonts count="${fontBase + 2}">${fonts[1]}${newFonts}</fonts>`
-    + xml.slice(fonts.index + fonts[0].length)
+  const font = (sz: number, bold: boolean) =>
+    `<font>${bold ? '<b val="true"/>' : ''}<sz val="${sz}"/><color rgb="FF000000"/><name val="돋움"/><family val="3"/><charset val="129"/></font>`
+  let out = replaceBlock(xml, fonts, 'fonts', fontBase + 3, fonts[1] + font(16, true) + font(11, true) + font(10, false))
 
-  const bordersM = new RegExp('<borders(?:\\s[^>]*)?>([\\s\\S]*?)</borders>').exec(out)!
-  const borderBase = countEls(bordersM[1], 'border')
-  const newBorder = '<border diagonalUp="false" diagonalDown="false">'
-    + '<left style="thin"/><right style="thin"/><top style="thin"/><bottom style="thin"/><diagonal/></border>'
-  out = out.slice(0, bordersM.index) + `<borders count="${borderBase + 1}">${bordersM[1]}${newBorder}</borders>`
-    + out.slice(bordersM.index + bordersM[0].length)
+  const borders = block(out, 'borders')
+  const borderBase = countEls(borders[1], 'border')
+  out = replaceBlock(out, borders, 'borders', borderBase + 2, borders[1]
+    + '<border diagonalUp="false" diagonalDown="false"><left/><right/><top/><bottom/><diagonal/></border>'
+    + '<border diagonalUp="false" diagonalDown="false"><left style="thin"/><right style="thin"/><top style="thin"/><bottom style="thin"/><diagonal/></border>')
 
-  const xfsM = new RegExp('<cellXfs(?:\\s[^>]*)?>([\\s\\S]*?)</cellXfs>').exec(out)!
-  const xfBase = countEls(xfsM[1], 'xf')
-  const xf = (fontId: number, h: string, v: string) =>
-    `<xf numFmtId="164" fontId="${fontId}" fillId="0" borderId="${borderBase}" xfId="0"`
+  const xfs = block(out, 'cellXfs')
+  const xfBase = countEls(xfs[1], 'xf')
+  const xf = (fontId: number, borderId: number, h: string) =>
+    `<xf numFmtId="0" fontId="${fontId}" fillId="0" borderId="${borderId}" xfId="0"`
     + ' applyFont="true" applyBorder="true" applyAlignment="true" applyProtection="false">'
-    + `<alignment horizontal="${h}" vertical="${v}" textRotation="0" wrapText="true" indent="0" shrinkToFit="false"/>`
+    + `<alignment horizontal="${h}" vertical="center" textRotation="0" wrapText="true" indent="0" shrinkToFit="false"/>`
     + '<protection locked="true" hidden="false"/></xf>'
-  const newXfs = xf(fontBase, 'center', 'center') + xf(fontBase + 1, 'center', 'center') + xf(fontBase + 1, 'left', 'top')
-  out = out.slice(0, xfsM.index) + `<cellXfs count="${xfBase + 3}">${xfsM[1]}${newXfs}</cellXfs>`
-    + out.slice(xfsM.index + xfsM[0].length)
-
-  return { xml: out, xfCaption: xfBase, xfBox: xfBase + 1, xfText: xfBase + 2 }
-}
-
-/** 캡션 — 「점검번호 불량명」. 단 **둘이 같은 값인 행이 실재한다**: 2026-09-08 스테이징 실측
- *  10행 중 7행, 그리고 **사진 달린 4행 중 3행**이 `defect_code == defect_name`이었다
- *  (불량명을 따로 적지 않으면 코드가 그대로 이름 칸에 들어간다). 그대로 이으면 인쇄물에
- *  「1-A-001 1-A-001」이 찍힌다 — 사용자 확정(Q-2): 같으면 한 번만 찍는다.
- *
- *  ⚠ 이 부류를 66/0·62/0·19/0 초록이 **한 번도 밟지 못했다.** 픽스처가 언제나 코드와 이름을
- *  다르게(`3-A-001` / `소화기 압력계 불량 1`) 지어냈기 때문이다. 육안 확인조차 그 픽스처
- *  산출물을 본 것이라 같은 눈멀음을 공유했다. 그래서 픽스처에 code==name 표본(D-1)을 심었다 —
- *  **실데이터의 모양을 픽스처가 갖고 있지 않으면 초록은 그 모양에 대해 아무 말도 하지 않는다.** */
-function captionOf(d: DefectPhotoRow): string {
-  const code = (d.defect_code ?? '').trim()
-  const name = (d.defect_name ?? '').trim()
-  if (code && name && code === name) return code
-  return [code, name].filter(Boolean).join(' ') || '(불량명 없음)'
+  out = replaceBlock(out, xfs, 'cellXfs', xfBase + 4, xfs[1]
+    + xf(fontBase, borderBase, 'center')            // 머리 — 테두리 없음
+    + xf(fontBase + 1, borderBase, 'left')          // 건 제목 — 테두리 없음
+    + xf(fontBase + 2, borderBase + 1, 'center')    // 사진 상자
+    + xf(fontBase + 2, borderBase + 1, 'center'))   // 라벨
+  return { xml: out, xfHead: xfBase, xfTitle: xfBase + 1, xfBox: xfBase + 2, xfLabel: xfBase + 3 }
 }
 
 const cell = (ref: string, s: number, text?: string | null) =>
   text ? `<c r="${ref}" s="${s}" t="inlineStr"><is><t xml:space="preserve">${escXml(text)}</t></is></c>`
     : `<c r="${ref}" s="${s}"/>`
 
-function sheetXml(blocks: Block[], xf: { xfCaption: number; xfBox: number; xfText: number }, drawingRid: string): string {
-  const last = blocks.length * ROWS_PER_DEFECT
-  const rows: string[] = []
-  for (const [i, b] of blocks.entries()) {
-    const r0 = i * ROWS_PER_DEFECT
-    rows.push(
-      `<row r="${r0 + 1}" ht="${CAPTION_PT}" customHeight="true">`
-      + cell(`A${r0 + 1}`, xf.xfCaption, String(b.no))
-      + cell(`B${r0 + 1}`, xf.xfCaption, b.caption)
-      + cell(`C${r0 + 1}`, xf.xfCaption)
-      + '</row>')
-    for (const [k, slot] of b.slots.entries()) {
-      const r = r0 + 2 + k
-      rows.push(
-        `<row r="${r}" ht="${PHOTO_PT}" customHeight="true">`
-        + cell(`A${r}`, xf.xfBox, slot.kind === 'before' ? '조치 전' : '조치 후')
-        + cell(`B${r}`, xf.xfBox, slot.img ? null : '사진 없음')
-        + cell(`C${r}`, xf.xfText, b.texts[k])
-        + '</row>')
-    }
+function sheetXml(album: PreparedAlbum, heading: string, xf: Xf, drawingRid: string | null): string {
+  const n = album.items.length
+  const last = rowOf(n) - 1
+  const rows: string[] = [
+    `<row r="1" ht="${HEAD_PT}" customHeight="true">${cell('A1', xf.xfHead, heading)}${cell('B1', xf.xfHead)}</row>`,
+  ]
+  const merges = ['<mergeCell ref="A1:B1"/>']
+  for (const [i, it] of album.items.entries()) {
+    const r = rowOf(i)
+    rows.push(`<row r="${r}" ht="${TITLE_PT}" customHeight="true">${cell(`A${r}`, xf.xfTitle, `${it.no}. ${it.title}`)}${cell(`B${r}`, xf.xfTitle)}</row>`)
+    merges.push(`<mergeCell ref="A${r}:B${r}"/>`)
+    const has = (k: 'before' | 'after') => album.photos.has(photoKey(it.no, k))
+    rows.push(`<row r="${r + 1}" ht="${PHOTO_PT}" customHeight="true">`
+      + cell(`A${r + 1}`, xf.xfBox, has('before') ? null : '사진 없음')
+      + cell(`B${r + 1}`, xf.xfBox, has('after') ? null : '사진 없음') + '</row>')
+    rows.push(`<row r="${r + 2}" ht="${LABEL_PT}" customHeight="true">`
+      + cell(`A${r + 2}`, xf.xfLabel, '공사 전') + cell(`B${r + 2}`, xf.xfLabel, '공사 후') + '</row>')
   }
-  const merges = blocks.map((_, i) => `<mergeCell ref="B${i * ROWS_PER_DEFECT + 1}:C${i * ROWS_PER_DEFECT + 1}"/>`)
-  // 페이지 끝마다 강제 개행 — ⚠ 마지막 행 뒤에는 넣지 않는다(꼬리 빈 페이지가 1장 더 인쇄된다)
+  // 페이지 끝마다 강제 개행 — 1쪽은 머리 1행 + 3건, 이후 3건씩.
+  // ⚠ 마지막 행 뒤에는 넣지 않는다(꼬리 빈 페이지가 1장 더 인쇄된다)
   const brks: string[] = []
-  for (let r = ROWS_PER_PAGE; r < last; r += ROWS_PER_PAGE) brks.push(`<brk id="${r}" max="16383" man="true"/>`)
+  for (let i = ITEMS_PER_PAGE; i < n; i += ITEMS_PER_PAGE) brks.push(`<brk id="${rowOf(i) - 1}" max="16383" man="true"/>`)
 
   return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
     + '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"'
     + ' xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
     + '<sheetPr><pageSetUpPr fitToPage="true"/></sheetPr>'
-    + `<dimension ref="A1:C${last}"/>`
+    + `<dimension ref="A1:B${last}"/>`
     + '<sheetViews><sheetView workbookViewId="0"/></sheetViews>'
     + '<sheetFormatPr defaultRowHeight="15"/>'
-    + '<cols>'
-    + `<col min="1" max="1" width="${COL_W.a}" customWidth="true"/>`
-    + `<col min="2" max="2" width="${COL_W.b}" customWidth="true"/>`
-    + `<col min="3" max="3" width="${COL_W.c}" customWidth="true"/>`
-    + '</cols>'
+    + `<cols><col min="1" max="2" width="${COL_W}" customWidth="true"/></cols>`
     + `<sheetData>${rows.join('')}</sheetData>`
     + `<mergeCells count="${merges.length}">${merges.join('')}</mergeCells>`
     + '<printOptions horizontalCentered="true"/>'
@@ -238,33 +147,28 @@ function sheetXml(blocks: Block[], xf: { xfCaption: number; xfBox: number; xfTex
     // ⚠ fitToHeight="1"은 전 시트를 한 장으로 뭉갠다 — 절대 금지
     + '<pageSetup paperSize="9" orientation="portrait" fitToWidth="1" fitToHeight="0" scale="100"/>'
     + (brks.length ? `<rowBreaks count="${brks.length}" manualBreakCount="${brks.length}">${brks.join('')}</rowBreaks>` : '')
-    + `<drawing r:id="${drawingRid}"/>`
+    + (drawingRid ? `<drawing r:id="${drawingRid}"/>` : '')
     + '</worksheet>'
 }
 
-function drawingXml(blocks: Block[], media: Array<{ rid: string }>): string {
-  const anchors: string[] = []
-  let n = 0
-  for (const [i, b] of blocks.entries()) {
-    for (const [k, slot] of b.slots.entries()) {
-      if (!slot.img) continue
-      const box = fitBox(slot.img)
-      const rid = media[n].rid
-      const id = ++n
-      anchors.push(
-        '<xdr:oneCellAnchor>'
-        + `<xdr:from><xdr:col>1</xdr:col><xdr:colOff>${box.colOff}</xdr:colOff>`
-        + `<xdr:row>${i * ROWS_PER_DEFECT + 1 + k}</xdr:row><xdr:rowOff>${box.rowOff}</xdr:rowOff></xdr:from>`
-        + `<xdr:ext cx="${box.cx}" cy="${box.cy}"/>`
-        + '<xdr:pic><xdr:nvPicPr>'
-        + `<xdr:cNvPr id="${id}" name="photo${id}" descr="${escXml(`${b.no} ${slot.kind === 'before' ? '조치 전' : '조치 후'}`)}"/>`
-        + '<xdr:cNvPicPr><a:picLocks noChangeAspect="1"/></xdr:cNvPicPr></xdr:nvPicPr>'
-        + `<xdr:blipFill><a:blip r:embed="${rid}"/><a:stretch><a:fillRect/></a:stretch></xdr:blipFill>`
-        + `<xdr:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${box.cx}" cy="${box.cy}"/></a:xfrm>`
-        + '<a:prstGeom prst="rect"><a:avLst/></a:prstGeom></xdr:spPr>'
-        + '</xdr:pic><xdr:clientData/></xdr:oneCellAnchor>')
-    }
-  }
+type Media = { rid: string; file: string; data: Uint8Array; row: number; col: number; img: PreparedPhoto; descr: string }
+
+function drawingXml(media: Media[]): string {
+  const anchors = media.map((m, i) => {
+    const box = fitBox(m.img)
+    const id = i + 1
+    return '<xdr:oneCellAnchor>'
+      + `<xdr:from><xdr:col>${m.col}</xdr:col><xdr:colOff>${box.colOff}</xdr:colOff>`
+      + `<xdr:row>${m.row}</xdr:row><xdr:rowOff>${box.rowOff}</xdr:rowOff></xdr:from>`
+      + `<xdr:ext cx="${box.cx}" cy="${box.cy}"/>`
+      + '<xdr:pic><xdr:nvPicPr>'
+      + `<xdr:cNvPr id="${id}" name="photo${id}" descr="${escXml(m.descr)}"/>`
+      + '<xdr:cNvPicPr><a:picLocks noChangeAspect="1"/></xdr:cNvPicPr></xdr:nvPicPr>'
+      + `<xdr:blipFill><a:blip r:embed="${m.rid}"/><a:stretch><a:fillRect/></a:stretch></xdr:blipFill>`
+      + `<xdr:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${box.cx}" cy="${box.cy}"/></a:xfrm>`
+      + '<a:prstGeom prst="rect"><a:avLst/></a:prstGeom></xdr:spPr>'
+      + '</xdr:pic><xdr:clientData/></xdr:oneCellAnchor>'
+  })
   return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
     + '<xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing"'
     + ' xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"'
@@ -278,107 +182,62 @@ const rels = (items: Array<{ id: string; type: string; target: string }>) =>
   + items.map(i => `<Relationship Id="${i.id}" Type="${i.type}" Target="${i.target}"/>`).join('')
   + '</Relationships>'
 
-/** 청크 병렬 — 순서를 보존한다(사진 순서 = 불량 순서) */
-async function mapChunked<T, R>(items: T[], size: number, fn: (t: T) => Promise<R>): Promise<R[]> {
-  const out: R[] = []
-  for (let i = 0; i < items.length; i += size) out.push(...await Promise.all(items.slice(i, i + size).map(fn)))
-  return out
-}
+/** 「사진첩」 시트 한 장 — 불량이 0건이면 **null**(그때만 빠진다). 사진이 0장이어도 시트는 나간다.
+ *  `heading`은 1쪽 머리 문구(「공사 완료 사진첩 [건물명]」). */
+export async function buildPhotoAlbumSheet(
+  album: PreparedAlbum, heading: string, workbookBytes: Uint8Array,
+): Promise<{ part: SheetPart; photoCount: number } | null> {
+  if (album.items.length === 0) return null
 
-/** 「불량사진」 시트 한 장 — 사진이 한 장도 없으면 **null**(빈 표 3페이지가 최악이다).
- *  `notes`는 조용히 버리지 않기 위한 사유 목록으로, 라우트가 X-Workbook-Missing에 싣는다. */
-export async function buildDefectPhotoSheet(
-  store: PhotoStorage, defects: DefectPhotoRow[], workbookBytes: Uint8Array,
-): Promise<{ part: SheetPart; notes: string[]; photoCount: number } | null> {
-  const notes: string[] = []
-  const withPhoto = defects.filter(d => extractStoragePath(d.photo_url) || extractStoragePath(d.after_photo_url))
-  if (withPhoto.length === 0) return null
-  const kept = withPhoto.slice(0, MAX_DEFECTS)
-  if (withPhoto.length > kept.length) notes.push(`불량사진 ${withPhoto.length - kept.length}건 미표기(시트 상한 ${MAX_DEFECTS}건)`)
-
-  // ① 사진 준비 — 슬롯 단위로 실패를 격리한다. 한 장이 깨져도 나머지는 실린다
-  type SlotJob = { di: number; kind: 'before' | 'after'; stored: string | null }
-  const jobs: SlotJob[] = kept.flatMap((d, di) => ([
-    { di, kind: 'before' as const, stored: d.photo_url },
-    { di, kind: 'after' as const, stored: d.after_photo_url },
-  ])).filter(j => extractStoragePath(j.stored))
-  const prepared = await mapChunked(jobs, CONCURRENCY, async j => {
-    try { return { j, img: await prepPhoto(store, j.stored), why: '' } }
-    catch (e) { return { j, img: null, why: e instanceof Error ? e.message : String(e) } }
-  })
-
-  let used = 0
-  const failed: string[] = []
-  const imgOf = new Map<string, Prepared>()
-  for (const p of prepared) {
-    const label = `${kept[p.j.di].defect_code ?? p.j.di + 1}-${p.j.kind === 'before' ? '전' : '후'}`
-    if (!p.img) { failed.push(`${label}(${p.why})`); continue }
-    if (used + p.img.jpeg.byteLength > PHOTO_BUDGET) { failed.push(`${label}(용량초과)`); continue }
-    used += p.img.jpeg.byteLength
-    imgOf.set(`${p.j.di}:${p.j.kind}`, p.img)
-  }
-  if (failed.length) {
-    notes.push(`불량사진 ${failed.length}장 누락: ${failed.slice(0, 6).join(' · ')}${failed.length > 6 ? ` 외 ${failed.length - 6}장` : ''}`)
-  }
-  if (imgOf.size === 0) { notes.push('불량사진 시트 미첨부: 실을 수 있는 사진 0장'); return null }
-
-  // ⚠ **두 슬롯 모두 비면 그 건은 싣지 않는다.** 「사진 없음」 상자는 한쪽만 있을 때(전은 찍었고
-  //   조치 후는 아직) 결손을 드러내는 표시라 뜻이 있지만, 양쪽이 다 비면 빈 상자 두 칸이 페이지의
-  //   절반을 먹는다 — 경로는 있는데 다운로드·디코드가 전부 실패한 건이 그렇게 된다(프로브가
-  //   3건 실패 시나리오에서 빈 3페이지를 만들어 잡았다). 누락 사유는 위 failed 목록에 이미 남는다.
-  const usable = kept.map((d, di) => ({ d, di }))
-    .filter(({ di }) => imgOf.has(`${di}:before`) || imgOf.has(`${di}:after`))
-  const blocks: Block[] = usable.map(({ d, di }, i) => ({
-    no: i + 1,
-    caption: captionOf(d),
-    slots: [
-      { kind: 'before', img: imgOf.get(`${di}:before`) ?? null },
-      { kind: 'after', img: imgOf.get(`${di}:after`) ?? null },
-    ],
-    texts: [d.defect_detail ?? '', d.action_taken ?? ''],
-  }))
-
-  // ② 스타일은 현재 워크북의 실제 개수 위에 덧붙인다 — 인덱스를 상수로 박으면 자산 갱신에 썩는다
+  // 스타일은 현재 워크북의 실제 개수 위에 덧붙인다 — 인덱스를 상수로 박으면 자산 갱신에 썩는다
   const zip = await JSZip.loadAsync(workbookBytes)
   const stylesFile = zip.file('xl/styles.xml')
   if (!stylesFile) throw new Error('styles.xml 없음')
   const styled = patchStyles(await stylesFile.async('string'))
 
-  // ③ 파트 이름은 비어 있는 번호로 — 자산에 이미 drawing1~4·image1.png가 있다
-  const usedDrawings = Object.keys(zip.files)
-    .map(n => /^xl\/drawings\/drawing(\d+)\.xml$/.exec(n)?.[1]).filter(Boolean).map(Number)
-  const drawingName = `drawing${Math.max(0, ...usedDrawings) + 1}.xml`
-
-  const REL_IMAGE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image'
-  const REL_DRAWING = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing'
-  const media: Array<{ rid: string; file: string; data: Uint8Array }> = []
-  for (const [i, b] of blocks.entries()) {
-    for (const slot of b.slots) {
-      if (!slot.img) continue
+  const media: Media[] = []
+  for (const [i, it] of album.items.entries()) {
+    for (const [col, kind] of (['before', 'after'] as const).entries()) {
+      const img = album.photos.get(photoKey(it.no, kind))
+      if (!img) continue
       const n = media.length + 1
-      media.push({ rid: `rId${n}`, file: `defect${i + 1}-${slot.kind}-${n}.jpeg`, data: slot.img.jpeg })
+      media.push({
+        rid: `rId${n}`, file: `album${it.no}-${kind}-${n}.jpeg`, data: img.jpeg, img,
+        row: rowOf(i), col, // 0-기준 행 = 사진 행(제목 행 rowOf(i) 바로 아래 → 1-기준 rowOf(i)+1)
+        descr: `${it.no} ${kind === 'before' ? '공사 전' : '공사 후'}`,
+      })
     }
   }
 
+  // 파트 이름은 비어 있는 번호로 — 자산에 이미 drawing1~4·image1.png가 있다
+  const usedDrawings = Object.keys(zip.files)
+    .map(n => /^xl\/drawings\/drawing(\d+)\.xml$/.exec(n)?.[1]).filter(Boolean).map(Number)
+  const drawingName = `drawing${Math.max(0, ...usedDrawings) + 1}.xml`
+  const REL_IMAGE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image'
+  const REL_DRAWING = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing'
+  const hasDrawing = media.length > 0
+
   const part: SheetPart = {
-    name: SHEET_NAME,
+    name: PHOTO_SHEET_NAME,
     path: SHEET_PATH,
-    xml: sheetXml(blocks, styled, 'rId1'),
-    rels: rels([{ id: 'rId1', type: REL_DRAWING, target: `../drawings/${drawingName}` }]),
-    printArea: `$A$1:$C$${blocks.length * ROWS_PER_DEFECT}`,
+    xml: sheetXml(album, heading, styled, hasDrawing ? 'rId1' : null),
+    rels: hasDrawing ? rels([{ id: 'rId1', type: REL_DRAWING, target: `../drawings/${drawingName}` }]) : undefined,
+    printArea: `$A$1:$B$${rowOf(album.items.length) - 1}`,
     parts: [
       { path: 'xl/styles.xml', data: styled.xml },
-      { path: `xl/drawings/${drawingName}`, data: drawingXml(blocks, media) },
-      {
-        path: `xl/drawings/_rels/${drawingName}.rels`,
-        data: rels(media.map(m => ({ id: m.rid, type: REL_IMAGE, target: `../media/${m.file}` }))),
-      },
-      ...media.map(m => ({ path: `xl/media/${m.file}`, data: m.data })),
+      ...(hasDrawing ? [
+        { path: `xl/drawings/${drawingName}`, data: drawingXml(media) },
+        {
+          path: `xl/drawings/_rels/${drawingName}.rels`,
+          data: rels(media.map(m => ({ id: m.rid, type: REL_IMAGE, target: `../media/${m.file}` }))),
+        },
+        ...media.map(m => ({ path: `xl/media/${m.file}`, data: m.data })),
+      ] : []),
     ],
-    overrides: [{
+    overrides: hasDrawing ? [{
       partName: `/xl/drawings/${drawingName}`,
       contentType: 'application/vnd.openxmlformats-officedocument.drawing+xml',
-    }],
+    }] : [],
   }
-  return { part, notes, photoCount: media.length }
+  return { part, photoCount: media.length }
 }

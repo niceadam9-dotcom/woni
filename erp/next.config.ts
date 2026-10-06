@@ -9,6 +9,8 @@ const nextConfig: NextConfig = {
     '/inspections/[id]/workbook': ['./templates/**/*'],
     // 소민터용 별지 9호 한글파일(B4 1단계) — 같은 이유로 템플릿을 딸려 보낸다
     '/inspections/[id]/hwpx': ['./templates/report9-placeholder.hwpx'],
+    // 공사 완료 사진첩 한글파일(2026-10-06) — 같은 템플릿의 글꼴·A4 여백을 빌린다
+    '/inspections/[id]/photo-album-hwpx': ['./templates/report9-placeholder.hwpx'],
   },
   experimental: {
     serverActions: {

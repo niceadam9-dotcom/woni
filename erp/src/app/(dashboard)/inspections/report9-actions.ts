@@ -16,6 +16,8 @@ import { renderCover } from '@/lib/doc-templates/cover'
 import { renderOfficial } from '@/lib/doc-templates/official'
 import { assembleCover, assembleOfficial, assembleDelegation } from '@/lib/annex-cover-official'
 import { renderDelegation } from '@/lib/doc-templates/delegation'
+import { renderPhotoAlbum } from '@/lib/doc-templates/photo-album'
+import { assemblePhotoAlbum } from '@/lib/photo-album'
 import { isRegenBlocked, REGEN_BLOCKED_MESSAGE } from '@/lib/annex-regen-policy'
 import { getSheets } from '@/lib/sheet-catalog'
 import type { DocAsset } from '@/lib/doc-templates/base'
@@ -555,7 +557,8 @@ export type Report9File = { name: string; path: string; createdAt: string | null
 /** 생성 요청 — 별지 4·9·10·11호·외관점검표·공문·표지·위임장 전부 서버 동기 생성, fire_plan_gen_jobs는 완료 기록용 (H-8·H-7·H-21).
  *  official(공문)·cover(표지)는 소방계획서_22 S5·S7, delegation(위임장)은 S8 —
  *  번들 순서는 공문 → 위임장 → 표지 → 본문(bundle/route TYPE_ORDER) */
-const ANNEX_TYPES = ['report4', 'report9', 'report10', 'report11', 'exterior', 'cover', 'official', 'delegation'] as const
+// photoalbum(공사 완료 사진첩, 2026-10-06) — 묶음 맨 뒤. 하이픈 없는 이름: 파일명 규약 정규식이 [a-z0-9]+다
+const ANNEX_TYPES = ['report4', 'report9', 'report10', 'report11', 'exterior', 'cover', 'official', 'delegation', 'photoalbum'] as const
 export type AnnexType = typeof ANNEX_TYPES[number]
 
 export async function requestReport9Action(
@@ -584,7 +587,7 @@ export async function requestReport9Action(
   // 유형 가드(데이터 계층) — 별지 9·10·11호는 자체점검(special_*·null)만, 정기·레거시 event는 외관점검표만.
   // 관리유형 무관 — 일반관리 자체점검도 대상 (소방계획서_6 W-15, page.tsx isSpecial과 동일 기준)
   const isSpecial = !i.plan_type || i.plan_type.startsWith('special')
-  if (['report4', 'report9', 'report10', 'report11', 'cover', 'official', 'delegation'].includes(reportType) && !isSpecial) {
+  if (['report4', 'report9', 'report10', 'report11', 'cover', 'official', 'delegation', 'photoalbum'].includes(reportType) && !isSpecial) {
     return { error: '일반·정기 점검은 별지 4·9·10·11호(표지·공문·위임장 포함) 대상이 아닙니다 — 외관점검표만 작성합니다.' }
   }
   if (reportType === 'exterior' && isSpecial) {
@@ -641,6 +644,11 @@ export async function requestReport9Action(
       const assembled = await assembleDelegation(admin, i.customer_id, inspectionId)
       html = renderDelegation(assembled.data)
       missing = assembled.missing
+    } else if (reportType === 'photoalbum') {
+      const assembled = await assemblePhotoAlbum(admin, inspectionId)
+      html = renderPhotoAlbum(assembled.data)
+      missing = assembled.missing
+      assets = assembled.assets
     } else {
       const assembled = await assembleAnnex1011(admin, i.customer_id, inspectionId, reportType)
       html = reportType === 'report10' ? renderReport10(assembled.data) : renderReport11(assembled.data)
@@ -678,6 +686,7 @@ export async function requestReport9Action(
       : reportType === 'cover' ? '표지'
       : reportType === 'official' ? '공문'
       : reportType === 'delegation' ? '위임장'
+      : reportType === 'photoalbum' ? '공사 완료 사진첩'
       : `별지 ${reportType === 'report4' ? '4' : reportType === 'report9' ? '9' : reportType === 'report10' ? '10' : '11'}호`
     return { error: `${label} 생성 실패: ${e instanceof Error ? e.message : String(e)}` }
   }
@@ -691,7 +700,7 @@ export async function requestReport9Action(
  *  그대로 인쇄하면 노란 칠이 종이에 찍힌다. 인쇄 경로는 반드시 이 옵션으로 다시 렌더할 것. */
 export async function getAnnexPreviewHtmlAction(
   inspectionId: string,
-  reportType: 'report4' | 'report9' | 'report10' | 'report11' | 'exterior' | 'cover' | 'official' | 'delegation',
+  reportType: 'report4' | 'report9' | 'report10' | 'report11' | 'exterior' | 'cover' | 'official' | 'delegation' | 'photoalbum',
   opts?: { highlight?: boolean },
 ): Promise<{ html?: string; missing?: string[]; error?: string }> {
   const hl = opts?.highlight ?? true
@@ -734,6 +743,11 @@ export async function getAnnexPreviewHtmlAction(
       const { data, missing } = await assembleDelegation(admin, ins.customer_id, inspectionId)
       return { html: renderDelegation(data), missing }
     }
+    if (reportType === 'photoalbum') {
+      // 미리보기는 서명 URL을 <img src>로 직접(표지와 같은 분기)
+      const { data, missing } = await assemblePhotoAlbum(admin, inspectionId, { forPreview: true })
+      return { html: renderPhotoAlbum(data), missing }
+    }
     const { data, missing } = await assembleAnnex1011(admin, ins.customer_id, inspectionId, reportType)
     const html = reportType === 'report10'
       ? renderReport10(data, { highlight: hl })
@@ -760,7 +774,7 @@ export async function getReport9StatusAction(inspectionId: string): Promise<{
   // 유형 가드(데이터 계층) — 자체점검은 별지 4/9/10/11호만, 정기·레거시 event는 외관점검표만 조회 (page.tsx isSpecial과 동일)
   const isSpecial = !ins.plan_type || ins.plan_type.startsWith('special')
   // 22 S5·S7 — 표지·공문도 문서 목록에 잡혀야 재생성·다운로드 동선이 성립한다
-  const allowTypes = isSpecial ? ['report4', 'report9', 'report10', 'report11', 'cover', 'official', 'delegation'] : ['exterior']
+  const allowTypes = isSpecial ? ['report4', 'report9', 'report10', 'report11', 'cover', 'official', 'delegation', 'photoalbum'] : ['exterior']
   // 필터는 lib/generated-docs 한 곳 — 페이지 최초 렌더와 이 갱신이 서로 다른 규칙을 쓰면
   // 문서가 만들면 보였다가 새로고침하면 사라진다(2026-08-20 실측 결함)
   const filePattern = isSpecial ? INSPECTION_DOC_FILE_RE : EXTERIOR_DOC_FILE_RE

@@ -32,7 +32,7 @@ console.log('— 요구: 소방계획서·위임장이 10호 위')
     f('fire_plan_20260820090000.pdf'), f('report9_20260820090000.pdf'),
     f('report11_20260820090000.pdf'), f('official_20260820090000.pdf'),
     f('cover_20260820090000.pdf'), f('report4_20260820090000.pdf'),
-    f('exterior_20260820090000.pdf'),
+    f('exterior_20260820090000.pdf'), f('photoalbum_20260820090000.pdf'),
   ])
   const ks = kindsOf(groups)
   ok('소방계획서가 10호 위', ks.indexOf('fire_plan') < ks.indexOf('report10'), ks.join(' → '))
@@ -96,7 +96,7 @@ console.log('— 단계 창구 추림 (STEP_DOC_KINDS, 2026-09-10)')
     f('report4_20260910090000.pdf'), f('report9_20260910090000.pdf'),
     f('report10_20260910090000.pdf'), f('report11_20260910090000.pdf'),
     f('cover_20260910090000.pdf'), f('official_20260910090000.pdf'),
-    f('delegation_20260910090000.pdf'),
+    f('delegation_20260910090000.pdf'), f('photoalbum_20260910090000.pdf'),
   ]
   const kinds = (fs2: typeof all) => kindsOf(groupFiles(fs2))
 
@@ -109,8 +109,9 @@ console.log('— 단계 창구 추림 (STEP_DOC_KINDS, 2026-09-10)')
 
   // 음성 — 추림이 **실제로 걸러낸다**. 이 대조가 없으면 필터를 통째로 지워도 위가 초록이다.
   ok('① 점검표는 0건(생성물 창구가 없다)', filesOfKinds(all, STEP_DOC_KINDS.checklist).length === 0)
-  ok('⑥ 이행완료는 11호 한 종류뿐',
-    kinds(filesOfKinds(all, STEP_DOC_KINDS.submit11)).join(',') === 'report11')
+  // 2026-10-06 — 공사 완료 사진첩이 ⑥에 붙었다(공사 후 사진이 그때 모인다)
+  ok('⑥ 이행완료는 11호 + 공사 완료 사진첩',
+    kinds(filesOfKinds(all, STEP_DOC_KINDS.submit11)).join(',') === 'report11,photoalbum')
 
   // ④ = 사용자 확정 사항(2026-09-10): 앞장 3종은 대응 단계가 없어 여기 묶었다
   const k4 = kinds(filesOfKinds(all, STEP_DOC_KINDS.submit9))

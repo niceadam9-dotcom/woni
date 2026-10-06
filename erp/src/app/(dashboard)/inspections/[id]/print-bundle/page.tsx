@@ -12,7 +12,7 @@ import { PrintPdfClient } from '@/components/customers/print-pdf-client'
 const TYPE_LABEL: Record<string, string> = {
   official: '공문', delegation: '위임장', cover: '표지',
   report9: '별지 9호', report4: '별지 4호', report10: '별지 10호',
-  report11: '별지 11호', exterior: '외관점검표',
+  report11: '별지 11호', photoalbum: '공사 완료 사진첩', exterior: '외관점검표',
 }
 
 export default async function InspectionBundlePrintPage({

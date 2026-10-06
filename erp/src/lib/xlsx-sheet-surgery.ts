@@ -107,6 +107,18 @@ export function localNameMap(wbXml: string): Array<{ ord: number; lsi: number; n
  *  ⚠ 호출 시점: `injectWorkbook` **뒤**에 둔다. 주입기는 SCRUB_NEEDLES를 문 캐시 셀을 비우고
  *  참조 0인 공유문자열을 지우므로, 불량명 같은 DB 자유 텍스트가 니들과 우연히 겹치면 새 시트의
  *  캡션만 데이터에 따라 조용히 사라진다. 파이프라인 밖에 두면 그 부류가 구성적으로 0이 된다. */
+/** 탭 순서상 마지막 시트 이름 — 「사진첩」을 워크북 맨 끝에 붙일 기준(2026-10-06).
+ *  설비 시트 선별(removeSheets)이 끝을 바꾸므로(다중2·기타 …) 이름을 상수로 박지 않는다 */
+export async function lastSheetName(bytes: Uint8Array): Promise<string> {
+  const zip = await JSZip.loadAsync(bytes)
+  const wbXml = await zip.file('xl/workbook.xml')!.async('string')
+  const els = [...wbXml.matchAll(/<sheet\s[^>]*\/>/g)].map(m => m[0])
+  const name = els.length ? /\sname="([^"]*)"/.exec(els[els.length - 1])?.[1] : undefined
+  if (!name) throw new Error('워크북에 시트가 없습니다')
+  // 속성값은 XML 이스케이프된 채다 — insertSheetAfter가 같은 원문 문자열로 비교하므로 그대로 돌려준다
+  return name
+}
+
 export async function insertSheetAfter(
   bytes: Uint8Array, afterSheet: string, part: SheetPart,
 ): Promise<{ bytes: Uint8Array; index: number; renumbered: number }> {

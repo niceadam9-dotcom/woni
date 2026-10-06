@@ -244,7 +244,7 @@ const steps: Step[] = [
   // 적용되는데 파일은 정상 개봉된다) ② 워크시트 요소 순서(LO는 통과·Excel만 복구) ③ 종횡비.
   // ⚠ server-only 패키지를 물어 --conditions=react-server 필수. A4 쪽수 축(--lo)은 LibreOffice가
   //    필요해 기본 실행에서 뺐다 — 행 높이·열 폭을 건드리면 그때는 반드시 --lo로 재확인할 것.
-  { name: '갑지 불량사진 시트',        cmd: 'npx tsx --conditions=react-server scripts/test-photo-sheet.mts' },
+  { name: '공사 완료 사진첩(엑셀·PDF·한글)', cmd: 'npx tsx --conditions=react-server scripts/test-photo-sheet.mts' },
   // 업로드 가드(A2 2026-10-02) — 불량 사진·고객 자산·소방계획서 첨부 세 경로가 쓰는 공용 검사.
   // 확장자 허용목록·10MB·머리 바이트(확장자만 바꾼 .exe 거절)·서버 결정 Content-Type을 고정한다.
   { name: '업로드 가드(확장자·크기·머리 바이트)', cmd: 'npx tsx scripts/test-upload-guard.mts' },
@@ -794,6 +794,7 @@ const steps: Step[] = [
   { name: 'B5 능력평가 실적 시트',       cmd: 'npx tsx scripts/test-capability-eval.mts' },
   { name: 'B4 별지 9호 HWPX 렌더러',     cmd: 'npx tsx scripts/test-report9-hwpx.mts' },
   { name: 'B4 소민터용 한글파일(E2E)',   cmd: 'npx tsx scripts/test-somin-hwpx-e2e.mts',      needServer: true },
+  { name: '공사 완료 사진첩(E2E)',       cmd: 'npx tsx scripts/test-photo-album-e2e.mts',     needServer: true },
   { name: 'B5 능력평가 실적(E2E)',       cmd: 'npx tsx scripts/test-capability-eval-e2e.mts',  needServer: true },
   // 드로어 전체화면·배율 연동(소방계획서_38). 위 두 스위트는 **배율 md 한 점에서만** 돌기 때문에
   // lg/xl에서 sticky 2층이 겹쳐 항목 첫 행이 가려져도 전부 초록이다. test-font-scale S-1은 CSS

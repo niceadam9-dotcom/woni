@@ -116,6 +116,8 @@ export const GENERATED_DOC_KINDS: Record<string, { label: string; full: string }
   // 소방계획서_22 S8 — 관계인이 결과보고서 제출을 관리업체에 위임하는 서식 (원천: 사내 실무 서식)
   delegation: { label: '위임장', full: '점검결과 보고서 제출용 위임장 (관계인 → 관리업체 대리 제출)' },
   cover: { label: '보고서 표지', full: '점검 결과보고서 표지 (연도·건물명·건물 사진·회사 레터헤드)' },
+  // 2026-10-06 — 불량 건별 공사 전·후 사진(본보기 「공사 완료 사진첩.hwp」). 엑셀은 맨 끝 「사진첩」 시트
+  photoalbum: { label: '공사 완료 사진첩', full: '공사 완료 사진첩 (불량 건별 공사 전·후 사진 — 결과보고서 별책)' },
   fire_plan: { label: '소방계획서', full: DOC_TERMS.firePlan },
 }
 
@@ -134,7 +136,7 @@ export const GENERATED_DOC_KINDS: Record<string, { label: string; full: string }
  *  ⚠ 인쇄 순서와 어긋나면 "화면에서 본 차례"와 "인쇄물의 차례"가 달라진다 —
  *     두 배열이 같은 축인지는 scripts/_probe-doc-order.mjs가 고정한다. */
 export const GENERATED_DOC_ORDER: readonly string[] = [
-  'fire_plan', 'official', 'delegation', 'cover', 'report9', 'report4', 'report10', 'report11', 'exterior',
+  'fire_plan', 'official', 'delegation', 'cover', 'report9', 'report4', 'report10', 'report11', 'photoalbum', 'exterior',
 ]
 
 /** 정렬 키 — 모르는 종류(규칙 밖 파일 포함)는 맨 뒤로 보낸다(순서를 지어내지 않는다) */
@@ -168,7 +170,8 @@ export const STEP_DOC_KINDS: Record<TimelineStepKey, readonly string[]> = {
   // 앞장 3종은 작업대에서 만들어지지만 **대응 단계가 따로 없다**(2026-09-10 사용자 확정: ④에 묶는다).
   submit9: ['official', 'cover', 'delegation', 'report9', 'report4', 'report10'],
   repair: [],
-  submit11: ['report11'],
+  // 사진첩은 공사(⑤) 뒤 완료 보고(⑥)와 함께 나간다 — 공사 후 사진이 그때 다 모인다
+  submit11: ['report11', 'photoalbum'],
 }
 
 /** 빠른 입력 필수 필드 정의 (§1-1) — 별지 9호 1~2쪽 ∪ 소방계획서 준비율 어휘.
