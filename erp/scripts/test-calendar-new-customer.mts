@@ -119,9 +119,11 @@ ok('★ ㉣ 데이 패널 등록 버튼이 떠나기 전에 패널을 닫지 않
 ok('★ 등록 페이지가 anchor를 프리필로, from을 복귀 주소로 넘긴다',
   /initialAnchorDate=\{initialAnchorDate\}/.test(newPage) && /returnHref=\{returnHref\}/.test(newPage))
 // 2026-10-06 사용자 요청 「달력으로 갈 수도 있고, 이어서 할 수 있도록」 — 달력에서 왔으면 갈 곳을 고른다
-// 2026-10-06 후속 요청 「취소·저장·상세정보 입력」 — [저장]은 달력에서 왔으면 달력(new=), 아니면 고객 목록으로
-ok('★ [저장]을 고르면 복귀 주소로 돌아가며 new=(방금 등록한 고객)를 싣는다 — 복귀 주소가 없으면 고객 목록',
-  /if \(afterSaveRef\.current === 'save'\) \{\s*router\.push\(returnHref \? `\$\{returnHref\}\$\{returnHref\.includes\('\?'\) \? '&' : '\?'\}new=\$\{result\.customerId\}` : '\/customers'\)/.test(form)
+// 2026-10-06 후속 요청 「취소·저장·상세정보 입력」+「저장 후 달력」 — [저장]은 늘 달력(new=)으로:
+//   달력에서 왔으면 보낸 자리, 아니면 점검일자 날짜의 사이드바
+ok('★ [저장]을 고르면 달력으로 돌아가며 new=(방금 등록한 고객)를 싣는다 — 복귀 주소가 없으면 점검일자 날짜 사이드바',
+  /if \(afterSaveRef\.current === 'save'\) \{\s*const back = returnHref \|\| `\/inspections\/calendar\?day=\$\{form\.plan_anchor_date\}`\s*router\.push\(`\$\{back\}\$\{back\.includes\('\?'\) \? '&' : '\?'\}new=\$\{result\.customerId\}`\)/.test(form)
+  && !/'\/customers'\)/.test(form)
   && /onClick=\{\(\) => handleSubmit\('save'\)\}/.test(form))
 /* 2026-10-06 「달력으로 가면 다시 고객을 선택해야 하므로 불편」 — 달력이 new=를 받아 띠·강조를 한다 */
 ok('★ 달력이 new=를 읽어 「등록 완료 · 상세정보 입력」 띠를 띄운다 (차례 모드로 연다)', () =>
@@ -141,9 +143,23 @@ ok('★ [저장]·[상세정보 입력]은 어디서 왔든 늘 보인다 — [�
     && /<button\s+type="submit"\s*$/.test(form.slice(j - 80, j).trimEnd())
     && !/\{returnHref && \(\s*<button/.test(form.slice(i - 200, i))
 }, '(버튼이 returnHref 가드 안이거나 type이 바뀌었다)')
-ok('★ (음성) 「필수 항목을 채워주세요」·「나중에 입력 · 달력으로」 문구가 버튼에 없다 — 버튼은 「저장」·「상세정보 입력」',
+ok('★ (음성) 「필수 항목을 채워주세요」·「나중에 입력 · 달력으로」 문구가 버튼에 없다 — 버튼은 「저장」·「저장 후 상세정보 입력」',
   !/'필수 항목을 채워주세요'/.test(form) && !/>\s*나중에 입력 · 달력으로\s*</.test(form)
-  && /: '저장'\}/.test(form) && /<>상세정보 입력 <ArrowRight/.test(form))
+  && /: '저장'\}/.test(form) && /<>저장 후 상세정보 입력 <ArrowRight/.test(form))
+// 2026-10-06 「필수값 비었을 때 팝업 에러」 — 버튼을 잠그지 않고, 누르면 빈 칸을 팝업으로 알린다
+ok('★ 필수가 비어도 두 버튼은 잠기지 않는다(잠금은 저장 중·고객코드 대기뿐)',
+  (form.match(/disabled=\{isPending \|\| \(allFieldsOk && !requiredOk\)\}/g) ?? []).length === 2
+  && !/disabled=\{isPending \|\| !requiredOk\}/.test(form))
+ok('★ 제출은 빈 필수를 먼저 보고 팝업을 띄운다 — 서버로 가지 않는다',
+  /const missing = requiredChecks\.filter\(c => !c\[1\]\)\.map\(c => c\[0\]\)\s*\n\s*if \(missing\.length > 0\) \{ setMissingPopup\(missing\); return \}/.test(form)
+  && /data-testid="new-missing-popup"/.test(form))
+ok('★ [취소]는 입력한 게 있으면 확인창을 띄운다(없으면 바로 뒤로)',
+  /onClick=\{\(\) => \{ if \(typedSomething\) cancelGuard\.request\(null\); else router\.back\(\) \}\}/.test(form)
+  && /\{cancelGuard\.dialog\}/.test(form))
+ok('★ 확인창 둘은 <form> 밖이다(공용 확인창 버튼은 type이 없어 폼 안이면 제출된다)', () => {
+  const end = form.lastIndexOf('</form>')
+  return end > 0 && form.indexOf('{cancelGuard.dialog}') > end && form.indexOf('data-testid="new-missing-popup"') > end
+})
 /* 🚨 오픈 리다이렉트 — 검증 없이 push하면 `//evil.com`이 프로토콜 상대 URL로 해석돼 밖으로 튄다.
    판정은 **페이지에서** 한 벌로 한다(폼은 이미 걸러진 값을 받는다). 실제로 걸러지는지 여기서 돌려 본다. */
 // 2026-09-23 검증식이 `lib/safe-return`으로 이사했다(고객 상세도 같은 문을 쓴다) — 소스에서 식을 뽑던

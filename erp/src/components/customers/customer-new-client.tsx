@@ -3,7 +3,8 @@
 import { useState, useTransition, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { Loader2, Phone, Mail, MapPin, Search, X, Plus, Check, ArrowRight } from 'lucide-react'
+import { Loader2, Phone, Mail, MapPin, Search, X, Plus, Check, ArrowRight, AlertTriangle } from 'lucide-react'
+import { useUnsavedNavGuard } from '@/components/ui/unsaved-nav'
 import { createCustomerAction, generateCustomerCodeAction, checkAddressAction, checkCustomerNameAction, fetchBuildingLedgerAction, geocodeAddressToBcodeAction, type ContactInput, type BuildingLedgerInfo, type AddressDuplicateCustomer, type AddressDuplicateBuilding, type NameDuplicateCustomer } from '@/app/(dashboard)/customers/actions'
 import { AddressDuplicateDialog } from '@/components/customers/address-duplicate-dialog'
 import { NameDuplicateDialog } from '@/components/customers/name-duplicate-dialog'
@@ -319,16 +320,51 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
   /* 저장 뒤 갈 곳 — 하단 버튼 둘이 고른다(2026-10-06 사용자 요청: 「취소·저장·상세정보 입력 버튼, 기본정보→
      건물정보→관계인→소방계획서 이어서」). 어디서 시작했든 같은 두 버튼이다.
      'detail' = [상세정보 입력] — 상세의 진행 띠(차례 모드)로 건물정보부터 이어서 입력.
-     'save'   = [저장] — 등록만 하고 보낸 자리로(달력이면 그 사이드바, 아니면 고객 목록).
+     'save'   = [저장] — 등록만 하고 달력으로(달력에서 왔으면 그 사이드바, 아니면 점검일자 날짜의 사이드바).
      ⚠ state가 아니라 ref다 — 제출은 이름 확인·주소 중복 팝업을 거쳐 비동기로 doSubmit에 닿는데,
        그 사이 렌더가 끼어도 누른 버튼의 뜻이 남아야 한다. 스피너 표시용으로만 state를 따로 둔다. */
   const afterSaveRef = useRef<'detail' | 'save'>('detail')
   const [submitKind, setSubmitKind] = useState<'detail' | 'save'>('detail')
 
+  /* 필수 빈 칸 팝업(2026-10-06 사용자 요청: 「필수값 비었을 때 팝업 에러 알려줘」) — 버튼을 잠그지 않고 눌렀을 때
+     **무엇이** 비었는지 팝업으로 말한다. [확인]은 첫 빈 칸으로 커서를 옮긴다. */
+  const [missingPopup, setMissingPopup] = useState<string[] | null>(null)
+  const missingOkRef = useRef<HTMLButtonElement>(null)
+  // 팝업이 뜨면 [확인]에 포커스 — autoFocus가 아니라 effect다(첫 커서 autoFocus는 고객명 하나뿐이라는 규약)
+  useEffect(() => { if (missingPopup) missingOkRef.current?.focus() }, [missingPopup])
+  // ⚠ 선택자에 칸의 JSX 표식(`name="…"`·`id="…"` 꼴)을 그대로 쓰지 않는다 — 배치 검사가 그 글자로 칸 순서를 잰다
+  const REQUIRED_FOCUS: Record<string, string> = {
+    고객명: '#new-customer-name', 주소: '#new-address', 사용승인일: '#new-use-approval',
+    점검일자: '#new-anchor-date', 점검유형: 'input[name=inspection_category]', 관계인: '#contact-대표-name',
+  }
+  function closeMissingPopup() {
+    const first = missingPopup?.[0]
+    setMissingPopup(null)
+    const el = first ? document.querySelector<HTMLElement>(REQUIRED_FOCUS[first] ?? '') : null
+    el?.scrollIntoView({ block: 'center' })
+    el?.focus()
+  }
+
+  /* [취소] — 입력한 내용이 있으면 버리기 전에 묻는다(2026-10-06 사용자 요청). 고객 상세 탭과 같은 확인창.
+     점검일자는 달력이 미리 채운 값과 같으면 「입력」으로 치지 않는다(프리필은 사용자가 친 게 아니다). */
+  const typedSomething =
+    [form.customer_name, form.address, form.use_approval_date, form.contract_date, form.notes,
+      form.building_purpose, form.building_total_area, form.building_floors_above, form.building_floors_below]
+      .some(v => v.trim() !== '')
+    || form.plan_anchor_date !== initialAnchorDate
+    || Object.values(contacts).some(c => [c.name, c.phone, c.email].some(v => v.trim() !== ''))
+  const cancelGuard = useUnsavedNavGuard<null>({
+    onProceed: () => router.back(),
+    message: '이 화면을 나가면 입력한 내용이 사라집니다.',
+    discardLabel: '입력 내용 버리고 나가기',
+  })
+
   function handleSubmit(after: 'detail' | 'save' = 'detail') {
     afterSaveRef.current = after
     setSubmitKind(after)
     setError('')
+    const missing = requiredChecks.filter(c => !c[1]).map(c => c[0])
+    if (missing.length > 0) { setMissingPopup(missing); return }
     if (!form.customer_code.trim()) { setError('고객코드 생성 중입니다. 잠시 후 다시 시도해주세요.'); return }
     if (!form.customer_name.trim()) { setError('고객명을 입력해주세요.'); return }
     if (!form.plan_anchor_date) { setError('점검일자를 입력해주세요.'); return }
@@ -446,10 +482,12 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
          떠났으면 그 주소에 `day=`가 실려 있어 **그 사이드바가 다시 열린다**.
          ⚠ 방금 만든 고객의 계획·단계 칩은 그 목록에 이미 들어 있다 — 서버가 새로 그리기 때문이다.
          ⚠ 여기서 `refresh()`를 덧붙이지 않는다(위 주석과 같은 이유 — push가 이미 RSC를 받는다). */
-      // [저장] — 달력에서 왔으면 `new=`를 실어 달력이 방금 등록한 고객을 강조하고 [상세정보 입력]을 띄운다
-      // (2026-10-06 사용자: 「달력으로 가면 다시 고객을 선택해야 하므로 불편」)
+      // [저장] — **늘 달력으로**(2026-10-06 사용자 결정 「저장 후 달력」). `new=`를 실어 달력이 방금 등록한 고객을
+      // 강조하고 [상세정보 입력]을 띄운다(「달력으로 가면 다시 고객을 선택해야 하므로 불편」).
+      // 달력에서 왔으면 보낸 자리로, 고객 목록 등에서 왔으면 **점검일자 날짜의 사이드바**를 연다 — 방금 생긴 일정을 바로 본다.
       if (afterSaveRef.current === 'save') {
-        router.push(returnHref ? `${returnHref}${returnHref.includes('?') ? '&' : '?'}new=${result.customerId}` : '/customers')
+        const back = returnHref || `/inspections/calendar?day=${form.plan_anchor_date}`
+        router.push(`${back}${back.includes('?') ? '&' : '?'}new=${result.customerId}`)
         return
       }
       /* [상세정보 입력] — 상세의 진행 띠로 간다. `seq=1`이 **차례 모드**(건물정보 → 관계인 → 소방계획서 → [완료])를
@@ -498,6 +536,7 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
   const g1Req = ['고객명', '주소', '사용승인일', '점검일자', '점검유형'].map(reqOf)
 
   return (
+    <>
     <form className="space-y-4" onSubmit={e => { e.preventDefault(); handleSubmit() }}>
     {/* 그룹 단위 정렬 (2026-09-23 사용자 요청 — 「산만하게 조회되지 않게, 그룹 단위로 묶어서 정렬」).
         ① 기본정보 → ② 관계인 → ③ 건물정보 — 2026-10-06 사용자 요청으로 **필수 칸이 있는 상자를 위로** 모았다
@@ -877,33 +916,37 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
         </div>
         <button
           type="button"
-          onClick={() => router.back()}
+          data-testid="new-cancel"
+          onClick={() => { if (typedSomething) cancelGuard.request(null); else router.back() }}
           className="h-11 px-6 rounded-lg border border-line text-sm text-ink-sub hover:bg-paper transition-colors shrink-0"
         >
           취소
         </button>
-        {/* [저장] — 등록만 하고 보낸 자리로(달력 사이드바 또는 고객 목록). 빠진 필수는 왼쪽 칩이 말한다.
-            ⚠ 이 버튼은 type="button"이다 — Enter(암묵 제출)는 아래 [상세정보 입력]이 받는다. */}
+        {/* [저장] — 등록만 하고 달력으로(보낸 사이드바, 없으면 점검일자 날짜의 사이드바).
+            필수가 비어도 **잠그지 않는다** — 누르면 빈 칸을 팝업으로 알린다(handleSubmit). 잠그는 건 저장 중과
+            필수가 다 찼는데 고객코드가 아직 안 나온 짧은 구간뿐이다.
+            ⚠ 이 버튼은 type="button"이다 — Enter(암묵 제출)는 아래 [저장 후 상세정보 입력]이 받는다. */}
         <button
           type="button"
           data-testid="new-submit-save"
           onClick={() => handleSubmit('save')}
-          disabled={isPending || !requiredOk}
+          disabled={isPending || (allFieldsOk && !requiredOk)}
           title={!requiredOk && allFieldsOk ? '고객코드 생성 중…' : undefined}
           className="h-11 px-6 rounded-lg border border-brand-line text-sm font-medium text-brand hover:bg-brand-tint transition-colors flex items-center justify-center disabled:opacity-50 shrink-0"
         >
           {isPending && submitKind === 'save' ? <Loader2 className="size-4 animate-spin" /> : '저장'}
         </button>
-        {/* [상세정보 입력] — 등록 뒤 상세의 차례 모드로 건물정보 → 관계인 → 소방계획서를 이어서 입력한다 */}
+        {/* [저장 후 상세정보 입력] — 등록 뒤 상세의 차례 모드로 건물정보 → 관계인 → 소방계획서를 이어서 입력한다.
+            이름에 「저장 후」를 붙였다(2026-10-06 사용자 요청) — 저장 없이 넘어가는 버튼으로 읽히지 않게. */}
         <button
           type="submit"
           data-testid="new-submit-continue"
-          disabled={isPending || !requiredOk}
+          disabled={isPending || (allFieldsOk && !requiredOk)}
           title={!requiredOk && allFieldsOk ? '고객코드 생성 중…' : undefined}
           className="h-11 px-6 rounded-lg bg-[#202023] hover:bg-[#292d34] text-white text-sm font-medium transition-colors flex items-center justify-center gap-1 disabled:opacity-50 shrink-0"
         >
           {isPending && submitKind === 'detail' ? <Loader2 className="size-4 animate-spin" />
-            : <>상세정보 입력 <ArrowRight className="size-4" /></>}
+            : <>저장 후 상세정보 입력 <ArrowRight className="size-4" /></>}
         </button>
       </div>
     </div>
@@ -935,5 +978,35 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
         />
       )}
     </form>
+
+    {/* 두 확인창은 <form> **밖**에 둔다 — 공용 미저장 확인창의 버튼엔 type이 없어 폼 안이면 제출 버튼이 된다 */}
+    {cancelGuard.dialog}
+    {missingPopup && (
+      <div role="alertdialog" aria-modal="true" aria-labelledby="new-missing-title" data-testid="new-missing-popup"
+        onKeyDown={e => { if (e.key === 'Escape' || e.key === 'Tab') { e.preventDefault(); if (e.key === 'Escape') closeMissingPopup() } }}
+        className="fixed inset-0 bg-black/25 dark:bg-black/60 backdrop-blur-sm flex items-center justify-center z-[70] p-4">
+        <div className="bg-surface rounded-2xl shadow-xl border border-line w-full max-w-sm">
+          <div className="flex items-center gap-2 px-6 py-4 border-b border-line">
+            <AlertTriangle className="size-4 text-amber-500" />
+            <h2 id="new-missing-title" className="text-sm font-semibold text-ink">필수 항목이 비어 있습니다</h2>
+          </div>
+          <div className="px-6 py-4">
+            <p className="text-xs text-ink-sub leading-relaxed">아래 항목을 입력한 뒤 다시 눌러 주세요.</p>
+            <ul className="mt-2 flex flex-wrap gap-1.5">
+              {missingPopup.map(m => (
+                <li key={m} className="text-form-xs px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">{m}</li>
+              ))}
+            </ul>
+          </div>
+          <div className="px-6 py-4 border-t border-line">
+            <button type="button" ref={missingOkRef} onClick={closeMissingPopup} data-testid="new-missing-ok"
+              className="w-full h-10 rounded-lg bg-brand hover:bg-brand-strong text-white text-sm font-medium transition-colors">
+              확인 — {missingPopup[0]} 칸으로
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   )
 }

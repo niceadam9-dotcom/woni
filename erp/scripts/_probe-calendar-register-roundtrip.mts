@@ -117,10 +117,22 @@ try {
     check('A 버튼은 [저장]·[상세정보 입력] 둘이다',
       (await page.locator('[data-testid="new-submit-save"]').count()) === 1
       && (await page.locator('[data-testid="new-submit-continue"]').count()) === 1)
-    check('★ A 필수가 비었을 때도 버튼 글자는 「저장」 (「필수 항목을 채워주세요」 아님)',
+    check('★ A 필수가 비었을 때도 버튼 글자는 「저장」이고 눌린다 (「필수 항목을 채워주세요」 아님)',
       (await page.locator('[data-testid="new-submit-save"]').innerText()).trim() === '저장'
-      && await page.locator('[data-testid="new-submit-save"]').isDisabled(),
+      && !(await page.locator('[data-testid="new-submit-save"]').isDisabled()),
       (await page.locator('[data-testid="new-submit-save"]').innerText()).trim())
+    // 「필수값 비었을 때 팝업 에러」 — 눌러 보면 팝업이 무엇이 비었는지 말하고, [확인]이 첫 빈 칸으로 데려간다
+    await page.locator('[data-testid="new-submit-save"]').click()
+    const popup = page.locator('[data-testid="new-missing-popup"]')
+    const popupUp = await popup.waitFor({ timeout: 10000 }).then(() => true).catch(() => false)
+    const popupText = popupUp ? await popup.innerText() : ''
+    check('★★ A 필수가 비면 팝업이 뜨고 빈 칸 이름을 말한다', popupUp && /고객명/.test(popupText) && /주소/.test(popupText), popupText.replace(/\s+/g, ' '))
+    check('A (음성) 팝업은 미리 채운 점검일자를 빈 칸으로 말하지 않는다', !/점검일자/.test(popupText))
+    check('A 팝업 중에는 등록 화면에 머문다(서버로 안 갔다)', new URL(page.url()).pathname === '/customers/new')
+    await page.locator('[data-testid="new-missing-ok"]').click()
+    const focused = await page.evaluate(() => document.activeElement?.id ?? '')
+    check('★ A [확인]은 팝업을 닫고 첫 빈 칸(고객명)으로 커서를 옮긴다',
+      (await popup.count()) === 0 && focused === 'new-customer-name', focused || '(없음)')
 
     const cid = await fillAndSubmit('A', `E2E-RT-${STAMP}-패널`, 'save')
     check('A 고객이 만들어졌다', !!cid)
@@ -182,7 +194,7 @@ try {
     const cur = async () => page.locator('[data-testid="onboarding-strip"] [data-state="current"]').getAttribute('data-testid').catch(() => '')
     const sel = async () => (await page.locator('[role="tab"][aria-selected="true"]').first().innerText()).trim()
     check('★ B 1번째: 건물정보 탭이 열린다', (await cur()) === 'onboarding-step-buildings' && (await sel()).startsWith('건물'), `${await cur()} / ${await sel()}`)
-    check('B 저장 직전 주 버튼 문구 = 「상세정보 입력」', lastContinueLabel === '상세정보 입력', lastContinueLabel)
+    check('B 저장 직전 주 버튼 문구 = 「저장 후 상세정보 입력」', lastContinueLabel === '저장 후 상세정보 입력', lastContinueLabel)
     const nextBtn = page.locator('[data-testid="onboarding-next"]')
     check('B 건물 용도가 비었으니 「건너뛰고 다음: 관계인」', /건너뛰고 다음: 관계인/.test(await nextBtn.innerText()), await nextBtn.innerText())
     await nextBtn.click()
@@ -225,10 +237,28 @@ try {
     await page.goto(`${BASE}/customers/new`, { waitUntil: 'domcontentloaded' })
     await page.getByText('고객명 (건물명)').first().waitFor()
     check('D from 없이 열면 점검일자는 비어 있다 (지어내지 않는다)', (await anchorValue()) === '', await anchorValue())
-    check('D 일반 등록도 버튼은 [저장]·[상세정보 입력] 둘이다',
+    // 빈 화면의 [취소]는 묻지 않고 바로 떠난다 — 확인창은 잃을 게 있을 때만
+    // ⚠ 뒤로 가면 갈래 C의 /customers/new?from=… 로 간다 — 경로가 아니라 **주소 전체**가 바뀌었는지 본다
+    const beforeCancel = page.url()
+    await page.locator('[data-testid="new-cancel"]').click()
+    await page.waitForURL(u => u.toString() !== beforeCancel, { timeout: 15000 }).catch(() => null)
+    check('D 빈 화면의 [취소]는 확인 없이 떠난다',
+      page.url() !== beforeCancel && (await page.locator('[data-testid="unsaved-nav-cancel"]').count()) === 0, page.url())
+    await page.goto(`${BASE}/customers/new`, { waitUntil: 'domcontentloaded' })
+    await page.getByText('고객명 (건물명)').first().waitFor()
+    check('D 일반 등록도 버튼은 [저장]·[저장 후 상세정보 입력] 둘이다',
       (await page.locator('[data-testid="new-submit-save"]').count()) === 1
       && (await page.locator('[data-testid="new-submit-continue"]').count()) === 1)
     await page.locator('#new-anchor-date').fill(iso(30))
+    // [취소] — 입력한 게 있으면 묻는다. 「이 화면에 머무르기」를 고르면 입력이 그대로 남는다
+    await page.locator('[data-testid="new-cancel"]').click()
+    const stay = page.locator('[data-testid="unsaved-nav-cancel"]')
+    const askUp = await stay.waitFor({ timeout: 10000 }).then(() => true).catch(() => false)
+    check('★ D 입력이 있으면 [취소]가 「버릴까요」 확인창을 띄운다', askUp
+      && (await page.locator('[data-testid="unsaved-nav-discard"]').innerText()).includes('입력 내용 버리고 나가기'))
+    if (askUp) await stay.click()
+    check('★ D 「머무르기」면 등록 화면과 입력값이 그대로다',
+      new URL(page.url()).pathname === '/customers/new' && (await anchorValue()) === iso(30), `${page.url()} · ${await anchorValue()}`)
     const cid = await fillAndSubmit('D', `E2E-RT-${STAMP}-직접`, 'detail')
     check('D 고객이 만들어졌다', !!cid)
     check('★ D from이 없어도 [상세정보 입력]은 고객 상세(차례 모드)로 간다',
@@ -253,14 +283,22 @@ try {
     }
   }
 
-  // ── 갈래 E — [저장]: from 없이 → 고객 목록 ──
+  // ── 갈래 E — [저장]: from 없이 → 달력, 점검일자 날짜 사이드바 (2026-10-06 「저장 후 달력」) ──
   {
+    const E = iso(31)
     await page.goto(`${BASE}/customers/new`, { waitUntil: 'domcontentloaded' })
     await page.getByText('고객명 (건물명)').first().waitFor()
-    await page.locator('#new-anchor-date').fill(iso(31))
+    await page.locator('#new-anchor-date').fill(E)
     const cid = await fillAndSubmit('E', `E2E-RT-${STAMP}-저장`, 'save')
     check('E 고객이 만들어졌다', !!cid)
-    check('★ E [저장]은 고객 목록으로 간다', new URL(page.url()).pathname === '/customers', page.url())
+    check('★ E [저장]은 달력으로 간다 — day=점검일자 · new=방금 등록한 고객',
+      new URL(page.url()).pathname === '/inspections/calendar' && qs().get('day') === E && !!cid && qs().get('new') === cid, page.url())
+    const opened = await page.locator('[data-testid="daypanel-new-customer"]').waitFor({ timeout: 60000 }).then(() => true).catch(() => false)
+    const header = opened ? await page.locator('div.fixed.top-0.right-0 p.font-semibold').first().innerText() : ''
+    check('★ E 점검일자 날짜의 사이드바가 열린다', opened && header.startsWith(`${Number(E.slice(5, 7))}월 ${Number(E.slice(8))}일`), header)
+    const banner = page.locator('[data-testid="cal-new-customer"]')
+    check('★ E 「등록 완료 · 상세정보 입력」 띠에 방금 등록한 고객이 뜬다',
+      await banner.waitFor({ timeout: 60000 }).then(() => true).catch(() => false) && (await banner.innerText()).includes(`E2E-RT-${STAMP}-저장`))
   }
 } catch (e) {
   check('예외 없음', false, String(e))
