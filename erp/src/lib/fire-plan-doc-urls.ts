@@ -15,6 +15,11 @@ export function firePlanXlsxUrl(customerId: string): string {
   return `/customers/${customerId}/fire-plan/xlsx`
 }
 
+/** 소방계획서 한글파일(HWPX, 2026-10-06) — 엑셀과 같은 받는 방식(fetch+Blob·`X-FirePlan-Missing` 고지) */
+export function firePlanHwpxUrl(customerId: string): string {
+  return `/customers/${customerId}/fire-plan/hwpx`
+}
+
 /** 소방계획서 PDF — `download=true`면 내려받기, 아니면 새 탭 뷰어(인쇄 흐름).
  *  ⚠ 서버에 `GOTENBERG_URL`이 없으면 이 라우트는 500이다(로컬 dev엔 구조적으로 없다). */
 export function firePlanPdfUrl(customerId: string, download = false): string {

@@ -257,6 +257,7 @@ const steps: Step[] = [
   //   데려간 채 HEAD에 실렸어도(42 R-7 실사고) 회귀 그물이 조용했다. 여기가 붉으면 자산·앵커·
   //   manifest 셋 중 하나가 갈라진 것 — build-fire-plan-template 재실행부터 볼 것.
   { name: '소방계획서 워크북 자산',    cmd: 'npx tsx scripts/test-fire-plan-xlsx.mts' },
+  { name: '소방계획서 한글파일(HWPX)',  cmd: 'npx tsx --conditions=react-server scripts/test-fire-plan-hwpx.mts' },
   // 표지 제목 글꼴 — 위 자산 검사는 **정렬**만 묻고 글꼴·크기는 안 본다(전 칸 10pt가 전제라
   // 물을 이유가 없었다). 그 전제에 난 유일한 구멍이 표지 제목(HY헤드라인M 32pt)이라 여기서
   // 따로 문다: 그 자리에 있는가 + 다른 데로 번지지 않았는가.
@@ -727,6 +728,7 @@ const steps: Step[] = [
   //     ③ 같은 pathname으로 ?tab=만 바꾸는 이동은 서버를 재렌더하지 않는다. 실패하면 사용자는 화면에
   //        그대로 남고 **아무 일도 안 일어난 것처럼 보인다**(에러도 로그도 없다)
   { name: '소방계획서 탭(E2E)',         cmd: 'npx tsx scripts/test-plan-tab.mts',             needServer: true },
+  { name: '소방계획서 한글파일 받기(E2E)', cmd: 'node scripts/_verify-fire-plan-hwpx.mjs', needServer: true },
   // 1.14.1 홍보 계획(④ 넷째 축 promoPlan, 2026-09-18) — 화면 월 격자가 **엑셀 상자 120칸의
   // 유일한 입력면**이다. 단위 검사는 값 맵만 보고, 화면→저장→엑셀이 한 줄로 통하는지는
   // 이 왕복만이 본다(월을 실제로 눌러 저장하고 받은 파일에서 그 달 상자를 되읽는다).

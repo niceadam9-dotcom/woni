@@ -1,9 +1,9 @@
 'use client'
 
 import { useState } from 'react'
-import { FileSpreadsheet, Loader2 } from 'lucide-react'
+import { FileSpreadsheet, FileText, Loader2 } from 'lucide-react'
 import { DocNoticeToast } from '@/components/ui/doc-notice-toast'
-import { firePlanXlsxUrl } from '@/lib/fire-plan-doc-urls'
+import { firePlanXlsxUrl, firePlanHwpxUrl } from '@/lib/fire-plan-doc-urls'
 import { PANEL_BTN_OUTLINE } from '@/components/inspections/doc-card'
 
 /** 소방계획서 엑셀 받기 — **단일 원천** (소방계획서_47).
@@ -25,9 +25,11 @@ import { PANEL_BTN_OUTLINE } from '@/components/inspections/doc-card'
  *  표면만 다르고 로직은 이 한 벌뿐이다.
  */
 export function FirePlanXlsxButton({
-  customerId, label = '엑셀 받기', variant = 'primary', title, onNotice, onError,
+  customerId, format = 'xlsx', label = format === 'hwpx' ? '한글' : '엑셀 받기', variant = 'primary', title, onNotice, onError,
 }: {
   customerId: string
+  /** 'hwpx' = 소방계획서 한글파일(2026-10-06) — 받는 방식·고지 헤더는 엑셀과 **같은 한 벌**이다 */
+  format?: 'xlsx' | 'hwpx'
   label?: string
   /** 'panel' = 달력 단계 사이드바 버튼 **한 벌**(inspections/doc-card.ts) + 칸 폭 가득(2026-09-23 image-15) */
   variant?: 'primary' | 'outline' | 'compact' | 'panel'
@@ -40,17 +42,20 @@ export function FirePlanXlsxButton({
   const [selfNotice, setSelfNotice] = useState('')
   const [selfError, setSelfError] = useState('')
   const owns = !onNotice && !onError      // 고지를 내가 그리는가
+  const hwpx = format === 'hwpx'
+  const kind = hwpx ? '한글파일' : '엑셀'
+  const testId = hwpx ? 'fire-plan-hwpx' : 'fire-plan-xlsx'
 
   const say = { notice: onNotice ?? setSelfNotice, error: onError ?? setSelfError }
 
   async function download() {
     say.error(''); say.notice(''); setBusy(true)
     try {
-      const res = await fetch(firePlanXlsxUrl(customerId))
+      const res = await fetch(hwpx ? firePlanHwpxUrl(customerId) : firePlanXlsxUrl(customerId))
       if (!res.ok) {
         // 라우트는 앵커 불일치·미착지를 500으로 끊는다 — 조용한 오적용 대신 사유를 보여 준다
         const body = await res.json().catch(() => null) as { error?: string } | null
-        say.error(body?.error ?? `엑셀 생성 실패 (HTTP ${res.status})`)
+        say.error(body?.error ?? `${kind} 생성 실패 (HTTP ${res.status})`)
         return
       }
       const raw = res.headers.get('X-FirePlan-Missing') ?? ''
@@ -60,7 +65,7 @@ export function FirePlanXlsxButton({
       // 파일명은 Content-Disposition의 RFC 5987 filename*에서 — 없으면 밋밋한 폴백
       const cd = res.headers.get('Content-Disposition') ?? ''
       const star = /filename\*=UTF-8''([^;]+)/i.exec(cd)
-      const name = star ? decodeURIComponent(star[1]) : `소방계획서_${new Date().getFullYear()}.xlsx`
+      const name = star ? decodeURIComponent(star[1]) : `소방계획서_${new Date().getFullYear()}.${hwpx ? 'hwpx' : 'xlsx'}`
 
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
@@ -74,16 +79,18 @@ export function FirePlanXlsxButton({
     }
   }
 
-  const defaultTitle = '현재 입력값으로 즉석 생성한 엑셀을 내려받습니다 — 받은 뒤 직접 고쳐 쓰실 수 있습니다'
+  const defaultTitle = hwpx
+    ? '현재 입력값으로 즉석 생성한 한글파일(HWPX — 한글 2014 이상)을 내려받습니다 — 사진·도면은 아직 엑셀·PDF에만 들어갑니다'
+    : '현재 입력값으로 즉석 생성한 엑셀을 내려받습니다 — 받은 뒤 직접 고쳐 쓰실 수 있습니다'
 
   // 목록 행 바로가기 — 글씨 칩. 받는 중에만 스피너가 글씨를 대신한다(폭이 흔들리지 않게 고정 폭)
   if (variant === 'compact') {
     return (
       <>
-        <button onClick={download} disabled={busy} data-testid="fire-plan-xlsx"
-          title={title ?? `소방계획서 엑셀 받기 — ${defaultTitle}`}
+        <button onClick={download} disabled={busy} data-testid={testId}
+          title={title ?? `소방계획서 ${kind} 받기 — ${defaultTitle}`}
           className="inline-flex h-6 w-[2.6rem] items-center justify-center rounded border border-emerald-200 text-form-2xs font-medium text-emerald-700 transition-colors hover:bg-emerald-50 disabled:opacity-50">
-          {busy ? <Loader2 className="size-3 animate-spin" /> : '엑셀'}
+          {busy ? <Loader2 className="size-3 animate-spin" /> : (hwpx ? '한글' : '엑셀')}
         </button>
         <DocNoticeToast notice={selfNotice} error={selfError}
           onClose={() => { setSelfNotice(''); setSelfError('') }} />
@@ -97,18 +104,18 @@ export function FirePlanXlsxButton({
 
   return (
     <>
-      <button onClick={download} disabled={busy} data-testid="fire-plan-xlsx"
+      <button onClick={download} disabled={busy} data-testid={testId}
         title={title ?? defaultTitle}
         className={variant === 'panel' ? `${PANEL_BTN_OUTLINE} w-full min-w-0`
           : `inline-flex items-center gap-1 h-form-8 px-3 rounded-lg text-form-sm font-medium whitespace-nowrap transition-colors disabled:opacity-50 ${cls}`}>
-        {busy ? <Loader2 className="size-3.5 animate-spin" /> : <FileSpreadsheet className="size-3.5" />} {label}
+        {busy ? <Loader2 className="size-3.5 animate-spin" /> : hwpx ? <FileText className="size-3.5" /> : <FileSpreadsheet className="size-3.5" />} {label}
       </button>
       {owns && selfError && (
         <p className="text-form-sm text-red-600 bg-red-50 rounded-lg px-3 py-2 mt-2 w-full">{selfError}</p>
       )}
       {owns && selfNotice && (
         <p className="text-form-xs text-amber-700 bg-amber-50 rounded-lg px-3 py-2 mt-2 w-full whitespace-pre-wrap break-words">
-          엑셀 고지: {selfNotice}
+          {kind} 고지: {selfNotice}
         </p>
       )}
     </>

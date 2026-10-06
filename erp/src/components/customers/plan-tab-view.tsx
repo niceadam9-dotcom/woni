@@ -338,6 +338,8 @@ export function PlanTabView({
   //   뒤 hwp_path에 null을 넣으므로 HWP는 생성되지 않는다. 지금 나가는 것은 엑셀과 PDF뿐이다.
   const [xlsxNotice, setXlsxNotice] = useState('')
   const [xlsxError, setXlsxError] = useState('')
+  // 고지가 어느 받기에서 왔나 — 엑셀·한글파일(2026-10-06)이 같은 고지 자리를 쓴다(조립 고지가 같다)
+  const [noticeFrom, setNoticeFrom] = useState<'엑셀' | '한글파일'>('엑셀')
 
   const pct = readiness.total > 0 ? Math.round((readiness.done / readiness.total) * 100) : 0
   // 일반관리도 소방계획서 대상 (소방계획서_6 W-14·D-6) — 유형 안내 배너 특례 제거
@@ -378,7 +380,10 @@ export function PlanTabView({
               다시 짜면 `X-FirePlan-Missing` 고지 처리가 두 벌이 된다.
             ⚠ PDF는 `window.open`이 규약이다(고지 헤더가 없다) — 엑셀처럼 Blob으로 바꾸지 말 것. */}
         <span className="ml-auto shrink-0 flex items-center gap-2">
-          <FirePlanXlsxButton customerId={customerId} onNotice={setXlsxNotice} onError={setXlsxError} />
+          <FirePlanXlsxButton customerId={customerId} onNotice={m => { setNoticeFrom('엑셀'); setXlsxNotice(m) }} onError={setXlsxError} />
+          {/* 한글파일(HWPX, 2026-10-06) — 같은 받기 한 벌(format='hwpx'), 고지도 같은 자리 */}
+          <FirePlanXlsxButton customerId={customerId} format="hwpx" variant="outline"
+            onNotice={m => { setNoticeFrom('한글파일'); setXlsxNotice(m) }} onError={setXlsxError} />
           <button onClick={() => window.open(firePlanPdfUrl(customerId), '_blank')}
             data-testid="plan-bar-pdf"
             title="현재 입력값으로 즉석 생성한 PDF를 새 탭에서 엽니다 — 뷰어에서 그대로 인쇄·저장할 수 있습니다"
@@ -404,7 +409,7 @@ export function PlanTabView({
         //   보내느니 안 보내는 게 낫다. 규칙·표는 lib/fire-plan-notice가 정본이다.
         <div data-testid="plan-bar-xlsx-notice"
           className="text-form-xs text-amber-700 bg-amber-50 rounded-lg px-3 py-2 mb-3 space-y-1">
-          <span className="font-medium">엑셀 고지 — 아래 칸이 비었거나 양식에 다 담기지 않았습니다</span>
+          <span className="font-medium">{noticeFrom} 고지 — 아래 칸이 비었거나 양식에 다 담기지 않았습니다</span>
           <ul className="space-y-0.5">
             {parseFirePlanNotice(xlsxNotice).map((part, i) => {
               // 갈 곳을 찾는 길은 **둘**이고, 실제로 자주 걸리는 쪽은 아래(b)다.

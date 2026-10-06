@@ -11,6 +11,8 @@ const nextConfig: NextConfig = {
     '/inspections/[id]/hwpx': ['./templates/report9-placeholder.hwpx'],
     // 공사 완료 사진첩 한글파일(2026-10-06) — 같은 템플릿의 글꼴·A4 여백을 빌린다
     '/inspections/[id]/photo-album-hwpx': ['./templates/report9-placeholder.hwpx'],
+    // 소방계획서 한글파일(2026-10-06) — 흔적을 지운 양식(scripts/build-fire-plan-hwpx-template.mts)
+    '/customers/[id]/fire-plan/hwpx': ['./templates/fire-plan-form.hwpx'],
   },
   experimental: {
     serverActions: {
