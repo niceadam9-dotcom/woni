@@ -6,16 +6,16 @@ const uid=await mkUser({email:EMAIL,name:'E2EAP',employeeId:'EAP',role:'admin'})
 let custId=null
 const {browser,page}=await launch()
 const fillDate=async(label,val)=>{
-  const f=page.locator(`label:has-text("${label}")`).locator('xpath=..').first()
-  await f.locator('input:not([type="date"])').first().fill(val)
+  // DateInput의 id는 텍스트 입력칸 자체에 붙는다(09-23 레이아웃 이후 라벨 부모엔 입력칸이 없다)
+  await page.locator(label==='점검일자'?'#new-anchor-date':'#new-use-approval').fill(val)
 }
 try{
   await login(page,EMAIL)
   await page.goto('http://localhost:3000/customers/new')
-  await page.waitForSelector('[data-testid="new-schedule-preview"]',{timeout:25000})
+  await page.waitForSelector('[data-testid="new-keydates"]',{timeout:25000})
   await page.locator('input[placeholder*="고객"], #customer-name, input').first().click().catch(()=>{})
   // 필수: 고객명·주소·점검일자·사용승인일·대표
-  await page.locator('label:has-text("고객명")').locator('xpath=..').first().locator('input').first().fill(NAME)
+  await page.locator('#new-customer-name').fill(NAME)
   await page.waitForTimeout(400)
   await page.locator('input[placeholder="주소 검색 후 동/호수 등 추가 입력"]').fill('경기 양평군 지평면 지평의병로 123')
   await fillDate('점검일자','2026-09-11')

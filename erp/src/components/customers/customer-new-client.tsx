@@ -4,8 +4,7 @@ import { useState, useTransition, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Loader2, Phone, Mail, MapPin, Search, X, Plus, Check } from 'lucide-react'
-import { createCustomerAction, generateCustomerCodeAction, checkAddressAction, checkCustomerNameAction, fetchBuildingLedgerAction, previewNewCustomerScheduleAction, type ContactInput, type BuildingLedgerInfo, type AddressDuplicateCustomer, type AddressDuplicateBuilding, type NameDuplicateCustomer, type NewSchedulePreview } from '@/app/(dashboard)/customers/actions'
-import { NewSchedulePreviewBox } from '@/components/customers/new-schedule-preview'
+import { createCustomerAction, generateCustomerCodeAction, checkAddressAction, checkCustomerNameAction, fetchBuildingLedgerAction, type ContactInput, type BuildingLedgerInfo, type AddressDuplicateCustomer, type AddressDuplicateBuilding, type NameDuplicateCustomer } from '@/app/(dashboard)/customers/actions'
 import { AddressDuplicateDialog } from '@/components/customers/address-duplicate-dialog'
 import { NameDuplicateDialog } from '@/components/customers/name-duplicate-dialog'
 import { useDaumPostcode } from '@/hooks/use-daum-postcode'
@@ -39,7 +38,7 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
   /** 049 building_purposes — 관리자 > 건물 용도 관리 목록. datalist 제안(대장 자동값·신규 용도도 허용) */
   purposes?: string[]
   /** 점검달력에서 날짜를 짚어 열었을 때의 점검일자 프리필 (2026-09-22).
-   *  아래 `useState` **lazy 초기값에만** 쓴다 — effect로 덮으면 미리보기가 두 번 돌고 수정값을 밀어낸다. */
+   *  아래 `useState` **lazy 초기값에만** 쓴다 — effect로 덮으면 사용자가 고친 값을 밀어낸다. */
   initialAnchorDate?: string
   /** 등록을 마치고 **돌아갈 자리** — URL `?from=`이 원천이다 (2026-09-22 사용자 요청:
    *  「입력 다 하고 다시 사이드바 화면으로 복귀 — 만약 사이드바에서 왔다면」).
@@ -68,12 +67,8 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
   // ADD-3: 관계인 — 대표만 기본, [추가] 버튼으로 직원1/직원2 노출
   const [visibleContactRoles, setVisibleContactRoles] = useState<Array<'대표' | '직원1' | '직원2'>>(['대표'])
 
-  // ── 법정 일정 미리보기 (2026-09-14) ─────────────────────────────────────
-  // 등록 폼은 점검일자를 필수로 받지만, 사용승인일도 필수라 신규 고객은 manual=false로 태어나
-  // **항상 사용승인일이 이긴다** — 입력값이 안 쓰이는데 화면이 그 사실을 말하지 않았다.
-  // 계산은 **서버의 실행 경로와 같은 함수**로 한다(달 산식·영업일 보정·기산점 해석 전부).
-  const [schedPreview, setSchedPreview] = useState<NewSchedulePreview | null>(null)
-  const [schedLoading, setSchedLoading] = useState(false)
+  // 「이 고객의 법정 점검 일정」 미리보기 상자는 2026-10-06 사용자 요청으로 폐지 — 어느 날짜가 쓰이는지는
+  // 기준일 줄의 배지(기산점/참고)와 「이 날짜로 잡히는 일정」 칸이 말한다. 예외 스위치는 그 칸으로 옮겼다.
   /** 법정 축을 벗어나 「입력한 점검일자」를 쓰겠다는 예외 — 전 직원 허용(2026-09-14 사용자 결정) */
   const [anchorManual, setAnchorManual] = useState(false)
 
@@ -84,8 +79,7 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
     contract_date: '',
     use_approval_date: '',
     /* 점검달력에서 날짜를 짚어 들어오면 그 날짜로 시작한다(2026-09-22).
-       ⚠ **lazy 초기값에만** 꽂는다. `useEffect`로 나중에 덮으면 ①법정 일정 미리보기가 두 번 돌고
-         ②사용자가 이미 고친 값을 덮는다. 프리필은 시작점이지 강제가 아니다 — 폼에서 바꿀 수 있다. */
+       ⚠ **lazy 초기값에만** 꽂는다. `useEffect`로 나중에 덮으면 사용자가 이미 고친 값을 덮는다. 프리필은 시작점이지 강제가 아니다 — 폼에서 바꿀 수 있다. */
     plan_anchor_date: initialAnchorDate,
     inspection_type: '종합' as InspectionType,
     // 일반관리 자체점검 종류 (소방계획서_6 W-1) — 일반관리도 종합/작동 선택, 다수 기본값 '작동'(D-2)
@@ -131,33 +125,6 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
       if (result.code) setForm(prev => ({ ...prev, customer_code: result.code! }))
     }).catch(() => null)
   }, [])
-
-  // 법정 일정 미리보기 — 두 날짜·종류·예외 스위치가 바뀔 때마다 다시 묻는다.
-  // ⚠ 늦게 도착한 옛 응답이 최신 미리보기를 덮지 않게 세대(seq)로 막는다(고객명 중복 검사와 같은 규약).
-  const schedSeq = useRef(0)
-  const ua = form.use_approval_date, pa = form.plan_anchor_date
-  const subForPreview: '종합' | '작동' =
-    form.inspection_type === '일반관리' ? form.general_sub_type
-    : form.inspection_type === '종합' ? '종합' : '작동'
-  useEffect(() => {
-    const uaOk = isCompleteDate(ua), paOk = isCompleteDate(pa)
-    if (!uaOk && !paOk) { setSchedPreview(null); setSchedLoading(false); return }
-    const my = ++schedSeq.current
-    setSchedLoading(true)
-    previewNewCustomerScheduleAction({
-      use_approval_date: uaOk ? ua : null,
-      plan_anchor_date: paOk ? pa : null,
-      plan_anchor_manual: anchorManual,
-      inspection_sub_type: subForPreview,
-    }).then(res => {
-      if (my !== schedSeq.current) return          // 낡은 응답 버림
-      setSchedPreview(res.preview ?? null)
-      setSchedLoading(false)
-    }).catch(() => {
-      if (my !== schedSeq.current) return
-      setSchedPreview(null); setSchedLoading(false)  // 미리보기 실패가 등록을 막지는 않는다
-    })
-  }, [ua, pa, subForPreview, anchorManual])
 
   function handleAddressSearch() {
     openPostcode(data => {
@@ -519,9 +486,14 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
                 90명은 아예 달이 달랐다. 어느 칸이 이기는지를 입력 중에 보여준다.
                 ⚠ 막지 않는다. 사용승인일을 **못 내는** 건물이 실재한다(군부대·쉼터 등 —
                   건축물대장 조회가 실패하는 건들). 막으면 그 고객은 등록 자체가 안 된다. */}
-            {isCompleteDate(form.use_approval_date) ? (
+            {/* 문구는 배지와 **같은 판정**(roles)을 따른다 — 예외 체크를 켜면 점검일자가 기산점이 된다 */}
+            {roles.approval === 'anchor' ? (
               <p data-testid="new-anchor-legal" className="text-form-xs text-ink-sub leading-relaxed">
                 사용승인일 기준으로 <b className="text-ink">종합·작동·정기</b>가 잡힙니다 — 법정 기산점입니다.
+              </p>
+            ) : isCompleteDate(form.use_approval_date) ? (
+              <p data-testid="new-anchor-manual" className="text-form-xs text-amber-700 leading-relaxed">
+                ⚠ 예외 — <b>입력한 점검일자</b> 기준으로 종합·작동·정기가 잡힙니다.
               </p>
             ) : (
               <p data-testid="new-anchor-provisional" className="text-form-xs text-amber-700 leading-relaxed">
@@ -540,16 +512,32 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
                 점검일자가 미래라 <b>계획</b>으로 잡힙니다 — 1~4단계는 점검 당일에 열립니다.
               </p>
             )}
-          </Cell>
-          {/* 법정 일정 미리보기 — 두 날짜가 정해지면 결과를 한눈에(서버와 같은 산식) */}
-          <Cell span={4}>
-            <NewSchedulePreviewBox
-              preview={schedPreview}
-              loading={schedLoading}
-              anchorManual={anchorManual}
-              onToggleManual={setAnchorManual}
-              canOverride
-            />
+            {/* 과거·오늘 점검일자 = 점검 사실 — 등록 즉시 그 날짜로 1차가 시작된다(2026-09-20 사용자 확정).
+                미래 고지와 **같은 판정 함수**의 반대편이라 둘이 동시에 서지 않는다. */}
+            {isCompleteDate(form.plan_anchor_date)
+              && isPastAnchor(form.plan_anchor_date, todayKst()) && (
+              <p data-testid="past-anchor-start-notice" className="text-form-xs text-amber-700">
+                점검일자가 지난(또는 오늘) 날짜라 등록과 동시에 <b>이 날짜 그대로</b> 1차 점검이 시작됩니다.
+              </p>
+            )}
+            {/* 예외 스위치 — 두 날짜가 다 있을 때만 의미가 있다(사용승인일이 없으면 점검일자가 이미 기산점).
+                ⚠ 켠 뒤에도 남겨야 끌 수 있다 — 그래서 roles가 아니라 두 날짜의 유무로 보인다.
+                ⚠ 과거 날짜에서도 남긴다 — 1차는 입력값으로 시작해도, 이 체크가 **차기 회차의 기산 축**을 정한다. */}
+            {isCompleteDate(form.use_approval_date) && isCompleteDate(form.plan_anchor_date) && (
+              <label className="flex items-center gap-1.5 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={anchorManual}
+                  onChange={e => setAnchorManual(e.target.checked)}
+                  data-testid="anchor-manual-toggle"
+                  className="accent-brand"
+                />
+                <span className="text-form-xs text-ink">
+                  그래도 <b>내가 입력한 점검일자</b>로 잡겠습니다
+                  <span className="text-ink-meta"> (법정 시기를 벗어날 수 있습니다)</span>
+                </span>
+              </label>
+            )}
           </Cell>
         </SubRow>
 

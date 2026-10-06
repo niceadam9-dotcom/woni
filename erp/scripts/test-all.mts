@@ -1000,7 +1000,6 @@ const steps: Step[] = [
   { name: '기산점 변경 알림 관문(E2E)',   cmd: 'node scripts/_verify-anchor-notice-when-needed.mjs', needServer: true },
   // 등록 화면이 **입력값이 안 쓰인다는 사실**을 말하는가(요일·밀린 사유 포함), 예외 체크가 DB·실제 일정까지 가는가.
   //   실측 근거: 법정 축 고객 162명 중 158명이 입력한 점검일자와 다른 날짜로 일정이 서 있었다.
-  { name: '등록 법정일정 미리보기(E2E)',  cmd: 'node scripts/_verify-new-schedule-preview.mjs',      needServer: true },
   { name: '기산점 예외 저장·전파(E2E)',   cmd: 'node scripts/_verify-anchor-manual-persist.mjs',     needServer: true },
   // 「시작 대기」 — 계획만 있고 시작 안 한 건이 어느 화면에도 없던 것. 검색 전에는 **나열하지 않는다**
   //   (전사 누적 건수를 상시로 띄웠더니 내 담당도 오늘 할 일도 아니라 혼동을 줬다 — 사용자 지적).

@@ -7,9 +7,8 @@ import { extractRegionFromAddress, extractRoadName, addressDupKey } from '@/lib/
 import { customerNameDupKey } from '@/lib/customer-dup'
 import { fetchAllRows } from '@/lib/supabase/paginate'
 import { resolveFireStation } from '@/lib/fire-station'
-import { generateRollingPlanItems, loadAnchorDates, loadAnchorManualFlag, loadHolidaySet } from '@/lib/inspection-plan-generator'
+import { generateRollingPlanItems, loadAnchorDates, loadAnchorManualFlag } from '@/lib/inspection-plan-generator'
 import { applyPastAnchorInspection } from '@/lib/inspection-start'
-import { todayKst } from '@/lib/kst-date'
 // `anchorChanged`는 이 파일의 지역 변수명과 겹쳐 별칭으로 들여온다(변수를 함수로 덮으면 조용히 항상-false가 된다)
 import { anchorChanged as anchorChangedFn } from '@/lib/plan-anchor'
 import { recalcIsInitialForCustomer } from '@/lib/inspection-initial'
@@ -17,8 +16,8 @@ import { getCompanyProfile } from '@/lib/company-profile'
 import { listBuildingPurposes } from '@/lib/building-purposes'
 import { syncStartedRowSubTypes } from '@/lib/inspection-row-sync'
 import { reconcileSpecialSlots, planReconcile } from '@/lib/reconcile-special-slots'
-import { anchorSourceLabel, resolveAnchor, plannedDateFor, desiredSlotsFor, desiredSlotsInYear, anchorDayOf } from '@/lib/plan-anchor'
-import { rowInspectionType, rowSubType, INITIAL_INSPECTION_DAYS } from '@/lib/inspection-round'
+import { anchorSourceLabel } from '@/lib/plan-anchor'
+import { rowInspectionType, rowSubType } from '@/lib/inspection-round'
 import { notifyIfEnabled, allowsNotification } from '@/lib/notify'
 import { formatTel } from '@/lib/format-contact'
 import { shouldFillDefaultAssignee, defaultAssigneeTargets, type AssignSource } from '@/lib/default-assignee'
@@ -990,98 +989,6 @@ async function _resetPlanItemsForCustomer(
       } as Record<string, unknown>)
       .eq('id', (item as Record<string, unknown>).id as string)
   }
-}
-
-/** 고객 **등록 화면** 미리보기 — 아직 고객 행이 없으므로 `planReconcile`을 못 쓴다.
- *
- *  왜 필요한가(2026-09-14 실측): 등록 폼은 점검일자를 **필수로 받으면서** "이 날짜의 월·일
- *  기준으로 일정이 확정됩니다"라고 안내하는데, 사용승인일도 필수라 신규 고객은 `manual=false`로
- *  태어나 **항상 사용승인일이 이긴다**. 즉 그 안내가 거짓이고, 입력한 날짜는 한 칸도 안 쓰인다.
- *  스테이징 실측에서 법정 축 고객 162명 중 **158명**이 입력값과 다른 날짜로 일정이 서 있었다.
- *
- *  ⚠ 달 산식(`desiredSlotsFor`)·영업일 보정(`plannedDateFor`)·기산점 해석(`resolveAnchor`)은
- *    전부 **실행이 쓰는 그 함수**다. 화면이 따로 계산하면 "보여준 것과 다른 일이 벌어진다".
- *  아무것도 쓰지 않는다(읽기 전용). */
-export type NewScheduleRow = {
-  year: number; month: number; planType: string; date: string
-  /** 영업일 보정으로 밀렸는가 — 밀렸다면 원래 날짜(사용자에게 이유를 보여주기 위함) */
-  shiftedFrom: string | null
-}
-export type NewSchedulePreview = {
-  anchorDate: string | null
-  anchorSource: string
-  /** 기산점이 사용승인일인가 — 아니면 점검일자(또는 없음) */
-  anchorIsApproval: boolean
-  /** 입력했지만 **쓰이지 않는** 점검일자. null이면 입력값이 실제로 쓰인다 */
-  ignoredAnchorDate: string | null
-  /** 과거·오늘 점검일자 — 등록 즉시 이 날짜로 1차 자체점검이 시작된다(2026-09-20 사용자 확정).
-   *  이때 입력값은 「쓰이지 않는」 게 아니라 1차 점검일로 그대로 쓰이므로 ignoredAnchorDate와
-   *  동시에 설 수 없다(서버가 배타로 계산한다). */
-  pastAnchorStart: string | null
-  rows: NewScheduleRow[]
-  /** 최초점검 기한(사용승인일+60일) — 아직 안 지났을 때만 */
-  initialDue: string | null
-}
-export async function previewNewCustomerScheduleAction(input: {
-  use_approval_date: string | null
-  plan_anchor_date: string | null
-  plan_anchor_manual: boolean
-  inspection_sub_type: '종합' | '작동'
-}): Promise<{ error?: string; preview?: NewSchedulePreview }> {
-  await requirePermission('customer_manage')
-  const admin = createAdminClient()
-  const anchor = resolveAnchor({
-    use_approval_date: input.use_approval_date,
-    plan_anchor_date: input.plan_anchor_date,
-    plan_anchor_manual: input.plan_anchor_manual,
-  })
-  const anchorIsApproval = anchor.source === 'approval'
-  // 과거·오늘 점검일자는 등록 즉시 1차 점검일로 **그대로 쓰인다**(applyPastAnchorInspection) —
-  // 이때 「안 쓰인다」 고지를 함께 띄우면 화면이 거짓말이 된다. 배타로 계산한다.
-  const pastAnchorStart = input.plan_anchor_date && input.plan_anchor_date <= todayKst()
-    ? input.plan_anchor_date : null
-  // 「입력했는데 안 쓰인다」는 **기산점이 다른 날짜일 때만** 성립한다
-  const ignoredAnchorDate = (pastAnchorStart || !anchorIsApproval || !input.plan_anchor_date) ? null
-    : (input.plan_anchor_date !== anchor.date ? input.plan_anchor_date : null)
-  const base: NewSchedulePreview = {
-    anchorDate: anchor.date, anchorSource: anchorSourceLabel(anchor.source),
-    anchorIsApproval, ignoredAnchorDate, pastAnchorStart, rows: [], initialDue: null,
-  }
-  if (!anchor.date) return { preview: base }
-
-  const y = new Date(Date.now() + 9 * 3600_000).getFullYear()
-  const years = [y, y + 1]
-  const hd = await loadHolidaySet(admin, years[0])
-  const anchorDay = anchorDayOf(anchor.date)
-  const slots = desiredSlotsFor(anchor.date, input.inspection_sub_type)
-  const rows: NewScheduleRow[] = []
-  for (const year of years) {
-    // 해를 넘긴 2차는 **전 해 주기의 것**이라 계획 첫 해에는 없다 — 실행(생성기·재배치)과 같은
-    // 규칙을 써야 한다. 여기서 그냥 펴면 미리보기가 **생기지도 않을 일정**을 약속한다.
-    for (const s of desiredSlotsInYear(slots, year, years[0])) {
-      const date = plannedDateFor(year, s.month, anchorDay, hd)
-      const daysInMo = new Date(year, s.month, 0).getDate()
-      const naive = `${year}-${String(s.month).padStart(2, '0')}-${String(Math.min(anchorDay, daysInMo)).padStart(2, '0')}`
-      rows.push({ year, month: s.month, planType: s.planType, date, shiftedFrom: date === naive ? null : naive })
-    }
-  }
-  rows.sort((a, b) => a.date < b.date ? -1 : 1)
-  // 과거·오늘 점검일자는 1차(가장 이른 회차)를 그 날짜로 즉시 시작한다 — 미리보기 행도 같은
-  // 날짜를 말해야 한다(applyPastAnchorInspection이 고르는 「planned가 가장 이른 미시작 회차」와
-  // 정렬 첫 행이 같은 대상이다). 법정 자리 안내는 shiftedFrom으로 남긴다.
-  if (pastAnchorStart && rows.length > 0 && rows[0].date !== pastAnchorStart) {
-    rows[0] = { ...rows[0], shiftedFrom: null, date: pastAnchorStart }
-  }
-  // 최초점검 창은 **종합 대상 + 사용승인일이 있을 때만** 의미가 있다(planFrom과 같은 규칙)
-  const today = new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10)
-  let initialDue: string | null = null
-  if (input.inspection_sub_type === '종합' && input.use_approval_date) {
-    const t = Date.UTC(+input.use_approval_date.slice(0, 4), +input.use_approval_date.slice(5, 7) - 1,
-      +input.use_approval_date.slice(8, 10)) + INITIAL_INSPECTION_DAYS * 86_400_000
-    const due = new Date(t).toISOString().slice(0, 10)
-    if (due >= today) initialDue = due
-  }
-  return { preview: { ...base, rows, initialDue } }
 }
 
 /** 저장 **전** 미리보기 — 사용승인일·점검계획일·점검종류를 바꾸면 계획이 어떻게 되는지.
