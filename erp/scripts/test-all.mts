@@ -408,6 +408,7 @@ const steps: Step[] = [
   // 절대 안 잡히는 축이라 별도 스위트로 둔다.
   { name: '완료보고서 8칸 주입 왕복',   cmd: 'npx tsx --conditions=react-server scripts/test-done-sheet-inject.mts' },
   { name: '위임장·계획서 날짜 = 미리보기', cmd: 'npx tsx --conditions=react-server scripts/test-delegation-plan-date.mts' },
+  { name: '기저 시트 제거(다수동) 재번호', cmd: 'npx tsx --conditions=react-server scripts/test-remove-base-sheets.mts' },
   // ⑥ 완료일을 **손으로 치지 않게** 한 뒤(2026-09-10 사용자 결정) 그 파생 규칙을 고정한다.
   // 등재 이유: 이 축의 회귀는 **화면상 아무 문제가 없어 보인다** — 폴백이 오늘로 떨어져도 체크는
   // 잘 되고, 근거 없는 날짜가 별지 11호 「이행조치 일자」에 그럴듯하게 찍힐 뿐이다. 그리고 위 두

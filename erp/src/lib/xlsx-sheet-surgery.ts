@@ -5,9 +5,10 @@
  *  파트는 바이트 그대로라(JSZip 패치 철학, D-1) 서식·병합·인쇄여백이 구성적으로 보존된다.
  *
  *  ⚠ definedNames의 localSheetId는 <sheets> 목록의 **순서 인덱스**다 — 앞쪽 시트를 빼면
- *  뒤쪽 이름들이 전부 한 칸씩 밀린다. 이 함수는 도너 시트(빌드가 기저 26시트 **뒤에**
- *  덧붙인 것) 제거 전용으로 쓴다: 도너에는 definedName이 없고, 도너 제거는 기저 시트의
- *  인덱스를 움직이지 않는다. 기저 시트 제거에 쓰려면 localSheetId 재번호가 선행이다. */
+ *  뒤쪽 이름들이 전부 한 칸씩 밀린다. 그래서 제거마다 **그 시트 소속 이름은 지우고, 뒤쪽은
+ *  한 칸 당긴다**(단일 패스). 2026-10-06 기저 시트(「다수동일때」 3번·「다수동」 6번) 제거가
+ *  생기며 넣었다 — 종전엔 도너(기저 26시트 **뒤**, definedName 0) 전용이라 재번호가 필요 없었고,
+ *  도너 제거에는 지금도 재번호 대상이 0건이다(동작 불변). */
 import JSZip from 'jszip'
 
 const escRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
@@ -26,6 +27,19 @@ export async function removeSheets(
   for (const name of names) {
     const sm = new RegExp(`<sheet[^>]*name="${escRe(name)}"[^>]*r:id="(rId\\d+)"[^>]*/>`).exec(wbXml)
     if (!sm) throw new Error(`제거 대상 시트 미발견: ${name}`)
+    // localSheetId 재번호 — 지우기 **전** 인덱스로, definedNames 블록만 잘라 단일 패스
+    const idx = [...wbXml.matchAll(/<sheet\s[^>]*\/>/g)].findIndex(m => m[0] === sm[0])
+    const dn = /<definedNames>[\s\S]*?<\/definedNames>/.exec(wbXml)
+    if (dn && idx >= 0) {
+      const fixed = dn[0]
+        .replace(/<definedName\b[^>]*\blocalSheetId="(\d+)"[^>]*?(?:\/>|>[\s\S]*?<\/definedName>)/g,
+          (el, n: string) => {
+            const v = Number(n)
+            if (v === idx) return ''                                   // 지운 시트 소속 — 함께 제거
+            return v > idx ? el.replace(/\blocalSheetId="\d+"/, `localSheetId="${v - 1}"`) : el
+          })
+      wbXml = wbXml.slice(0, dn.index) + fixed.replace(/<definedNames>\s*<\/definedNames>/, '') + wbXml.slice(dn.index + dn[0].length)
+    }
     const rid = sm[1]
     const tm = new RegExp(`<Relationship[^>]*Id="${rid}"[^>]*Target="([^"]+)"[^>]*/>`).exec(relsXml)
     if (!tm) throw new Error(`제거 대상 rels 미발견: ${name} (${rid})`)
