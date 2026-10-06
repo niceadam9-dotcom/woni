@@ -16,7 +16,7 @@ const MUTANTS = [
   // ── ① 건너뛰기: 원래 결함이 되살아나는 갈래들 ──
   { name: 'M1 건물 단계를 건너뛴다 — 원래 결함의 재발',
     file: LIB, from: "  if (!s.buildings) return 'buildings'",
-    to: '  // removed', expect: '둘 다 비면 건물·시설부터' },
+    to: '  // removed', expect: '둘 다 비면 건물정보부터' },
   { name: 'M2 관계인 단계를 건너뛴다 — 대표 없이 계획서로',
     file: LIB, from: "  if (!s.contacts) return 'contacts'",
     to: '  // removed', expect: '건물이 찼으면 관계인으로' },
@@ -59,8 +59,8 @@ const MUTANTS = [
 
   // ── ④ 띠 표시 ──
   { name: 'M11 「지금」이 여러 칸 — 어디로 가야 할지 알 수 없다',
-    file: LIB, from: "    { key: 'buildings', label: '건물·시설', done: s.buildings, current: next === 'buildings', gate: true },",
-    to: "    { key: 'buildings', label: '건물·시설', done: s.buildings, current: true, gate: true },",
+    file: LIB, from: "    { key: 'buildings', label: '건물정보', done: s.buildings, current: next === 'buildings', gate: true },",
+    to: "    { key: 'buildings', label: '건물정보', done: s.buildings, current: true, gate: true },",
     // 🚨 종전 기대는 「한 상태만」 재던 단언이라 이 변이가 **살아남았다**(그 표본에선 동등 변이).
     //    검사를 네 상태 전수로 고치고 나서야 물었다.
     expect: '「지금」은 **네 상태 전부** 정확히 하나' },
@@ -75,8 +75,8 @@ const MUTANTS = [
 
   // ── ⑤ 배선: 규칙 두 벌 / 차단 금지 ──
   { name: 'M14 탭 ⚠가 제 손으로 다시 센다 — 규칙이 두 벌이 된다',
-    file: PAGE, from: "    { key: 'buildings', label: '건물·시설', warn: !obState.buildings },",
-    to: "    { key: 'buildings', label: '건물·시설', warn: !(buildings.filter(b => b.is_active).length > 0) },",
+    file: PAGE, from: "    { key: 'buildings', label: '건물정보', warn: !obState.buildings },",
+    to: "    { key: 'buildings', label: '건물정보', warn: !(buildings.filter(b => b.is_active).length > 0) },",
     expect: '건물 탭 ⚠가 **그 값**을 쓴다' },
   { name: 'M15 탭을 잠근다 — 실측 96.7%가 소방계획서에서 막힌다(사용자 결정 위반)',
     file: SHELL, from: '                onClick={() => switchTab(t.key)}',

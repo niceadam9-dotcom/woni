@@ -31,7 +31,7 @@ export const FIRE_PLAN_CHIP_TARGET: Record<string, FirePlanChipTarget> = {
 /** 칩에 찍을 짧은 글씨 */
 export const FIRE_PLAN_CHIP_LABEL: Record<FirePlanChipTarget, string> = {
   // 1.1은 [공통] 탭으로 이사했다(2026-09-20 3분리) — 칩도 그리로 보낸다. 송달 동의는 1.1 하단.
-  buildings: '건물·시설 탭',
+  buildings: '건물정보 탭',
   info: '기본정보 탭',
   form11: '공통 탭 > 1.1 일반현황',
   ch2: '2장 자위소방대',

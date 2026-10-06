@@ -325,7 +325,7 @@ export default async function CustomersPage({
                             + 2026-09-16: 소방계획서 문서 바로가기 2개(엑셀·PDF). 종전에는 계획서 탭으로
                             들어가야만 받을 수 있었다. 탭 아이콘 바로 뒤에 두어 「계획서」 셋이 붙어 있게 한다. */}
                         <div className="flex items-center gap-1.5">
-                          <Link href={detailHref(c.id, 'buildings')} title="건물·시설 탭"
+                          <Link href={detailHref(c.id, 'buildings')} title="건물정보 탭"
                             className={`relative p-1 rounded hover:bg-brand-tint ${bldIncomplete ? 'text-amber-500' : 'text-ink-faint hover:text-brand'}`}>
                             <Building2 className="size-3.5" />
                             {bldIncomplete && <span className="absolute -top-0.5 -right-0.5 size-1.5 rounded-full bg-amber-500" />}

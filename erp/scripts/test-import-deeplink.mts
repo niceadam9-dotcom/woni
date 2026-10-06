@@ -66,7 +66,7 @@ try {
   check('누락 칩 = 클릭 가능 버튼', true)
   await page.click('button:has-text("높이 ↗")')
   await page.waitForURL(u => u.searchParams.get('tab') === 'buildings')
-  check('건물값 칩 → 건물·시설 탭 이동', true)
+  check('건물값 칩 → 건물정보 탭 이동', true)
 
   await page.goto(`${BASE}/customers/${custId}?tab=plan`)
   await page.waitForSelector('button:has-text("수신기위치 ↗")')

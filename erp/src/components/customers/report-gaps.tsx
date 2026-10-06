@@ -21,7 +21,7 @@ export function useReportGaps() {
 }
 
 export const REPORT_TAB_LABEL: Record<ReportInputTab, string> = {
-  info: '기본정보', buildings: '건물·시설', contacts: '관계인', facilities: '공통', reports: '보고서',
+  info: '기본정보', buildings: '건물정보', contacts: '관계인', facilities: '공통', reports: '보고서',
 }
 
 export function ReportGapsProvider({ customerId, returnHref = '', enabled = true, renderedAt, children }: {

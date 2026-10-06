@@ -27,11 +27,11 @@ try {
   const chipLabel = (await chip.textContent() ?? '').replace('↗', '').trim()
   check('누락 칩 노출', !!chipLabel, chipLabel)
 
-  // 2) 건물값 칩 클릭 → 건물·시설 탭으로 실제 전환 (버그 시 무반응)
+  // 2) 건물값 칩 클릭 → 건물정보 탭으로 실제 전환 (버그 시 무반응)
   const bChip = page.locator('button:has-text("층수 ↗"), button:has-text("높이 ↗"), button:has-text("연면적 ↗")').first()
   await bChip.click()
-  await page.waitForSelector('[role=tab][aria-selected="true"]:has-text("건물·시설")', { timeout: 15000 })
-  check('칩 클릭 → 건물·시설 탭 전환', true)
+  await page.waitForSelector('[role=tab][aria-selected="true"]:has-text("건물정보")', { timeout: 15000 })
+  check('칩 클릭 → 건물정보 탭 전환', true)
   const urlOk = await page.waitForFunction(() => window.location.search.includes('tab=buildings'), null, { timeout: 15000 })
     .then(() => true).catch(() => false)
   check('URL tab=buildings 반영', urlOk, page.url())
@@ -54,7 +54,7 @@ try {
   // 4) 다른 탭에서 전체 이동 <a> 케이스 — 건물 탭 안내 링크가 [공통] 탭으로 간다
   //    (2026-09-20 탭 재편: 구 ?tab=plan&form=1.4 안내가 ?tab=facilities로 정본화 — 구 URL 변환은 _probe-annex-tab ②)
   await page.evaluate(() => { (window as unknown as { next?: { router?: unknown } }).next; history.scrollRestoration = 'auto' })
-  await page.locator('[role=tab]:has-text("건물·시설")').click()
+  await page.locator('[role=tab]:has-text("건물정보")').click()
   await page.waitForTimeout(300)
   const link = page.locator('a[href*="tab=facilities"]').first()
   if (await link.count() > 0) {

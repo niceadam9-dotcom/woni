@@ -50,7 +50,7 @@ const COVERAGE_FLOOR: Record<string, number> = {
   '점검표 드로어(열림)': 270,
   // S7-1 5차 신설 — 실측(라이트·다크 동수)에서 약 12% 내린 값. 고객 화면군은 탭마다
   // 붙는 컴포넌트가 달라, 탭이 덜 그려지면 그 탭의 사각지대가 통째로 '개선'으로 보인다.
-  '고객 등록': 95, '고객 기본정보': 80, '고객 건물·시설': 62, '고객 관계인': 88,
+  '고객 등록': 95, '고객 기본정보': 80, '고객 건물정보': 62, '고객 관계인': 88,
   '고객 소방계획서': 140, '고객 별지서식': 175, '고객 청구·수금': 80,
 }
 /* S1-5 채취 2026-08-30 (소스 무변경 · dev :3000 · 뷰포트 1600×1000 · 9라우트 × 2모드).
@@ -333,7 +333,7 @@ try {
       //    (risk_same_path_tab_link) 측정 대상이 안 바뀔 수 있다. page.goto는 전체 이동이라 안전.
       ['/customers/new', '고객 등록'],
       [`/customers/${cust}?tab=info`, '고객 기본정보'],
-      [`/customers/${cust}?tab=buildings`, '고객 건물·시설'],
+      [`/customers/${cust}?tab=buildings`, '고객 건물정보'],
       [`/customers/${cust}?tab=contacts`, '고객 관계인'],
       [`/customers/${cust}?tab=plan`, '고객 소방계획서'],
       [`/customers/${cust}?tab=annex`, '고객 별지서식'],

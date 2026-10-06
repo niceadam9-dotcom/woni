@@ -66,7 +66,7 @@ export function PlanForm12({ customerId, canManage, initialZones, initialHazards
   function autoFloors() {
     const fa = floorsAbove ?? 0
     const fb = floorsBelow ?? 0
-    if (fa + fb === 0) { setMsg('⚠ 건물 층수가 없습니다 — 건물·시설 탭에서 층수를 먼저 입력해주세요.'); return }
+    if (fa + fb === 0) { setMsg('⚠ 건물 층수가 없습니다 — 건물정보 탭에서 층수를 먼저 입력해주세요.'); return }
     // 덮어쓰기 경고 — 입력분이 있는데 경고 없이 날아가던 문제(2026-08-06)
     const hasInput = zones.some(z => Object.values(z).some(v => String(v).trim()))
     if (hasInput && !window.confirm('입력한 구역 내용이 새 층 목록으로 모두 대체됩니다. 계속할까요?')) return

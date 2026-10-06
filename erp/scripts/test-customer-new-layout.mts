@@ -65,7 +65,7 @@ console.log('\n— ② 등록 화면 = 세 그룹 상자, 이 순서')
   const { missing, bad } = inOrder(jsx, [
     ['① 기본정보', 'title="기본정보"'], ['고객명', 'id="new-customer-name"'], ['담당직원', 'id="new-assignee"'],
     ['사용승인일', 'id="new-use-approval"'], ['점검일자', 'id="new-anchor-date"'], ['점검유형', 'name="inspection_category"'],
-    ['주소', 'id="new-address"'], ['② 건물·시설', 'title="건물·시설"'], ['건물용도', 'ariaLabel="건물용도"'],
+    ['주소', 'id="new-address"'], ['② 건물정보', 'title="건물정보"'], ['건물용도', 'ariaLabel="건물용도"'],
     ['③ 관계인', 'title="관계인"'], ['대표', 'id="contact-대표-name"'], ['비고', 'id="new-notes"'], ['하단 바', 'data-testid="new-submit-bar"'],
   ])
   ok('표식이 전부 있다', missing.length === 0, missing.join(', '))
@@ -168,7 +168,7 @@ console.log('\n— ⑥ 기본정보 탭')
     })())
 }
 
-console.log('\n— ⑦ 건물·시설 탭 (「기본정보처럼」)')
+console.log('\n— ⑦ 건물정보 탭 (「기본정보처럼」)')
 {
   const bld = read('../src/components/customers/building-inline-panel.tsx')
   ok('★ 그룹 상자 · 제목은 「건물정보」 그대로(§10-2 ③)', /<GroupBox n=\{2\} title="건물정보" testId="building-group"/.test(bld))

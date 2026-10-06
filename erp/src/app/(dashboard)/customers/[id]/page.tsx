@@ -437,7 +437,7 @@ export default async function CustomerDetailPage({
   const tabDefs: CustomerTabDef[] = [
     // extra = 보고서 엑셀 빈칸 수(2026-09-23) — 화면이 뜬 뒤 /report-gaps가 채운다. ⚠는 등록 기본 축, 이 수는 보고서 축
     { key: 'info', label: '기본정보', warn: !customer.plan_anchor_date || !customer.assigned_employee_id, extra: <ReportGapCount tabKey="info" /> },
-    { key: 'buildings', label: '건물·시설', warn: !obState.buildings, extra: <ReportGapCount tabKey="buildings" /> },
+    { key: 'buildings', label: '건물정보', warn: !obState.buildings, extra: <ReportGapCount tabKey="buildings" /> },
     { key: 'contacts', label: '관계인', badge: `(${contacts.length})`, warn: !obState.contacts, extra: <ReportGapCount tabKey="contacts" /> },
     // ── 소방계획서 3분리 구간 (2026-09-20 사용자 확정): 순서도 사용자 지정 — 공통 → 보고서 → 소방계획서 → 회차
     //    (2026-09-21 사용자 지시로 회차를 소방계획서 **뒤**로 옮겼다 — 종전: 공통 → 보고서 → 회차 → 소방계획서).

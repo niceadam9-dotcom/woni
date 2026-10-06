@@ -72,10 +72,10 @@ try {
   const emptyMsg = await page.locator('[data-combo-list]').innerText().catch(() => '')
   check('목록 0건이면 저장된다는 안내가 뜬다', emptyMsg.includes('입력한 그대로'), emptyMsg.slice(0, 60))
 
-  // ── 5. 건물·시설 탭에도 같은 콤보 + 저장까지 살아남는가 ───────────────────
+  // ── 5. 건물정보 탭에도 같은 콤보 + 저장까지 살아남는가 ───────────────────
   //  저장 검증은 고객 등록 폼(필수 4칸)이 아니라 건물 패널(건물명·건축허가일 필수, 그나마 자동 채움)로
   //  한다 — 확인하려는 것은 '목록 밖 값이 DB까지 가는가'이지 등록 폼의 필수 검증이 아니다.
-  console.log('— 5. 건물·시설 탭 + 저장 후 DB 확인')
+  console.log('— 5. 건물정보 탭 + 저장 후 DB 확인')
   custId = await mkCustomer({ customer_name: `ZZ콤보탭${Math.random().toString(36).slice(2, 6)}`, created_by: userId })
   await page.goto(`${BASE}/customers/${custId}?tab=buildings`)
   await page.waitForLoadState('networkidle')
@@ -88,10 +88,10 @@ try {
   await combo2.waitFor({ state: 'visible', timeout: 15000 }).catch(async () => {
     await page.screenshot({ path: 'scripts/_shots/combo-tab-fail.png', fullPage: true })
   })
-  check('건물·시설 탭에 용도 콤보가 있다', await combo2.count() > 0)
+  check('건물정보 탭에 용도 콤보가 있다', await combo2.count() > 0)
   await combo2.click()
   await page.locator('[data-combo-list]').waitFor({ state: 'visible', timeout: 8000 })
-  check('건물·시설 탭 용도 칸도 눌러서 펼쳐진다',
+  check('건물정보 탭 용도 칸도 눌러서 펼쳐진다',
     await page.locator('[data-combo-option]').count() === purposes.length)
 
   await combo2.fill(NOVEL)

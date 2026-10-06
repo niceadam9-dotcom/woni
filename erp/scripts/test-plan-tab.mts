@@ -204,7 +204,7 @@ try {
   await page.waitForSelector('text=① 시설현황')
   check('1.1 섹션 카드 ①②③', await page.isVisible('text=② 운영현황') && await page.isVisible('text=③ 화재보험'))
   // 건물 축은 여전히 1.1에 있다 — 단 계단은 **읽기 전용**이 됐다(2026-09-16 마이그 165, 8617cfcb:
-  // stairs_count는 직통+피난 **파생**이고 입력구는 건물·시설 탭 하나). 종전 「계단 fill → stairs_count=2」
+  // stairs_count는 직통+피난 **파생**이고 입력구는 건물정보 탭 하나). 종전 「계단 fill → stairs_count=2」
   // 단언은 그 구계약이라 갈아끼운다 — 손입력 부재 + 안내 버튼이 새 계약이다.
   check('1.1 — 계단은 읽기 전용 표시(파생 축, 손입력 없음)',
     await page.isVisible('[data-testid="fp-stairs-readonly"]')
@@ -368,9 +368,9 @@ try {
   // ── 4.6) 서식 1.5·1.6·1.7 (P4-③) — 저장·DB 반영 ──
   await page.click('button:has-text("1.5 피난·방화")')
   await page.waitForSelector('text=1.5.1 피난·방화시설 일반현황')
-  // 계단은 읽기 전용이 됐다(2026-09-16 마이그 165, 8617cfcb — 원천은 건물·시설 탭 하나).
+  // 계단은 읽기 전용이 됐다(2026-09-16 마이그 165, 8617cfcb — 원천은 건물정보 탭 하나).
   // 종전 「직통계단 토글 → sections.evacFire.stairs 저장」 단언은 그 구계약이라 갈아끼운다.
-  check('1.5 — 계단 토글 없음(읽기 전용 — 원천은 건물·시설 탭)',
+  check('1.5 — 계단 토글 없음(읽기 전용 — 원천은 건물정보 탭)',
     (await page.locator('button:has-text("직통계단")').count()) === 0)
   await page.click('button:has-text("해당없음")') // 방화구획 해당없음 원클릭
   await page.click('button:has-text("서식 1.5 저장")')
@@ -618,7 +618,7 @@ try {
     await page.locator('[data-testid="specs-footer-status"]').textContent()
       .then(t => (t ?? '').includes('모든 변경이 저장됐습니다')))
 
-  // 건물·시설 탭 — 패널 이동 안내 (2026-09-20 목적지가 [공통] 탭으로 바뀜)
+  // 건물정보 탭 — 패널 이동 안내 (2026-09-20 목적지가 [공통] 탭으로 바뀜)
   await page.goto(`${BASE}/customers/${customerId}?tab=buildings`)
   await page.waitForSelector('text=소방시설 현황 입력은')
   check('건물 탭 — 시설현황 이동 안내가 [공통] 탭을 가리킨다',

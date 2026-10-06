@@ -145,7 +145,7 @@ export function PlanForm15({ customerId, canManage, initialEvacFire, initialMaps
           })}
           <button type="button" onClick={() => tabs?.goTab('buildings')}
             className="text-form-xs text-brand underline underline-offset-2 hover:text-brand-strong">
-            건물·시설 탭에서 수정
+            건물정보 탭에서 수정
           </button>
         </div>
         {/* 기타 피난시설 */}

@@ -632,7 +632,7 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
       </GroupBox>
 
       {/* ② 건물·시설 — 주소 검색이 건축물대장에서 채워 준 값을 여기서 확인·보정한다(V9-3). */}
-      <GroupBox n={2} title="건물·시설" testId="new-group-building"
+      <GroupBox n={2} title="건물정보" testId="new-group-building"
         right={ledgerNote.startsWith('건축물대장 자동') ? <span className="text-form-2xs text-green-700 bg-green-50 px-2 py-0.5 rounded-full">건축물대장 자동 채움</span> : undefined}>
         <SubRow label="건물">
           <Cell span={2} label="건물용도">

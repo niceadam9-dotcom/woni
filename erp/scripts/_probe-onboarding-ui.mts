@@ -50,18 +50,18 @@ try {
   const activeTab = async () =>
     (await page.locator('[role="tab"][aria-selected="true"]').innerText()).replace(/[\s⚠()0-9/.-]+/g, '')
 
-  // ── ① 미완 고객: 띠가 뜨고 건물·시설에서 시작 ──
+  // ── ① 미완 고객: 띠가 뜨고 건물정보에서 시작 ──
   await page.goto(`${BASE}/customers/${incomplete.id}?created=1&onboarding=1`)
   check('전제: 탭 목록이 렌더됐다', await waitTabs())
   check('🎯 띠가 뜬다', (await page.locator('[data-testid="onboarding-strip"]').count()) === 1)
   const t1 = await activeTab()
   // 🚨 기댓값에서 가운뎃점을 빼지 말 것 — 위 정규화는 `·`(U+00B7)를 안 걷는다(문자클래스의 `.`은 리터럴).
   //    처음에 '건물시설'로 적어 **제품이 맞는데 빨갛게** 떴다. 계측기부터 의심할 것.
-  check('🎯 첫 미완 탭(건물·시설)에서 시작한다 — 종전엔 소방계획서로 직행했다', t1 === '건물·시설', t1)
+  check('🎯 첫 미완 탭(건물정보)에서 시작한다 — 종전엔 소방계획서로 직행했다', t1 === '건물정보', t1)
   const hint = await page.locator('[data-testid="onboarding-hint"]').innerText()
   check('🎯 무엇이 비었는지 말한다', /용도|연면적|건물을/.test(hint), hint)
   const cur = await page.locator('[data-testid="onboarding-step-buildings"]').getAttribute('data-state')
-  check('띠의 「지금」이 건물·시설', cur === 'current', String(cur))
+  check('띠의 「지금」이 건물정보', cur === 'current', String(cur))
   check('기본정보는 ✓', (await page.locator('[data-testid="onboarding-step-info"]').getAttribute('data-state')) === 'done')
 
   // ── ② [다음]이 화면을 실제로 옮기는가 ──

@@ -42,7 +42,7 @@ console.log('— ① 탭 묶기 — 고객 축만, 목적지대로')
     '전년도(2025) 소방훈련 실적 없음 — 2쪽 교육훈련 칸 공란(서식 1.11.4 기록부 입력 또는 보고서 탭 「전년도 업무 실시사항」 확정)',
   ])
   ok('기본정보 = 주소·사용승인일·관할 소방서 (3)', g.info.map(x => x.short).join('|') === '주소|사용승인일|관할 소방서 없음', JSON.stringify(g.info))
-  ok('건물·시설 = 건축허가일', g.buildings.length === 1 && g.buildings[0].short === '건축허가일')
+  ok('건물정보 = 건축허가일', g.buildings.length === 1 && g.buildings[0].short === '건축허가일')
   ok('관계인 = 교육이수일', g.contacts.length === 1 && g.contacts[0].short === '소방안전관리자 최근 교육이수일 미입력')
   ok('★ 공통 = 송달 동의·급수(1.1) + 설비 대장(1.4)', g.facilities.length === 3
     && g.facilities.filter(x => x.target === 'common11').length === 2

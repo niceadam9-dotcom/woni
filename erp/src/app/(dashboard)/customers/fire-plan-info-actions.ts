@@ -187,7 +187,7 @@ export async function refreshLedgerAction(
   const { data: bld } = await admin.from('buildings')
     .select('*').eq('customer_id', customerId).eq('is_active', true)
     .order('created_at', { ascending: true }).limit(1).maybeSingle()
-  if (!bld) return { error: '등록된 건물이 없습니다 — 건물·시설 탭에서 먼저 등록해주세요.' }
+  if (!bld) return { error: '등록된 건물이 없습니다 — 건물정보 탭에서 먼저 등록해주세요.' }
   const stored = bld as Record<string, unknown>
 
   let useBcode = bcode || (stored.bcode as string | null) || ''
@@ -281,7 +281,7 @@ export async function previewLedgerAction(customerId: string): Promise<{
   const { data: bld } = await admin.from('buildings')
     .select('*').eq('customer_id', customerId).eq('is_active', true)
     .order('created_at', { ascending: true }).limit(1).maybeSingle()
-  if (!bld) return { error: '등록된 건물이 없습니다 — 건물·시설 탭에서 먼저 등록해주세요.' }
+  if (!bld) return { error: '등록된 건물이 없습니다 — 건물정보 탭에서 먼저 등록해주세요.' }
   const stored = bld as Record<string, unknown>
 
   // B안: 저장 bcode 없으면 주소로 지오코딩·백필 후 진행 (주소창 1회 확인 불필요)

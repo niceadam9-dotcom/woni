@@ -294,8 +294,8 @@ export function FirePlanInfoPanel({ customerId, initial, people }: {
             <span className="text-amber-600 font-normal">
               (건물 미등록 —{' '}
               {tabs ? (
-                <button onClick={() => tabs.goTab('buildings')} className="underline hover:text-amber-700">건물·시설 탭에서 등록</button>
-              ) : '건물·시설 탭에서 먼저 등록'})
+                <button onClick={() => tabs.goTab('buildings')} className="underline hover:text-amber-700">건물정보 탭에서 등록</button>
+              ) : '건물정보 탭에서 먼저 등록'})
             </span>
           )}</p>
           <div className="flex flex-wrap gap-2 items-end">

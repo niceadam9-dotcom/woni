@@ -84,7 +84,7 @@ export function onboardingSteps(s: OnboardingState): OnboardingStep[] {
   const next = nextOnboardingTab(s)
   return [
     { key: 'info', label: '기본정보', done: true, current: false, gate: false },
-    { key: 'buildings', label: '건물·시설', done: s.buildings, current: next === 'buildings', gate: true },
+    { key: 'buildings', label: '건물정보', done: s.buildings, current: next === 'buildings', gate: true },
     { key: 'contacts', label: '관계인', done: s.contacts, current: next === 'contacts', gate: true },
     { key: 'plan', label: '소방계획서', done: onboardingComplete(s), current: next === 'plan', gate: true },
   ]

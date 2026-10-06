@@ -525,7 +525,7 @@ export function PlanForm14({ customerId, buildings, canManage, canRegister = fal
   function autoFloors() {
     const fa = b?.floorsAbove ?? 0
     const fb = b?.floorsBelow ?? 0
-    if (fa + fb === 0) { setMsg('⚠ 건물 층수가 없습니다 — 건물·시설 탭에서 층수를 먼저 입력해주세요.'); return }
+    if (fa + fb === 0) { setMsg('⚠ 건물 층수가 없습니다 — 건물정보 탭에서 층수를 먼저 입력해주세요.'); return }
     const rows: FloorRow[] = []
     for (let i = fb; i >= 1; i--) rows.push({ floor_label: `지하${i}층`, sort_order: rows.length, counts: {} })
     for (let i = 1; i <= fa; i++) rows.push({ floor_label: `${i}층`, sort_order: rows.length, counts: {} })
@@ -606,7 +606,7 @@ export function PlanForm14({ customerId, buildings, canManage, canRegister = fal
   }, [])
 
   if (!b) {
-    return <p className="text-form-base text-ink-sub py-6 text-center">등록된 활성 건물이 없습니다 — 건물·시설 탭에서 먼저 등록해주세요.</p>
+    return <p className="text-form-base text-ink-sub py-6 text-center">등록된 활성 건물이 없습니다 — 건물정보 탭에서 먼저 등록해주세요.</p>
   }
 
   const installedCount = stdCodes.filter(c => fac[c].installed).length

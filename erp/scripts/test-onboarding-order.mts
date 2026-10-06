@@ -1,4 +1,4 @@
-/** 신규등록 순서 검사 (2026-09-15) — 기본정보 → 건물·시설 → 관계인 → 소방계획서.
+/** 신규등록 순서 검사 (2026-09-15) — 기본정보 → 건물정보 → 관계인 → 소방계획서.
  *
  *  이 축이 겨누는 사고는 둘이다:
  *   ① **건너뛰기** — 종전 `?tab=plan` 직행이 건물·관계인을 통째로 지나쳤다(원래 결함).
@@ -27,7 +27,7 @@ const REP = [{ role: '대표' }]
 console.log('── 1) 순서 — 첫 미완으로 간다')
 {
   ok(nextOnboardingTab({ buildings: false, contacts: false }) === 'buildings',
-    '🎯 둘 다 비면 건물·시설부터')
+    '🎯 둘 다 비면 건물정보부터')
   ok(nextOnboardingTab({ buildings: false, contacts: true }) === 'buildings',
     '🎯 건물이 비면 관계인이 찼어도 건물부터(순서를 건너뛰지 않는다)')
   ok(nextOnboardingTab({ buildings: true, contacts: false }) === 'contacts',
@@ -93,7 +93,7 @@ console.log('\n── 4) 관계인 완성도 · 진행 띠 · 문구')
   ok(steps.find(s => s.key === 'contacts')?.done === true, '이미 찬 칸은 ✓로 남는다')
   /* 라벨이 탭 라벨과 글자까지 같아야 사용자가 띠와 탭을 같은 것으로 읽는다 */
   const page = readFileSync(path.join(import.meta.dirname, '..', 'src/app/(dashboard)/customers/[id]/page.tsx'), 'utf8')
-  for (const [key, label] of [['buildings', '건물·시설'], ['contacts', '관계인'], ['plan', '소방계획서']] as const) {
+  for (const [key, label] of [['buildings', '건물정보'], ['contacts', '관계인'], ['plan', '소방계획서']] as const) {
     ok(onboardingSteps({ buildings: true, contacts: true }).find(s => s.key === key)?.label === label
       && new RegExp(`key: '${key}', label: '${label}'`).test(page),
       `🎯 「${label}」 라벨이 띠와 탭에서 같다`)
@@ -121,7 +121,7 @@ console.log('\n── 5) 배선 — 규칙이 한 벌인가, 그리고 차단이
      문자열 존재만 묻지 않고 **tabDefs가 obState를 쓰는지**를 본다. */
   ok(/const obState = \{ buildings: buildingsDone\(buildings\), contacts: contactsDone\(contacts\) \}/.test(page),
     '🎯 완성도를 한 번만 계산한다(obState)')
-  ok(/key: 'buildings', label: '건물·시설', warn: !obState\.buildings/.test(page),
+  ok(/key: 'buildings', label: '건물정보', warn: !obState\.buildings/.test(page),
     '🎯 건물 탭 ⚠가 **그 값**을 쓴다(제 손으로 다시 세지 않는다)')
   ok(/key: 'contacts',[^\n]*warn: !obState\.contacts/.test(page),
     '🎯 관계인 탭 ⚠가 **그 값**을 쓴다')
