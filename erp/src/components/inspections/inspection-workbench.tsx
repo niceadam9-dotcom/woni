@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom'
 import NextLink from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
-  AlertTriangle, Check, CheckCircle2, ChevronLeft, ChevronRight, Circle, ExternalLink,
+  AlertTriangle, CheckCircle2, ChevronLeft, ChevronRight, Circle, ExternalLink,
   FileText, Loader2, Maximize2, MessageSquare, Package, RotateCcw, Send, X,
 } from 'lucide-react'
 import {
@@ -15,7 +15,7 @@ import {
 import { getAnnexInputsAction, saveAnnexInputsAction, getAnnexAutoDefaultsAction, getAnnexDutySummaryAction } from '@/app/(dashboard)/customers/facility-spec-actions'
 import {
   sendOwnerReportAction, recordSubmissionAction, downloadPackageAction,
-  forceCompleteStepAction, undoForceCompleteStepAction, recordOwnerReportOfflineAction, undoOwnerReportOfflineAction,
+  undoForceCompleteStepAction, recordOwnerReportOfflineAction, undoOwnerReportOfflineAction,
   markCertReportedAction,
 } from '@/app/(dashboard)/inspections/timeline-actions'
 import { updateInspectionMultidayAction } from '@/app/(dashboard)/inspections/actions'
@@ -365,10 +365,6 @@ export function InspectionWorkbench({
     return TIMELINE_STEP_LABELS[k]
   }
 
-  /** ⑤ [사유 완료]를 감추는 구간 (소방계획서_45 R-3) — 미등록 ✕가 있으면 판정이 그 완료를
-   *  무효로 돌린다(isForced5Void). 버튼을 남겨두면 **눌러도 아무 일도 일어나지 않는** 것처럼
-   *  보이므로 아예 내리고, 위 ⑤ 배너의 [① 점검표에서 불량 등록하기]가 유일한 출구가 되게 한다. */
-  const force5Blocked = (k: StepKey) => xUnregistered && STEP_NUM[k] === 5
 
   /** 연·월·일에서 `MM-DD`만 — 연도는 헤더(「2026년 1차」)가 이미 말한다. 스텝바는 6칸이 가로로
    *  늘어서는 자리라 네 글자를 아끼는 것이 곧 줄바꿈을 막는 일이다. */
@@ -528,20 +524,6 @@ export function InspectionWorkbench({
       document.body.appendChild(a); a.click(); document.body.removeChild(a)
     })
   }
-  function forceComplete(k: StepKey) {
-    const st = stepOf(k)
-    if (!st) return
-    const reason = window.prompt(`${TIMELINE_STEP_LABELS[k]} — 증거 없이 완료하는 사유를 남겨주세요.`)?.trim()
-    if (!reason) return
-    setCompleting(st.id)
-    startTransition(async () => {
-      const res = await forceCompleteStepAction(inspectionId, st.step_num, reason)
-      setCompleting(null)
-      if (res.error) { setMsg(`❌ ${res.error}`); return }
-      setMsg('✅ 사유와 함께 완료 처리했습니다.')
-      // 액션의 revalidatePath가 화면을 갱신한다 — 중복 refresh 제거(2026-10-01)
-    })
-  }
 
   /** D1: 사유 완료 철회 — 마커는 append-only라 지우지 않고 반대 마커를 남긴다 */
   function undoForce(k: StepKey) {
@@ -627,7 +609,8 @@ export function InspectionWorkbench({
        기한·점검기간과 [기간 고치기]는 의미가 같은 자리인 「소방서 제출일」 옆으로 옮겼다.
      ⚠ 조정치 배열의 길이는 이 칸 수와 같아야 한다 — 저장값도 칸 수별로 따로 보관한다. */
   // ②도 2칸(2026-10-06 사용자 지시 — 협회 입력값·배치 요약 칸 폐지): 참여 인력 | 배치신고
-  const stepKind: PaneKind = sel === 'submit9' || sel === 'cert' ? 'duo'
+  // ③도 2칸(2026-10-06 사용자 지시 — 「생성물」 칸 폐지): 수신 정보 | 발송. ①~④는 2칸, ⑤⑥은 3칸 유지(사용자 확정)
+  const stepKind: PaneKind = sel === 'submit9' || sel === 'cert' || sel === 'ownerReport' ? 'duo'
     : sel === 'checklist' ? 'entry'
     : PREVIEW_STEPS.has(sel) ? 'preview' : 'normal'
   const paneCount = paneCountOf(stepKind)
@@ -1047,7 +1030,7 @@ export function InspectionWorkbench({
               </div>
             </div>
           </Pane>
-          <Pane title="생성물" cls={paneCls} head={paneHead}><DocPane files={files} inspectionId={inspectionId} onOpen={download} kinds={STEP_DOC_KINDS.ownerReport} /></Pane>
+          {/* 「생성물」 칸 폐지(2026-10-06 사용자 지시) — 같은 문서는 ④ 문서 목록·고객 별지서식 탭이 보여준다 */}
         </>)}
 
         {/* ④ 3칸 (소방계획서_48로 접기 UI 폐지) — 불량 0이면 ④ 칩 자체가 스텝바에서 빠지므로
@@ -1496,17 +1479,8 @@ export function InspectionWorkbench({
         </div>
       )}
 
-      {/* 예외 완료 — 증거가 생기면 자동 완료되므로 여기는 예외 경로다.
-          ⚠ ⑤는 미등록 ✕ 구간에서 내린다(force5Blocked) — 판정이 무효로 돌리는 완료라 */}
-      {isSpecial && canComplete && !done[sel] && !force5Blocked(sel) && stepOf(sel) && stepOf(sel)!.status !== 'completed' && (
-        <div className="flex items-center gap-2 shrink-0 rounded-lg border border-brand-line-soft bg-brand-tint px-3 py-1.5">
-          <span className="text-form-2xs text-ink-soft">증거가 생기면 이 단계는 자동 완료됩니다 — 예외 상황에서만 사유를 남기고 완료하세요.</span>
-          <button onClick={() => forceComplete(sel)} disabled={completing === stepOf(sel)!.id}
-            className="ml-auto inline-flex items-center gap-1 h-7 px-2.5 rounded-lg border border-brand-line bg-surface text-form-xs text-ink-soft hover:bg-brand-tint disabled:opacity-50">
-            {completing === stepOf(sel)!.id ? <Loader2 className="size-3 animate-spin" /> : <Check className="size-3" />} 사유 완료
-          </button>
-        </div>
-      )}
+      {/* 「증거가 생기면 … [사유 완료]」 줄 폐지(2026-10-06 사용자 지시, ①~⑥ 전 단계) — 단계는 증거로만 완료된다.
+          이미 사유로 완료된 단계의 [사유 완료 철회]는 위에 남긴다(달력 일괄 등 다른 입구가 마커를 찍을 수 있다). */}
 
       {/* 재방문 안내 — 계획 항목을 만들지 않는 임의 발송(Q-17). 점검 회차·진행률에 영향이 없다 */}
       {adhocSms && customerId && (

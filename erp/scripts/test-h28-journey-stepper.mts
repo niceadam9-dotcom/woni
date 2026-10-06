@@ -121,9 +121,10 @@ try {
     /D-\d+|초과/.test(await stepbar.locator('button[data-step="submit9"]').innerText()),
     await stepbar.locator('button[data-step="submit9"]').innerText())
 
-  // 예외 완료(사유 필수)는 선택 단계에만 하나 — 증거가 생기면 자동 완료가 기본 경로다
+  // 「증거가 생기면 … [사유 완료]」 줄 폐지(2026-10-06 사용자 지시, ①~⑥) — 작업대 단계는 증거로만 완료된다
   const completeButtons = await page.locator('button:has-text("사유 완료")').count()
-  check('예외 완료 버튼 = 1개(선택 단계만)', completeButtons === 1, `count=${completeButtons}`)
+  check('🚨 작업대에 [사유 완료] 버튼이 없다', completeButtons === 0, `count=${completeButtons}`)
+  check('🚨 「증거가 생기면 이 단계는 자동 완료됩니다」 줄이 없다', !(await page.isVisible('text=증거가 생기면 이 단계는 자동 완료됩니다')))
 
   // ① 클릭 → 점검표 칸으로 전환
   // 🚨 2026-09-11 — ①이 2칸이 됐다(셋째 칸 「점검 인력·생성물」 제거: 참여자는 ②, 별지 4호는 ④ 칩,
@@ -135,15 +136,20 @@ try {
     (await page.isVisible('text=점검표 입력')) && (await page.isVisible('text=/불량 내역/')))
   check('🚨 ① 셋째 칸(점검 인력·생성물)은 없어졌다', !(await page.isVisible('text=점검 인력·생성물')))
 
-  // ── 2) 단계 완료 처리(회귀) — ② 예외 완료 → DB status ──
+  // ── 2) ②·③ 2칸 (2026-10-06 사용자 지시 — ①~④ 2칸, ⑤⑥ 3칸 유지) ──
+  //    종전 이 자리는 ② [사유 완료] → DB completed 회귀였다. 작업대의 [사유 완료]가 폐지돼 그 경로는
+  //    달력 패널에만 남는다(test-step-input-link-e2e·test-inspection-steps-sync가 마커 축을 문다).
   await stepbar.locator('button[data-step="cert"]').click()
   await page.waitForSelector('text=점검인력 배치신고')
-  page.once('dialog', d => d.accept('E2E 예외 완료 사유'))
-  await page.locator('button:has-text("사유 완료")').first().click()
-  await page.waitForSelector('text=사유와 함께 완료 처리했습니다', { timeout: 30000 })
-  const { data: step2 } = await raw.from('inspection_steps')
-    .select('status').eq('inspection_id', inspA).eq('step_num', 2).single()
-  check('② 단계 완료 처리 → DB completed', step2?.status === 'completed', JSON.stringify(step2))
+  check('② 2칸 — 참여 인력 | 점검인력 배치신고',
+    (await page.isVisible('text=참여 인력')) && !(await page.isVisible('text=배치 요약')))
+  await stepbar.locator('button[data-step="ownerReport"]').click()
+  await page.waitForSelector('text=수신 정보')
+  // Pane = <section><p>제목</p>…</section> — 제목 p를 센다
+  const paneTitles = await page.locator('section > p:first-child').allInnerTexts()
+  check('★ ③ 2칸 — 수신 정보 | 발송 (「생성물」 칸 없음)',
+    paneTitles.includes('수신 정보') && paneTitles.includes('발송') && !paneTitles.includes('생성물'),
+    paneTitles.join(' | '))
 
   // ── 3) ⑤ 불량 표 전/후 사진 칸 — 불량 1건(전 사진 세팅) ──
   await raw.from('inspection_defects').insert({
@@ -154,7 +160,8 @@ try {
   await page.waitForSelector('text=⑤ 보수·증빙')
   await stepbar.locator('button[data-step="repair"]').click()
   await page.waitForSelector('[data-testid="defect-grid"]')
-  check('⑤ 전/후 사진 쌍 진행률 문구', await page.isVisible('text=/\\d+\\/\\d+쌍 완료/'))
+  // 「전/후 사진 n/n쌍 완료」 요약 줄은 de4abb6a(⑤ 10호 칸 요약 3줄 폐지, 사용자 요청)로 작업대에서 내려갔다
+  check('⑤ (음성) 작업대에 쌍 진행률 요약 줄이 되살아나지 않았다', !(await page.isVisible('text=/\\d+\\/\\d+쌍 완료/')))
   check('⑤ 불량 행(불량명)', await page.isVisible('text=H28불량'))
   check('⑤ 후 사진 슬롯(전 사진 있음→후 대기)', await page.isVisible('button[aria-label="후 사진 추가"]'))
   check('⑥ 이행완료 행', await page.isVisible('text=⑥ 이행완료'))
