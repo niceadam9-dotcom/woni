@@ -52,8 +52,10 @@ try {
 
   console.log('[3] 받은 파일이 실제로 열린다')
   const wb = XLSX.read(new Uint8Array(body))
-  // Phase 5(S10): 기저 26 + 목차 + 기타(상시) — 설비 미등록 고객은 설비 시트가 전부 빠진다
-  check('28시트(기저 26 + 목차 + 기타)', wb.SheetNames.length === 28, `${wb.SheetNames.length}`)
+  // Phase 5(S10): 기저 26 + 목차 + 기타(상시) — 설비 미등록 고객은 설비 시트가 전부 빠진다.
+  // 2026-10-06(231e3f7c): 다수동 탭 2장(다수동·다수동일때)은 입력값이 없으면 빠진다 — 1동 고객이라 26
+  check('26시트(기저 26 − 다수동 2 + 목차 + 기타)', wb.SheetNames.length === 26, `${wb.SheetNames.length}`)
+  check('1동 고객 — 다수동·다수동일때 탭 없음', !wb.SheetNames.includes('다수동') && !wb.SheetNames.includes('다수동일때'))
   check('상시 시트 동봉 — 기타·목 차', wb.SheetNames.includes('기타') && wb.SheetNames.includes('목 차'))
   check('미설치 설비 시트 부재 — 소·자탐1', !wb.SheetNames.includes('소') && !wb.SheetNames.includes('자탐1'))
   check('비다중 고객 — 다중1·2 부재', !wb.SheetNames.includes('다중1') && !wb.SheetNames.includes('다중2'))
@@ -71,8 +73,12 @@ try {
   check('실고객 표본 흔적 없음', !JSON.stringify(wb.Sheets['개요']).includes('정내과의원'))
   // S7-1·2 + S3-5 2차 — 별지 9호 조립(assembleReport9) 실주행 배선
   check('보고서!A2 점검 구분 — 작동 √', v('보고서', 'A2').startsWith('[√] 작동점검'), v('보고서', 'A2').slice(0, 30))
-  check('보고서!C17 주된 점검인력 = 담당 직원(표본 김흥준 아님)', v('보고서', 'C17') === `워크북${SUF}`,
-    v('보고서', 'C17'))
+  // 2026-10-06(마이그 181): 주된 점검인력 = 회사 대표자(배정 무관 — 점검 생성 트리거가 '주된' 참여자로 넣는다).
+  //   이름을 박지 않고 회사정보에서 읽는다 — 대표자가 바뀌어도 이 검사가 따라간다
+  const { data: cp } = await raw.from('company_profile').select('representative').order('id').limit(1).maybeSingle()
+  const rep = String((cp as { representative?: string } | null)?.representative ?? '').trim()
+  check('보고서!C17 주된 점검인력 = 회사 대표자(담당 직원 아님)', !!rep && v('보고서', 'C17') === rep && v('보고서', 'C17') !== `워크북${SUF}`,
+    `${v('보고서', 'C17')} (대표자 ${rep})`)
   // 정보 시트 12칸 — **실주행 배선** 축. 단위 검사(test-xlsx-anchors [7]·test-xlsx-inject)는
   // 픽스처를 쓰므로, assembleReport9가 정말 이 필드들을 실어 오는지는 여기서만 증명된다.
   // 이 고객은 건축물 구조·보험 정보가 없으므로 전부 ☐ + 빈 슬롯이 정답 — 표본 답이 남으면 붉어진다
@@ -85,11 +91,8 @@ try {
     JSON.stringify(v('정보', 'B13').slice(0, 40)))
   check('정보!B8 선임구분 — 표본 [√]소방안전관리자수첩 소거',
     !v('정보', 'B8').includes('[√]소방안전관리자수첩'), v('정보', 'B8'))
-  // 다수동일때(2·3·4동) — 값 원천이 없어 빈 서식으로 덮는 시트. √가 하나도 없어야 한다
-  check('다수동일때 3블록 15칸 — [√] 0개(표본 답 소거)',
-    ['B6', 'B7', 'B8', 'B9', 'B10', 'B16', 'B17', 'B18', 'B19', 'B20', 'B26', 'B27', 'B28', 'B29', 'B30']
-      .every(c => !v('다수동일때', c).includes('[√]')),
-    ['B6', 'B8', 'B10'].map(c => v('다수동일때', c).slice(0, 24)).join(' | '))
+  // 다수동일때(2·3·4동) — 종전엔 빈 서식으로 덮어 √ 0개를 봤다. 2026-10-06부터 1동이면 시트째 빠진다(위 단언).
+  //   시트가 없는데 칸 √를 세면 공허 통과라 그 단언은 지웠다 — 칸 검사는 test-multi-building-form9(2동 이상)가 한다
 
   console.log('[4] 설치 설비 반영(S10-2) — 소화기구 등록 후 재다운로드')
   const { data: bldIns, error: bldErr } = await raw.from('buildings').insert({
@@ -105,7 +108,7 @@ try {
   const wb2 = XLSX.read(new Uint8Array(await res2.body()))
   const v2 = (s: string, c: string) => String((wb2.Sheets[s]?.[c] as XLSX.CellObject | undefined)?.v ?? '')
   check('설치 설비 시트 동봉 — 소', wb2.SheetNames.includes('소'), wb2.SheetNames.filter(n => !wb.SheetNames.includes(n)).join(','))
-  check('29시트(+소화기구 1면)', wb2.SheetNames.length === 29, `${wb2.SheetNames.length}`)
+  check('27시트(+소화기구 1면)', wb2.SheetNames.length === 27, `${wb2.SheetNames.length}`)
   check('목차 — 첫 칸 소화기구·둘째 칸 기타', v2('목 차', toc1).startsWith('1.') && v2('목 차', toc2).startsWith('31.'),
     `${v2('목 차', toc1)} | ${v2('목 차', toc2)}`)
   check('여전히 미설치 시트 부재 — 자탐1', !wb2.SheetNames.includes('자탐1'))
