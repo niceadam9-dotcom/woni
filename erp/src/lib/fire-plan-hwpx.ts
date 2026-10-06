@@ -17,9 +17,11 @@
  *  **순수 모듈**: 파일을 읽지 않는다(호출부가 양식 바이트를 넘긴다).
  */
 import JSZip from 'jszip'
+import sharp from 'sharp'
 import type { CellValue } from '@/lib/xlsx-inject'
 import { FIRE_PLAN_ANCHORS } from '@/lib/fire-plan-anchors'
 import { sheetManifest, FIRE_PLAN_MANIFEST } from '@/lib/fire-plan-xlsx-manifest'
+import { applyLiteralRules, type LiteralRule } from '@/lib/company-literals'
 
 /** 1단계 범위 — 시트 이름(manifest) */
 export const FIRE_PLAN_HWPX_STAGE1 = ['표지', '개정이력', '1.1 건축물 일반현황'] as const
@@ -269,6 +271,12 @@ export type FirePlanHwpxStats = {
   skippedNested: string[]
   /** 흔적 정리로 엑셀 서식 글자를 되쓴 칸 */
   restored: number
+  /** 회사정보 문구를 바꾼 칸 */
+  literals: number
+  /** 앉힌 그림 수 */
+  images: number
+  /** 앉히지 못한 그림(HWPX 칸 없음·그림 깨짐) — 고지용 */
+  imageNotes: string[]
 }
 
 function str(v: CellValue | undefined): string {
@@ -276,16 +284,91 @@ function str(v: CellValue | undefined): string {
   return typeof v === 'string' ? v : String(v)
 }
 
-/** 양식 HWPX + 값 맵 → 채운 HWPX. sheets = 이번에 채울 시트(manifest 이름) */
+/** 회사정보 문구 — 엑셀 C5(`firePlanWorkbookRules`)와 **같은 규칙**을 칸 단위로 적용한다(D-7).
+ *  엑셀은 공유문자열(칸 글자 전체) 단위라 exact = 칸 전체 일치다 — 여기서도 칸 글자 전체로 본다.
+ *  중첩 표를 품은 칸은 건너뛴다(안쪽 칸이 따로 처리된다). 뒤 칸부터 고쳐 앞 위치가 밀리지 않게 한다 */
+function applyCellLiterals(xml: string, rules: LiteralRule[]): { xml: string; changed: number } {
+  if (!rules.length) return { xml, changed: 0 }
+  const spans: Array<[number, number]> = []
+  const tags = /<hp:tc |<\/hp:tc>/g
+  const stack: number[] = []
+  for (let m = tags.exec(xml); m; m = tags.exec(xml)) {
+    if (m[0] === '<hp:tc ') stack.push(m.index)
+    else { const s = stack.pop(); if (s !== undefined) spans.push([s, m.index + '</hp:tc>'.length]) }
+  }
+  let changed = 0
+  for (const [s, e] of spans.sort((a, b) => b[0] - a[0])) {
+    const cell = xml.slice(s, e)
+    if (cell.includes('<hp:tbl ')) continue
+    const tags2: string[] = []
+    const O = textSegs(cell, tags2).flatMap(g => g.chars).join('')
+    if (!O) continue
+    const N = applyLiteralRules(O, rules)
+    if (N === O) continue
+    xml = xml.slice(0, s) + rewriteCell(cell, N) + xml.slice(e)
+    changed++
+  }
+  return { xml, changed }
+}
+
+/* ───────────── 사진·도면 (2026-10-06) ─────────────
+ *  엑셀의 사진 배정(`planFirePlanImages` — 상자·우선순위·넘침 고지)을 그대로 받아 그 상자 앵커를 HWPX 칸으로
+ *  되돌리고, 칸 안에 **글자처럼 취급한 그림**(사진첩 HWPX와 같은 원소 순서)을 칸 크기 안에 비율대로 앉힌다.
+ *  칸의 안내 글자(「[해당 층 평면도]」)는 지운다. 표지 사진은 엑셀 전용 사진 표지라 HWPX 칸이 없다(고지). */
+export type HwpxImage = { sheet: string; cell: string; data: Uint8Array; descr: string }
+
+const HWP_PER_PX = 75
+/** 칸 안쪽 여백(HWPUNIT) — 칸 테두리에 그림이 붙지 않게 */
+const IMG_PAD = 850
+
+function picXml(seq: number, binId: string, pxW: number, pxH: number, w: number, h: number): string {
+  const ow = pxW * HWP_PER_PX, oh = pxH * HWP_PER_PX
+  const id = 1950000000 + seq
+  const sx = (w / ow).toFixed(6), sy = (h / oh).toFixed(6)
+  return `<hp:pic id="${id}" zOrder="${900 + seq}" numberingType="PICTURE" textWrap="TOP_AND_BOTTOM" textFlow="BOTH_SIDES" lock="0" dropcapstyle="None" href="" groupLevel="0" instid="${id - 1000000000}" reverse="0">`
+    + '<hp:offset x="0" y="0"/>'
+    + `<hp:orgSz width="${ow}" height="${oh}"/><hp:curSz width="${w}" height="${h}"/>`
+    + '<hp:flip horizontal="0" vertical="0"/>'
+    + `<hp:rotationInfo angle="0" centerX="${Math.round(w / 2)}" centerY="${Math.round(h / 2)}" rotateimage="1"/>`
+    + '<hp:renderingInfo><hc:transMatrix e1="1" e2="0" e3="0" e4="0" e5="1" e6="0"/>'
+    + `<hc:scaMatrix e1="${sx}" e2="0" e3="0" e4="0" e5="${sy}" e6="0"/>`
+    + '<hc:rotMatrix e1="1" e2="0" e3="0" e4="0" e5="1" e6="0"/></hp:renderingInfo>'
+    + `<hc:img binaryItemIDRef="${binId}" bright="0" contrast="0" effect="REAL_PIC" alpha="0"/>`
+    + `<hp:imgRect><hc:pt0 x="0" y="0"/><hc:pt1 x="${ow}" y="0"/><hc:pt2 x="${ow}" y="${oh}"/><hc:pt3 x="0" y="${oh}"/></hp:imgRect>`
+    + `<hp:imgClip left="0" right="${ow}" top="0" bottom="${oh}"/>`
+    + '<hp:inMargin left="0" right="0" top="0" bottom="0"/>'
+    + `<hp:imgDim dimwidth="${ow}" dimheight="${oh}"/><hp:effects/>`
+    + `<hp:sz width="${w}" widthRelTo="ABSOLUTE" height="${h}" heightRelTo="ABSOLUTE" protect="0"/>`
+    + '<hp:pos treatAsChar="1" affectLSpacing="0" flowWithText="1" allowOverlap="0" holdAnchorAndSO="0" vertRelTo="PARA" horzRelTo="COLUMN" vertAlign="TOP" horzAlign="LEFT" vertOffset="0" horzOffset="0"/>'
+    + '<hp:outMargin left="0" right="0" top="0" bottom="0"/>'
+    + '</hp:pic>'
+}
+
+/** 칸 내용을 그림 한 장으로 — 첫 문단의 문단·글자 모양을 물려받는다(가운데 정렬 양식이면 가운데) */
+function cellWithPicture(cell: string, pic: string): string {
+  const so = cell.indexOf('<hp:subList')
+  const soEnd = cell.indexOf('>', so) + 1
+  const sc = cell.lastIndexOf('</hp:subList>')
+  const body = cell.slice(soEnd, sc)
+  const pOpen = (/<hp:p [^>]*>/.exec(body)?.[0] ?? '<hp:p id="2147483648" paraPrIDRef="0" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0">')
+    .replace(/pageBreak="1"/, 'pageBreak="0"')
+  const cp = /<hp:run charPrIDRef="(\d+)"/.exec(body)?.[1] ?? '0'
+  return cell.slice(0, soEnd) + `${pOpen}<hp:run charPrIDRef="${cp}">${pic}<hp:t/></hp:run></hp:p>` + cell.slice(sc)
+}
+
+/** 양식 HWPX + 값 맵 → 채운 HWPX. sheets = 이번에 채울 시트(manifest 이름).
+ *  literals = 회사정보 문구 규칙(엑셀 C5와 같은 것) — 앵커 채움 **뒤**에 적용한다(엑셀과 같은 순서:
+ *  입력이 없는 칸은 채움이 양식 예문을 그대로 쓰므로, 그 예문 속 회사명까지 바뀌어야 한다) */
 export async function fillFirePlanHwpx(
   template: Uint8Array, values: Map<string, CellValue>,
   sheets: readonly string[] = FIRE_PLAN_HWPX_STAGE1,
+  opts: { literals?: LiteralRule[]; images?: HwpxImage[] } = {},
 ): Promise<{ bytes: Uint8Array; stats: FirePlanHwpxStats }> {
   const zip = await JSZip.loadAsync(template)
   const secFile = zip.file('Contents/section0.xml')
   if (!secFile) throw new Error('양식에 Contents/section0.xml이 없습니다')
   let xml = await secFile.async('string')
-  const stats: FirePlanHwpxStats = { written: 0, unmapped: [], missingCell: [], skippedNested: [], restored: 0 }
+  const stats: FirePlanHwpxStats = { written: 0, unmapped: [], missingCell: [], skippedNested: [], restored: 0, literals: 0, images: 0, imageNotes: [] }
 
   // 쓸 칸 모으기 — 표마다 [행,열] → 글자. 앵커가 흔적 정리보다 이긴다(같은 칸이면 값)
   const plan = new Map<number, Map<string, { text: string; label: string; unit: boolean }>>()
@@ -348,6 +431,49 @@ export async function fillFirePlanHwpx(
     }
   }
   stats.restored = Math.min(stats.restored, stats.written)
+  const lit = applyCellLiterals(xml, opts.literals ?? [])
+  xml = lit.xml
+  stats.literals = lit.changed
+
+  // 사진·도면 — 칸마다 한 장. 위치는 매번 다시 잰다(앞 그림이 xml 길이를 바꾼다)
+  const bins: Array<{ id: string; file: string; data: Uint8Array }> = []
+  for (const im of opts.images ?? []) {
+    const t = anchorToHwpx(im.sheet, im.cell)
+    if (!t) { stats.imageNotes.push(`${im.descr} — 한글 양식에 같은 자리가 없어 생략(엑셀·PDF에는 있음)`); continue }
+    const span = tableSpans(xml)[t.table]
+    const c = span && cellSpans(xml, span[0], span[1]).find(x => x.row === t.row && x.col === t.col)
+    if (!c || c.nested) { stats.imageNotes.push(`${im.descr} — 한글 양식 칸을 찾지 못해 생략`); continue }
+    const cell = xml.slice(c.start, c.end)
+    const szTag = cell.slice(cell.lastIndexOf('<hp:cellSz '))
+    const cw = Number(/width="(\d+)"/.exec(szTag)?.[1] ?? 0), ch = Number(/height="(\d+)"/.exec(szTag)?.[1] ?? 0)
+    let jpeg: { data: Buffer; info: { width: number; height: number } }
+    try {
+      jpeg = await sharp(Buffer.from(im.data)).rotate()
+        .resize({ width: 1600, height: 1600, fit: 'inside', withoutEnlargement: true })
+        .flatten({ background: '#ffffff' }).jpeg({ quality: 85 }).toBuffer({ resolveWithObject: true })
+    } catch { stats.imageNotes.push(`${im.descr} — 그림 파일을 읽지 못해 생략`); continue }
+    const ow = jpeg.info.width * HWP_PER_PX, oh = jpeg.info.height * HWP_PER_PX
+    const bw = Math.max(1000, cw - IMG_PAD * 2), bh = Math.max(1000, ch - IMG_PAD * 2)
+    const k = Math.min(bw / ow, bh / oh)
+    const n = bins.length + 1
+    const bin = { id: `fpimg${n}`, file: `BinData/fpimg${n}.jpg`, data: new Uint8Array(jpeg.data) }
+    bins.push(bin)
+    xml = xml.slice(0, c.start)
+      + cellWithPicture(cell, picXml(n, bin.id, jpeg.info.width, jpeg.info.height, Math.round(ow * k), Math.round(oh * k)))
+      + xml.slice(c.end)
+    stats.images++
+  }
+  if (bins.length) {
+    // 그림은 opf:item(isEmbeded=1)로 등록해야 binaryItemIDRef가 풀린다 — 사진첩 HWPX와 같은 규약
+    const hpfFile = zip.file('Contents/content.hpf')
+    if (!hpfFile) throw new Error('양식에 Contents/content.hpf가 없습니다')
+    const hpf = (await hpfFile.async('string')).replace('<opf:item id="section0"',
+      () => bins.map(b => `<opf:item id="${b.id}" href="${b.file}" media-type="image/jpg" isEmbeded="1"/>`).join('') + '<opf:item id="section0"')
+    if (!hpf.includes(`id="${bins[0].id}"`)) throw new Error('HWPX 매니페스트 갱신 실패')
+    zip.file('Contents/content.hpf', hpf)
+    // JPEG는 이미 압축돼 있다 — 한글 저장본처럼 무압축
+    for (const b of bins) zip.file(b.file, b.data, { compression: 'STORE' })
+  }
 
   zip.file('Contents/section0.xml', xml)
   // 미리보기 글(목록 썸네일 문구)은 양식 원본(이전 작성 건물)이다 — 비운다. 그림 썸네일은 그대로 둔다

@@ -15,6 +15,8 @@ import { buildFirePlanValues } from '../src/lib/fire-plan-xlsx-values.ts'
 import { anchorToHwpx, fillFirePlanHwpx } from '../src/lib/fire-plan-hwpx.ts'
 import { parseTables } from '../src/lib/hwpx-table.ts'
 import type { FirePlanGenData } from '../src/lib/fire-plan-template.ts'
+import { firePlanWorkbookRules } from '../src/lib/company-literals.ts'
+import sharp from 'sharp'
 
 let pass = 0, fail = 0
 const check = (name: string, ok: boolean, detail = '') => {
@@ -119,6 +121,86 @@ console.log('── F. 멱등 ──')
   const a = parseTables(out).map(t => t.cells.map(c => c.text).join('|')).join('#')
   const b = parseTables(await sec(again.bytes)).map(t => t.cells.map(c => c.text).join('|')).join('#')
   check('같은 값으로 다시 채워도 칸 글자 동일', a === b)
+}
+
+console.log('── G. 회사정보 문구(엑셀 C5와 같은 규칙) ──')
+{
+  const company = {
+    company_name: '테스트소방', official_sender_name: '주식회사 테스트소방', representative: '홍대표', business_number: '000-00-00000',
+    phone: '02-123-4567', fax: '', address: '서울 테스트구 시험로 9', address_jibun: '서울 테스트구 시험동 1-1',
+    management_reg_no: '서울 제2026-99호', official_rep_title: '대표이사',
+  }
+  const raw = await sec(tpl)
+  check('전제 — 서식에 승진 문구가 있다(공허 통과 방지)', raw.includes('031-772-3019') && raw.includes('승진소방이엔지'))
+  const { bytes: b2, stats: s2 } = await fillFirePlanHwpx(tpl, values, ALL, { literals: firePlanWorkbookRules(company as never) })
+  const x2 = await sec(b2)
+  check('바꾼 칸이 있다', s2.literals >= 7, `${s2.literals}칸`)
+  check('승진 번호·상호 0건', !x2.includes('031-772-3019') && !x2.includes('승진소방이엔지') && !x2.includes('제2020-01호'),
+    ['031-772-3019', '승진소방이엔지', '제2020-01호'].filter(n => x2.includes(n)).join(','))
+  check('2.4 임무카드 비상연락처에 새 회사·번호', (x2.match(/테스트소방 02-123-4567/g) ?? []).length >= 5)
+  const t = parseTables(x2)
+  check('1.8 업무대행 칸에 새 번호·등록번호', t[22].cells.some(c => c.text === '02-123-4567') && t[22].cells.some(c => c.text === '서울 제2026-99호'))
+  check('표·칸·그림 수 불변', (x2.match(/<hp:tbl /g) ?? []).length === 95 && (x2.match(/<hp:tc /g) ?? []).length === 4033)
+  check('규칙 없으면 서식 그대로(literals 0)', stats.literals === 0)
+}
+
+console.log('── H. 사진·도면 ──')
+{
+  const png = async (w: number, h: number, c: string) =>
+    new Uint8Array(await sharp({ create: { width: w, height: h, channels: 3, background: c } }).png().toBuffer())
+  const imgs = [
+    { sheet: '1.3 건축물 위치·운영현황', cell: 'A3', data: await png(800, 400, '#c00'), descr: '위치도' },     // 가로 2:1
+    { sheet: '1.5.2 방화·제연구획 현황도', cell: 'A4', data: await png(300, 600, '#00c'), descr: '평면도' },  // 세로 1:2
+    { sheet: '1.11.4 결과기록부 뒷쪽', cell: 'A11', data: await png(640, 480, '#0a0'), descr: '훈련' },
+    { sheet: '표지', cell: 'A5', data: await png(10, 10, '#000'), descr: '표지 사진' },                         // 한글 칸 없음
+    { sheet: '1.11.4 결과기록부 뒷쪽', cell: 'AB11', data: new Uint8Array([1, 2, 3]), descr: '깨진 그림' },
+  ]
+  check('전제 — 상자 시트 이름이 manifest에 있다', imgs.every(i => FIRE_PLAN_MANIFEST.sheets.some(s => s.name === i.sheet)),
+    imgs.filter(i => !FIRE_PLAN_MANIFEST.sheets.some(s => s.name === i.sheet)).map(i => i.sheet).join(','))
+  const { bytes: b3, stats: s3 } = await fillFirePlanHwpx(tpl, values, ALL, { images: imgs })
+  const zip = await JSZip.loadAsync(b3)
+  const x3 = await zip.file('Contents/section0.xml')!.async('string')
+  check('앉힌 그림 3장', s3.images === 3, `${s3.images}`)
+  check('고지 2건(표지 자리 없음·깨진 그림)', s3.imageNotes.length === 2 && s3.imageNotes.some(n => n.includes('표지 사진')) && s3.imageNotes.some(n => n.includes('깨진 그림')),
+    s3.imageNotes.join(' / '))
+  const before = ((await sec(tpl)).match(/<hp:pic /g) ?? []).length
+  check('그림 원소 +3', (x3.match(/<hp:pic /g) ?? []).length === before + 3)
+  const hpf = await zip.file('Contents/content.hpf')!.async('string')
+  check('매니페스트에 BinData 3개 등록', [1, 2, 3].every(n => hpf.includes(`id="fpimg${n}" href="BinData/fpimg${n}.jpg"`)))
+  check('BinData 파일 실재', [1, 2, 3].every(n => !!zip.file(`BinData/fpimg${n}.jpg`)))
+  // 칸 안 크기 — 그림 sz가 칸(cellSz)보다 작고, 비율이 원본과 같다
+  const t3 = [...x3.matchAll(/<hp:tbl /g)].map(m => m.index!)
+  const cellOf = (tbl: number, r: number, c: number) => {
+    const seg = x3.slice(t3[tbl], t3[tbl + 1])
+    for (const m of seg.matchAll(/<hp:tc [\s\S]*?<\/hp:tc>/g)) {
+      const a = m[0].slice(m[0].lastIndexOf('<hp:cellAddr '))
+      if (a.includes(`colAddr="${c}"`) && a.includes(`rowAddr="${r}"`)) return m[0]
+    }
+    return ''
+  }
+  const fit = (cell: string, ratio: number) => {
+    const sz = /<hp:sz width="(\d+)" widthRelTo="ABSOLUTE" height="(\d+)"/.exec(cell)
+    const cz = cell.slice(cell.lastIndexOf('<hp:cellSz '))
+    const cw = Number(/width="(\d+)"/.exec(cz)?.[1]), ch = Number(/height="(\d+)"/.exec(cz)?.[1])
+    if (!sz) return 'no pic'
+    const w = Number(sz[1]), h = Number(sz[2])
+    return w < cw && h < ch && Math.abs(w / h - ratio) < 0.02 ? 'ok' : `${w}x${h} in ${cw}x${ch}`
+  }
+  check('1.3 위치도 — 칸 안·가로 2:1', fit(cellOf(10, 1, 0), 2) === 'ok', fit(cellOf(10, 1, 0), 2))
+  const evac = cellOf(16, 3, 0)
+  check('1.5.2 평면도 — 칸 안·세로 1:2', fit(evac, 0.5) === 'ok', fit(evac, 0.5))
+  check('1.5.2 안내 글자 「[해당 층 평면도]」 지움', !evac.includes('해당 층 평면도'))
+  check('1.11.4 훈련 — 칸 안·4:3', fit(cellOf(34, 10, 0), 4 / 3) === 'ok', fit(cellOf(34, 10, 0), 4 / 3))
+  const raw = Buffer.from(b3)
+  const stored = (name: string) => {
+    for (let i = raw.indexOf('PK\x03\x04'); i >= 0; i = raw.indexOf('PK\x03\x04', i + 4)) {
+      const nl = raw.readUInt16LE(i + 26)
+      if (raw.subarray(i + 30, i + 30 + nl).toString() === name) return raw.readUInt16LE(i + 8) === 0
+    }
+    return false
+  }
+  check('그림은 무압축 저장', stored('BinData/fpimg1.jpg'))
+  check('표·칸 수 불변', (x3.match(/<hp:tbl /g) ?? []).length === 95 && (x3.match(/<hp:tc /g) ?? []).length === 4033)
 }
 
 console.log(`\n결과: ${pass} 통과 / ${fail} 실패`)

@@ -28,6 +28,10 @@ const { assembleFirePlan } = await import('../src/lib/fire-plan-generate')
 const { buildFirePlanValues } = await import('../src/lib/fire-plan-xlsx-values')
 const { fillFirePlanHwpx, firePlanHwpxCoverage, FIRE_PLAN_HWPX_STAGE1 } = await import('../src/lib/fire-plan-hwpx')
 const { FIRE_PLAN_MANIFEST } = await import('../src/lib/fire-plan-xlsx-manifest')
+const { planFirePlanImages } = await import('../src/lib/fire-plan-xlsx-images')
+const { FIRE_PLAN_IMAGE_ANCHORS } = await import('../src/lib/fire-plan-anchors')
+const { firePlanWorkbookRules } = await import('../src/lib/company-literals')
+const { getCompanyProfile } = await import('../src/lib/company-profile')
 const admin = createAdminClient()
 
 const id = arg('id')
@@ -47,13 +51,17 @@ async function listCandidates() {
 
 async function makeFile(customerId: string) {
   const year = Number(arg('year') ?? new Date(Date.now() + 9 * 3600_000).getUTCFullYear())
-  const { data, missing } = await assembleFirePlan(admin, customerId, year)
+  const { data, images, assets, missing } = await assembleFirePlan(admin, customerId, year)
   const values = buildFirePlanValues(data)
-  const tpl = readFileSync(new URL('../../erp_goal/_Data/소방계획서-양식-2025.hwpx', import.meta.url))
+  const tpl = readFileSync(new URL('../templates/fire-plan-form.hwpx', import.meta.url))
   // --all: 전 서식(다음 단계 범위 가늠용). 기본은 1단계(표지·개정이력·1.1)
   const all = process.argv.includes('--all')
   const sheets = all ? FIRE_PLAN_MANIFEST.sheets.map(s => s.name) : FIRE_PLAN_HWPX_STAGE1
-  const { bytes, stats } = await fillFirePlanHwpx(new Uint8Array(tpl), values, sheets)
+  // 라우트와 같은 재료 — 회사정보 문구·사진 배정(엑셀과 같은 planFirePlanImages)
+  const company = await getCompanyProfile()
+  const imgPlan = planFirePlanImages(images, assets, FIRE_PLAN_IMAGE_ANCHORS)
+  const { bytes, stats } = await fillFirePlanHwpx(new Uint8Array(tpl), values, sheets,
+    { literals: company ? firePlanWorkbookRules(company) : [], images: imgPlan.targets })
   const outDir = new URL('../../erp_goal/_Data/fire-plan-hwpx/', import.meta.url)
   mkdirSync(outDir, { recursive: true })
   const safe = data.buildingName.replace(/[\\/:*?"<>|]/g, '_').trim() || 'noname'
@@ -64,5 +72,6 @@ async function makeFile(customerId: string) {
   if (stats.unmapped.length) console.log('  엑셀 전용:', stats.unmapped.join(' | '))
   if (stats.missingCell.length) console.log('  🚨 칸 없음:', stats.missingCell.join(' | '))
   if (stats.skippedNested.length) console.log('  중첩:', stats.skippedNested.join(' | '))
+  console.log(`회사 문구 ${stats.literals}칸 · 그림 ${stats.images}장`, [...imgPlan.notes, ...stats.imageNotes].join(' / '))
   if (missing.length) console.log(`조립 고지 ${missing.length}건(엑셀·PDF와 같음): ${missing.slice(0, 5).join(' / ')}`)
 }
