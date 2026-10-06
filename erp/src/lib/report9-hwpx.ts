@@ -18,7 +18,7 @@ import {
   FORM3_ITEMS, MULTI_USE_COLS, DEFECT_GROUPS, DEFECT_FOLD_TEXT, foldDefectGroups, type Report9Data,
 } from '@/lib/doc-templates/report9'
 import { EVAC_FORM3_GROUPS, FIRE_SUB_ITEMS, evacTypesFromSpecs } from '@/lib/facility-codes'
-import { ETC_LEDGER_CODE, type EtcKey } from '@/lib/etc-sheet-map'
+import { ETC_LEDGER_CODE, etcResultMark, type EtcKey } from '@/lib/etc-sheet-map'
 import { fillSpecPages, type SpecFillStats } from '@/lib/report9-hwpx-specs'
 
 const CK_ON = '[√]', CK_OFF = '[  ]'
@@ -195,8 +195,9 @@ function fillPage3(t: string, d: Report9Data, miss: string[]): { t: string; mark
   // 기타 3 — 체크=대장(ETC_LEDGER_CODE), 결과=점검표(무응답 ／, 2026-08-20 확정)
   const etc: Array<[EtcKey, string]> = [['door', '방화문, 자동방화셔터'], ['exit', '비상구, 피난통로'], ['flame', '방  염']]
   for (const [key, label] of etc) {
-    const [n1, ok] = checkLabel(s1, label, ledger.has(ETC_LEDGER_CODE[key])); s1 = n1
-    const [n2, ok2] = resultAfter(s1, label, mark(d.etcMarks?.[key] ?? 'N')); s1 = n2
+    const on = ledger.has(ETC_LEDGER_CODE[key])
+    const [n1, ok] = checkLabel(s1, label, on); s1 = n1
+    const [n2, ok2] = resultAfter(s1, label, mark(etcResultMark(d.etcMarks?.[key], on))); s1 = n2
     if (!ok || !ok2) miss.push(`3쪽 기타 ${label}`); else marks++
   }
   // 2절 — ○/×면 √+결과, ／면 결과만(muResultSection과 같은 규약). 라벨은 그 칸에서만 나오는 앞머리

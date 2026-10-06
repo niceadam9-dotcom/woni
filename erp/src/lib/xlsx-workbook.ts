@@ -17,7 +17,7 @@ import {
   FORM4_ROWS, FORM4_ETC_ROWS, isForm4Installed, form4InstallField, form4VerdictField, form4VerdictMarks,
 } from '@/lib/xlsx-form4'
 import { FIRE_SUB_ITEMS } from '@/lib/facility-codes'
-import { ETC_LEDGER_CODE } from '@/lib/etc-sheet-map'
+import { ETC_LEDGER_CODE, etcResultMark } from '@/lib/etc-sheet-map'
 import { isoToSerial, type InjectTarget, type CellValue } from '@/lib/xlsx-inject'
 
 export type WorkbookSource = {
@@ -367,10 +367,11 @@ export function buildWorkbookValues(src: WorkbookSource): Map<string, CellValue>
   //   결과는 종전 그대로 점검표 롤업·무응답 ／(2026-08-20 확정) — 두 축을 섞지 않는다.
   const etcLedger = new Set(p.ledgerCodes ?? src.installedCodes)
   for (const r of FORM4_ETC_ROWS) {
-    const mk = p.etcMarks?.[r.key] ?? 'N'
+    // 2026-10-06 — 체크+무응답은 ○(etcResultMark). 미체크+무응답만 종전대로 ／
+    const on = etcLedger.has(ETC_LEDGER_CODE[r.key])
     entries.push(
-      [`f4i_${r.cell}`, ck(etcLedger.has(ETC_LEDGER_CODE[r.key]))],
-      [`f4v_${r.verdictCell}`, resultMark(mk)])
+      [`f4i_${r.cell}`, ck(on)],
+      [`f4v_${r.verdictCell}`, resultMark(etcResultMark(p.etcMarks?.[r.key], on))])
   }
   // 보조 점검인력 7행(S3-5 2차) — 허브 B·C·D·E 열. 없는 행은 명시적 공란(S3-4).
   // 8명 이상은 허브 서식상 실을 수 없다 — 라우트가 missing 헤더로 알린다(S8-2 규약과 같은 축)

@@ -79,6 +79,25 @@ check('A9-9: 미설치는 ○를 지어내지 않는다 (반대 방향)',
   !/<td class="center mk">○<\/td>/.test(rowOf(a99Off, plain)),
   `미설치 행=${rowOf(a99Off, plain)}`)
 
+// ── 기타 3행 체크(대장)+무응답 → ○ (2026-10-06 사용자 지시, 킴앤리빌딩) ──────────────
+// 종전엔 체크돼 있어도 무응답이면 ／(항목없음)였다. 40종 A9-9와 같은 규칙으로 맞췄다(etcResultMark).
+// 양방향: 체크+무응답=○ / 미체크+무응답=／ 유지 / 체크+X 응답=× (응답이 이긴다)
+const ETC_LEDGER = ['방화문 및 방화셔터', '비상구 및 피난통로', '방염']
+const etcChk = facilityResultSection({ facilityChecks: [], resultMarks: {}, ledgerCodes: ETC_LEDGER } as never)
+const etcChkX = facilityResultSection({ facilityChecks: [], resultMarks: {}, ledgerCodes: ETC_LEDGER,
+  etcMarks: { door: 'X' } } as never)
+console.log('\n[기타 체크+무응답]')
+for (const k of ['door', 'exit', 'flame'] as const) console.log(`  ${k}: ${rowOf(etcChk, LABELS[k])}`)
+const etcCell = (html: string, label: string) => {
+  const i = html.indexOf(label); if (i < 0) return '(없음)'
+  return html.slice(i).match(/<td class="center mk">([^<]*)<\/td>/)?.[1] ?? '(칸 없음)'
+}
+for (const k of ['door', 'exit', 'flame'] as const) {
+  check(`기타 ${k}: 체크+무응답 결과칸 = ○`, etcCell(etcChk, LABELS[k]) === '○', `got=${etcCell(etcChk, LABELS[k])}`)
+  check(`기타 ${k}: 미체크+무응답 결과칸 ≠ ○ (지어내지 않는다)`, etcCell(off, LABELS[k]) !== '○', `got=${etcCell(off, LABELS[k])}`)
+}
+check('기타 door: 체크+X 응답 → × (응답이 이긴다)', etcCell(etcChkX, LABELS.door) === '×', `got=${etcCell(etcChkX, LABELS.door)}`)
+
 // ── A9-5: 주차장 옥내 하위(지하/지상/필로티)가 '기계식'만 매칭하던 것 ───────────────
 // 지하·필로티는 서식상 옥내의 하위라 상위도 함께 켜야 모순 출력이 안 난다.
 // '지상'은 옥외 문맥("옥외 지상 N대")에도 쓰이므로 옥내 명시가 있을 때만 하위로 인정 — 적대 표본으로 건다.

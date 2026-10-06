@@ -28,7 +28,7 @@ import type { SpecMap } from '@/lib/doc-templates/spec-sections'
 import { getAllSheetItems, getSheets, type SheetCatalogItem } from '@/lib/sheet-catalog'
 import { isMultiUseApplicable, isMultiUseNone } from '@/lib/multi-use'
 import { ETC_CODES } from '@/lib/facility-codes'
-import { etcKeyOfItemCode, type EtcKey } from '@/lib/etc-sheet-map'
+import { etcKeyOfItemCode, ETC_KEYS, ETC_LEDGER_CODE, type EtcKey } from '@/lib/etc-sheet-map'
 import { resolveFireSafetyManager, type ContactLite } from '@/lib/fire-safety-manager'
 import { formatTel } from '@/lib/format-contact'
 import { sortBuildingsForPrint, FORM9_MAX_BUILDINGS } from '@/lib/primary-building'
@@ -758,9 +758,13 @@ export async function assembleReport9(
   // 않아 종전 공란 렌더로 돌아간다(2026-09-08 사용자 확정). 「해당없음」은 확인된 미해당에만 쓴다:
   // 설치 코드는 활성 건물 첫 1동만 읽으므로(:241) 별관에만 설치·대장 미체크가 곧 '미해당'이 아니고,
   // 모르는 것을 단정해 인쇄하면 3쪽(무응답=공란)과도 어긋난다.
-  const applicableGroups = facilityChecks.length === 0 ? undefined : DEFECT_GROUPS.filter(g =>
+  // 🚨 2026-10-06 사용자 지시 — 「기타」는 대장 기타 3종(방화문·비상구·방염) 중 하나라도 체크면 해당이다.
+  //   종전엔 늘 false라, 체크해 둔 고객도 이행계획서·8쪽 「기타」가 「해당없음」으로 나갔다.
+  //   3쪽 기타 체크칸과 같은 축(ETC_LEDGER_CODE ∈ 대장 codes) — 불량이 없으면 fold가 「이상없음」을 낸다.
+  const etcApplicable = ETC_KEYS.some(k => codes.includes(ETC_LEDGER_CODE[k]))
+  const applicableGroups = facilityChecks.length === 0 && !etcApplicable ? undefined : DEFECT_GROUPS.filter(g =>
     g === '안전시설등' ? muApplicable
-      : g === '기타' ? false
+      : g === '기타' ? etcApplicable
         : facilityChecks.some(it => form3Group(it) === g))
 
   // ── 별지 9호 「다수동일때」 2·3·4동 (2026-09-08) ──────────────────────────────

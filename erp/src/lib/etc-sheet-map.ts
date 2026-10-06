@@ -41,6 +41,14 @@ export const ETC_SHEET_ITEM_CODES: Record<EtcKey, readonly string[]> = {
 const KEY_BY_ITEM: Record<string, EtcKey> = Object.fromEntries(
   ETC_KEYS.flatMap(k => ETC_SHEET_ITEM_CODES[k].map(code => [code, k])))
 
+/** 문서 결과칸 — 응답 롤업이 있으면 그 값, 없으면 **체크(대장)면 ○ · 아니면 ／**.
+ *  2026-10-06 사용자 지시(킴앤리빌딩): 체크된 기타 항목은 불량이 없으면 이상없음이다 —
+ *  소방시설 40종의 「설치(√)+무응답 → ○」(2026-09-02, xlsx-workbook FORM4_ROWS)와 같은 규칙.
+ *  종전 「무응답 → ／」(2026-08-20)는 미체크 행에만 남는다. 엑셀·PDF·한글 세 경로가 이 함수 하나를 쓴다(D-7). */
+export function etcResultMark(rolled: 'O' | 'X' | 'N' | undefined, checked: boolean): 'O' | 'X' | 'N' {
+  return rolled ?? (checked ? 'O' : 'N')
+}
+
 /** 항목 코드 → key (별지 조립 롤업용). 기타사항 항목이 아니면 undefined. */
 export function etcKeyOfItemCode(itemCode: string): EtcKey | undefined {
   return KEY_BY_ITEM[itemCode]

@@ -11,7 +11,7 @@ import { renderDocument, pageHeader, pageFooter, esc, val, ck, resultMark } from
 import { renderSpecSections, specNoteTable, type SpecMap } from './spec-sections'
 import { annexLabel, annexHasItem, type AnnexForm } from './annex-labels'
 import { EVAC_FORM3_GROUPS, FIRE_SUB_ITEMS, evacTypesFromSpecs } from '../facility-codes'
-import { ETC_LEDGER_CODE, type EtcKey } from '../etc-sheet-map'
+import { ETC_LEDGER_CODE, etcResultMark, type EtcKey } from '../etc-sheet-map'
 import { distributeSubMarks } from '../sheet-facility-map'
 // 서식이 담는 동 수 — 조회(대표동 선정)와 인쇄(넘침 고지)가 **같은 수**를 봐야 하므로
 // 의존성 없는 `primary-building`에 두고 양쪽이 가져간다(사본 금지)
@@ -830,8 +830,9 @@ export function facilityResultSection(
   //   빈칸을 남기지 않는다). 작동점검 회차에서 비상구·방염(● 종합 전용)이 무응답인 것은
   //   미입력이 아니라 **그 회차의 점검 항목이 아닌 것**이라, ／가 사실에 가장 가깝다.
   const etcItem = (key: EtcKey, label: string): P3Item => {
-    const r = d.etcMarks?.[key] ?? 'N'
-    return { html: ` ${ck(ledger.has(ETC_LEDGER_CODE[key]))}${esc(label)}`, mark: resultMark(r) }
+    // 2026-10-06 — 체크+무응답은 ○(etcResultMark, 엑셀·한글과 같은 함수). 미체크+무응답만 ／
+    const on = ledger.has(ETC_LEDGER_CODE[key])
+    return { html: ` ${ck(on)}${esc(label)}`, mark: resultMark(etcResultMark(d.etcMarks?.[key], on)) }
   }
 
   const left1 = p3Table([
