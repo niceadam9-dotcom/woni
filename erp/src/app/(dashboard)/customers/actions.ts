@@ -127,7 +127,7 @@ export async function createCustomerAction(
 
   // 대표 관계인 1명 필수 (V9 §9)
   const hasRep = (input.contacts ?? []).some(c => c.role === '대표' && c.name?.trim())
-  if (!hasRep) return { error: '대표 관계인 이름을 입력해주세요. (대표 1명 필수)' }
+  if (!hasRep) return { error: '관계인 이름을 입력해주세요. (1명 필수)' }
 
   // 점검일자(구 점검계획일→점검확정일, 2026-09-12 용어 확정) 필수 — 연간 점검계획의 기산점 (수동 최우선)
   if (!input.plan_anchor_date) return { error: '점검일자를 입력해주세요.' }

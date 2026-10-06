@@ -244,7 +244,7 @@ export async function assembleDelegation(
 
   const [inputRes, custRes, formRes, contactsRes, partsRes, r9Res] = await Promise.all([
     admin.from('annex_inputs').select('fields').eq('inspection_id', inspectionId).eq('annex_no', 'delegation').maybeSingle(),
-    admin.from('customers').select('fire_station, manager_contact_id').eq('id', insp.customer_id).single(),
+    admin.from('customers').select('fire_station, manager_contact_id, rep_role').eq('id', insp.customer_id).single(),
     admin.from('fire_plan_forms').select('sections').eq('customer_id', insp.customer_id).limit(1).maybeSingle(),
     // birth_date까지 뽑는다 — 고객 상세 관계인 카드가 이미 받아 두는 값인데(“직위·생년월일은
     // 보고서 공문·위임장에 사용됩니다”) 종전엔 위임장이 읽지 않아 매번 손으로 다시 넣었다(2026-08-20)
@@ -258,8 +258,7 @@ export async function assembleDelegation(
 
   // 관계인(본인) — 소방안전관리자 우선, 없으면 대표 연락처
   const contacts = (contactsRes.data ?? []) as Array<ContactLite & { birth_date?: string | null }>
-  const rep = contacts.find(c => c.role === '대표') ?? contacts[0] ?? null
-  const cust = custRes.data as { fire_station: string | null; manager_contact_id: string | null } | null
+  const cust = custRes.data as { fire_station: string | null; manager_contact_id: string | null; rep_role: string | null } | null
   const mgr = resolveFireSafetyManager({
     contacts, managerContactId: cust?.manager_contact_id,
     managers: ((formRes.data?.sections as Record<string, unknown> | null)?.['managers'] ?? null) as ManagerRow[] | null,
@@ -273,7 +272,11 @@ export async function assembleDelegation(
     name: fstr('ownerName') || mgr.name,
     // 저장된 직위 우선(2026-08-20 사용자 확정) — 없을 때만 선임 여부로 추정한다.
     // mgr.title은 쓰지 않는다: 1.7에서 오면 그건 직위가 아니라 선임 구분('관리자'/'보조자')이다.
-    position: fstr('ownerPosition') || ownerContact?.position?.trim() || (isMgr ? '소방안전관리자' : rep ? '대표' : ''),
+    // 🎯 직책 추정의 마지막 칸은 '대표'가 아니라 **관계인 구분**(사용자 지시 2026-10-06): 관계인 카드의
+    //   소유자/관리자/점유자(customers.rep_role — 대표 카드의 값이라 그 사람이 대표일 때만), 없으면 「관계인」.
+    //   종전엔 직위 미입력(관계인 296명 중 293명)이면 위임장·엑셀 직위 칸이 일괄 「대표」로 나갔다.
+    position: fstr('ownerPosition') || ownerContact?.position?.trim() || (isMgr ? '소방안전관리자'
+      : (ownerContact?.role === '대표' && ['소유자', '관리자', '점유자'].includes(cust?.rep_role ?? '') ? cust!.rep_role! : '관계인')),
     phone: formatTel(fstr('ownerPhone') || mgr.phone),
     birth: fstr('ownerBirth') || ymdDots(ownerContact?.birth_date ?? null),
   }

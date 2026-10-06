@@ -224,7 +224,7 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
     for (const [label, v] of [['계약일', form.contract_date], ['점검일자', form.plan_anchor_date], ['사용승인일', form.use_approval_date]] as const) {
       if (v && !isCompleteDate(v)) { setError(`${label}을(를) YYYY-MM-DD 형식으로 입력해주세요.`); return }
     }
-    if (!contacts['대표'].name.trim()) { setError('대표 관계인 이름을 입력해주세요. (대표 1명 필수)'); return }
+    if (!contacts['대표'].name.trim()) { setError('관계인 이름을 입력해주세요. (1명 필수)'); return }
 
     // 고객명 중복은 **차단**이라 주소(경고)보다 먼저 본다 — 어차피 막힐 건이면 주소 경고 팝업을
     // 거쳐 두 번 묻게 할 이유가 없다. 여기서 통과해도 서버가 같은 검사를 다시 하므로 안전망은 남는다
@@ -705,13 +705,14 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
             관계인 추가
           </button>
         ) : undefined}>
-        <SubRow label="대표">
+        {/* 줄 이름·자리표시자는 「관계인」(사용자 지시 2026-10-06) — 저장 role 값 '대표'는 그대로 */}
+        <SubRow label="관계인">
           <Cell label="이름" required htmlFor="contact-대표-name" missing={need(reqOf('대표 관계인'))}>
             <input
               id="contact-대표-name"
               value={contacts['대표'].name}
               onChange={e => setContact('대표', 'name', e.target.value)}
-              placeholder="대표 이름 *"
+              placeholder="관계인 이름 *"
               className={`${inputCls} ${need(reqOf('대표 관계인')) ? emptyRequiredCls : ''}`}
             />
           </Cell>
@@ -722,7 +723,7 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
                 value={contacts['대표'].phone}
                 onChange={e => setContact('대표', 'phone', formatPhoneKR(e.target.value))}
                 inputMode="tel"
-                aria-label="대표 연락처"
+                aria-label="관계인 연락처"
                 placeholder="010-0000-0000"
                 className={`${inputCls} pl-7`}
               />
@@ -735,7 +736,7 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
                 type="email"
                 value={contacts['대표'].email}
                 onChange={e => setContact('대표', 'email', e.target.value)}
-                aria-label="대표 이메일"
+                aria-label="관계인 이메일"
                 placeholder="example@email.com"
                 className={`${inputCls} pl-7`}
               />
