@@ -105,7 +105,8 @@ const P = {
   timeline: `${SRC}/components/inspections/inspection-timeline-client.tsx`,
   // ⚠ 모바일은 별도 Expo 패키지라 규칙을 **사본**으로 갖는다 — 갈라짐을 여기서 대조한다
   mobileRule: '../mobile/lib/inspection-steps.ts',
-  mobileScreen: '../mobile/app/(app)/inspections/[id].tsx',
+  // C1 1단계(1a406a5e)에서 상세 화면이 폴더 라우트로 옮겨졌다(`[id]/index.tsx` + `[id]/sheets/`)
+  mobileScreen: '../mobile/app/(app)/inspections/[id]/index.tsx',
   board: `${SRC}/components/reports/submission-board.tsx`,
 }
 
