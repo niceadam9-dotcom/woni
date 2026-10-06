@@ -20,7 +20,7 @@ import {
   form3ItemsForSheet, rollUpForm3Results, sheetMatchesFacilities, foldSheetGroupStats,
   groupInstalledInSheet, subgroupInstalledInSheet,
 } from '@/lib/sheet-facility-map'
-import { sheetScope } from '@/lib/sheet-scope'
+import { sheetScope, isItemInScope } from '@/lib/sheet-scope'
 import { sheetItemGroupRef } from '@/lib/sheet-scope'
 import { specNaCodes, type SpecRow as NaSpecRow } from '@/lib/sheet-spec-na'
 import type { Report4SheetSection } from '@/lib/doc-templates/report4'
@@ -639,7 +639,7 @@ export async function assembleReport9(
             // 작동 회차의 ●는 무조건 ／, 그 외 무응답 = 공란(Q-5).
             // 2026-09-07 — 세부제원이 조건과 어긋나는 항목도 ／다(입력 화면이 회색으로 잠근 그 항목).
             // 응답이 있으면 그 값이 이긴다: 사람이 넣은 값을 문서에서 지우지 않는다(순서가 규약이다).
-            mark: annexScope.isOperational && it.comprehensive_only ? 'N' as const
+            mark: !isItemInScope(it, annexScope) ? 'N' as const
               : res === 'O' || res === 'X' || res === 'N' ? res
                 : specNa.has(it.item_code) ? 'N' as const
                   : sheetInstalled && groupInstalledInSheet(s.sheet_name, it.group_code ?? null, codes) === false

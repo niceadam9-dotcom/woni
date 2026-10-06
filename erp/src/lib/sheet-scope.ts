@@ -23,9 +23,15 @@ export function sheetScope(planType: string | null | undefined, inspectionType?:
   return { isSpecial, isOperational, version: isSpecial ? 'v2025' : 'v2022' }
 }
 
-/** 이 점검 건에서 표시·집계 대상인 항목인지 — 작동점검이면 종합전용(●) 제외 */
-export function isItemInScope(item: { comprehensive_only: boolean }, scope: SheetScope): boolean {
+/** 작동점검에서도 입력하는 종합전용(●) 예외 — 2026-10-06 사용자 지시.
+ *  31-A-002 비상구 및 피난통로 확보(기타사항). 카탈로그 comprehensive_only는 법정 서식 그대로(●) 두고
+ *  범위 판정만 연다 — 인쇄 불릿 ●는 유지된다. */
+export const OPERATIONAL_EXCEPTION_CODES: ReadonlySet<string> = new Set(['31-A-002'])
+
+/** 이 점검 건에서 표시·집계 대상인 항목인지 — 작동점검이면 종합전용(●) 제외(예외 코드는 포함) */
+export function isItemInScope(item: { comprehensive_only: boolean; item_code?: string }, scope: SheetScope): boolean {
   return !scope.isOperational || !item.comprehensive_only
+    || (item.item_code != null && OPERATIONAL_EXCEPTION_CODES.has(item.item_code))
 }
 
 /** 3층 축(소방계획서_23 134) 입력 — group_*·subgroup_*은 마이그레이션 134 이후에만 온다(옵셔널) */

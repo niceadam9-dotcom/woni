@@ -21,7 +21,7 @@ import { planDonorInjection, donorInjectSummary } from '@/lib/xlsx-donor-inject'
 import { sheetMatchesFacilities } from '@/lib/sheet-facility-map'
 import { evacTypesFromSpecs } from '@/lib/facility-codes'
 import { isMultiUseApplicable } from '@/lib/multi-use'
-import { sheetScope } from '@/lib/sheet-scope'
+import { sheetScope, isItemInScope } from '@/lib/sheet-scope'
 import { getAllSheetItems } from '@/lib/sheet-catalog'
 
 /** 갑지 통합 워크북(엑셀) 즉석 생성 (소방계획서_27 S4 — Phase 1: 개요 허브 + 공문·위임장·계약서)
@@ -240,7 +240,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
     ]
   }
   if (wbScope.isOperational) {
-    const compCodes = new Set((await getAllSheetItems()).filter(i => i.comprehensive_only).map(i => i.item_code))
+    const compCodes = new Set((await getAllSheetItems()).filter(i => !isItemInScope(i, wbScope)).map(i => i.item_code))
     donorResponses = [
       ...r9.sheetResponses.filter(r => !compCodes.has(r.item_code)),
       ...[...compCodes].map(code => ({ item_code: code, result: 'N' as const, month: 0 })),

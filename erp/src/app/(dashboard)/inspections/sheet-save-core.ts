@@ -7,7 +7,7 @@
  *  저장 경로가 두 벌이 되면 모바일 저장만 단계가 영영 미완이고 1.4 대장·웹 캐시가 조용히 낡는다.
  */
 import { createAdminClient } from '@/lib/supabase/admin'
-import { sheetScope } from '@/lib/sheet-scope'
+import { sheetScope, isItemInScope } from '@/lib/sheet-scope'
 import { getAllSheetItems } from '@/lib/sheet-catalog'
 import { CURRENT_SHEET_PROTOCOL } from '@/lib/annex-regen-policy'
 import { syncStepsAndRevalidate, type RevalidateContext } from './step-revalidate'
@@ -67,7 +67,7 @@ export async function saveSheetResponsesCore(
   {
     const insp = await loadScope(admin, inspectionId)
     if (insp?.scope.isOperational && rows.length > 0) {
-      const comp = new Set((await getAllSheetItems()).filter(i => i.comprehensive_only).map(i => i.item_code))
+      const comp = new Set((await getAllSheetItems()).filter(i => !isItemInScope(i, insp.scope)).map(i => i.item_code))
       rows = rows.filter(r => !comp.has(r.item_code))
     }
   }
