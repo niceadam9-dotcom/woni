@@ -56,22 +56,21 @@ try {
   let lastContinueLabel = ''
 
   /** 등록 페이지에서 필수 6칸을 채우고 저장. 점검일자는 **프리필을 그대로 둔다**(그게 검사 대상이다).
-   *  2026-10-06 — 달력에서 오면 버튼이 둘이다: 'calendar' = [나중에 입력 · 달력으로], 'continue' = [저장하고 다음]. */
-  async function fillAndSubmit(label: string, name: string, via: 'calendar' | 'continue' = 'continue') {
+   *  2026-10-06 — 어디서 왔든 버튼은 [취소]·[저장]·[상세정보 입력]: 'save' = [저장], 'detail' = [상세정보 입력]. */
+  async function fillAndSubmit(label: string, name: string, via: 'save' | 'detail' = 'detail') {
     await page.getByText('고객명 (건물명)').first().waitFor()
     await page.locator('input[placeholder="주소 검색 후 동/호수 등 추가 입력"]').fill(`서울시 테스트구 ${STAMP}로 ${label}`)
     await page.locator('input[placeholder="주소 검색 시 자동입력 또는 직접 입력"]').fill(name)
     await page.locator('#new-use-approval').fill('2020-01-01')
     await page.locator('[id="contact-대표-name"]').fill('테스트대표')
-    const submit = via === 'calendar'
-      ? page.locator('[data-testid="new-submit-calendar"]')
-      : page.locator('button[type="submit"]').last()
+    const submit = via === 'save'
+      ? page.locator('[data-testid="new-submit-save"]')
+      : page.locator('[data-testid="new-submit-continue"]')
     const enabled = await page.waitForFunction(
       () => !([...document.querySelectorAll('button[type="submit"]')].pop() as HTMLButtonElement | undefined)?.disabled,
       undefined, { timeout: 60000 },
     ).then(() => true).catch(() => false)
     if (!enabled) throw new Error(`${label}: [등록]이 안 풀렸다 — 버튼 글씨="${(await submit.innerText()).trim()}"`)
-    // 필수를 다 채운 뒤라야 주 버튼이 제 문구를 낸다(그 전엔 「필수 항목을 채워주세요」)
     lastContinueLabel = (await page.locator('[data-testid="new-submit-continue"]').innerText().catch(() => '')).trim()
     const before = page.url()
     await submit.click()
@@ -115,11 +114,15 @@ try {
     check('★ A 열자마자 커서가 고객명에 있다', focusedId === 'new-customer-name', focusedId || '(없음)')
     check('A 기준일 두 칸이 강조 줄 안에 있다', (await page.locator('[data-testid="new-keydates"] #new-anchor-date').count()) === 1)
     check('A 복귀 약속 문구가 뜬다', (await page.getByText('점검달력으로 돌아갑니다').count()) === 1)
-    check('A 달력에서 왔으니 버튼이 둘이다 (나중에 입력 · 달력으로 / 저장하고 다음)',
-      (await page.locator('[data-testid="new-submit-calendar"]').count()) === 1
+    check('A 버튼은 [저장]·[상세정보 입력] 둘이다',
+      (await page.locator('[data-testid="new-submit-save"]').count()) === 1
       && (await page.locator('[data-testid="new-submit-continue"]').count()) === 1)
+    check('★ A 필수가 비었을 때도 버튼 글자는 「저장」 (「필수 항목을 채워주세요」 아님)',
+      (await page.locator('[data-testid="new-submit-save"]').innerText()).trim() === '저장'
+      && await page.locator('[data-testid="new-submit-save"]').isDisabled(),
+      (await page.locator('[data-testid="new-submit-save"]').innerText()).trim())
 
-    const cid = await fillAndSubmit('A', `E2E-RT-${STAMP}-패널`, 'calendar')
+    const cid = await fillAndSubmit('A', `E2E-RT-${STAMP}-패널`, 'save')
     check('A 고객이 만들어졌다', !!cid)
     check('★ A 등록 뒤 달력으로 돌아왔다', new URL(page.url()).pathname === '/inspections/calendar', page.url())
     check('★ A 복귀 주소가 day를 들고 있다', qs().get('day') === D, page.url())
@@ -165,11 +168,11 @@ try {
     await page.waitForURL(u => u.pathname === '/customers/new')
     const from = qs().get('from') ?? ''
     check('★ B 툴바 입구의 from에는 day가 **없다**', from.startsWith('/inspections/calendar') && !/[?&]day=/.test(from), from)
-    // 2026-10-06 차례 모드 — [저장하고 다음] → 건물정보 → 관계인 → 소방계획서 → [완료 · 달력으로]
-    const cid = await fillAndSubmit('B', `E2E-RT-${STAMP}-툴바`, 'continue')
+    // 2026-10-06 차례 모드 — [상세정보 입력] → 건물정보 → 관계인 → 소방계획서 → [완료 · 달력으로]
+    const cid = await fillAndSubmit('B', `E2E-RT-${STAMP}-툴바`, 'detail')
     check('B 고객이 만들어졌다', !!cid)
-    check('★ B [저장하고 다음]은 고객 상세(진행 띠)로 간다',
-      !!cid && new URL(page.url()).pathname === `/customers/${cid}` && qs().get('onboarding') === '1'
+    check('★ B [상세정보 입력]은 고객 상세(차례 모드 띠)로 간다',
+      !!cid && new URL(page.url()).pathname === `/customers/${cid}` && qs().get('onboarding') === '1' && qs().get('seq') === '1'
       && (qs().get('from') ?? '').startsWith('/inspections/calendar'), page.url())
     const strip = page.locator('[data-testid="onboarding-strip"]')
     const stripUp = await strip.waitFor({ timeout: 60000 }).then(() => true).catch(() => false)
@@ -179,7 +182,7 @@ try {
     const cur = async () => page.locator('[data-testid="onboarding-strip"] [data-state="current"]').getAttribute('data-testid').catch(() => '')
     const sel = async () => (await page.locator('[role="tab"][aria-selected="true"]').first().innerText()).trim()
     check('★ B 1번째: 건물정보 탭이 열린다', (await cur()) === 'onboarding-step-buildings' && (await sel()).startsWith('건물'), `${await cur()} / ${await sel()}`)
-    check('B 저장 직전 주 버튼 문구 = 「저장하고 다음: 건물정보」', /저장하고 다음: 건물정보/.test(lastContinueLabel), lastContinueLabel)
+    check('B 저장 직전 주 버튼 문구 = 「상세정보 입력」', lastContinueLabel === '상세정보 입력', lastContinueLabel)
     const nextBtn = page.locator('[data-testid="onboarding-next"]')
     check('B 건물 용도가 비었으니 「건너뛰고 다음: 관계인」', /건너뛰고 다음: 관계인/.test(await nextBtn.innerText()), await nextBtn.innerText())
     await nextBtn.click()
@@ -214,8 +217,7 @@ try {
     await page.goto(`${BASE}/customers/new?anchor=${iso(10)}&from=${encodeURIComponent('//evil.com/x')}`, { waitUntil: 'domcontentloaded' })
     await page.getByText('고객명 (건물명)').first().waitFor()
     check('★ C from=//evil.com이면 복귀 약속이 **안 뜬다** (검증식이 걸렀다)',
-      (await page.getByText('점검달력으로 돌아갑니다').count()) === 0
-      && (await page.locator('[data-testid="new-submit-calendar"]').count()) === 0)
+      (await page.getByText('점검달력으로 돌아갑니다').count()) === 0)
   }
 
   // ── 갈래 D — 폴백: from 없이 ──
@@ -223,13 +225,42 @@ try {
     await page.goto(`${BASE}/customers/new`, { waitUntil: 'domcontentloaded' })
     await page.getByText('고객명 (건물명)').first().waitFor()
     check('D from 없이 열면 점검일자는 비어 있다 (지어내지 않는다)', (await anchorValue()) === '', await anchorValue())
-    check('D 일반 등록은 버튼 하나 [고객 등록] — 달력 선택 버튼이 없다',
-      (await page.locator('[data-testid="new-submit-calendar"]').count()) === 0)
+    check('D 일반 등록도 버튼은 [저장]·[상세정보 입력] 둘이다',
+      (await page.locator('[data-testid="new-submit-save"]').count()) === 1
+      && (await page.locator('[data-testid="new-submit-continue"]').count()) === 1)
     await page.locator('#new-anchor-date').fill(iso(30))
-    const cid = await fillAndSubmit('D', `E2E-RT-${STAMP}-직접`)
+    const cid = await fillAndSubmit('D', `E2E-RT-${STAMP}-직접`, 'detail')
     check('D 고객이 만들어졌다', !!cid)
-    check('★ D from이 없으면 종전대로 고객 상세로 간다',
-      !!cid && new URL(page.url()).pathname === `/customers/${cid}` && qs().get('created') === '1', page.url())
+    check('★ D from이 없어도 [상세정보 입력]은 고객 상세(차례 모드)로 간다',
+      !!cid && new URL(page.url()).pathname === `/customers/${cid}` && qs().get('created') === '1' && qs().get('seq') === '1', page.url())
+    const strip = page.locator('[data-testid="onboarding-strip"]')
+    const stripUp = await strip.waitFor({ timeout: 60000 }).then(() => true).catch(() => false)
+    check('★ D 띠가 차례 모드다 (달력 밖에서 시작해도)', stripUp && (await strip.getAttribute('data-mode')) === 'sequence')
+    const nextBtn = page.locator('[data-testid="onboarding-next"]')
+    for (let i = 0; i < 2 && stripUp && await nextBtn.count(); i++) {
+      const before = await page.locator('[data-testid="onboarding-strip"] [data-state="current"]').getAttribute('data-testid')
+      await nextBtn.click()
+      await page.waitForFunction(b => document.querySelector('[data-testid="onboarding-strip"] [data-state="current"]')?.getAttribute('data-testid') !== b, before, { timeout: 15000 }).catch(() => null)
+    }
+    const done = page.locator('[data-testid="onboarding-done"]')
+    check('★ D 끝 버튼은 「완료」 (달력 문구 아님)', (await done.count()) === 1 && (await done.innerText()).trim() === '완료',
+      (await done.innerText().catch(() => '')).trim())
+    if (await done.count()) {
+      await done.click()
+      await page.waitForURL(u => !u.search.includes('onboarding'), { timeout: 90000 }).catch(() => null)
+      check('★ D [완료]는 상세 기본정보로 (띠 없이)', !!cid && new URL(page.url()).pathname === `/customers/${cid}`
+        && !qs().get('onboarding') && (await page.locator('[data-testid="onboarding-strip"]').count()) === 0, page.url())
+    }
+  }
+
+  // ── 갈래 E — [저장]: from 없이 → 고객 목록 ──
+  {
+    await page.goto(`${BASE}/customers/new`, { waitUntil: 'domcontentloaded' })
+    await page.getByText('고객명 (건물명)').first().waitFor()
+    await page.locator('#new-anchor-date').fill(iso(31))
+    const cid = await fillAndSubmit('E', `E2E-RT-${STAMP}-저장`, 'save')
+    check('E 고객이 만들어졌다', !!cid)
+    check('★ E [저장]은 고객 목록으로 간다', new URL(page.url()).pathname === '/customers', page.url())
   }
 } catch (e) {
   check('예외 없음', false, String(e))

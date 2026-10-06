@@ -140,16 +140,20 @@ console.log('\n── 5) 배선 — 규칙이 한 벌인가, 그리고 차단이
   ok(stat.removed > 0 && stat.leftover === 0,
     '계측기 자기 검사: 주석이 실제로 걷혔다', `${stat.removed}자 제거 · 잔존 줄주석 ${stat.leftover}`)
   const neu = codeOnly(neuRaw)
-  // 2026-10-06 달력 차례 모드 — 뒤에 `&from=`(달력에서 왔을 때만)이 붙을 뿐 tab=은 여전히 없다
-  ok(/router\.push\(`\/customers\/\$\{result\.customerId\}\?created=1&onboarding=1\$\{returnHref \? `&from=/.test(neu),
+  // 2026-10-06 [상세정보 입력] 차례 모드 — `&seq=1`과 `&from=`(달력에서 왔을 때만)이 붙을 뿐 tab=은 여전히 없다
+  ok(/router\.push\(`\/customers\/\$\{result\.customerId\}\?created=1&onboarding=1&seq=1\$\{returnHref \? `&from=/.test(neu),
     '🎯 등록 직후 URL이 탭을 지정하지 않는다(서버가 첫 미완을 고른다)')
   ok(!/tab=plan/.test(neu), '🎯 (음성) 등록 폼이 소방계획서로 직행시키지 않는다 — 원래 결함')
 
   /* 온보딩일 때만 서버가 탭을 고르고, 사용자가 ?tab=을 쓰면 그쪽이 이긴다 */
   ok(/const effectiveTab = onboardingActive && !initialTab \? \(onboardingSequence \? ONBOARDING_ORDER\[0\] : obNext\) : resolvedTab/.test(page),
     '🎯 ?tab=을 명시하면 사용자 지정이 이긴다(온보딩이 덮어쓰지 않는다) — 차례 모드는 건물부터, 기본은 첫 미완')
-  ok(/const onboardingSequence = onboardingActive && returnHref\.startsWith\('\/inspections\/calendar'\)/.test(page),
-    '🎯 차례 모드는 **달력에서 시작한 등록**에서만 — 고객 목록 등록은 종전(첫 미완)대로')
+  ok(/const onboardingSequence = onboardingActive && \(fromCalendar \|\| seq === '1'\)/.test(page),
+    '🎯 차례 모드 = 달력에서 시작한 등록 **또는** 등록 폼 [상세정보 입력](seq=1) — 그 밖(onboarding=1만)은 종전(첫 미완)대로')
+  ok(/const fromCalendar = returnHref\.startsWith\('\/inspections\/calendar'\)/.test(page)
+    && /fromCalendar \? `\$\{returnHref\}[^`]*new=\$\{customer\.id\}`\s*: `\/customers\/\$\{customer\.id\}`/.test(page),
+    '🎯 끝의 [완료]는 달력에서 왔으면 달력(new=), 아니면 상세 기본정보(띠 없이)로')
+  ok(/doneLabel: fromCalendar \? undefined : '완료'/.test(page), '고객 목록에서 시작했으면 버튼 글자는 「완료」(달력 문구가 아니다)')
   ok(/initialTab=\{effectiveTab\}/.test(page), '탭 셸이 그 값을 받는다')
   ok(/const onboardingActive = onboarding === '1'/.test(page), '띠는 ?onboarding=1일 때만')
 

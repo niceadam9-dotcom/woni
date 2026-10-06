@@ -97,10 +97,10 @@ export default async function CustomerDetailPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>
-  searchParams: Promise<{ tab?: string; b?: string; new?: string; lq?: string; hy?: string; hk?: string; created?: string; sub?: string; form?: string; onboarding?: string; from?: string }>
+  searchParams: Promise<{ tab?: string; b?: string; new?: string; lq?: string; hy?: string; hk?: string; created?: string; sub?: string; form?: string; onboarding?: string; seq?: string; from?: string }>
 }) {
   const { id } = await params
-  const { tab: initialTab, b: initialBuildingId, new: initialNewBuilding, lq, hy, hk, created, sub, form: initialForm, onboarding, from: fromParam } = await searchParams
+  const { tab: initialTab, b: initialBuildingId, new: initialNewBuilding, lq, hy, hk, created, sub, form: initialForm, onboarding, seq, from: fromParam } = await searchParams
   // 복귀 주소(2026-09-23) — 점검달력 사이드바에서 탭으로 들어왔으면 ←가 달력으로 돌아간다.
   // ⚠ `?from=report9`(1.4 설비 대장 자동 오픈 신호)와는 **값의 꼴로** 갈린다: 이쪽은 `/`로 시작하는 경로만.
   const returnHref = safeReturnHref(fromParam)
@@ -468,10 +468,13 @@ export default async function CustomerDetailPage({
   // 차례 모드 — 점검달력에서 시작한 등록(`onboarding=1` + 달력 `from=`, 2026-10-06 사용자 요청).
   // 첫 미완으로 건너뛰지 않고 **건물부터 차례로** 간다. 끝(소방계획서)의 [완료 · 달력으로]는 떠나온 달력에
   // `new=`를 실어 돌려보낸다 — 달력이 방금 등록한 고객을 강조한다.
-  const onboardingSequence = onboardingActive && returnHref.startsWith('/inspections/calendar')
-  const sequenceDoneHref = onboardingSequence
-    ? `${returnHref}${returnHref.includes('?') ? '&' : '?'}new=${customer.id}`
-    : ''
+  // 등록 폼의 [상세정보 입력](`seq=1`)도 차례 모드다(2026-10-06 사용자 요청: 「기본정보→건물정보→관계인→
+  // 소방계획서 이어서」) — 고객 목록에서 시작했으면 끝의 [완료]가 상세 기본정보로 돌아온다(띠 없이).
+  const fromCalendar = returnHref.startsWith('/inspections/calendar')
+  const onboardingSequence = onboardingActive && (fromCalendar || seq === '1')
+  const sequenceDoneHref = !onboardingSequence ? ''
+    : fromCalendar ? `${returnHref}${returnHref.includes('?') ? '&' : '?'}new=${customer.id}`
+    : `/customers/${customer.id}`
   const effectiveTab = onboardingActive && !initialTab ? (onboardingSequence ? ONBOARDING_ORDER[0] : obNext) : resolvedTab
 
   // ── §6-E: 지역 기반 담당 추천 — 같은 시군구+읍면 고객들의 최빈 담당 (미배정일 때만, 물결 B에서 조회) ──
@@ -1197,7 +1200,7 @@ export default async function CustomerDetailPage({
             next={obNext}
             complete={onboardingComplete(obState)}
             sequence={onboardingSequence ? {
-              doneHref: sequenceDoneHref, state: obState,
+              doneHref: sequenceDoneHref, doneLabel: fromCalendar ? undefined : '완료', state: obState,
               // 판정에 쓰는 세 칸만 — 건물 행 전체를 클라이언트로 싣지 않는다
               buildings: buildings.map(b => ({ is_active: b.is_active, purpose: b.purpose, total_area: b.total_area })),
             } : undefined}

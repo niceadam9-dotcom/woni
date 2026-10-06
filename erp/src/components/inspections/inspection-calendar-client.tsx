@@ -1092,7 +1092,7 @@ export function InspectionCalendarClient({ inspections: serverInspections, planI
        데이 패널에서 왔으면 `day=`가 실려 **그 사이드바가 다시 열리고**, 툴바에서 왔으면 안 실린다. */
   /* ── 방금 등록한 고객 (`?new=`, 2026-10-06 사용자 요청) ──
      「방금 등록한 업체 상세정보를 입력하려고 해도 달력으로 가면 다시 고객을 선택해야 하므로 불편」.
-     등록 폼의 [나중에 입력 · 달력으로]와 상세 진행 띠의 [완료 · 달력으로]가 `new=고객id`를 실어 보낸다.
+     등록 폼의 [저장]과 상세 진행 띠의 [완료 · 달력으로]가 `new=고객id`를 실어 보낸다.
      달력은 맨 위에 「등록 완료 · [상세정보 입력 →]」 띠를 띄우고 그 고객의 칩을 강조한다.
      ⚠ 이름은 이미 실린 고객 후보(customerOptions — 활성 고객 전부)에서 찾는다. 서버 왕복을 더하지 않는다.
      ⚠ 닫으면 주소에서도 뗀다(replaceState 첫 인자는 **null** — risk_history_replacestate_null). */

@@ -159,7 +159,7 @@ try {
   await page.locator('#new-anchor-date').fill(D)
   await page.locator('#new-use-approval').fill('2015-05-20')
   await page.locator('#contact-대표-name').fill('배치대표')
-  const regBtn = page.getByRole('button', { name: /고객 등록|고객코드 생성 중|필수 항목을 채워주세요/ }).first()
+  const regBtn = page.locator('[data-testid="new-submit-continue"]')
   await regBtn.waitFor()
   // 고객코드 자동생성이 끝나야 버튼이 열린다
   for (let i = 0; i < 20 && await regBtn.isDisabled(); i++) await page.waitForTimeout(500)

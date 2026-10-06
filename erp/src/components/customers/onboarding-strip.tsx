@@ -14,7 +14,7 @@ import {
  *  실측상 기존 고객 96.7%가 건물 미완이라 상시 잠금은 못 할 일이고, 사용자 결정도 「신규등록
  *  흐름만 순서대로」였다. 이 띠는 길만 가리킨다.
  *
- *  ⭐ 차례 모드(`sequence`가 있을 때 — 점검달력에서 시작한 등록, 2026-10-06 사용자 요청):
+ *  ⭐ 차례 모드(`sequence`가 있을 때 — 등록 폼의 [상세정보 입력]·점검달력에서 시작한 등록, 2026-10-06 사용자 요청):
  *    첫 미완으로 건너뛰지 않고 **지금 보는 탭의 다음 칸**으로 간다. 마지막 칸에서는
  *    [완료 · 달력으로]가 등록을 시작한 그 달력·사이드바로 돌려보낸다. 판정은 lib/onboarding-steps.
  *
@@ -28,9 +28,11 @@ export function OnboardingStrip({ steps, hint, next, complete, sequence }: {
   hint: string
   next: OnboardingTab
   complete: boolean
-  /** 차례 모드 — 등록을 마치고 돌아갈 달력 주소(`doneHref`)와 판정 재료 */
+  /** 차례 모드 — 등록을 마치고 돌아갈 주소(`doneHref`)·그 버튼 글자(`doneLabel`)와 판정 재료 */
   sequence?: {
     doneHref: string
+    /** 생략하면 「완료 · 달력으로」 — 고객 목록에서 시작한 등록은 「완료」(상세 기본정보로) */
+    doneLabel?: string
     state: OnboardingState
     buildings: readonly { is_active?: boolean | null; purpose?: string | null; total_area?: number | null }[]
   }
@@ -122,7 +124,7 @@ export function OnboardingStrip({ steps, hint, next, complete, sequence }: {
                미저장 확인은 탭 셸의 캡처 단계 링크 가로채기가 <a>에도 그대로 건다. */
             <a href={sequence.doneHref} data-testid="onboarding-done"
               className="inline-flex items-center gap-1 h-form-8 rounded-lg bg-brand px-3 text-form-xs font-medium text-white hover:opacity-90">
-              <Check className="size-3" /> 완료 · 달력으로
+              <Check className="size-3" /> {sequence.doneLabel ?? '완료 · 달력으로'}
             </a>
           )
         ) : (

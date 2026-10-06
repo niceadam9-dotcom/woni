@@ -316,14 +316,18 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
     })
   }
 
-  /* 저장 뒤 갈 곳 — 달력에서 왔을 때만 고른다(2026-10-06 사용자 요청: 「달력으로 갈 수도 있고, 이어서 할 수 있도록」).
-     'continue' = 상세의 진행 띠(건물정보 → 관계인 → 소방계획서, 차례 모드)로, 'calendar' = 보낸 자리(사이드바)로.
+  /* 저장 뒤 갈 곳 — 하단 버튼 둘이 고른다(2026-10-06 사용자 요청: 「취소·저장·상세정보 입력 버튼, 기본정보→
+     건물정보→관계인→소방계획서 이어서」). 어디서 시작했든 같은 두 버튼이다.
+     'detail' = [상세정보 입력] — 상세의 진행 띠(차례 모드)로 건물정보부터 이어서 입력.
+     'save'   = [저장] — 등록만 하고 보낸 자리로(달력이면 그 사이드바, 아니면 고객 목록).
      ⚠ state가 아니라 ref다 — 제출은 이름 확인·주소 중복 팝업을 거쳐 비동기로 doSubmit에 닿는데,
-       그 사이 렌더가 끼어도 누른 버튼의 뜻이 남아야 한다. */
-  const afterSaveRef = useRef<'continue' | 'calendar'>('continue')
+       그 사이 렌더가 끼어도 누른 버튼의 뜻이 남아야 한다. 스피너 표시용으로만 state를 따로 둔다. */
+  const afterSaveRef = useRef<'detail' | 'save'>('detail')
+  const [submitKind, setSubmitKind] = useState<'detail' | 'save'>('detail')
 
-  function handleSubmit(after: 'continue' | 'calendar' = 'continue') {
+  function handleSubmit(after: 'detail' | 'save' = 'detail') {
     afterSaveRef.current = after
+    setSubmitKind(after)
     setError('')
     if (!form.customer_code.trim()) { setError('고객코드 생성 중입니다. 잠시 후 다시 시도해주세요.'); return }
     if (!form.customer_name.trim()) { setError('고객명을 입력해주세요.'); return }
@@ -442,16 +446,16 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
          떠났으면 그 주소에 `day=`가 실려 있어 **그 사이드바가 다시 열린다**.
          ⚠ 방금 만든 고객의 계획·단계 칩은 그 목록에 이미 들어 있다 — 서버가 새로 그리기 때문이다.
          ⚠ 여기서 `refresh()`를 덧붙이지 않는다(위 주석과 같은 이유 — push가 이미 RSC를 받는다). */
-      // [나중에 입력 · 달력으로] — `new=`를 실어 달력이 방금 등록한 고객을 강조하고 [상세정보 입력]을 띄운다
+      // [저장] — 달력에서 왔으면 `new=`를 실어 달력이 방금 등록한 고객을 강조하고 [상세정보 입력]을 띄운다
       // (2026-10-06 사용자: 「달력으로 가면 다시 고객을 선택해야 하므로 불편」)
-      if (returnHref && afterSaveRef.current === 'calendar') {
-        router.push(`${returnHref}${returnHref.includes('?') ? '&' : '?'}new=${result.customerId}`)
+      if (afterSaveRef.current === 'save') {
+        router.push(returnHref ? `${returnHref}${returnHref.includes('?') ? '&' : '?'}new=${result.customerId}` : '/customers')
         return
       }
-      /* 이어서 입력 — 상세의 진행 띠로 간다. 달력에서 왔으면 `from=`을 실어 보낸다: 상세가 그걸 보고
-         **차례 모드**(건물정보 → 관계인 → 소방계획서 → [완료 · 달력으로])로 띠를 그린다(customers/[id]/page.tsx).
-         탭을 넘겨도 from이 남아(customer-tabs applySwitchTab) 어느 탭에서든 달력으로 돌아갈 수 있다. */
-      router.push(`/customers/${result.customerId}?created=1&onboarding=1${returnHref ? `&from=${encodeURIComponent(returnHref)}` : ''}`)
+      /* [상세정보 입력] — 상세의 진행 띠로 간다. `seq=1`이 **차례 모드**(건물정보 → 관계인 → 소방계획서 → [완료])를
+         켠다(customers/[id]/page.tsx). 달력에서 왔으면 `from=`도 실어 끝의 [완료 · 달력으로]가 그 사이드바로 간다.
+         탭을 넘겨도 seq·from이 남는다(customer-tabs applySwitchTab은 ?tab=만 바꾼다). */
+      router.push(`/customers/${result.customerId}?created=1&onboarding=1&seq=1${returnHref ? `&from=${encodeURIComponent(returnHref)}` : ''}`)
     })
   }
 
@@ -878,29 +882,28 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
         >
           취소
         </button>
-        {/* 달력에서 왔을 때만 갈 곳을 고른다 — 일반 등록(고객 목록)은 종전대로 상세로만 간다.
-            ⚠ 이 버튼은 type="button"이다 — Enter(암묵 제출)는 아래 「이어서 입력」이 받는다. */}
-        {returnHref && (
-          <button
-            type="button"
-            data-testid="new-submit-calendar"
-            onClick={() => handleSubmit('calendar')}
-            disabled={isPending || !requiredOk}
-            className="h-11 px-5 rounded-lg border border-brand-line text-sm font-medium text-brand hover:bg-brand-tint transition-colors disabled:opacity-50 shrink-0"
-          >
-            나중에 입력 · 달력으로
-          </button>
-        )}
+        {/* [저장] — 등록만 하고 보낸 자리로(달력 사이드바 또는 고객 목록). 빠진 필수는 왼쪽 칩이 말한다.
+            ⚠ 이 버튼은 type="button"이다 — Enter(암묵 제출)는 아래 [상세정보 입력]이 받는다. */}
+        <button
+          type="button"
+          data-testid="new-submit-save"
+          onClick={() => handleSubmit('save')}
+          disabled={isPending || !requiredOk}
+          title={!requiredOk && allFieldsOk ? '고객코드 생성 중…' : undefined}
+          className="h-11 px-6 rounded-lg border border-brand-line text-sm font-medium text-brand hover:bg-brand-tint transition-colors flex items-center justify-center disabled:opacity-50 shrink-0"
+        >
+          {isPending && submitKind === 'save' ? <Loader2 className="size-4 animate-spin" /> : '저장'}
+        </button>
+        {/* [상세정보 입력] — 등록 뒤 상세의 차례 모드로 건물정보 → 관계인 → 소방계획서를 이어서 입력한다 */}
         <button
           type="submit"
           data-testid="new-submit-continue"
           disabled={isPending || !requiredOk}
-          className="h-11 px-8 rounded-lg bg-[#202023] hover:bg-[#292d34] text-white text-sm font-medium transition-colors flex items-center justify-center gap-1 disabled:opacity-50 shrink-0"
+          title={!requiredOk && allFieldsOk ? '고객코드 생성 중…' : undefined}
+          className="h-11 px-6 rounded-lg bg-[#202023] hover:bg-[#292d34] text-white text-sm font-medium transition-colors flex items-center justify-center gap-1 disabled:opacity-50 shrink-0"
         >
-          {isPending ? <Loader2 className="size-4 animate-spin" />
-            : requiredOk ? (returnHref ? <>저장하고 다음: 건물정보 <ArrowRight className="size-4" /></> : '고객 등록')
-            : allFieldsOk ? '고객코드 생성 중…'
-            : '필수 항목을 채워주세요'}
+          {isPending && submitKind === 'detail' ? <Loader2 className="size-4 animate-spin" />
+            : <>상세정보 입력 <ArrowRight className="size-4" /></>}
         </button>
       </div>
     </div>
