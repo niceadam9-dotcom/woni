@@ -859,6 +859,7 @@ const steps: Step[] = [
   // 이 검사가 2026-09-13에 실제 결함을 잡았다 — 폐지된 enum 값이 필터에 남아 재계산이 통째로
   // 죽어 있었는데(22P02·error 무시), 미리보기는 다른 함수라 정상으로 보였다.
   { name: '기산일 변경 → 계획 재계산(E2E)', cmd: 'npx tsx scripts/test-anchor.mts',          needServer: true },
+  { name: '미래 점검일자 = 1차 점검일(E2E)', cmd: 'npx tsx scripts/test-anchor-future-first.mts', needServer: true },
   // 작업대 스텝바 여정 — 폐지된 test-fire-s2-s3의 실질 승계자. 구 6단계 체크리스트 카드가
   // **제거됐다는 것을 음성으로 단언**한다(:110·:183). 살아 있는데 미등재였다.
   { name: '작업대 스텝바 여정(E2E)',   cmd: 'npx tsx scripts/test-h28-journey-stepper.mts',  needServer: true },

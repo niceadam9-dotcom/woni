@@ -118,6 +118,55 @@ export async function applyPastAnchorInspection(
   return { applied: true, inspectionId: started.inspectionId }
 }
 
+/** 미래 점검일자를 **1차 회차의 점검일**로 그대로 기록 — 시작은 하지 않는다 (2026-10-07 사용자 확정 「가 + ①」).
+ *
+ *  🚨 사용자 신고: 달력 10월 9일(한글날) [+]로 고객 「10월9일」을 등록했는데 10월 7일에 잡혔다.
+ *  원인 — 사용승인일(10-05)이 있으면 계획 기준일은 사용승인일이 이긴다(resolveAnchor, 예외 스위치는
+ *  10-06에 폐지). 10-05는 이미 지나 생성기의 「당월 지난 날짜 → 오늘 이후 첫 영업일」 보정으로 10-07이 됐고,
+ *  입력한 점검일자 10-09는 저장만 되고 어디에도 쓰이지 않았다. 과거·오늘 날짜는
+ *  applyPastAnchorInspection이 이미 입력값 그대로 쓰는데 **미래 날짜만 빠져 있었다**.
+ *
+ *  규칙(사용자 확정): 첫 점검 = 사용자가 짚거나 넣은 그 날짜. **공휴일이어도 옮기지 않는다**(①).
+ *  이후 법정 주기(다음 해 등)는 종전대로 사용승인일 축이다 — 1차 회차 하나만 덮는다.
+ *  ⚠ planned_date는 건드리지 않는다 — 법정 자리는 기록으로 남긴다(applyPastAnchorInspection과 같은 모양).
+ *  ⚠ 마감일 산식은 같은 정본(resolveStepDates). 시작은 종전대로 자동 시작 창·[작성 시작]이 맡는다. */
+export async function applyFutureAnchorSchedule(
+  admin: Admin,
+  customerId: string,
+  anchorDate: string,
+): Promise<{ applied: boolean; itemId?: string; error?: string }> {
+  if (!anchorDate || isPastAnchor(anchorDate, todayKst())) return { applied: false }
+
+  // 1차 = 아직 시작 전인 자체점검 중 법정 자리가 가장 이른 것 — 과거 경로와 같은 선택
+  const { data: itemRaw } = await admin
+    .from('inspection_plan_items')
+    .select('id, scheduled_date')
+    .eq('customer_id', customerId)
+    .in('plan_type', ['special_종합', 'special_작동'])
+    .is('inspection_id', null)
+    .order('planned_date', { ascending: true })
+    .limit(1)
+    .maybeSingle()
+  const item = itemRaw as { id: string; scheduled_date: string | null } | null
+  if (!item) return { applied: false, error: '적용할 자체점검 회차가 없습니다.' }
+  if (item.scheduled_date === anchorDate) return { applied: false, itemId: item.id }
+
+  const { dates, error: stepErr } = await resolveStepDates(admin, anchorDate)
+  if (stepErr || !dates) return { applied: false, error: stepErr ?? '공휴일 조회에 실패했습니다.' }
+
+  const { error: updErr } = await admin
+    .from('inspection_plan_items')
+    .update({
+      scheduled_date: anchorDate,
+      status: 'confirmed',
+      step1_date: dates[0], step2_date: dates[1], step3_date: dates[2],
+      step4_date: dates[3], step5_date: dates[4], step6_date: dates[5],
+    } as Record<string, unknown>)
+    .eq('id', item.id)
+  if (updErr) return { applied: false, error: updErr.message }
+  return { applied: true, itemId: item.id }
+}
+
 /** 점검 시작 코어 — plan_item → inspections 생성 (권한 검사 없음 — 호출자가 보장).
  *  호출처: [시작] 버튼·확정 자동 시작(자체점검 special_* — 일반관리 포함)·당일 자동 시작 크론(정기). */
 export async function startInspectionCore(

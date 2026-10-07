@@ -8,7 +8,7 @@ import { customerNameDupKey } from '@/lib/customer-dup'
 import { fetchAllRows } from '@/lib/supabase/paginate'
 import { resolveFireStation } from '@/lib/fire-station'
 import { generateRollingPlanItems, loadAnchorDates, loadAnchorManualFlag } from '@/lib/inspection-plan-generator'
-import { applyPastAnchorInspection } from '@/lib/inspection-start'
+import { applyPastAnchorInspection, applyFutureAnchorSchedule } from '@/lib/inspection-start'
 // `anchorChanged`는 이 파일의 지역 변수명과 겹쳐 별칭으로 들여온다(변수를 함수로 덮으면 조용히 항상-false가 된다)
 import { anchorChanged as anchorChangedFn } from '@/lib/plan-anchor'
 import { recalcIsInitialForCustomer } from '@/lib/inspection-initial'
@@ -440,6 +440,13 @@ async function _autoCreatePlanItemsForNewCustomer(
     // 등록 자체는 성립했으므로 실패로 되돌리지 않는다 — 다만 조용히 삼키면 같은 신고가
     // 재발하므로 서버 로그에 남긴다(이 경우 회차는 법정 자리로 남고 크론 창 안이면 자동 시작).
     console.error('[신규등록] 과거 점검일자 즉시 시작 실패:', applied.error)
+  }
+  // 🚨 미래 점검일자 = 1차 회차의 점검일 그대로(2026-10-07 사용자 확정 — 「10월9일」 신고).
+  // 종전엔 사용승인일이 있으면 법정 축이 날짜를 정해 입력값(달력에서 짚은 날)이 버려졌다.
+  // 공휴일이어도 옮기지 않는다. 이후 주기는 사용승인일 축 그대로.
+  if (!applied.applied) {
+    const fut = await applyFutureAnchorSchedule(admin, customerId, info.plan_anchor_date)
+    if (fut.error) console.error('[신규등록] 미래 점검일자 1차 반영 실패:', fut.error)
   }
   /* 🚨 2026-09-22 — 종전엔 `applied.applied === false`를 **버렸다**. 달력에서 등록하면
      사용자가 미래 날짜를 고를 수 있고, 그때는 계획 항목만 생기고 단계는 안 생긴다.
