@@ -63,6 +63,8 @@ try {
     await page.locator('input[placeholder="주소 검색 시 자동입력 또는 직접 입력"]').fill(name)
     await page.locator('#new-use-approval').fill('2020-01-01')
     await page.locator('[id="contact-대표-name"]').fill('테스트대표')
+    // 2026-10-07 「직위가 안 보여」 — 직위 칸이 있고, 등록하면 저장까지 간다(아래 A에서 DB로 확인)
+    await page.locator('[id="contact-대표-position"]').fill('소방안전관리자')
     const submit = via === 'save'
       ? page.locator('[data-testid="new-submit-save"]')
       : page.locator('[data-testid="new-submit-continue"]')
@@ -136,6 +138,11 @@ try {
 
     const cid = await fillAndSubmit('A', `E2E-RT-${STAMP}-패널`, 'save')
     check('A 고객이 만들어졌다', !!cid)
+    if (cid) {
+      const { data: ct } = await db.from('customer_contacts').select('name, position').eq('customer_id', cid)
+      const rep = (ct ?? []).find(c => c.name === '테스트대표') as { position?: string | null } | undefined
+      check('★★ A 등록 폼에서 친 관계인 직위가 저장된다', rep?.position === '소방안전관리자', JSON.stringify(ct))
+    }
     check('★ A 등록 뒤 달력으로 돌아왔다', new URL(page.url()).pathname === '/inspections/calendar', page.url())
     check('★ A 복귀 주소가 day를 들고 있다', qs().get('day') === D, page.url())
     check('★ A 복귀 주소가 new=(방금 등록한 고객)를 들고 있다', !!cid && qs().get('new') === cid, page.url())
