@@ -55,9 +55,8 @@ import { getSheets } from '@/lib/sheet-catalog'
 import { EquipmentExpiryBadge } from '@/components/customers/equipment-expiry-badge'
 import { Suspense } from 'react'
 import { CustomerTabs, type CustomerTabDef } from '@/components/customers/customer-tabs'
-import { OnboardingStrip } from '@/components/customers/onboarding-strip'
 import {
-  buildingsDone, contactsDone, nextOnboardingTab, onboardingSteps, onboardingHint, onboardingComplete, ONBOARDING_ORDER,
+  buildingsDone, contactsDone, nextOnboardingTab, ONBOARDING_ORDER,
 } from '@/lib/onboarding-steps'
 import { RecordRecentCustomer } from '@/components/customers/recent-customers-strip'
 import { BuildingListPanel, type BuildingPanelRow } from '@/components/customers/building-inline-panel'
@@ -470,11 +469,10 @@ export default async function CustomerDetailPage({
   // `new=`를 실어 돌려보낸다 — 달력이 방금 등록한 고객을 강조한다.
   // 등록 폼의 [상세정보 입력](`seq=1`)도 차례 모드다(2026-10-06 사용자 요청: 「기본정보→건물정보→관계인→
   // 소방계획서 이어서」) — 고객 목록에서 시작했으면 끝의 [완료]가 상세 기본정보로 돌아온다(띠 없이).
+  // ⚠ 2026-10-07 사용자 요청으로 진행 띠(단계 칩·[다음]·[완료])는 화면에서 뺐다 — 남는 것은 **첫 탭 고르기**뿐
+  //   (차례 모드면 건물정보부터). 달력 복귀는 머리의 「점검달력으로 돌아가기」가 맡는다.
   const fromCalendar = returnHref.startsWith('/inspections/calendar')
   const onboardingSequence = onboardingActive && (fromCalendar || seq === '1')
-  const sequenceDoneHref = !onboardingSequence ? ''
-    : fromCalendar ? `${returnHref}${returnHref.includes('?') ? '&' : '?'}new=${customer.id}`
-    : `/customers/${customer.id}`
   const effectiveTab = onboardingActive && !initialTab ? (onboardingSequence ? ONBOARDING_ORDER[0] : obNext) : resolvedTab
 
   // ── §6-E: 지역 기반 담당 추천 — 같은 시군구+읍면 고객들의 최빈 담당 (미배정일 때만, 물결 B에서 조회) ──
@@ -1193,19 +1191,7 @@ export default async function CustomerDetailPage({
       <CustomerTabs
         initialTab={effectiveTab}
         tabs={tabDefs}
-        banner={onboardingActive ? (
-          <OnboardingStrip
-            steps={onboardingSteps(obState)}
-            hint={onboardingHint(obNext, buildings)}
-            next={obNext}
-            complete={onboardingComplete(obState)}
-            sequence={onboardingSequence ? {
-              doneHref: sequenceDoneHref, doneLabel: fromCalendar ? undefined : '완료', state: obState,
-              // 판정에 쓰는 세 칸만 — 건물 행 전체를 클라이언트로 싣지 않는다
-              buildings: buildings.map(b => ({ is_active: b.is_active, purpose: b.purpose, total_area: b.total_area })),
-            } : undefined}
-          />
-        ) : undefined}
+        // 진행 띠(OnboardingStrip)는 2026-10-07 사용자 요청으로 폐지 — banner 없음
         // 보고서 입력 다섯 탭은 맨 위에 「이 탭에서 채울 칸」 목록을 얹는다(2026-09-23 — report-gaps.tsx)
         panels={{
           info: <><ReportGapsStrip tabKey="info" />{infoTab}</>,

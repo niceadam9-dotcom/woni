@@ -150,12 +150,13 @@ console.log('\n── 5) 배선 — 규칙이 한 벌인가, 그리고 차단이
     '🎯 ?tab=을 명시하면 사용자 지정이 이긴다(온보딩이 덮어쓰지 않는다) — 차례 모드는 건물부터, 기본은 첫 미완')
   ok(/const onboardingSequence = onboardingActive && \(fromCalendar \|\| seq === '1'\)/.test(page),
     '🎯 차례 모드 = 달력에서 시작한 등록 **또는** 등록 폼 [상세정보 입력](seq=1) — 그 밖(onboarding=1만)은 종전(첫 미완)대로')
-  ok(/const fromCalendar = returnHref\.startsWith\('\/inspections\/calendar'\)/.test(page)
-    && /fromCalendar \? `\$\{returnHref\}[^`]*new=\$\{customer\.id\}`\s*: `\/customers\/\$\{customer\.id\}`/.test(page),
-    '🎯 끝의 [완료]는 달력에서 왔으면 달력(new=), 아니면 상세 기본정보(띠 없이)로')
-  ok(/doneLabel: fromCalendar \? undefined : '완료'/.test(page), '고객 목록에서 시작했으면 버튼 글자는 「완료」(달력 문구가 아니다)')
+  // 2026-10-07 사용자 요청으로 진행 띠(단계 칩·[다음]·[완료]) 화면에서 폐지 — 남는 것은 첫 탭 고르기뿐
+  ok(/const fromCalendar = returnHref\.startsWith\('\/inspections\/calendar'\)/.test(page),
+    '차례 모드 판정에 달력 출발 여부가 들어간다')
+  ok(!/<OnboardingStrip\b/.test(page) && !/from '@\/components\/customers\/onboarding-strip'/.test(page),
+    '🎯 상세 화면에 진행 띠를 그리지 않는다 (사용자 폐지 2026-10-07)')
   ok(/initialTab=\{effectiveTab\}/.test(page), '탭 셸이 그 값을 받는다')
-  ok(/const onboardingActive = onboarding === '1'/.test(page), '띠는 ?onboarding=1일 때만')
+  ok(/const onboardingActive = onboarding === '1'/.test(page), '첫 탭 고르기는 ?onboarding=1일 때만')
 
   /* ② 차단이 아니다 — 사용자 확정. 탭 버튼에 disabled가 붙으면 96.7%가 잠긴다. */
   const shell = src('components/customers/customer-tabs.tsx')
@@ -206,7 +207,9 @@ console.log('\n── 6) 차례 모드 — 건너뛰지 않고 지금 칸의 다
   ok(/건너뛰고 /.test(strip), '빈 칸에서 넘어가면 문구가 「건너뛰고」를 붙인다')
   ok(/data-testid="onboarding-done"/.test(strip) && /완료 · 달력으로/.test(strip), '🎯 끝에서 [완료 · 달력으로]')
   const page = readFileSync(path.join(process.cwd(), 'src/app/(dashboard)/customers/[id]/page.tsx'), 'utf8')
-  ok(/new=\$\{customer\.id\}/.test(page), '🎯 완료 링크가 달력에 new=를 실어 보낸다(달력이 방금 등록한 고객을 강조)')
+  // 띠 폐지(2026-10-07)로 [완료] 링크도 상세 화면에서 사라졌다 — 달력 복귀는 머리의 「점검달력으로 돌아가기」
+  ok(!/new=\$\{customer\.id\}/.test(page) && /customer-return-calendar/.test(page),
+    '🎯 완료 링크 없음 — 달력 복귀는 머리 버튼(customer-return-calendar)')
 }
 
 console.log(`\n결과: ${pass} 통과 / ${fail} 실패`)

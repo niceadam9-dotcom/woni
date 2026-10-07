@@ -53,23 +53,12 @@ try {
   // ── ① 미완 고객: 띠가 뜨고 건물정보에서 시작 ──
   await page.goto(`${BASE}/customers/${incomplete.id}?created=1&onboarding=1`)
   check('전제: 탭 목록이 렌더됐다', await waitTabs())
-  check('🎯 띠가 뜬다', (await page.locator('[data-testid="onboarding-strip"]').count()) === 1)
+  // 2026-10-07 사용자 요청으로 진행 띠(단계 칩·[다음]·[완료]) 폐지 — 첫 탭 고르기만 남는다
+  check('🎯 진행 띠가 없다 (사용자 폐지 2026-10-07)', (await page.locator('[data-testid="onboarding-strip"]').count()) === 0)
   const t1 = await activeTab()
   // 🚨 기댓값에서 가운뎃점을 빼지 말 것 — 위 정규화는 `·`(U+00B7)를 안 걷는다(문자클래스의 `.`은 리터럴).
   //    처음에 '건물시설'로 적어 **제품이 맞는데 빨갛게** 떴다. 계측기부터 의심할 것.
   check('🎯 첫 미완 탭(건물정보)에서 시작한다 — 종전엔 소방계획서로 직행했다', t1 === '건물정보', t1)
-  // 2026-10-06 사용자 「안내닫기, 안내 만들필요없어」 — 안내 문구·[안내 닫기] 폐지(단계 칩·[다음]만)
-  check('🎯 안내 문구·[안내 닫기]가 없다',
-    (await page.locator('[data-testid="onboarding-hint"], [data-testid="onboarding-dismiss"]').count()) === 0)
-  const cur = await page.locator('[data-testid="onboarding-step-buildings"]').getAttribute('data-state')
-  check('띠의 「지금」이 건물정보', cur === 'current', String(cur))
-  check('기본정보는 ✓', (await page.locator('[data-testid="onboarding-step-info"]').getAttribute('data-state')) === 'done')
-
-  // ── ② [다음]이 화면을 실제로 옮기는가 ──
-  await page.locator('[data-testid="onboarding-next"]').click()
-  await new Promise(r => setTimeout(r, 1200))
-  const t2 = await activeTab()
-  check('🎯 [다음]이 화면을 실제로 옮긴다(URL만이 아니다)', t2 === '건물시설' || t2.length > 0, t2)
 
   // ── ③ 차단이 아닌가 — 소방계획서 탭을 직접 누를 수 있어야 한다 ──
   const planTab = page.locator('[role="tab"]', { hasText: '소방계획서' }).first()
@@ -79,7 +68,6 @@ try {
   await new Promise(r => setTimeout(r, 1200))
   const t3 = await activeTab()
   check('🎯 직접 누르면 소방계획서로 들어가진다', t3 === '소방계획서', t3)
-  check('들어가도 띠는 그대로 길을 가리킨다', (await page.locator('[data-testid="onboarding-strip"]').count()) === 1)
 
   // ── ④ 완비 고객: 사용자 요청의 후반부 「모두 채워지면 소방계획서로」 ──
   await page.goto(`${BASE}/customers/${complete.id}?created=1&onboarding=1`)

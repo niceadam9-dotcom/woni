@@ -186,34 +186,18 @@ try {
     check('★ B [상세정보 입력]은 고객 상세(차례 모드 띠)로 간다',
       !!cid && new URL(page.url()).pathname === `/customers/${cid}` && qs().get('onboarding') === '1' && qs().get('seq') === '1'
       && (qs().get('from') ?? '').startsWith('/inspections/calendar'), page.url())
-    const strip = page.locator('[data-testid="onboarding-strip"]')
-    const stripUp = await strip.waitFor({ timeout: 60000 }).then(() => true).catch(() => false)
-    if (!stripUp && process.env.PROBE_SHOT) await page.screenshot({ path: process.env.PROBE_SHOT, fullPage: false })
-    if (!stripUp) throw new Error(`B 진행 띠가 안 떴다 — URL=${page.url()}`)
-    check('★ B 띠가 차례 모드다', (await strip.getAttribute('data-mode')) === 'sequence')
-    const cur = async () => page.locator('[data-testid="onboarding-strip"] [data-state="current"]').getAttribute('data-testid').catch(() => '')
+    // 2026-10-07 사용자 요청으로 진행 띠(단계 칩·[다음]·[완료]) 폐지 — 건물정보 탭에서 열리고, 탭은 직접 누른다.
+    //   달력 복귀는 머리의 「점검달력으로 돌아가기」(customer-return-calendar).
     const sel = async () => (await page.locator('[role="tab"][aria-selected="true"]').first().innerText()).trim()
-    check('★ B 1번째: 건물정보 탭이 열린다', (await cur()) === 'onboarding-step-buildings' && (await sel()).startsWith('건물'), `${await cur()} / ${await sel()}`)
+    await page.locator('[role="tab"][aria-selected="true"]').first().waitFor({ timeout: 60000 })
+    check('★ B 건물정보 탭에서 열린다', (await sel()).startsWith('건물'), await sel())
+    check('★ B 진행 띠가 없다 (사용자 폐지 2026-10-07)', (await page.locator('[data-testid="onboarding-strip"]').count()) === 0)
     check('B 저장 직전 주 버튼 문구 = 「저장 후 상세정보 입력」', lastContinueLabel === '저장 후 상세정보 입력', lastContinueLabel)
-    const nextBtn = page.locator('[data-testid="onboarding-next"]')
-    check('B 건물 용도가 비었으니 「건너뛰고 다음: 관계인」', /건너뛰고 다음: 관계인/.test(await nextBtn.innerText()), await nextBtn.innerText())
-    await nextBtn.click()
-    await page.waitForFunction(() => document.querySelector('[data-testid="onboarding-strip"] [data-state="current"]')?.getAttribute('data-testid') === 'onboarding-step-contacts', undefined, { timeout: 15000 }).catch(() => null)
-    check('★★ B 2번째: 관계인을 **건너뛰지 않는다** (등록 때 찼어도 들른다)',
-      (await cur()) === 'onboarding-step-contacts' && (await sel()).startsWith('관계인'), `${await cur()} / ${await sel()}`)
-    check('B 관계인은 찼으니 「다음: 소방계획서」(건너뛰고 없음)', /^다음: 소방계획서/.test((await nextBtn.innerText()).trim()), await nextBtn.innerText())
-    await nextBtn.click()
-    await page.waitForFunction(() => document.querySelector('[data-testid="onboarding-strip"] [data-state="current"]')?.getAttribute('data-testid') === 'onboarding-step-plan', undefined, { timeout: 15000 }).catch(() => null)
-    check('★ B 3번째: 소방계획서', (await cur()) === 'onboarding-step-plan', `${await cur()} / ${await sel()}`)
-    // ⚠ 기다리지 않고 **바로** 누른다 — 소방계획서 탭이 서버를 왕복하는 동안 떠나도 이동이 서야 한다
-    //   (Link였을 땐 여기서 관계인 탭으로 되돌아앉았다 — 2026-10-06, 5초 기다리면 통과하던 경합)
-    const done = page.locator('[data-testid="onboarding-done"]')
-    check('★ B 끝에서 [완료 · 달력으로]가 뜬다', (await done.count()) === 1 && (await nextBtn.count()) === 0)
-    await done.click()
+    const back = page.locator('[data-testid="customer-return-calendar"]')
+    check('★ B 머리에 「점검달력으로 돌아가기」가 있다', (await back.count()) === 1)
+    await back.click()
     await page.waitForURL(u => u.pathname === '/inspections/calendar', { timeout: 90000 })
-    check('★ B [완료 · 달력으로]로 달력에 돌아왔다', new URL(page.url()).pathname === '/inspections/calendar', page.url())
-    check('★ B 돌아온 주소가 new=를 들고 있고 띠가 뜬다', qs().get('new') === cid
-      && await page.locator('[data-testid="cal-new-customer"]').waitFor({ timeout: 60000 }).then(() => true).catch(() => false), page.url())
+    check('★ B 달력으로 돌아왔다', new URL(page.url()).pathname === '/inspections/calendar', page.url())
     await page.locator('[data-testid="calendar-new-customer"]').waitFor()
     check('★ B 사이드바는 **열리지 않는다** (패널에서 온 게 아니다)',
       (await page.locator('[data-testid="daypanel-new-customer"]').count()) === 0 && !qs().get('day'), page.url())
@@ -263,24 +247,11 @@ try {
     check('D 고객이 만들어졌다', !!cid)
     check('★ D from이 없어도 [상세정보 입력]은 고객 상세(차례 모드)로 간다',
       !!cid && new URL(page.url()).pathname === `/customers/${cid}` && qs().get('created') === '1' && qs().get('seq') === '1', page.url())
-    const strip = page.locator('[data-testid="onboarding-strip"]')
-    const stripUp = await strip.waitFor({ timeout: 60000 }).then(() => true).catch(() => false)
-    check('★ D 띠가 차례 모드다 (달력 밖에서 시작해도)', stripUp && (await strip.getAttribute('data-mode')) === 'sequence')
-    const nextBtn = page.locator('[data-testid="onboarding-next"]')
-    for (let i = 0; i < 2 && stripUp && await nextBtn.count(); i++) {
-      const before = await page.locator('[data-testid="onboarding-strip"] [data-state="current"]').getAttribute('data-testid')
-      await nextBtn.click()
-      await page.waitForFunction(b => document.querySelector('[data-testid="onboarding-strip"] [data-state="current"]')?.getAttribute('data-testid') !== b, before, { timeout: 15000 }).catch(() => null)
-    }
-    const done = page.locator('[data-testid="onboarding-done"]')
-    check('★ D 끝 버튼은 「완료」 (달력 문구 아님)', (await done.count()) === 1 && (await done.innerText()).trim() === '완료',
-      (await done.innerText().catch(() => '')).trim())
-    if (await done.count()) {
-      await done.click()
-      await page.waitForURL(u => !u.search.includes('onboarding'), { timeout: 90000 }).catch(() => null)
-      check('★ D [완료]는 상세 기본정보로 (띠 없이)', !!cid && new URL(page.url()).pathname === `/customers/${cid}`
-        && !qs().get('onboarding') && (await page.locator('[data-testid="onboarding-strip"]').count()) === 0, page.url())
-    }
+    // 진행 띠 폐지(2026-10-07) — 건물정보 탭에서 열리고 띠는 없다
+    await page.locator('[role="tab"][aria-selected="true"]').first().waitFor({ timeout: 60000 })
+    const selD = (await page.locator('[role="tab"][aria-selected="true"]').first().innerText()).trim()
+    check('★ D 건물정보 탭에서 열리고 진행 띠는 없다', selD.startsWith('건물')
+      && (await page.locator('[data-testid="onboarding-strip"]').count()) === 0, selD)
   }
 
   // ── 갈래 E — [저장]: from 없이 → 달력, 점검일자 날짜 사이드바 (2026-10-06 「저장 후 달력」) ──
