@@ -264,6 +264,8 @@ export async function createCustomerAction(
         name: c.name.trim(),
         phone: c.phone?.trim() || null,
         email: c.email?.trim() || null,
+        // 직위 — 등록 폼에도 칸이 생겼다(2026-10-07). 종전엔 여기서 버려져 상세 관계인 탭에서 다시 쳐야 했다
+        position: c.position?.trim() || null,
         // 대표만 기본 수신(2026-08-19 사용자 확정) — 전원을 켜면 정기 고객은 연 12회 × 인원수로
         // 문자량이 몇 배가 된다. 대표 1명은 종전 폴백과 결과가 같아 비용이 늘지 않는다.
         ...(c.role === '대표' ? { sms_recipient: true } : {}),

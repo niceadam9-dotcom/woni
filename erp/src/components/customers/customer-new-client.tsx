@@ -29,8 +29,9 @@ const segOnCls = 'bg-brand text-white'
 const segOffCls = 'bg-surface text-ink-sub hover:bg-brand-tint'
 
 type Employee = { id: string; name: string; position: string | null }
-type ContactForm = { name: string; phone: string; email: string }
-const emptyContact = (): ContactForm => ({ name: '', phone: '', email: '' })
+// position = 직위(보고서 공문·위임장에 실린다) — 2026-10-07 사용자 「직위가 안 보여」로 등록 폼에도 칸을 냈다
+type ContactForm = { name: string; position: string; phone: string; email: string }
+const emptyContact = (): ContactForm => ({ name: '', position: '', phone: '', email: '' })
 
 export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = [], initialAnchorDate = '', returnHref = '' }: {
   employees: Employee[]
@@ -421,6 +422,7 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
         name: c.name.trim(),
         phone: c.phone.trim() || undefined,
         email: c.email.trim() || undefined,
+        position: c.position.trim() || undefined,
       }))
 
     startTransition(async () => {
@@ -759,6 +761,16 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
               className={`${inputCls} ${need(reqOf('관계인')) ? emptyRequiredCls : ''}`}
             />
           </Cell>
+          {/* 직위 — 보고서 공문·위임장에 실린다. 이름 바로 옆(사람 → 자리 → 연락 순). 2026-10-07 사용자 「직위가 안 보여」 */}
+          <Cell label="직위" htmlFor="contact-대표-position">
+            <input
+              id="contact-대표-position"
+              value={contacts['대표'].position}
+              onChange={e => setContact('대표', 'position', e.target.value)}
+              placeholder="예: 소방안전관리자"
+              className={inputCls}
+            />
+          </Cell>
           <Cell label="연락처">
             <div className="relative">
               <Phone className="absolute left-3 top-1/2 -translate-y-1/2 size-3 text-ink-faint" />
@@ -772,7 +784,7 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
               />
             </div>
           </Cell>
-          <Cell span={2} label="이메일">
+          <Cell label="이메일">
             <div className="relative">
               <Mail className="absolute left-3 top-1/2 -translate-y-1/2 size-3 text-ink-faint" />
               <input
@@ -797,6 +809,15 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
                 className={inputCls}
               />
             </Cell>
+            <Cell label="직위" htmlFor={`contact-${role}-position`}>
+              <input
+                id={`contact-${role}-position`}
+                value={contacts[role].position}
+                onChange={e => setContact(role, 'position', e.target.value)}
+                placeholder="예: 관리소장"
+                className={inputCls}
+              />
+            </Cell>
             <Cell label="연락처">
               <input
                 value={contacts[role].phone}
@@ -807,7 +828,7 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
                 className={inputCls}
               />
             </Cell>
-            <Cell span={2} label="이메일">
+            <Cell label="이메일">
               <div className="flex items-center gap-2">
                 <input
                   type="email"
@@ -820,7 +841,7 @@ export function CustomerNewClient({ employees, defaultRegionSi = '', purposes = 
                 <button
                   type="button"
                   onClick={() => {
-                    setContact(role, 'name', ''); setContact(role, 'phone', ''); setContact(role, 'email', '')
+                    setContact(role, 'name', ''); setContact(role, 'position', ''); setContact(role, 'phone', ''); setContact(role, 'email', '')
                     setVisibleContactRoles(prev => prev.filter(r => r !== role))
                   }}
                   className="shrink-0 text-ink-meta hover:text-red-500 transition-colors p-1"

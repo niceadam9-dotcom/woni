@@ -78,6 +78,18 @@ console.log('\n— ② 등록 화면 = 세 그룹 상자, 이 순서')
   ok('★ 메모(비고) 칸이 없다 — 상세 기본정보 탭에서 입력 (사용자 폐지 2026-10-06)', !/id="new-notes"/.test(jsx))
   ok('★ 점검유형이 기준일 줄 안 — 「점검」 줄이 따로 없다(한 줄 절약)',
     subRowOf(jsx, 'name="inspection_category"') === subRowOf(jsx, 'id="new-anchor-date"') && !/<SubRow label="점검">/.test(jsx))
+  // 2026-10-07 사용자 「직위가 안 보여」 — 관계인 줄 = 이름 | 직위 | 연락처 | 이메일, 그리고 **저장까지** 간다
+  //   (종전엔 ContactInput에 position이 있었는데 등록 액션 insert가 버려 상세 탭에서 다시 쳐야 했다)
+  ok('★ 관계인 줄에 직위 칸이 이름 바로 뒤에 있다 (같은 줄)', () => {
+    const a = jsx.indexOf('id="contact-대표-name"'), b = jsx.indexOf('id="contact-대표-position"'), c = jsx.indexOf('aria-label="관계인 연락처"')
+    return a > 0 && b > a && c > b && subRowOf(jsx, 'id="contact-대표-name"') === subRowOf(jsx, 'id="contact-대표-position"')
+  })
+  ok('★ 등록 액션이 관계인 직위를 저장한다', () => {
+    const act = read('../src/app/(dashboard)/customers/actions.ts')
+    const i = act.indexOf("admin.from('customer_contacts').insert(")
+    return i > 0 && /position: c\.position\?\.trim\(\) \|\| null/.test(act.slice(i, i + 900))
+      && /position: c\.position\.trim\(\) \|\| undefined/.test(src)
+  })
   ok('★ 첫 줄 = 고객명 | 담당직원 (같은 소그룹 줄)', () => {
     const a = jsx.indexOf('id="new-customer-name"'), b = jsx.indexOf('id="new-assignee"')
     return a > 0 && b > a && !jsx.slice(a, b).includes('<SubRow')
